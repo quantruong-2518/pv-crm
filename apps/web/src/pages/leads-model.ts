@@ -5,7 +5,9 @@ import {
   type LeadFacets,
   type LeadStateFilter,
 } from '@pv/contracts'
-import { LEAD_STATE_FACE, isOpenState } from '@/data/lead-state'
+import { message, type Message } from '@/app/i18n'
+import { LEAD_COPY } from '@/data/lead-copy'
+import { isOpenState } from '@/data/lead-state'
 
 /** Module 2 · the lead book's state tabs, filter keys and header names, without JSX — split
  *  from `leads.tsx`.
@@ -20,11 +22,11 @@ import { LEAD_STATE_FACE, isOpenState } from '@/data/lead-state'
 
 export type StateTab = 'active' | 'held' | 'converted' | 'all'
 
-export const STATE_TABS: { key: StateTab; label: string }[] = [
-  { key: 'all', label: 'Tất cả' },
-  { key: 'converted', label: LEAD_STATE_FACE.converted.label },
-  { key: 'active', label: 'Đang hoạt động' },
-  { key: 'held', label: 'Tạm hoãn' },
+export const STATE_TABS: { key: StateTab; label: Message }[] = [
+  { key: 'all', label: LEAD_COPY.all },
+  { key: 'converted', label: LEAD_COPY.converted },
+  { key: 'active', label: LEAD_COPY.active },
+  { key: 'held', label: LEAD_COPY.held },
 ]
 
 /** What a tab press writes. The pinned and switched-off toggles are left as
@@ -79,10 +81,10 @@ export const LEAD_FILTER_KEYS = [
 
 /** Header names double as filter titles, so the two can never disagree. */
 export const LEAD_HEADER = {
-  source: 'Nguồn lead',
-  status: 'Trạng thái',
-  created: 'Ngày tạo',
-  creator: 'Người tạo',
-  owner: 'Người phụ trách',
-  industry: 'Ngành',
+  source: message('Nguồn lead', 'Lead source', '리드 유입 경로'),
+  status: message('Trạng thái', 'Status', '상태'),
+  created: message('Ngày tạo', 'Created', '생성일'),
+  creator: message('Người tạo', 'Created by', '생성자'),
+  owner: message('Người phụ trách', 'Owner', '담당자'),
+  industry: message('Ngành', 'Industry', '업종'),
 } as const

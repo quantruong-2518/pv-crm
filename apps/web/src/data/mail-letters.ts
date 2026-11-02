@@ -23,6 +23,7 @@ import { api, isApiError, userMessage, type ApiError, type ApiNeed } from '@/app
 import { useCan, useSession } from '@/app/auth'
 import { untilPushed } from '@/app/query-client'
 import { toast } from '@/app/toast'
+import { message, translate, useI18n } from '@/app/i18n'
 import { accountProfileQuery } from '@/data/accounts'
 import { leadContactsQuery } from '@/data/contacts'
 import { leadProfileQuery } from '@/data/lead-profile'
@@ -172,10 +173,17 @@ function useSettledPost<T>(path: string, body: object | null, fallback: string) 
 /** Who of these To contacts would receive the letter — `null` while the To
  *  list is empty, which is not a question worth a round trip. */
 export function useLetterPreflight(body: MailGroupPreflightRequest | null) {
+  const { t } = useI18n()
   const answer = useSettledPost<MailGroupPreflightResponse>(
     '/sales/mail/letters/preflight',
     body,
-    'Không kiểm tra được người nhận.',
+    t(
+      message(
+        'Không kiểm tra được người nhận.',
+        'Could not check the recipients.',
+        '받는 사람을 확인하지 못했습니다.',
+      ),
+    ),
   )
   return {
     report: answer.value,
@@ -190,10 +198,17 @@ export function useLetterPreflight(body: MailGroupPreflightRequest | null) {
 
 /** The letter as the server renders it, `{{contactName}}` from the first To. */
 export function useLetterPreview(body: MailGroupPreviewRequest | null) {
+  const { t } = useI18n()
   const answer = useSettledPost<MasPreviewResponse>(
     '/sales/mail/letters/preview',
     body,
-    'Không dựng được bản xem trước.',
+    t(
+      message(
+        'Không dựng được bản xem trước.',
+        'Could not build the preview.',
+        '미리보기를 만들지 못했습니다.',
+      ),
+    ),
   )
   /* The envelope names a mailbox: an answer for the other mailbox must not
      stand in after the choice is toggled. */
@@ -225,7 +240,23 @@ function watchLetterSent(client: QueryClient, door: MailSubjectKind, code: strin
     const row = answer?.rows.find((r) => r.runId === runId)
     if (row && SENT_STATES.has(row.state)) {
       const first = row.to[0]
-      toast(`Đã gửi email tới ${first?.name ?? first?.email ?? 'người nhận'}`, { tone: 'success' })
+      const who = first?.name ?? first?.email
+      toast(
+        translate(
+          who
+            ? message(
+                `Đã gửi email tới ${who}`,
+                `Email sent to ${who}`,
+                `${who}님에게 이메일을 보냈습니다`,
+              )
+            : message(
+                'Đã gửi email tới người nhận',
+                'Email sent to the recipient',
+                '받는 사람에게 이메일을 보냈습니다',
+              ),
+        ),
+        { tone: 'success' },
+      )
     } else if ((!row || row.state === 'SENDING') && Date.now() < stop) {
       setTimeout(() => void look(), WATCH_EVERY_MS)
     }

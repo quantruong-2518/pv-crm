@@ -132,7 +132,7 @@ function QuickActions({
       {canDeal && (
         <QuickAction
           icon={Plus}
-          label={t(message('Tạo cơ hội', 'Create opportunity', '영업 기회 만들기'))}
+          label={t(message('Tạo cơ hội', 'Create opportunity', '기회 만들기'))}
           primary={!canLead}
           onClick={() => navigate('/sales/opportunities/new')}
         />
@@ -354,7 +354,7 @@ export function HomePage() {
       message(
         'Tìm khách hàng, lead, cơ hội, hợp đồng…',
         'Search customers, leads, opportunities, and contracts…',
-        '고객, 리드, 영업 기회, 계약 검색…',
+        '고객, 리드, 기회, 계약 검색…',
       ),
     ),
   })
@@ -388,7 +388,7 @@ export function HomePage() {
 
   const hidden = [
     !canCharts && t(message('số liệu hiệu suất', 'performance metrics', '성과 지표')),
-    !canRuns && t(message('hành trình', 'workstreams', '워크스트림')),
+    !canRuns && t(message('hành trình', 'workstreams', '영업 건')),
   ].filter(Boolean)
 
   const runsTile = (className: string) =>

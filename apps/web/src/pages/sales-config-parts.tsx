@@ -11,9 +11,11 @@ import {
 } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { message, useI18n, type Message } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import { useMyConfigProposals } from '@/data/sales-config'
-import { motionLabelOf, salesMotionsQuery, useProposeMotion } from '@/data/sales-motions'
+import { leadMotionLabel } from '@/data/sales-labels-i18n'
+import { salesMotionsQuery, useProposeMotion } from '@/data/sales-motions'
 import {
   MOTION_LINE,
   MOTION_NAME,
@@ -40,6 +42,7 @@ import { sentCopy } from './sales-config-copy'
  *  an invented placeholder would be read as agreed policy a month later.
  *  Clearing a box sends `null`, which un-declares the field. */
 export function MotionSection() {
+  const { t } = useI18n()
   const { data: rows, isPending, error, refetch } = useQuery(salesMotionsQuery())
 
   if (isPending) return <Skeleton className="h-64" />
@@ -50,11 +53,12 @@ export function MotionSection() {
         tone="danger"
         icon={TriangleAlert}
         message={
-          isApiError(error)
-            ? `Không tải được hạn liên hệ. ${userMessage(error)}`
-            : 'Không tải được hạn liên hệ.'
+          isApiError(error) ? `${t(COULD_NOT_LOAD)} ${userMessage(error)}` : t(COULD_NOT_LOAD)
         }
-        action={{ label: 'Thử lại', onClick: () => void refetch() }}
+        action={{
+          label: t(message('Thử lại', 'Try again', '다시 시도')),
+          onClick: () => void refetch(),
+        }}
         className="py-12"
       />
     )
@@ -63,7 +67,10 @@ export function MotionSection() {
   /* Law 8 · the six rows are one list on one glass-b. */
   return (
     <GlassCard variant="b" className="flex flex-col gap-2 p-4">
-      <MotionHead cols={POLICY_COLS} labels={['Phương án tiếp cận', FIRST_TOUCH]} />
+      <MotionHead
+        cols={POLICY_COLS}
+        labels={[t(message('Phương án tiếp cận', 'Outreach motion', '접근 방식')), t(FIRST_TOUCH)]}
+      />
       <ul className="flex flex-col gap-2">
         {rows.map((row) => (
           <MotionRow key={row.motion} row={row} />
@@ -76,18 +83,32 @@ export function MotionSection() {
 /** Fractions only — see `PICKER_COLS` in `lead-origins-motions.tsx`. */
 const POLICY_COLS = 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]'
 
-const FIRST_TOUCH = 'Liên hệ lần đầu trong'
+const COULD_NOT_LOAD = message(
+  'Không tải được hạn liên hệ.',
+  'Could not load the contact deadlines.',
+  '연락 기한을 불러오지 못했습니다.',
+)
+
+const FIRST_TOUCH = message('Liên hệ lần đầu trong', 'First contact within', '첫 연락 기한')
+const NOT_SET = message('chưa đặt', 'not set', '미설정')
+
+const UNIT_LABEL: Record<FirstTouchUnit, Message> = {
+  minute: message('phút', 'minutes', '분'),
+  hour: message('giờ', 'hours', '시간'),
+  day: message('ngày', 'days', '일'),
+}
 
 /** The stored deadline in words, for a reader who cannot propose. */
-function firstTouchText(minutes: number | null): string {
-  if (minutes === null) return 'chưa đặt'
+function firstTouchText(minutes: number | null, t: (copy: Message) => string): string {
+  if (minutes === null) return t(NOT_SET)
   const { value, unit } = splitFirstTouch(minutes)
-  return `${value} ${FIRST_TOUCH_UNITS.find((u) => u.unit === unit)?.label ?? ''}`.trim()
+  return `${value} ${t(UNIT_LABEL[unit])}`.trim()
 }
 
 function MotionRow({ row }: { row: MotionPolicy }) {
   /* The route needs only `config.view`; without `config.propose` the row is
      plain text, the same rule `DeadlineBox` follows. */
+  const { t, lang } = useI18n()
   const canPropose = useCan('config.propose')
   const split = row.firstTouchMinutes === null ? null : splitFirstTouch(row.firstTouchMinutes)
 
@@ -95,7 +116,7 @@ function MotionRow({ row }: { row: MotionPolicy }) {
   const [unit, setUnit] = useState<FirstTouchUnit>(split?.unit ?? 'hour')
 
   const propose = useProposeMotion(row.motion)
-  const name = motionLabelOf(row)
+  const name = row.label ?? leadMotionLabel(row.motion, lang)
   const waiting = motionWaiting(useMyConfigProposals(), row.motion)
   /* Sent is not saved: the boxes fall back to the stored row, so the row
      stops saying "not sent" and a second press cannot file a duplicate. */
@@ -119,30 +140,33 @@ function MotionRow({ row }: { row: MotionPolicy }) {
           <span className="text-[12.5px] font-semibold">{name}</span>
         </div>
 
-        <MotionCell label={FIRST_TOUCH}>
+        <MotionCell label={t(FIRST_TOUCH)}>
           {canPropose ? (
             <div className="flex gap-2">
               <Input
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 inputMode="numeric"
-                placeholder="chưa đặt"
+                placeholder={t(NOT_SET)}
                 invalid={bad}
-                aria-label={`${FIRST_TOUCH} — ${name}`}
+                aria-label={`${t(FIRST_TOUCH)} — ${name}`}
                 className="pointer-coarse:h-12 tnum min-w-0 flex-1"
               />
               <Select
-                label={`Đơn vị — ${name}`}
+                label={`${t(message('Đơn vị', 'Unit', '단위'))} — ${name}`}
                 hideLabel
                 className="pointer-coarse:[&>button]:h-12"
                 value={unit}
                 onChange={(v) => setUnit(v as FirstTouchUnit)}
-                options={FIRST_TOUCH_UNITS.map((u) => ({ value: u.unit, label: u.label }))}
+                options={FIRST_TOUCH_UNITS.map((u) => ({
+                  value: u.unit,
+                  label: t(UNIT_LABEL[u.unit]),
+                }))}
               />
             </div>
           ) : (
             <span className="tnum font-num text-[12.5px]">
-              {firstTouchText(row.firstTouchMinutes)}
+              {firstTouchText(row.firstTouchMinutes, t)}
             </span>
           )}
         </MotionCell>

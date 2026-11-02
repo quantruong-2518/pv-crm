@@ -1,6 +1,6 @@
 import type { OpportunityProfileResponse } from '@pv/contracts'
 import { message, useI18n } from '@/app/i18n'
-import { CHANGE_SALE_PRIMARY } from '@/data/opportunities'
+import { CHANGE_SALE_PRIMARY_COPY } from '@/data/opportunities'
 import { QuotationRail } from '@/components/deal-money/quotation-rail'
 import { CommJourney } from '@/components/run/comm-journey'
 import { RunContacts } from '@/components/run/run-contacts'
@@ -39,13 +39,7 @@ export function DealRail({
             ? {
                 [op.code]: {
                   label: op.pendingSign
-                    ? t(
-                        message(
-                          CHANGE_SALE_PRIMARY,
-                          'Change primary salesperson',
-                          '주 담당자 변경',
-                        ),
-                      )
+                    ? t(CHANGE_SALE_PRIMARY_COPY)
                     : op.hasSeller
                       ? t(message('Đổi Sale', 'Change salesperson', '영업 담당자 변경'))
                       : t(message('Giao Sale', 'Assign salesperson', '영업 담당자 지정')),

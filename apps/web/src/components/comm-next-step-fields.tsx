@@ -8,6 +8,7 @@ import {
   type StepTemplateOption,
 } from '@pv/contracts'
 import { dm } from '@/lib/date'
+import { message, useI18n } from '@/app/i18n'
 import { pickedTemplateOf, todayDay, type StepDraft } from '@/data/comm-record-detail'
 import { dayAfter, dueOnPick } from '@/data/next-step'
 import { EmptyFrameNote, FrameUnread, PickedStepLine, TemplateChips } from './run/step-templates'
@@ -36,6 +37,8 @@ export function CommNextStepFields({
   draft: StepDraft
   onDraft: (next: StepDraft) => void
 }) {
+  const { t } = useI18n()
+  const task = t(message('Công việc cụ thể', 'Specific task', '구체적인 업무'))
   const textId = useId()
   const options = frame.data
   const set = (patch: Partial<StepDraft>) => onDraft({ ...draft, ...patch })
@@ -70,14 +73,16 @@ export function CommNextStepFields({
     <div className="flex flex-col gap-6">
       {locked ? (
         <div className="flex flex-col gap-3">
-          <span className={STEP_LABEL}>Công việc cụ thể</span>
+          <span className={STEP_LABEL}>{task}</span>
           <TemplateChips options={options} pickedId={picked?.id} onPick={pick} />
           <PickedStepLine picked={picked} />
         </div>
       ) : (
         <>
           <fieldset className="m-0 min-w-0 p-0">
-            <legend className={`${STEP_LABEL} mb-3`}>Loại việc</legend>
+            <legend className={`${STEP_LABEL} mb-3`}>
+              {t(message('Loại việc', 'Task type', '업무 유형'))}
+            </legend>
             <div className="flex flex-wrap gap-2">
               {kinds.map((k) => (
                 <RadioCard
@@ -94,7 +99,7 @@ export function CommNextStepFields({
           </fieldset>
           <div className="flex flex-col gap-2">
             <label htmlFor={textId} className={STEP_LABEL}>
-              Công việc cụ thể
+              {task}
             </label>
             <Textarea
               id={textId}
@@ -114,12 +119,14 @@ export function CommNextStepFields({
 
 /** The quick picks a person reaches for most; any other day goes through the date box. */
 const DUE_PRESETS = [
-  { days: 1, label: 'Ngày mai' },
-  { days: 3, label: '3 ngày nữa' },
-  { days: 7, label: '1 tuần nữa' },
+  { days: 1, label: message('Ngày mai', 'Tomorrow', '내일') },
+  { days: 3, label: message('3 ngày nữa', 'In 3 days', '3일 후') },
+  { days: 7, label: message('1 tuần nữa', 'In 1 week', '1주 후') },
 ] as const
 
 function DueChoice({ due, onDue }: { due: string; onDue: (due: string) => void }) {
+  const { t } = useI18n()
+  const dueLabel = t(message('Làm trước ngày', 'Do by', '처리 기한'))
   const presets = DUE_PRESETS.map((p) => ({ ...p, day: dayAfter(p.days) }))
   const matched = presets.some((p) => p.day === due)
   const [other, setOther] = useState(false)
@@ -128,7 +135,7 @@ function DueChoice({ due, onDue }: { due: string; onDue: (due: string) => void }
 
   return (
     <fieldset className="m-0 min-w-0 p-0">
-      <legend className={`${STEP_LABEL} mb-3`}>Làm trước ngày</legend>
+      <legend className={`${STEP_LABEL} mb-3`}>{dueLabel}</legend>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {presets.map((p) => (
           <RadioCard
@@ -141,7 +148,7 @@ function DueChoice({ due, onDue }: { due: string; onDue: (due: string) => void }
               onDue(p.day)
             }}
           >
-            {p.label}
+            {t(p.label)}
           </RadioCard>
         ))}
         <RadioCard
@@ -150,7 +157,7 @@ function DueChoice({ due, onDue }: { due: string; onDue: (due: string) => void }
           checked={otherOn}
           onSelect={() => setOther(true)}
         >
-          Chọn ngày khác
+          {t(message('Chọn ngày khác', 'Pick another date', '다른 날짜 선택'))}
         </RadioCard>
       </div>
       {otherOn && (
@@ -158,7 +165,7 @@ function DueChoice({ due, onDue }: { due: string; onDue: (due: string) => void }
           type="date"
           value={due}
           min={todayDay()}
-          aria-label="Làm trước ngày"
+          aria-label={dueLabel}
           className="mt-3 h-12 sm:max-w-60"
           onChange={(e) => onDue(e.target.value)}
         />

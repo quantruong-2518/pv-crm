@@ -5,6 +5,7 @@ import { Avatar, Button, Drawer, Icon, MetaPill, SearchField, cn } from '@pv/ui'
 import type { LeadRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { toast } from '@/app/toast'
 import { fuzzyRank } from '@/lib/fuzzy-rank'
 import { assignDoorOf } from '@/components/assign-door'
@@ -66,6 +67,7 @@ function PersonRow({
   selected: boolean
   onPick: () => void
 }) {
+  const { t } = useI18n()
   return (
     <button
       type="button"
@@ -83,7 +85,9 @@ function PersonRow({
           {tag && <span className="text-muted-foreground ml-2 text-[11px] font-normal">{tag}</span>}
         </span>
         <span className="text-muted-foreground truncate text-[11.5px] leading-[1.5]">
-          {disabled ? 'Đang giữ lead này' : person.role}
+          {disabled
+            ? t(message('Đang giữ lead này', 'Holds this lead', '이 리드를 담당 중'))
+            : person.role}
         </span>
       </span>
       {(selected || disabled) && <Icon icon={Check} size={16} />}
@@ -103,6 +107,7 @@ export function AssignMenu({
   onOpenChange,
   trigger = true,
 }: MenuProps) {
+  const { t, lang } = useI18n()
   const me = useSession((s) => s.actor)
   const mayAssign = useCan('lead.assign')
   const staff = useDirectory()
@@ -182,13 +187,31 @@ export function AssignMenu({
   /* Không giao được VÀ không nhận được thì nút không có việc gì để mở. Tắt kèm
      lý do, chứ không giấu: một nút biến mất đọc ra là "màn hỏng", còn một nút
      tắt có tooltip đọc ra là "việc này không phải của bạn". */
-  const door = assignDoorOf(held, mayAssign, readOnly, me !== undefined)
+  const door = assignDoorOf(held, mayAssign, readOnly, me !== undefined, lang)
   const blocked = door.shut
   const blockedWhy = readOnly
-    ? 'Bạn không giữ lead này nên không giao được.'
+    ? t(
+        message(
+          'Bạn không giữ lead này nên không giao được.',
+          'You do not hold this lead, so you cannot assign it.',
+          '이 리드를 담당하고 있지 않아 배정할 수 없습니다.',
+        ),
+      )
     : heldByMe
-      ? 'Lead đang do bạn giữ. Chỉ trưởng phòng được đổi người giữ.'
-      : 'Lead đã có người giữ. Hỏi trưởng phòng nếu cần đổi.'
+      ? t(
+          message(
+            'Lead đang do bạn giữ. Chỉ trưởng phòng được đổi người giữ.',
+            'You hold this lead. Only the department head can change the holder.',
+            '이 리드는 귀하가 담당 중입니다. 담당자는 부서장만 변경할 수 있습니다.',
+          ),
+        )
+      : t(
+          message(
+            'Lead đã có người giữ. Hỏi trưởng phòng nếu cần đổi.',
+            'This lead already has a holder. Ask the department head to change it.',
+            '이 리드는 이미 담당자가 있습니다. 변경이 필요하면 부서장에게 문의하세요.',
+          ),
+        )
   const triggerLabel = door.label
   /* `ArrowLeftRight` reads as "change hands"; `UserRoundPlus` only fits the
      first-assign case — an unheld lead has no hands to change yet. */
@@ -216,7 +239,11 @@ export function AssignMenu({
       <Drawer
         open={open}
         onClose={() => setOpen(false)}
-        title={held ? 'Đổi người giữ lead' : 'Giao lead'}
+        title={
+          held
+            ? t(message('Đổi người giữ lead', 'Change lead holder', '리드 담당자 변경'))
+            : t(message('Giao lead', 'Assign lead', '리드 배정'))
+        }
         subtitle={
           <>
             <span className="font-mono">{profile.code}</span> · {profile.company}
@@ -232,11 +259,25 @@ export function AssignMenu({
                 >
                   {isApiError(setOwner.error)
                     ? userMessage(setOwner.error)
-                    : 'Chưa đưa về kho được. Thử lại.'}
+                    : t(
+                        message(
+                          'Chưa đưa về kho được. Thử lại.',
+                          'Could not return it to the pool. Try again.',
+                          '공용 풀로 되돌리지 못했습니다. 다시 시도해 주세요.',
+                        ),
+                      )}
                 </p>
               )}
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="text-[13px]">Đưa lead về kho chung?</span>
+                <span className="text-[13px]">
+                  {t(
+                    message(
+                      'Đưa lead về kho chung?',
+                      'Return this lead to the shared pool?',
+                      '이 리드를 공용 풀로 되돌릴까요?',
+                    ),
+                  )}
+                </span>
                 <div className="flex shrink-0 gap-2">
                   <Button
                     size="md"
@@ -244,15 +285,28 @@ export function AssignMenu({
                     disabled={setOwner.isPending}
                     onClick={() => setReleasing(false)}
                   >
-                    Huỷ
+                    {t(message('Huỷ', 'Cancel', '취소'))}
                   </Button>
                   <Button
                     size="md"
                     disabled={setOwner.isPending}
-                    onClick={() => commit(null, 'Lead đã về kho')}
+                    onClick={() =>
+                      commit(
+                        null,
+                        t(
+                          message(
+                            'Lead đã về kho',
+                            'Lead returned to the pool',
+                            '리드를 공용 풀로 되돌렸습니다',
+                          ),
+                        ),
+                      )
+                    }
                   >
                     <Icon icon={Inbox} size={16} />
-                    {setOwner.isPending ? 'Đang ghi…' : 'Về kho'}
+                    {setOwner.isPending
+                      ? t(message('Đang ghi…', 'Saving…', '저장 중…'))
+                      : t(message('Về kho', 'Return to pool', '풀로 반환'))}
                   </Button>
                 </div>
               </div>
@@ -266,13 +320,26 @@ export function AssignMenu({
                 >
                   {isApiError(setOwner.error)
                     ? userMessage(setOwner.error)
-                    : 'Không lưu được. Thử lại.'}
+                    : t(
+                        message(
+                          'Không lưu được. Thử lại.',
+                          'Could not save. Try again.',
+                          '저장하지 못했습니다. 다시 시도해 주세요.',
+                        ),
+                      )}
                 </p>
               )}
               {held !== null && <HandoverDeals choice={handover} />}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <span className="min-w-0 text-[13px]">
-                  Xác nhận giao lead cho <span className="font-semibold">{pickedPerson.name}</span>?
+                  {t(
+                    message(
+                      'Xác nhận giao lead cho',
+                      'Confirm assigning the lead to',
+                      '다음 사람에게 리드를 배정하시겠습니까:',
+                    ),
+                  )}{' '}
+                  <span className="font-semibold">{pickedPerson.name}</span>?
                 </span>
                 <div className="flex shrink-0 gap-2">
                   <Button
@@ -281,7 +348,7 @@ export function AssignMenu({
                     disabled={setOwner.isPending}
                     onClick={() => setPicked(null)}
                   >
-                    Huỷ
+                    {t(message('Huỷ', 'Cancel', '취소'))}
                   </Button>
                   <Button
                     size="md"
@@ -290,17 +357,29 @@ export function AssignMenu({
                       commit(
                         pickedPerson.id,
                         pickedPerson.id === me?.id
-                          ? 'Bạn đã nhận lead này'
-                          : `Đã giao lead cho ${pickedPerson.name}`,
+                          ? t(
+                              message(
+                                'Bạn đã nhận lead này',
+                                'You took this lead',
+                                '이 리드를 맡았습니다',
+                              ),
+                            )
+                          : t(
+                              message(
+                                `Đã giao lead cho ${pickedPerson.name}`,
+                                `Lead assigned to ${pickedPerson.name}`,
+                                `${pickedPerson.name}님에게 리드를 배정했습니다`,
+                              ),
+                            ),
                       )
                     }
                   >
                     <Icon icon={Check} size={16} />
                     {setOwner.isPending
-                      ? 'Đang ghi…'
+                      ? t(message('Đang ghi…', 'Saving…', '저장 중…'))
                       : pickedPerson.id === me?.id
-                        ? 'Nhận lead'
-                        : 'Giao lead'}
+                        ? t(message('Nhận lead', 'Take lead', '리드 맡기'))
+                        : t(message('Giao lead', 'Assign lead', '리드 배정'))}
                   </Button>
                 </div>
               </div>
@@ -310,13 +389,17 @@ export function AssignMenu({
       >
         <div className="flex flex-col gap-5">
           <section className="bg-surface-ink/5 flex items-center gap-3 rounded-lg p-4">
-            <span className="text-muted-foreground shrink-0 text-[12px]">PIC hiện tại</span>
+            <span className="text-muted-foreground shrink-0 text-[12px]">
+              {t(message('PIC hiện tại', 'Current owner', '현재 담당자'))}
+            </span>
             {profile.ownerName ? (
               <MetaPill avatar={profile.ownerName} title={profile.ownerEmail}>
                 {profile.ownerName}
               </MetaPill>
             ) : (
-              <span className="text-[13px] font-semibold">Chưa ai PIC</span>
+              <span className="text-[13px] font-semibold">
+                {t(message('Chưa ai PIC', 'No owner yet', '담당자 없음'))}
+              </span>
             )}
           </section>
 
@@ -324,7 +407,13 @@ export function AssignMenu({
             <SearchField
               value={query}
               onChange={setQuery}
-              placeholder="Tìm theo tên, vai trò hoặc chuyên môn…"
+              placeholder={t(
+                message(
+                  'Tìm theo tên, vai trò hoặc chuyên môn…',
+                  'Search by name, role or expertise…',
+                  '이름, 역할, 전문 분야로 검색…',
+                ),
+              )}
               className="w-full"
             />
           )}
@@ -334,7 +423,7 @@ export function AssignMenu({
               <>
                 <PersonRow
                   person={self}
-                  tag="Bạn"
+                  tag={t(message('Bạn', 'You', '나'))}
                   disabled={heldByMe}
                   selected={picked === self.id}
                   onPick={() => {
@@ -362,14 +451,32 @@ export function AssignMenu({
                 {shown.length === 0 && (
                   <p className="text-muted-foreground m-0 px-3 py-4 text-[12.5px] leading-[1.6]">
                     {query.trim() === ''
-                      ? 'Chưa có người khác để giao.'
-                      : `Không tìm thấy "${query}".`}
+                      ? t(
+                          message(
+                            'Chưa có người khác để giao.',
+                            'Nobody else to assign to yet.',
+                            '배정할 다른 사람이 아직 없습니다.',
+                          ),
+                        )
+                      : t(
+                          message(
+                            `Không tìm thấy "${query}".`,
+                            `No results for "${query}".`,
+                            `"${query}" 검색 결과가 없습니다.`,
+                          ),
+                        )}
                   </p>
                 )}
               </>
             ) : (
               <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-                Chỉ trưởng phòng được giao lead cho người khác. Bạn nhận được lead chưa ai giữ.
+                {t(
+                  message(
+                    'Chỉ trưởng phòng được giao lead cho người khác. Bạn nhận được lead chưa ai giữ.',
+                    'Only the department head can assign a lead to someone else. You can take a lead nobody holds.',
+                    '다른 사람에게 리드를 배정할 수 있는 사람은 부서장뿐입니다. 담당자가 없는 리드는 직접 맡을 수 있습니다.',
+                  ),
+                )}
               </p>
             )}
 
@@ -388,7 +495,7 @@ export function AssignMenu({
                   )}
                 >
                   <Icon icon={Inbox} size={16} />
-                  Về kho
+                  {t(message('Về kho', 'Return to pool', '풀로 반환'))}
                 </button>
               </>
             )}

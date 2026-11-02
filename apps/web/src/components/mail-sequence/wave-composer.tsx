@@ -2,7 +2,7 @@ import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import { Button, Eye, GlassCard, Icon, Input, SegmentedControl, Select, SectionTitle } from '@pv/ui'
 import { CAMPAIGN_START_MAX_WAVES } from '@pv/contracts'
 import type { MailDoor, MailTemplateRow } from '@pv/contracts'
-import { message, translate } from '@/app/i18n'
+import { message, translate, useLang } from '@/app/i18n'
 import { MailFloatingAids, MailPreviewCard } from '@/components/mail-compose-bits'
 import { MailGuideDrawer } from '@/components/mail-guide-drawer'
 import { mailHints } from '@/data/mail-hints'
@@ -12,15 +12,15 @@ import { BodyField } from './body-field'
 import { WaveStrip, WaveTimeline } from './wave-chain'
 import { commitDraft, composerDraftValid, withTemplate, type ComposerState } from './wave-draft'
 
-const tr = (vi: string, en: string, ko: string) => translate(message(vi, en, ko))
+const m = (vi: string, en: string, ko: string) => translate(message(vi, en, ko))
 const doorName = (door: MailDoor) =>
   ({
-    mas: tr('MAS', 'MAS', 'MAS'),
-    campaign: tr('chiến dịch', 'campaigns', '캠페인'),
-    lead: tr('lead', 'leads', '리드'),
-    opportunity: tr('cơ hội', 'opportunities', '기회'),
-    quote: tr('báo giá', 'quotes', '견적'),
-    contract: tr('hợp đồng', 'contracts', '계약'),
+    mas: m('MAS', 'MAS', 'MAS'),
+    campaign: m('chiến dịch', 'campaigns', '캠페인'),
+    lead: m('lead', 'leads', '리드'),
+    opportunity: m('cơ hội', 'opportunities', '기회'),
+    quote: m('báo giá', 'quotes', '견적'),
+    contract: m('hợp đồng', 'contracts', '계약'),
   })[door]
 
 /** THE MAIL SEQUENCE — one wave composed on the left, the whole chain beside
@@ -63,6 +63,7 @@ export function WaveComposer({
    *  absent template reads as "not for here", not as missing. */
   door?: MailDoor
 }) {
+  const lang = useLang()
   const own = frame === 'own'
   const letterOnly = frame === 'letter'
   const [previewOpen, setPreviewOpen] = useState(false)
@@ -86,12 +87,15 @@ export function WaveComposer({
     },
     own && previewOpen,
   )
-  const hints = mailHints({
-    subject: state.subject,
-    body: state.body,
-    ctaUrl: state.ctaUrl,
-    missing: preview.letter?.missing,
-  })
+  const hints = mailHints(
+    {
+      subject: state.subject,
+      body: state.body,
+      ctaUrl: state.ctaUrl,
+      missing: preview.letter?.missing,
+    },
+    lang,
+  )
 
   /* THE LETTER SHOWS ITSELF ONCE THERE IS ONE: the box is a plain textarea, so
      bold, lists and both buttons exist only in the rendered preview, findable
@@ -194,12 +198,12 @@ const TEXT = {
   waveNameDefaultsToTemplate: message(
     'Tên đợt · mặc định lấy từ tên mẫu',
     'Wave name · defaults to template name',
-    '차수 이름 · 기본값은 템플릿 이름',
+    '웨이브 이름 · 기본값은 템플릿 이름',
   ),
   eGWave1Introduction: message(
     'Ví dụ: Đợt 1 · giới thiệu',
     'e.g. Wave 1 · introduction',
-    '예: 1차 · 소개',
+    '예: 웨이브 1 · 소개',
   ),
   subjectRecipientsWillSeeIn: message(
     'Tiêu đề người nhận sẽ thấy trong hộp thư',
@@ -214,7 +218,7 @@ const TEXT = {
   reviewTheEmailBeforeAdding: message(
     'Xem lại email trước khi thêm đợt',
     'Review the email before adding a wave',
-    '차수를 추가하기 전에 이메일을 확인하세요',
+    '웨이브를 추가하기 전에 이메일을 확인하세요',
   ),
 }
 
@@ -265,8 +269,8 @@ function ComposeCard({
     <GlassCard className="flex flex-col gap-4 p-5 lg:p-6">
       <SectionTitle>
         {letterOnly
-          ? tr('Nội dung thư', 'Email content', '이메일 내용')
-          : tr(`Soạn đợt ${index}`, `Compose wave ${index}`, `${index}차 작성`)}
+          ? m('Nội dung thư', 'Email content', '이메일 내용')
+          : m(`Soạn đợt ${index}`, `Compose wave ${index}`, `웨이브 ${index} 작성`)}
       </SectionTitle>
 
       {/* No template picker in the run editor: swapping a whole letter into a
@@ -275,7 +279,7 @@ function ComposeCard({
         <label className="flex flex-col gap-2">
           <span className="text-muted-foreground text-[11px]">
             {door
-              ? tr(
+              ? m(
                   `Mẫu thư · chỉ mẫu dùng ở ${doorName(door)}`,
                   `Email template · available for ${doorName(door)} only`,
                   `이메일 템플릿 · ${doorName(door)} 전용`,
@@ -283,13 +287,13 @@ function ComposeCard({
               : translate(TEXT.emailTemplateOptional)}
           </span>
           <Select
-            label={tr('Mẫu thư', 'Email template', '이메일 템플릿')}
+            label={m('Mẫu thư', 'Email template', '이메일 템플릿')}
             hideLabel
             size="lg"
             value={state.templateCode}
             onChange={pickTemplate}
             options={[
-              { value: '', label: tr('Tự soạn', 'Write from scratch', '직접 작성') },
+              { value: '', label: m('Tự soạn', 'Write from scratch', '직접 작성') },
               ...templates.map((t) => ({ value: t.code, label: t.name })),
             ]}
           />
@@ -300,7 +304,7 @@ function ComposeCard({
         <label className="flex flex-col gap-2">
           <span className="text-muted-foreground text-[11px]">
             {letterOnly
-              ? tr('Tên đợt', 'Wave name', '차수 이름')
+              ? m('Tên đợt', 'Wave name', '웨이브 이름')
               : translate(TEXT.waveNameDefaultsToTemplate)}
           </span>
           <Input
@@ -314,7 +318,7 @@ function ComposeCard({
 
       <label className="flex flex-col gap-2">
         <span className="text-muted-foreground text-[11px]">
-          {tr('Tiêu đề email', 'Email subject', '이메일 제목')} · {state.subject.length}/200
+          {m('Tiêu đề email', 'Email subject', '이메일 제목')} · {state.subject.length}/200
         </span>
         <Input
           value={state.subject}
@@ -339,7 +343,7 @@ function ComposeCard({
         </label>
         <label className="flex flex-col gap-2">
           <span className="text-muted-foreground text-[11px]">
-            {tr('Nút trong email · URL', 'Email button · URL', '이메일 버튼 · URL')}
+            {m('Nút trong email · URL', 'Email button · URL', '이메일 버튼 · URL')}
           </span>
           <Input
             value={state.ctaUrl}
@@ -369,8 +373,8 @@ function ComposeCard({
           >
             <Icon icon={Eye} size={14} />
             {previewOpen
-              ? tr('Đóng xem trước', 'Close preview', '미리 보기 닫기')
-              : tr('Xem trước', 'Preview', '미리 보기')}
+              ? m('Đóng xem trước', 'Close preview', '미리 보기 닫기')
+              : m('Xem trước', 'Preview', '미리 보기')}
           </Button>
         </div>
       )}
@@ -391,7 +395,7 @@ export function SendWhen({
   return (
     <div className="flex flex-col gap-2">
       <SegmentedControl
-        label={tr('Thời điểm gửi', 'Send time', '발송 시간')}
+        label={m('Thời điểm gửi', 'Send time', '발송 시간')}
         /* `quiet`: this sits inside the wave drawer, where azure is spoken for
            by the one button that cannot be taken back (law 3). */
         tone="quiet"
@@ -407,14 +411,14 @@ export function SendWhen({
           }))
         }
         options={[
-          { value: 'now', label: tr('Gửi ngay', 'Send now', '지금 발송') },
-          { value: 'later', label: tr('Đặt lịch gửi', 'Schedule send', '발송 예약') },
+          { value: 'now', label: m('Gửi ngay', 'Send now', '지금 발송') },
+          { value: 'later', label: m('Đặt lịch gửi', 'Schedule send', '발송 예약') },
         ]}
       />
       {state.timing === 'later' && (
         <label className="flex flex-col gap-2">
           <span className="text-muted-foreground text-[11px]">
-            {tr(
+            {m(
               'Giờ gửi (giờ địa phương của bạn)',
               'Send time (your local time)',
               '발송 시간 (현지 시간)',

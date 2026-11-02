@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { CalendarClock, ChevronDown, RefreshCw, Send } from '@pv/ui'
 import { Button, Icon, Input, cn } from '@pv/ui'
 import { localSlot } from '@/lib/date'
+import { message, useI18n } from '@/app/i18n'
 import { sendLabel, type LetterForm } from './letter-model'
 
 /** The composer's strip: one sentence, Cancel, and a split Send whose menu
@@ -9,7 +10,7 @@ import { sendLabel, type LetterForm } from './letter-model'
  *  choice rather than a field in the letter card because it is about the
  *  send, not the letter. */
 export function LetterFooter({
-  message,
+  status,
   warn,
   failed,
   form,
@@ -21,7 +22,7 @@ export function LetterFooter({
   onCancel,
   onSend,
 }: {
-  message: string
+  status: string
   warn: boolean
   /** A failed send or check — drawn in danger red, unlike a blocker. */
   failed: boolean
@@ -37,6 +38,7 @@ export function LetterFooter({
   onCancel: () => void
   onSend: () => void
 }) {
+  const { t, lang } = useI18n()
   const [menuOpen, setMenuOpen] = useState(false)
   const later = form.timing === 'later'
   const pick = (timing: LetterForm['timing']) => {
@@ -59,11 +61,11 @@ export function LetterFooter({
                 : 'text-muted-foreground',
           )}
         >
-          {message}
+          {status}
         </span>
         {later && (
           <label className="text-muted-foreground flex items-center gap-2 text-[12px]">
-            Giờ gửi
+            {t(message('Giờ gửi', 'Send time', '발송 시각'))}
             <Input
               type="datetime-local"
               className="h-12 w-[220px]"
@@ -78,21 +80,23 @@ export function LetterFooter({
         {onRetryCheck && (
           <Button size="lg" variant="ghost" onClick={onRetryCheck}>
             <Icon icon={RefreshCw} size={16} />
-            Kiểm tra lại
+            {t(message('Kiểm tra lại', 'Check again', '다시 확인'))}
           </Button>
         )}
         <Button size="lg" variant="ghost" onClick={onCancel}>
-          Huỷ
+          {t(message('Huỷ', 'Cancel', '취소'))}
         </Button>
         <div className="flex gap-1">
           <Button size="lg" className="rounded-r-none" disabled={sendDisabled} onClick={onSend}>
             <Icon icon={later ? CalendarClock : Send} size={16} />
-            {sending ? 'Đang tạo thư…' : sendLabel(form)}
+            {sending
+              ? t(message('Đang tạo thư…', 'Creating letter…', '메일 생성 중…'))
+              : sendLabel(form, lang)}
           </Button>
           <Button
             size="lg"
             className="w-12 rounded-l-none px-0"
-            aria-label="Chọn thời điểm gửi"
+            aria-label={t(message('Chọn thời điểm gửi', 'Choose when to send', '발송 시점 선택'))}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((open) => !open)}
@@ -105,8 +109,12 @@ export function LetterFooter({
             role="menu"
             className="glass-overlay absolute bottom-full right-0 mb-2 flex min-w-[220px] flex-col rounded-lg p-1"
           >
-            <MenuItem onClick={() => pick('now')}>Gửi ngay</MenuItem>
-            <MenuItem onClick={() => pick('later')}>Hẹn giờ gửi…</MenuItem>
+            <MenuItem onClick={() => pick('now')}>
+              {t(message('Gửi ngay', 'Send now', '즉시 발송'))}
+            </MenuItem>
+            <MenuItem onClick={() => pick('later')}>
+              {t(message('Hẹn giờ gửi…', 'Schedule send…', '예약 발송…'))}
+            </MenuItem>
           </div>
         )}
       </div>

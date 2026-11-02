@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { CampaignWaveInput } from '@pv/contracts'
+import { getLang, message, translate, type Lang } from '@/app/i18n'
 
 /** Everything the two-step compose panel is holding while it is open.
  *
@@ -32,8 +33,19 @@ export const isLater = (waves: readonly CampaignWaveInput[]) =>
 
 /** One wording for the footer button and the confirm button, so the count a
  *  person presses is the count they were shown. */
-export const sendLabel = (later: boolean, letters: number) =>
-  `${later ? 'Lên lịch' : 'Gửi'} ${Math.max(0, letters)} thư`
+export const sendLabel = (later: boolean, letters: number, lang: Lang = getLang()) => {
+  const n = Math.max(0, letters)
+  return translate(
+    later
+      ? message(
+          `Lên lịch ${n} thư`,
+          `Schedule ${n} ${n === 1 ? 'email' : 'emails'}`,
+          `이메일 ${n}건 예약`,
+        )
+      : message(`Gửi ${n} thư`, `Send ${n} ${n === 1 ? 'email' : 'emails'}`, `이메일 ${n}건 발송`),
+    lang,
+  )
+}
 
 const NO_SELECTION: ReadonlySet<string> = new Set()
 

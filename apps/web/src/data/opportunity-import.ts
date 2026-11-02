@@ -4,6 +4,7 @@ import type {
   OpportunityImportPreviewResponse,
 } from '@pv/contracts'
 import { api, isApiError, userMessage } from '@/app/api'
+import { message as msg, translate } from '@/app/i18n'
 import { OPPORTUNITY_BOOK_KEY } from '@/data/opportunities'
 import { invalidateLeadState } from '@/data/lead-exit'
 import { OPPORTUNITY_WRITE_NEED } from '@/data/opportunities-write'
@@ -127,7 +128,13 @@ export async function runOpportunityImport(
   if (!body.success) {
     /* The schema running here is the same one the server runs, so its first
        complaint is word for word the one the server would have raised. */
-    return refused(body.error.issues[0]?.message ?? 'Lô này không hợp lệ.', input.rows)
+    return refused(
+      body.error.issues[0]?.message ??
+        translate(
+          msg('Lô này không hợp lệ.', 'This batch is not valid.', '이 묶음은 유효하지 않습니다.'),
+        ),
+      input.rows,
+    )
   }
 
   try {
@@ -152,7 +159,18 @@ export async function runOpportunityImport(
   } catch (error) {
     /* `dispatch` guarantees `ApiError`; the `isApiError` guard is what keeps a
        genuinely unexpected throw from being read as one. */
-    return refused(isApiError(error) ? userMessage(error) : 'Không nạp được lô này.', input.rows)
+    return refused(
+      isApiError(error)
+        ? userMessage(error)
+        : translate(
+            msg(
+              'Không nạp được lô này.',
+              'Could not import this batch.',
+              '이 묶음을 가져오지 못했습니다.',
+            ),
+          ),
+      input.rows,
+    )
   }
 }
 

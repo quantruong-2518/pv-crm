@@ -20,7 +20,7 @@ import {
 } from '@pv/ui'
 import { type LeadMotion, type LeadRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
-import { useI18n } from '@/app/i18n'
+import { message, useI18n } from '@/app/i18n'
 import { useCan, useSession } from '@/app/auth'
 import { toast } from '@/app/toast'
 import { AssignMenu } from '@/components/assign-menu'
@@ -30,7 +30,7 @@ import { HoldMark } from '@/components/hold-strip'
 import { LabelChips } from '@/components/lead-labels'
 import { PicCell } from '@/components/book-cells'
 import { ROW_ICON } from '@/components/table-bits'
-import { NO_CREATOR_TITLE, NO_OWNER_TITLE, leadScorecardQuery } from '@/data/leads'
+import { NO_CREATOR_COPY, NO_OWNER_COPY, leadScorecardQuery } from '@/data/leads'
 import { BADGE_INK } from '@/data/opportunities'
 import { useSetLeadOwner } from '@/data/lead-owner'
 import { LEAD_STATE_FACE } from '@/data/lead-state'
@@ -182,8 +182,9 @@ export function EnteredCell({ lead }: { lead: LeadRow }) {
 
 /** Who created the lead; blank for leads that predate the column. */
 export function CreatedByCell({ lead }: { lead: LeadRow }) {
+  const { t } = useI18n()
   const people = lead.createdByName ? [{ name: lead.createdByName }] : []
-  return <PicCell people={people} empty={NO_CREATOR_TITLE} />
+  return <PicCell people={people} empty={t(NO_CREATOR_COPY)} />
 }
 
 /** When the lead was switched off — only rows of the switched-off tab carry it. */
@@ -234,6 +235,7 @@ export function StatusCell({ lead }: { lead: LeadRow }) {
  *  A lead in the nurturing pool has no holder to hand over: it shows the claim
  *  button instead, which takes it through the resume door (ADR 0109). */
 export function LeadPicCell({ lead }: { lead: LeadRow }) {
+  const { t } = useI18n()
   const me = useSession((s) => s.actor)
   const mayAssign = useCan('lead.assign')
   const canClaim = useCan('lead.edit')
@@ -245,12 +247,17 @@ export function LeadPicCell({ lead }: { lead: LeadRow }) {
     return canClaim ? (
       <PicCell
         people={people}
-        empty={NO_OWNER_TITLE}
+        empty={t(NO_OWNER_COPY)}
         max={2}
         action={<ClaimLeadButton code={lead.code} />}
       />
     ) : (
-      <PicCell people={people} empty="Lead chờ người nhận" />
+      <PicCell
+        people={people}
+        empty={t(
+          message('Lead chờ người nhận', 'Lead waiting to be claimed', '수락 대기 중인 리드'),
+        )}
+      />
     )
   }
 
@@ -258,7 +265,7 @@ export function LeadPicCell({ lead }: { lead: LeadRow }) {
     return (
       <PicCell
         people={people}
-        empty={NO_OWNER_TITLE}
+        empty={t(NO_OWNER_COPY)}
         max={2}
         action={
           <span onClick={(event) => event.stopPropagation()} className="flex items-center">
@@ -276,22 +283,40 @@ export function LeadPicCell({ lead }: { lead: LeadRow }) {
         variant="ghost"
         className={ROW_ICON}
         disabled={setOwner.isPending}
-        aria-label="Nhận lead"
-        title="Nhận lead"
+        aria-label={t(message('Nhận lead', 'Claim lead', '리드 받기'))}
+        title={t(message('Nhận lead', 'Claim lead', '리드 받기'))}
         onClick={(event) => {
           event.stopPropagation()
           setOwner.mutate(
             { code: lead.code, ownerId: me.id },
             {
               onSuccess: () =>
-                toast('Bạn đã nhận lead này', {
-                  tone: 'success',
-                  detail: `${lead.code} · ${lead.company}`,
-                }),
+                toast(
+                  t(
+                    message(
+                      'Bạn đã nhận lead này',
+                      'You claimed this lead',
+                      '이 리드를 받았습니다',
+                    ),
+                  ),
+                  {
+                    tone: 'success',
+                    detail: `${lead.code} · ${lead.company}`,
+                  },
+                ),
               onError: (error) =>
-                toast(isApiError(error) ? userMessage(error) : 'Không nhận được lead. Thử lại.', {
-                  tone: 'danger',
-                }),
+                toast(
+                  isApiError(error)
+                    ? userMessage(error)
+                    : t(
+                        message(
+                          'Không nhận được lead. Thử lại.',
+                          'Could not claim the lead. Try again.',
+                          '리드를 받지 못했습니다. 다시 시도하세요.',
+                        ),
+                      ),
+                  { tone: 'danger' },
+                ),
             },
           )
         }}
@@ -300,20 +325,43 @@ export function LeadPicCell({ lead }: { lead: LeadRow }) {
       </Button>
     ) : undefined
 
-  return <PicCell people={people} empty={NO_OWNER_TITLE} max={2} action={claim} />
+  return <PicCell people={people} empty={t(NO_OWNER_COPY)} max={2} action={claim} />
 }
 
 /** The first industry, the rest behind "+N"; the category names the popover. */
 export function IndustryCell({ lead }: { lead: LeadRow }) {
+  const { t } = useI18n()
   if (lead.industries.length === 0) return <span className="text-muted-foreground">—</span>
   const n = lead.industries.length
   return (
     <PillOverflow
       items={lead.industries.map((i) => ({ id: i.id, label: i.name }))}
       max={1}
-      label={`Ngành của ${lead.company}`}
-      moreLabel={(total) => `Xem cả ${total} ngành`}
-      heading={lead.category ? `${n} ngành · nhóm ${lead.category.name}` : `${n} ngành`}
+      label={t(
+        message(
+          `Ngành của ${lead.company}`,
+          `Industries of ${lead.company}`,
+          `${lead.company}의 업종`,
+        ),
+      )}
+      moreLabel={(total) =>
+        t(
+          message(
+            `Xem cả ${total} ngành`,
+            `View all ${total} industries`,
+            `업종 ${total}개 모두 보기`,
+          ),
+        )
+      }
+      heading={t(
+        lead.category
+          ? message(
+              `${n} ngành · nhóm ${lead.category.name}`,
+              `${n} ${n === 1 ? 'industry' : 'industries'} · group ${lead.category.name}`,
+              `업종 ${n}개 · ${lead.category.name} 분야`,
+            )
+          : message(`${n} ngành`, `${n} ${n === 1 ? 'industry' : 'industries'}`, `업종 ${n}개`),
+      )}
       className="flex-nowrap"
     />
   )

@@ -2,6 +2,7 @@ import { queryOptions, useQuery } from '@tanstack/react-query'
 import type { Actor, Permission } from '@pv/engines'
 import type { DirectoryResponse } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
+import { message, translate, type Message } from '@/app/i18n'
 import { cacheTier } from '@/app/query-client'
 import { toActor } from '@/data/auth'
 
@@ -94,11 +95,15 @@ export function useSalesPeople(): Actor[] {
  *  Chưa ai giữ vai đó thì trả về nhãn vai. Đó KHÔNG phải chỗ dựng tạm: một
  *  công ty vừa mở hệ, chưa gán trưởng phòng, vẫn phải đọc được câu "chờ trưởng
  *  phòng kinh doanh gật" — bịa một cái tên vào đó thì tệ hơn hẳn. */
-export const APPROVER_ROLE_LABEL = 'trưởng phòng kinh doanh'
+export const APPROVER_ROLE_LABEL: Message = message(
+  'trưởng phòng kinh doanh',
+  'head of sales',
+  '영업 팀장',
+)
 
 export function useApproverName(): string {
   const head = useDirectory().find((a) => a.roleIds.includes('head-of-sales'))
-  return head?.name ?? APPROVER_ROLE_LABEL
+  return head?.name ?? translate(APPROVER_ROLE_LABEL)
 }
 
 // ---------------------------------------------------------------------------

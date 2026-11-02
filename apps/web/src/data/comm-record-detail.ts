@@ -33,7 +33,7 @@ import { api, type ApiError } from '@/app/api'
 import { cacheTier } from '@/app/query-client'
 import { COMMS_KEY, COMM_VIEW_NEED, threadMessagesQuery } from '@/data/comms'
 import { AFTER_SALE_BOOK_KEY } from '@/data/after-sale'
-import { getLang, message, translate, type Lang } from '@/app/i18n'
+import { getLang, message, translate, type Lang, type Message } from '@/app/i18n'
 import {
   NEXT_STEP_KEY,
   nextStepKey,
@@ -253,13 +253,36 @@ export function fileSizeLabel(bytes: number): string {
 }
 
 /** A picked file against the contract — its wire mime, or the sentence why not. */
-export function checkCommFile(file: File): { mime: CommAttachmentMime } | { problem: string } {
+export function checkCommFile(
+  file: File,
+  lang: Lang = getLang(),
+): { mime: CommAttachmentMime } | { problem: string } {
   const mime = commMimeOf(file)
-  if (!mime) return { problem: `Không nhận loại tệp của “${file.name}”.` }
+  if (!mime) {
+    return {
+      problem: translate(
+        message(
+          `Không nhận loại tệp của “${file.name}”.`,
+          `“${file.name}” is not a supported file type.`,
+          `“${file.name}” 파일 형식은 지원되지 않습니다.`,
+        ),
+        lang,
+      ),
+    }
+  }
   const cap = commCapOf(mime)
   if (file.size > cap) {
+    const size = fileSizeLabel(file.size)
+    const limit = fileSizeLabel(cap)
     return {
-      problem: `“${file.name}” nặng ${fileSizeLabel(file.size)}, vượt ${fileSizeLabel(cap)} cho loại tệp này.`,
+      problem: translate(
+        message(
+          `“${file.name}” nặng ${size}, vượt ${limit} cho loại tệp này.`,
+          `“${file.name}” is ${size}, over the ${limit} limit for this file type.`,
+          `“${file.name}” 파일은 ${size}로, 이 형식의 한도 ${limit}를 초과합니다.`,
+        ),
+        lang,
+      ),
     }
   }
   return { mime }
@@ -328,6 +351,19 @@ export const COMM_CARD_SURFACE = 'bg-surface-ink/5 stone:bg-transparent shadow-c
 export const COMM_FOCUS =
   'focus-visible:outline-foreground focus-visible:outline-dashed focus-visible:outline-2 focus-visible:outline-offset-4'
 
+const STATE_COPY: Record<CommRecordState, Message> = {
+  empty: message('Chưa điền nội dung', 'Not filled in', '내용 미입력'),
+  unconfirmed: message('Chưa xác nhận', 'Unconfirmed', '미확인'),
+  done: message('Đã hoàn thiện', 'Completed', '완료'),
+  scheduled: message('Đã hẹn', 'Scheduled', '예정'),
+  unreached: message('Không liên lạc được', 'Could not reach', '연락되지 않음'),
+  cancelled: message('Đã huỷ', 'Cancelled', '취소됨'),
+}
+
+/** Web-side wording of the contract's state labels, one per language. */
+export const commStateLabel = (state: CommRecordState, lang: Lang = getLang()) =>
+  translate(STATE_COPY[state], lang)
+
 /** The dot of a comm state — one map, so the rail card and the axis agree
  *  with the pill's tone (`empty` is the furthest from done, hence `bad`; a
  *  booked meeting is still ahead, hence `next`; `unreached` borrows `next`
@@ -355,19 +391,23 @@ export function meetingOverdue(
   )
 }
 
-const SUBJECT_KIND: Record<string, string> = { LD: 'Lead', OP: 'Cơ hội', HĐ: 'Hợp đồng' }
+const SUBJECT_KIND: Record<string, Message> = {
+  LD: message('Lead', 'Lead', '리드'),
+  OP: message('Cơ hội', 'Opportunity', '기회'),
+  HĐ: message('Hợp đồng', 'Contract', '계약'),
+}
 
 /** The kind's display label for a code like `OP-0231` — read off the prefix,
  *  the one place the kind of a `LinkableCode` is written down. */
-export function subjectKindLabel(code: string): string {
-  return SUBJECT_KIND[code.split('-')[0] ?? ''] ?? 'Hồ sơ'
+export function subjectKindLabel(code: string, lang: Lang = getLang()): string {
+  return translate(
+    SUBJECT_KIND[code.split('-')[0] ?? ''] ?? message('Hồ sơ', 'Record', '레코드'),
+    lang,
+  )
 }
 
 /** The subject's own screen, or undefined while its module is parked. */
 export const subjectPath = (code: string) => chainPath(code.split('-')[0] ?? '', code)
-
-/** What an unreached record says in place of a summary, in rows and on its page. */
-export const UNREACHED_LINE = 'Đóng không có nội dung.'
 
 /** The unsent form of a comm is kept in this browser under one key; a write that
  *  closes the record without the form must drop it too. */
@@ -409,16 +449,6 @@ export function writeCommDraft(id: string, draft: CommDraft) {
 
 /** What one comm is called inside a sentence (the header, the step titles);
  *  every chat channel is one conversation, whatever app carried it. */
-export const COMM_NOUN: Record<ThreadChannel, string> = {
-  phone: 'cuộc gọi',
-  meeting: 'buổi gặp',
-  email: 'thư',
-  'zalo-oa': 'cuộc trò chuyện',
-  telegram: 'cuộc trò chuyện',
-  whatsapp: 'cuộc trò chuyện',
-  'in-app': 'cuộc trò chuyện',
-}
-
 export function commNoun(channel: ThreadChannel, lang: Lang = getLang()): string {
   const copy: Record<ThreadChannel, ReturnType<typeof message>> = {
     phone: message('cuộc gọi', 'call', '통화'),
@@ -432,6 +462,7 @@ export function commNoun(channel: ThreadChannel, lang: Lang = getLang()): string
   return translate(copy[channel], lang)
 }
 
+/** What an unreached record says in place of a summary, in rows and on its page. */
 export const unreachedLine = (lang: Lang = getLang()) =>
   translate(
     message('Đóng không có nội dung.', 'Closed without a summary.', '내용 없이 종료됨.'),
@@ -448,18 +479,25 @@ export function commKindLine(
 ): string {
   const noun = commNoun(channel, lang)
   const head = noun.charAt(0).toUpperCase() + noun.slice(1)
+  const out = direction === 'out'
   if (channel === 'phone' && direction)
-    return lang === 'vi'
-      ? `${head} ${direction === 'out' ? 'đi' : 'đến'}`
-      : lang === 'ko'
-        ? `${head} · ${direction === 'out' ? '발신' : '수신'}`
-        : `${direction === 'out' ? 'Outgoing' : 'Incoming'} ${head}`
+    return translate(
+      message(
+        `${head} ${out ? 'đi' : 'đến'}`,
+        `${out ? 'Outgoing' : 'Incoming'} ${head}`,
+        `${head} · ${out ? '발신' : '수신'}`,
+      ),
+      lang,
+    )
   if (channel === 'email' && direction)
-    return lang === 'vi'
-      ? `${head} ${direction === 'out' ? 'gửi đi' : 'nhận'}`
-      : lang === 'ko'
-        ? `${head} · ${direction === 'out' ? '발신' : '수신'}`
-        : `${direction === 'out' ? 'Sent' : 'Received'} ${head}`
+    return translate(
+      message(
+        `${head} ${out ? 'gửi đi' : 'nhận'}`,
+        `${out ? 'Sent' : 'Received'} ${head}`,
+        `${head} · ${out ? '발신' : '수신'}`,
+      ),
+      lang,
+    )
   return head
 }
 
@@ -474,17 +512,29 @@ export function confirmHoursLeft(createdAt: string, now: number): number | null 
 
 /** `hidden` and `none` must not read alike: one is a permission, the other
  *  an open record with nothing written yet. */
-export function summaryTextOf(summary: DebriefSummary): string {
+export function summaryTextOf(summary: DebriefSummary, lang: Lang = getLang()): string {
   if (summary.state === 'visible') return summary.text
-  return summary.state === 'hidden' ? 'Tóm tắt bị ẩn theo quyền của bạn.' : 'Chưa có tóm tắt.'
+  return translate(
+    summary.state === 'hidden'
+      ? message(
+          'Tóm tắt bị ẩn theo quyền của bạn.',
+          'The summary is hidden by your permissions.',
+          '권한에 따라 요약이 숨겨져 있습니다.',
+        )
+      : message('Chưa có tóm tắt.', 'No summary yet.', '요약이 아직 없습니다.'),
+    lang,
+  )
 }
 
 /** The line a comm row prints: its title (a meeting's is the meeting's own),
  *  so every channel reads alike; only a record closed untitled prints the summary. */
-export function titleOf(row: Pick<DebriefView, 'state' | 'title' | 'summary'>) {
+export function titleOf(
+  row: Pick<DebriefView, 'state' | 'title' | 'summary'>,
+  lang: Lang = getLang(),
+) {
   if (row.title) return { title: row.title, titleMuted: row.state === 'cancelled' }
-  if (row.state === 'unreached') return { title: UNREACHED_LINE, titleMuted: true }
-  return { title: summaryTextOf(row.summary), titleMuted: row.summary.state !== 'visible' }
+  if (row.state === 'unreached') return { title: unreachedLine(lang), titleMuted: true }
+  return { title: summaryTextOf(row.summary, lang), titleMuted: row.summary.state !== 'visible' }
 }
 
 /** The next-step part of a confirm, as typed. `templateId` and `dueAuto`
@@ -512,21 +562,55 @@ export function pickedTemplateOf(
 export function stepBlockerOf(
   draft: StepDraft,
   options: UseQueryResult<StepOptionsResponse>,
+  lang: Lang = getLang(),
 ): string | null {
+  const m = (vi: string, en: string, ko: string) => translate(message(vi, en, ko), lang)
   if (!options.data) {
     return options.error
-      ? 'Không tải được danh sách bước tiếp theo.'
-      : 'Đang tải danh sách bước tiếp theo.'
+      ? m(
+          'Không tải được danh sách bước tiếp theo.',
+          'Could not load the list of next steps.',
+          '다음 단계 목록을 불러오지 못했습니다.',
+        )
+      : m(
+          'Đang tải danh sách bước tiếp theo.',
+          'Loading the list of next steps.',
+          '다음 단계 목록을 불러오는 중입니다.',
+        )
   }
   if (!options.data.freeEntry) {
-    if (options.data.templates.length === 0) return 'Chưa có bước nào trong khung để chọn.'
-    if (!pickedTemplateOf(draft, options.data)) return 'Chưa chọn bước tiếp theo trong danh sách.'
+    if (options.data.templates.length === 0)
+      return m(
+        'Chưa có bước nào trong khung để chọn.',
+        'The frame has no step to choose from.',
+        '선택할 수 있는 단계가 프레임에 없습니다.',
+      )
+    if (!pickedTemplateOf(draft, options.data))
+      return m(
+        'Chưa chọn bước tiếp theo trong danh sách.',
+        'Pick the next step from the list.',
+        '목록에서 다음 단계를 선택해 주세요.',
+      )
   } else if (draft.kindId === '') {
-    return 'Chưa chọn loại bước tiếp theo.'
+    return m(
+      'Chưa chọn loại bước tiếp theo.',
+      'Choose the type of the next step.',
+      '다음 단계 유형을 선택해 주세요.',
+    )
   } else if (draft.text.trim() === '') {
-    return 'Chưa ghi nội dung bước tiếp theo.'
+    return m(
+      'Chưa ghi nội dung bước tiếp theo.',
+      'Write what the next step is.',
+      '다음 단계 내용을 입력해 주세요.',
+    )
   }
-  return draft.due === '' ? 'Chưa chọn hạn của bước tiếp theo.' : null
+  return draft.due === ''
+    ? m(
+        'Chưa chọn hạn của bước tiếp theo.',
+        'Choose the due date of the next step.',
+        '다음 단계 기한을 선택해 주세요.',
+      )
+    : null
 }
 
 export function stepInputOf(
@@ -557,12 +641,30 @@ export function todayDay(): string {
 export function evaluationBlockerOf(
   vocab: UseQueryResult<CommVocabularyResponse>,
   picked: Record<string, string>,
+  lang: Lang = getLang(),
 ): string | null {
+  const m = (vi: string, en: string, ko: string) => translate(message(vi, en, ko), lang)
   if (!vocab.data) {
-    return vocab.error ? 'Không tải được bộ câu hỏi đánh giá.' : 'Đang tải bộ câu hỏi đánh giá.'
+    return vocab.error
+      ? m(
+          'Không tải được bộ câu hỏi đánh giá.',
+          'Could not load the evaluation questions.',
+          '평가 질문을 불러오지 못했습니다.',
+        )
+      : m(
+          'Đang tải bộ câu hỏi đánh giá.',
+          'Loading the evaluation questions.',
+          '평가 질문을 불러오는 중입니다.',
+        )
   }
   const unanswered = vocab.data.criteria.filter((c) => !picked[c.id]).length
-  return unanswered > 0 ? `Còn ${unanswered} câu đánh giá chưa trả lời.` : null
+  return unanswered > 0
+    ? m(
+        `Còn ${unanswered} câu đánh giá chưa trả lời.`,
+        `${unanswered} evaluation ${unanswered === 1 ? 'question is' : 'questions are'} still unanswered.`,
+        `답변하지 않은 평가 질문이 ${unanswered}개 남아 있습니다.`,
+      )
+    : null
 }
 
 /** The steps every comm is filled and read in; their count is this list's length. */
@@ -585,15 +687,25 @@ export function useAnchorTurn(record: Pick<DebriefView, 'threadId' | 'messageId'
   return data?.rows.find((row) => row.id === record.messageId) ?? null
 }
 
-const KIND: Record<string, string> = {
-  'text/plain': 'Văn bản',
-  'application/pdf': 'PDF',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word',
+const KIND: Record<string, Message> = {
+  'text/plain': message('Văn bản', 'Text', '텍스트'),
+  'application/pdf': message('PDF', 'PDF', 'PDF'),
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': message(
+    'Word',
+    'Word',
+    'Word',
+  ),
 }
 
 /** A file's type as a person names it, and its glyph. */
-export function commFileKindOf(mime: CommAttachmentMime): { label: string; icon: IconGlyph } {
-  if (mime.startsWith('audio/')) return { label: 'Ghi âm', icon: FileText }
-  if (mime.startsWith('image/')) return { label: 'Ảnh', icon: ImageFrame }
-  return { label: KIND[mime] ?? mime, icon: FileText }
+export function commFileKindOf(
+  mime: CommAttachmentMime,
+  lang: Lang = getLang(),
+): { label: string; icon: IconGlyph } {
+  if (mime.startsWith('audio/'))
+    return { label: translate(message('Ghi âm', 'Recording', '녹음'), lang), icon: FileText }
+  if (mime.startsWith('image/'))
+    return { label: translate(message('Ảnh', 'Image', '이미지'), lang), icon: ImageFrame }
+  const kind = KIND[mime]
+  return { label: kind ? translate(kind, lang) : mime, icon: FileText }
 }

@@ -1,5 +1,6 @@
 import { Button, Icon, X, cn, type IconGlyph } from '@pv/ui'
 import { userMessage, type ApiError } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 
 /** One live sentence on the left (the server's
  *  refusal wins), cancel and confirm on the right. Shared by the park, hold
@@ -17,6 +18,7 @@ export function StepFooter({
   onClose: () => void
   confirm: { icon: IconGlyph; label: string; disabled: boolean; onClick: () => void }
 }) {
+  const { t } = useI18n()
   return (
     <div className="flex flex-wrap items-center justify-between gap-4">
       <span
@@ -26,12 +28,16 @@ export function StepFooter({
         )}
         aria-live="polite"
       >
-        {error ? userMessage(error) : pending ? 'Đang ghi…' : hint}
+        {error
+          ? userMessage(error)
+          : pending
+            ? t(message('Đang ghi…', 'Saving…', '저장 중…'))
+            : hint}
       </span>
       <div className="flex shrink-0 gap-2">
         <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={onClose}>
           <Icon icon={X} size={16} />
-          Huỷ
+          {t(message('Huỷ', 'Cancel', '취소'))}
         </Button>
         <Button
           size="md"

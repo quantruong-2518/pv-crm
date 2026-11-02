@@ -8,8 +8,9 @@ import type {
 } from '@pv/contracts'
 import { GOOGLE_KEY, googleLinkQuery } from '@/data/google'
 import { doorDefault } from '@/data/mas'
+import { useLang } from '@/app/i18n'
 import {
-  ALLOWANCE_SPENT,
+  allowanceSpent,
   EMPTY_FORM,
   unreadySender,
   withTemplate,
@@ -53,6 +54,7 @@ export function useLetterSender(
   const [choice, setChoice] = useState<MailTransport | null>(null)
   const reread = useRef(false)
   const { sender, checking } = preflight
+  const lang = useLang()
 
   /* The default lands ONCE, on the first answer: a later answer must not move
      a control the person has already read or touched. */
@@ -67,7 +69,7 @@ export function useLetterSender(
   const offered = personal !== null || link.data?.configured === true || choice === 'gmail'
   const control = choice !== null && !unconfigured && offered
   const transport: MailTransport | null = unconfigured ? 'resend' : choice
-  const unready = transport === 'gmail' && personal === null ? unreadySender(link.data) : null
+  const unready = transport === 'gmail' && personal === null ? unreadySender(link.data, lang) : null
   const stale = unready !== null && (link.isError || link.data?.mail === 'ready')
 
   /* The status read disagrees with the server: ask it again, once. */
@@ -82,7 +84,7 @@ export function useLetterSender(
   return {
     transport,
     shown: transport !== null && !unready ? transport : undefined,
-    fault: unready?.fault ?? (spent ? ALLOWANCE_SPENT : undefined),
+    fault: unready?.fault ?? (spent ? allowanceSpent(lang) : undefined),
     line: {
       /** Hold the row's height only while the answer that fills it is on its way. */
       reserve: !control && !unconfigured && (choice === null ? checking : link.isPending),

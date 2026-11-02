@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Textarea } from '@pv/ui'
 import { OVERDUE_REASON_TEXT_MAX, OverdueReasonBody } from '@pv/contracts'
 import type { ApiError } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 import { overdueReasonsQuery, useWriteOverdueReason } from '@/data/overdue-reasons'
 import { Field } from '@/components/field-bits'
 
@@ -11,6 +12,7 @@ import { Field } from '@/components/field-bits'
  *  no longer overdue and the door refuses it. A reason already waiting or
  *  approved covers this due, so nothing more is asked. */
 export function useLateReason(code: string, no: number, late: boolean) {
+  const { t } = useI18n()
   const reasons = useQuery({ ...overdueReasonsQuery(code, no), enabled: late })
   const write = useWriteOverdueReason(code, no)
   const [text, setText] = useState('')
@@ -22,26 +24,53 @@ export function useLateReason(code: string, no: number, late: boolean) {
   const blocker = !asks
     ? ''
     : reasons.isPending
-      ? 'Đang tải lý do quá hạn.'
+      ? t(
+          message(
+            'Đang tải lý do quá hạn.',
+            'Loading the overdue reason.',
+            '연체 사유를 불러오는 중입니다.',
+          ),
+        )
       : !reasons.data
-        ? 'Chưa tải được lý do quá hạn.'
+        ? t(
+            message(
+              'Chưa tải được lý do quá hạn.',
+              'Could not load the overdue reason.',
+              '연체 사유를 불러오지 못했습니다.',
+            ),
+          )
         : !canWrite
-          ? 'Bạn không ghi được lý do quá hạn cho đợt này.'
+          ? t(
+              message(
+                'Bạn không ghi được lý do quá hạn cho đợt này.',
+                'You cannot record an overdue reason for this installment.',
+                '이 회차의 연체 사유를 기록할 권한이 없습니다.',
+              ),
+            )
           : !parsed.success
-            ? 'Đợt đã quá hạn. Ghi lý do để thu tiền.'
+            ? t(
+                message(
+                  'Đợt đã quá hạn. Ghi lý do để thu tiền.',
+                  'This installment is overdue. Record a reason to collect payment.',
+                  '이 회차는 기한이 지났습니다. 수금하려면 사유를 입력하세요.',
+                ),
+              )
             : ''
 
   return {
     blocker,
     busy: write.isPending,
     field: asks && canWrite && (
-      <Field label="Lý do quá hạn" note={`${text.length}/${OVERDUE_REASON_TEXT_MAX}`}>
+      <Field
+        label={t(message('Lý do quá hạn', 'Overdue reason', '연체 사유'))}
+        note={`${text.length}/${OVERDUE_REASON_TEXT_MAX}`}
+      >
         <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           maxLength={OVERDUE_REASON_TEXT_MAX}
           rows={3}
-          aria-label="Lý do quá hạn"
+          aria-label={t(message('Lý do quá hạn', 'Overdue reason', '연체 사유'))}
         />
       </Field>
     ),

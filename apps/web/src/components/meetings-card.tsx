@@ -12,15 +12,16 @@ import {
   Trash2,
 } from '@pv/ui'
 import { Badge, Button, Drawer, Icon, MetaPill, Skeleton, cn } from '@pv/ui'
-import { MEETING_CANCEL_CAUSE_LABEL, type DebriefView, type MeetingRow } from '@pv/contracts'
+import type { DebriefView, MeetingRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { toast } from '@/app/toast'
 import { CommOverdueMark } from '@/components/comm-bits'
 import { MeetingScheduleDrawer } from '@/components/meeting-schedule-drawer'
 import { COMM_CARD_SURFACE, meetingOverdue } from '@/data/comm-record-detail'
 import { commRecordPath, subjectCommIndexQuery } from '@/data/comm-records'
-import { MEETING_MODE_LABEL, meetingRowLabel } from '@/data/meeting-labels'
+import { MEETING_MODE_LABEL, meetingCancelCauseLabel, meetingRowLabel } from '@/data/meeting-labels'
 import { upcomingOf } from '@/data/meeting-upcoming'
 import { meetingsQuery, useDropMeeting, type MeetingSubject } from '@/data/meetings'
 import { useMinuteClock } from '@/data/minute-clock'
@@ -51,6 +52,7 @@ export function MeetingsPanel({
   /** Start with the whole list, for a surface that exists to show it. */
   all?: boolean
 }) {
+  const { t } = useI18n()
   const { data, isPending } = useQuery(meetingsQuery(subject))
   const [reading, setReading] = useState<MeetingRow | null>(null)
   const [expanded, setExpanded] = useState(all)
@@ -62,11 +64,18 @@ export function MeetingsPanel({
   const shown = expanded ? rows : next ? [next] : []
 
   return (
-    <section className="flex min-w-0 flex-col gap-3" aria-label="Lịch họp sắp tới">
+    <section
+      className="flex min-w-0 flex-col gap-3"
+      aria-label={t(message('Lịch họp sắp tới', 'Upcoming meetings', '예정된 미팅'))}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="flex min-w-0 flex-wrap items-baseline gap-2">
-          <span className="text-[12.5px] font-semibold">Sắp tới</span>
-          <span className="text-muted-foreground text-[11px]">giờ Việt Nam</span>
+          <span className="text-[12.5px] font-semibold">
+            {t(message('Sắp tới', 'Upcoming', '예정'))}
+          </span>
+          <span className="text-muted-foreground text-[11px]">
+            {t(message('giờ Việt Nam', 'Vietnam time', '베트남 시간'))}
+          </span>
         </span>
         {rows.length > (next ? 1 : 0) && (
           <Button
@@ -75,7 +84,15 @@ export function MeetingsPanel({
             className="pointer-coarse:h-12"
             onClick={() => setExpanded((open) => !open)}
           >
-            {expanded ? 'Thu gọn' : `Xem tất cả ${rows.length} buổi`}
+            {expanded
+              ? t(message('Thu gọn', 'Collapse', '접기'))
+              : t(
+                  message(
+                    `Xem tất cả ${rows.length} buổi`,
+                    `View all ${rows.length} meetings`,
+                    `${rows.length}개 미팅 모두 보기`,
+                  ),
+                )}
           </Button>
         )}
       </div>
@@ -84,7 +101,21 @@ export function MeetingsPanel({
         <Skeleton className="h-16 w-full" />
       ) : shown.length === 0 ? (
         <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
-          {rows.length === 0 ? 'Chưa có lịch họp với khách này.' : 'Không còn buổi nào sắp tới.'}
+          {rows.length === 0
+            ? t(
+                message(
+                  'Chưa có lịch họp với khách này.',
+                  'No meetings with this customer yet.',
+                  '이 고객과 예정된 미팅이 없습니다.',
+                ),
+              )
+            : t(
+                message(
+                  'Không còn buổi nào sắp tới.',
+                  'No upcoming meetings left.',
+                  '남은 예정 미팅이 없습니다.',
+                ),
+              )}
         </p>
       ) : (
         <ul className="flex flex-col gap-3">
@@ -108,7 +139,13 @@ export function MeetingsPanel({
         title={reading?.title ?? ''}
         subtitle={
           reading
-            ? `${meetingRowLabel(reading.at, reading.durationMinutes)} · ghi bởi ${reading.by}`
+            ? t(
+                message(
+                  `${meetingRowLabel(reading.at, reading.durationMinutes)} · ghi bởi ${reading.by}`,
+                  `${meetingRowLabel(reading.at, reading.durationMinutes)} · recorded by ${reading.by}`,
+                  `${meetingRowLabel(reading.at, reading.durationMinutes)} · 기록자 ${reading.by}`,
+                ),
+              )
             : undefined
         }
         width="lg"
@@ -141,6 +178,7 @@ function MeetingLine({
   now: number
   onRead: () => void
 }) {
+  const { t, lang } = useI18n()
   const recordId = record?.id
   const drop = useDropMeeting()
   const [moving, setMoving] = useState(false)
@@ -163,18 +201,26 @@ function MeetingLine({
         {row.isFirst && (
           <Badge tone="success">
             <Icon icon={Handshake} size={14} />
-            Lần gặp đầu
+            {t(message('Lần gặp đầu', 'First meeting', '첫 미팅'))}
           </Badge>
         )}
-        {row.heldAt !== null && <Badge tone="success">Đã họp</Badge>}
-        {!live && <Badge tone="draft">Đã huỷ</Badge>}
+        {row.heldAt !== null && (
+          <Badge tone="success">{t(message('Đã họp', 'Held', '진행됨'))}</Badge>
+        )}
+        {!live && <Badge tone="draft">{t(message('Đã huỷ', 'Cancelled', '취소됨'))}</Badge>}
         {record && <CommOverdueMark overdue={meetingOverdue(record, now)} />}
       </div>
 
       <p className="text-foreground text-[13.5px] font-semibold leading-[1.5]">{row.title}</p>
       {row.cancelCause && (
         <p className="text-muted-foreground m-0 text-[12px] leading-[1.55]">
-          Huỷ vì {MEETING_CANCEL_CAUSE_LABEL[row.cancelCause].toLowerCase()}
+          {t(
+            message(
+              `Huỷ vì ${meetingCancelCauseLabel(row.cancelCause, lang).toLowerCase()}`,
+              `Cancelled: ${meetingCancelCauseLabel(row.cancelCause, lang)}`,
+              `취소 사유: ${meetingCancelCauseLabel(row.cancelCause, lang)}`,
+            ),
+          )}
         </p>
       )}
 
@@ -187,62 +233,21 @@ function MeetingLine({
 
       <div className="grid gap-2 text-[12.5px] leading-[1.55]">
         <p className="grid grid-cols-[64px_minmax(0,1fr)] gap-2">
-          <span className="text-muted-foreground">Chủ trì</span>
+          <span className="text-muted-foreground">{t(message('Chủ trì', 'Host', '주최'))}</span>
           <span className="text-foreground">{names(row.hosts)}</span>
         </p>
         {row.guests.length > 0 && (
           <p className="grid grid-cols-[64px_minmax(0,1fr)] gap-2">
-            <span className="text-muted-foreground">Khách mời</span>
+            <span className="text-muted-foreground">
+              {t(message('Khách mời', 'Guests', '게스트'))}
+            </span>
             <span className="text-foreground">{names(row.guests)}</span>
           </p>
         )}
       </div>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pt-1">
-        {live && row.link && (
-          /* `rel="noreferrer"`: link do người dùng dán vào, và một tab mở bằng
-             `target="_blank"` không có thuộc tính này thì trang đích với được
-             vào `window.opener`. */
-          <a
-            href={row.link}
-            target="_blank"
-            rel="noreferrer"
-            className="text-accent-foreground pointer-coarse:min-h-12 inline-flex items-center gap-1 rounded-sm px-2 py-2 text-xs font-medium"
-          >
-            <Icon icon={Link} size={14} />
-            Mở link họp
-          </a>
-        )}
-        {live && row.eventUrl && (
-          <a
-            href={row.eventUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-accent-foreground pointer-coarse:min-h-12 inline-flex items-center gap-1 rounded-sm px-2 py-2 text-xs font-medium"
-          >
-            <Icon icon={CalendarCheck} size={14} />
-            Mở trên Google Calendar
-          </a>
-        )}
-        {recordId && (
-          <RouteLink
-            to={commRecordPath(recordId)}
-            className="text-accent-foreground pointer-coarse:min-h-12 inline-flex items-center gap-1 rounded-sm px-2 py-2 text-xs font-medium"
-          >
-            <Icon icon={MessageSquare} size={14} />
-            Mở lượt liên hệ
-          </RouteLink>
-        )}
-        {row.transcript && (
-          <button
-            type="button"
-            onClick={onRead}
-            className="text-muted-foreground hover:text-foreground pointer-coarse:min-h-12 inline-flex items-center gap-1 rounded-sm px-2 py-2 text-xs font-medium"
-          >
-            <Icon icon={FileText} size={14} />
-            Xem transcript
-          </button>
-        )}
+        <MeetingLinks row={row} recordId={recordId} onRead={onRead} />
         {movable && (
           <button
             type="button"
@@ -250,13 +255,19 @@ function MeetingLine({
             className="text-accent-foreground pointer-coarse:min-h-12 inline-flex items-center gap-1 rounded-sm px-2 py-2 text-xs font-medium"
           >
             <Icon icon={CalendarClock} size={14} />
-            Dời lịch
+            {t(message('Dời lịch', 'Reschedule', '일정 변경'))}
           </button>
         )}
         {droppable && (
           <button
             type="button"
-            aria-label={`Xoá lịch họp ${row.title}`}
+            aria-label={t(
+              message(
+                `Xoá lịch họp ${row.title}`,
+                `Delete meeting ${row.title}`,
+                `미팅 ${row.title} 삭제`,
+              ),
+            )}
             disabled={drop.isPending}
             onClick={() => {
               /* Không `confirm()`: một dialog của trình duyệt CHẶN mọi sự kiện
@@ -266,18 +277,30 @@ function MeetingLine({
               drop.mutate(
                 { subject, id: row.id },
                 {
-                  onSuccess: () => toast('Đã xoá buổi họp', { tone: 'success' }),
-                  onError: (error) =>
-                    toast(isApiError(error) ? userMessage(error) : 'Không xoá được buổi họp', {
-                      tone: 'danger',
+                  onSuccess: () =>
+                    toast(t(message('Đã xoá buổi họp', 'Meeting deleted', '미팅을 삭제했습니다')), {
+                      tone: 'success',
                     }),
+                  onError: (error) =>
+                    toast(
+                      isApiError(error)
+                        ? userMessage(error)
+                        : t(
+                            message(
+                              'Không xoá được buổi họp',
+                              'Could not delete the meeting',
+                              '미팅을 삭제할 수 없습니다',
+                            ),
+                          ),
+                      { tone: 'danger' },
+                    ),
                 },
               )
             }}
             className="text-muted-foreground hover:text-destructive-foreground pointer-coarse:min-h-12 ml-auto inline-flex items-center gap-1 rounded-sm px-2 py-2 text-xs"
           >
             <Icon icon={Trash2} size={14} />
-            Xoá
+            {t(message('Xoá', 'Delete', '삭제'))}
           </button>
         )}
       </div>
@@ -290,6 +313,74 @@ function MeetingLine({
         />
       )}
     </li>
+  )
+}
+
+/** The row's outbound links: meeting link, Google Calendar event, comm record, transcript. */
+function MeetingLinks({
+  row,
+  recordId,
+  onRead,
+}: {
+  row: MeetingRow
+  recordId: string | undefined
+  onRead: () => void
+}) {
+  const { t } = useI18n()
+  const live = row.cancelledAt === null
+  return (
+    <>
+      {live && row.link && (
+        /* `rel="noreferrer"`: link do người dùng dán vào, và một tab mở bằng
+         `target="_blank"` không có thuộc tính này thì trang đích với được
+         vào `window.opener`. */
+        <a
+          href={row.link}
+          target="_blank"
+          rel="noreferrer"
+          className="text-accent-foreground pointer-coarse:min-h-12 inline-flex items-center gap-1 rounded-sm px-2 py-2 text-xs font-medium"
+        >
+          <Icon icon={Link} size={14} />
+          {t(message('Mở link họp', 'Open meeting link', '미팅 링크 열기'))}
+        </a>
+      )}
+      {live && row.eventUrl && (
+        <a
+          href={row.eventUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-accent-foreground pointer-coarse:min-h-12 inline-flex items-center gap-1 rounded-sm px-2 py-2 text-xs font-medium"
+        >
+          <Icon icon={CalendarCheck} size={14} />
+          {t(
+            message(
+              'Mở trên Google Calendar',
+              'Open in Google Calendar',
+              'Google Calendar에서 열기',
+            ),
+          )}
+        </a>
+      )}
+      {recordId && (
+        <RouteLink
+          to={commRecordPath(recordId)}
+          className="text-accent-foreground pointer-coarse:min-h-12 inline-flex items-center gap-1 rounded-sm px-2 py-2 text-xs font-medium"
+        >
+          <Icon icon={MessageSquare} size={14} />
+          {t(message('Mở lượt liên hệ', 'Open contact record', '연락 기록 열기'))}
+        </RouteLink>
+      )}
+      {row.transcript && (
+        <button
+          type="button"
+          onClick={onRead}
+          className="text-muted-foreground hover:text-foreground pointer-coarse:min-h-12 inline-flex items-center gap-1 rounded-sm px-2 py-2 text-xs font-medium"
+        >
+          <Icon icon={FileText} size={14} />
+          {t(message('Xem transcript', 'View transcript', '녹취록 보기'))}
+        </button>
+      )}
+    </>
   )
 }
 

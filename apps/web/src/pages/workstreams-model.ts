@@ -1,6 +1,7 @@
 import { Kanban, List } from '@pv/ui'
-import type { WorkstreamBookQuery } from '@pv/contracts'
-import { CLOSE_REASON_LABEL, STAND_KIND_LABEL, type BoardView } from '@/data/workstreams'
+import type { WorkstreamBookQuery, WorkstreamStandKind } from '@pv/contracts'
+import { closeReasonLabel, standKindLabel, type BoardView } from '@/data/workstreams'
+import { getLang, message, translate, type Lang } from '@/app/i18n'
 import { dayRangeChip, listChip, type ActiveFilter } from '@/components/active-filters'
 import type { ViewOption } from '@/components/book-cards'
 
@@ -11,13 +12,17 @@ import type { ViewOption } from '@/components/book-cards'
 /* The server searches the run code, the lead's company and the account name
    (`SEARCHED` in the workstream repository): that is all this line may promise.
    One string for the table, the board and the app header. */
-export const WORKSTREAM_SEARCH_HINT = 'Tìm theo tên khách hàng hoặc mã hành trình…'
+export const WORKSTREAM_SEARCH_HINT = 'Tìm theo tên khách hàng hoặc mã hành trình…' // i18n-ignore
 
-/* A chip names every picked kind; the schema already refuses an unknown one. */
-const KIND_NAME: Record<string, string> = STAND_KIND_LABEL
-
+/* Getters, so the page that draws the switch reads the current language. */
 export const VIEW_OPTIONS: readonly ViewOption<BoardView>[] = [
-  { value: 'table', label: 'Bảng', icon: List },
+  {
+    value: 'table',
+    get label() {
+      return translate(message('Bảng', 'Table', '표'))
+    },
+    icon: List,
+  },
   { value: 'kanban', label: 'Kanban', icon: Kanban },
 ]
 
@@ -25,14 +30,21 @@ export function filterChips(
   query: WorkstreamBookQuery,
   patch: (next: Partial<WorkstreamBookQuery>) => void,
   ownerName: (id: string) => string,
+  lang: Lang = getLang(),
 ): ActiveFilter[] {
+  const m = (vi: string, en: string, ko: string) => translate(message(vi, en, ko), lang)
+  const reason = query.closeReason !== undefined ? closeReasonLabel(query.closeReason, lang) : ''
   return [
     ...(query.stopped === true
       ? [
           {
             id: 'stopped',
-            label: 'Đã dừng',
-            aria: 'Bỏ lọc hành trình đã dừng',
+            label: m('Đã dừng', 'Stopped', '중단됨'),
+            aria: m(
+              'Bỏ lọc hành trình đã dừng',
+              'Remove the stopped workstreams filter',
+              '중단된 영업 건 필터 지우기',
+            ),
             onDrop: () => patch({ stopped: undefined }),
           },
         ]
@@ -41,38 +53,54 @@ export function filterChips(
       ? [
           {
             id: 'closeReason',
-            label: CLOSE_REASON_LABEL[query.closeReason],
-            aria: `Bỏ lọc ${CLOSE_REASON_LABEL[query.closeReason]}`,
+            label: reason,
+            aria: m(`Bỏ lọc ${reason}`, `Remove the ${reason} filter`, `${reason} 필터 지우기`),
             onDrop: () => patch({ closeReason: undefined }),
           },
         ]
       : []),
     ...listChip(
       'standKind',
-      'Đang ở',
+      m('Đang ở', 'At', '현재 단계'),
       query.standKind,
-      (kind) => KIND_NAME[kind] ?? kind,
+      (kind) => standKindLabel(kind as WorkstreamStandKind, lang),
       () => patch({ standKind: undefined, standKey: undefined }),
       ' ',
     ),
-    ...listChip('owner', 'Người phụ trách', query.owner, ownerName, () =>
+    ...listChip('owner', m('Người phụ trách', 'Owner', '담당자'), query.owner, ownerName, () =>
       patch({ owner: undefined }),
     ),
-    ...dayRangeChip('live', 'Đang chạy trong', query.liveFrom, query.liveTo, () =>
-      patch({ liveFrom: undefined, liveTo: undefined }),
+    ...dayRangeChip(
+      'live',
+      m('Đang chạy trong', 'Live in', '진행 기간'),
+      query.liveFrom,
+      query.liveTo,
+      () => patch({ liveFrom: undefined, liveTo: undefined }),
     ),
-    ...dayRangeChip('opened', 'Mở trong', query.openedFrom, query.openedTo, () =>
-      patch({ openedFrom: undefined, openedTo: undefined }),
+    ...dayRangeChip(
+      'opened',
+      m('Mở trong', 'Opened in', '개시 기간'),
+      query.openedFrom,
+      query.openedTo,
+      () => patch({ openedFrom: undefined, openedTo: undefined }),
     ),
-    ...dayRangeChip('closed', 'Ngày đóng', query.closedFrom, query.closedTo, () =>
-      patch({ closedFrom: undefined, closedTo: undefined }),
+    ...dayRangeChip(
+      'closed',
+      m('Ngày đóng', 'Closed on', '종료일'),
+      query.closedFrom,
+      query.closedTo,
+      () => patch({ closedFrom: undefined, closedTo: undefined }),
     ),
     ...(query.accountCode !== undefined
       ? [
           {
             id: 'accountCode',
             label: query.accountCode,
-            aria: `Bỏ lọc theo công ty ${query.accountCode}`,
+            aria: m(
+              `Bỏ lọc theo công ty ${query.accountCode}`,
+              `Remove the company filter ${query.accountCode}`,
+              `회사 필터 ${query.accountCode} 지우기`,
+            ),
             className: 'font-mono',
             onDrop: () => patch({ accountCode: undefined }),
           },

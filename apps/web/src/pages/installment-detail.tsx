@@ -20,19 +20,15 @@ import {
   millions,
   type StatusDotState,
 } from '@pv/ui'
-import { DOC_STATE_LABEL } from '@pv/contracts'
 import { daysUntil } from '@pv/engines'
 import { userMessage } from '@/app/api'
-import { formatCurrency } from '@/app/i18n'
+import { formatCurrency, message, translate, useI18n, type Lang } from '@/app/i18n'
 import { useAppChrome } from '@/app/chrome'
 import { useCan, useSession } from '@/app/auth'
 import { toast, toastDone, toastFail } from '@/app/toast'
 import { dm, dmhm } from '@/lib/date'
 import {
-  RECORD_CHANNEL_LABEL,
   contractDetailQuery,
-  daysPhrase,
-  contractReadOnlyNote,
   installmentOf,
   overdue,
   today,
@@ -42,12 +38,22 @@ import {
   type InstallmentCondition,
   type InstallmentView,
 } from '@/data/contracts'
+import { CONTRACT_DETAIL_COPY, installmentNoText } from '@/data/contract-detail-copy'
 import { useDoneCondition } from '@/data/contracts-write'
+import {
+  conditionSideInline,
+  contractReadOnlyCopy,
+  MARKED_DONE,
+  MARK_FAILED,
+  daysPhraseText,
+  docStateText,
+  recordChannelText,
+} from '@/data/installment-copy'
 import { opportunityProfileQuery } from '@/data/opportunities'
 import { CollectCard, installmentDoorsOf } from '@/components/deal-pay'
 import { ReminderForm } from '@/components/deal-money/installment-sections'
 import { DueBadge, SideTag, TerminatedBadge } from '@/components/contract-bits'
-import { MAIL_BLOCKED, contractChain, useContractRun } from '@/components/contract-run'
+import { mailBlockedText, contractChain, useContractRun } from '@/components/contract-run'
 import { LetterComposer } from '@/components/mail-letter/letter-composer'
 import { ActionBar } from '@/components/record/action-bar'
 import { RecordCard } from '@/components/record/record-card'
@@ -78,8 +84,23 @@ const RECORD_DOT: Record<string, StatusDotState> = {
 
 const DOC_TONE = { complete: 'success', 'awaiting-signature': 'danger', missing: 'draft' } as const
 
+const NOT_FOUND = message(
+  'Không có hợp đồng hoặc đợt này, hoặc hợp đồng không do bạn phụ trách.',
+  'This contract or installment does not exist, or the contract is not yours to handle.',
+  '이 계약 또는 납부 회차가 없거나, 담당하신 계약이 아닙니다.',
+)
+
 export function InstallmentDetailPage() {
-  const chrome = useAppChrome({ searchPlaceholder: 'Tìm hợp đồng, khách hàng, số hoá đơn…' })
+  const { t } = useI18n()
+  const chrome = useAppChrome({
+    searchPlaceholder: t(
+      message(
+        'Tìm hợp đồng, khách hàng, số hoá đơn…',
+        'Search contracts, customers, invoice numbers…',
+        '계약, 고객, 청구서 번호 검색…',
+      ),
+    ),
+  })
   const navigate = useNavigate()
   const { code = '', no = '' } = useParams()
 
@@ -101,9 +122,12 @@ export function InstallmentDetailPage() {
           pending={isPending}
           failure={{
             error,
-            notFound: 'Không có hợp đồng hoặc đợt này, hoặc hợp đồng không do bạn phụ trách.',
-            fallback: 'Không có hợp đồng hoặc đợt này, hoặc hợp đồng không do bạn phụ trách.',
-            back: { label: 'Về sổ hợp đồng', onClick: () => navigate('/sales/contracts') },
+            notFound: t(NOT_FOUND),
+            fallback: t(NOT_FOUND),
+            back: {
+              label: t(CONTRACT_DETAIL_COPY.backToBook),
+              onClick: () => navigate('/sales/contracts'),
+            },
           }}
         />
       )}
@@ -124,10 +148,11 @@ function InstallmentScreen({
   contract: Contract
   installment: Installment
 }) {
+  const { t, lang } = useI18n()
   const navigate = useNavigate()
   const run = useContractRun(contract)
   const [composing, setComposing] = useState<{ to: string | null } | null>(null)
-  const mailBlocked = useCan('lead.send-email') ? undefined : MAIL_BLOCKED
+  const mailBlocked = useCan('lead.send-email') ? undefined : mailBlockedText(lang)
   const now = useMemo(() => today(), [])
   const view = viewInstallment(installment, now)
   const subject = { kind: 'contract', code: contract.code } as const
@@ -165,7 +190,7 @@ function InstallmentScreen({
         <RecordHeader
           title={
             <>
-              {`Đợt ${installment.no} · ${installment.label}`}
+              {`${installmentNoText(installment.no, lang)} · ${installment.label}`}
               {ended && !installment.paidAt ? (
                 <TerminatedBadge className="ml-3 align-middle tracking-normal" />
               ) : (
@@ -176,10 +201,16 @@ function InstallmentScreen({
           note={
             ended
               ? installment.paidAt
-                ? 'Hợp đồng đã chấm dứt.'
+                ? t(
+                    message(
+                      'Hợp đồng đã chấm dứt.',
+                      'The contract has been terminated.',
+                      '계약이 종료되었습니다.',
+                    ),
+                  )
                 : null
               : contract.canEdit === false
-                ? contractReadOnlyNote(contract.ownerName, contract.canCollect === true)
+                ? contractReadOnlyCopy(contract.ownerName, contract.canCollect === true, lang)
                 : null
           }
           actions={
@@ -192,14 +223,14 @@ function InstallmentScreen({
                   done.mutate(
                     { no: installment.no, id: blocking.id },
                     {
-                      onSuccess: () => toastDone('Đã đánh dấu xong.'),
-                      onError: (e) => toastFail('Không đánh dấu được.', userMessage(e)),
+                      onSuccess: () => toastDone(t(MARKED_DONE)),
+                      onError: (e) => toastFail(t(MARK_FAILED), userMessage(e)),
                     },
                   )
                 }
               >
                 <Icon icon={Check} size={16} />
-                Đánh dấu xong
+                {t(message('Đánh dấu xong', 'Mark as done', '완료로 표시'))}
               </Button>
             )
           }
@@ -225,7 +256,13 @@ function InstallmentScreen({
           <RecordsCard code={contract.code} installment={installment} canRemind={doors.remind} />
         </>
       }
-      railLabel="Lịch sử liên hệ, người liên hệ, giấy tờ và ghi chú của đợt"
+      railLabel={t(
+        message(
+          'Lịch sử liên hệ, người liên hệ, giấy tờ và ghi chú của đợt',
+          'Contact history, contacts, papers and notes of this installment',
+          '이 납부 회차의 연락 내역, 연락처, 서류 및 메모',
+        ),
+      )}
       rail={
         <>
           <RunOwners workstreamCode={run.workstreamCode} focus={contract.code} />
@@ -237,7 +274,7 @@ function InstallmentScreen({
       }
       actionBar={
         <ActionBar
-          label="Thao tác hợp đồng"
+          label={t(CONTRACT_DETAIL_COPY.actions)}
           subject={subject}
           contacts={run.contacts}
           mailBlocked={mailBlocked}
@@ -266,7 +303,9 @@ function conditionRung(
   blocking: boolean,
   now: string,
   ended: boolean,
+  lang: Lang,
 ): TodoRung {
+  const msg = (vi: string, en: string, ko: string) => translate(message(vi, en, ko), lang)
   const late = !ended && !c.doneAt && daysUntil(c.due, now) < 0
   const mark: RungMark = c.doneAt
     ? 'done'
@@ -282,10 +321,12 @@ function conditionRung(
     label: c.what,
     mark,
     caption: [
-      c.side === 'ours' ? 'bên ta' : 'bên khách',
+      conditionSideInline(c.side, lang),
       c.who,
-      `hạn ${dm(c.due)}`,
-      c.doneAt ? `xong ${dm(c.doneAt)}` : !ended && daysPhrase(daysUntil(c.due, now)),
+      msg(`hạn ${dm(c.due)}`, `due ${dm(c.due)}`, `기한 ${dm(c.due)}`),
+      c.doneAt
+        ? msg(`xong ${dm(c.doneAt)}`, `done ${dm(c.doneAt)}`, `완료 ${dm(c.doneAt)}`)
+        : !ended && daysPhraseText(daysUntil(c.due, now), lang),
     ]
       .filter(Boolean)
       .join(' · '),
@@ -307,11 +348,14 @@ function ConditionsTodo({
   now: string
   ended: boolean
 }) {
+  const { t, lang } = useI18n()
   const { blocking } = view
   return (
     <TodoCard
-      rungs={installment.conditions.map((c) => conditionRung(c, blocking?.id === c.id, now, ended))}
-      rungsLabel="Điều kiện mở khoá"
+      rungs={installment.conditions.map((c) =>
+        conditionRung(c, blocking?.id === c.id, now, ended, lang),
+      )}
+      rungsLabel={t(message('Điều kiện mở khoá', 'Unlock conditions', '해제 조건'))}
       layout="list"
       next={
         blocking &&
@@ -319,7 +363,13 @@ function ConditionsTodo({
           <div className="flex flex-col items-start gap-2">
             <SideTag side={blocking.side} long />
             <p className="m-0 text-[12.5px] leading-[1.6]">
-              Đây là việc duy nhất còn thiếu. Xong là kế toán xuất được hoá đơn.
+              {t(
+                message(
+                  'Đây là việc duy nhất còn thiếu. Xong là kế toán xuất được hoá đơn.',
+                  'This is the only thing still missing. Once done, accounting can issue the invoice.',
+                  '남은 일은 이것 하나입니다. 완료되면 회계팀이 청구서를 발행할 수 있습니다.',
+                ),
+              )}
             </p>
           </div>
         )
@@ -337,45 +387,58 @@ function InstallmentStats({
   view: View
   ended: boolean
 }) {
-  const invoice = installment.docs.find((d) => d.name.includes('Hoá đơn'))
+  const { t, lang } = useI18n()
+  const invoice = installment.docs.find((d) => d.name.includes('Hoá đơn')) // i18n-ignore: matches the stored name
   return (
     <RecordCard>
       <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           size="compact"
-          label="Số tiền"
+          label={t(message('Số tiền', 'Amount', '금액'))}
           value={millions(installment.amount, 0)}
           source={formatCurrency(installment.amount, 'VND')}
         />
         <StatCard
           size="compact"
-          label="Hạn thanh toán"
+          label={t(message('Hạn thanh toán', 'Payment due', '납부 기한'))}
           value={dm(installment.due)}
           source={
             installment.paidAt
               ? undefined
               : ended
-                ? 'hợp đồng đã chấm dứt'
-                : daysPhrase(view.daysLeft)
+                ? t(message('hợp đồng đã chấm dứt', 'contract terminated', '계약 종료됨'))
+                : daysPhraseText(view.daysLeft, lang)
           }
         />
         <StatCard
           size="compact"
-          label="Điều kiện mở khoá"
+          label={t(message('Điều kiện mở khoá', 'Unlock conditions', '해제 조건'))}
           value={`${view.doneConditions}/${view.totalConditions}`}
           source={
             ended
               ? undefined
               : view.blocking
-                ? `còn 1 · bên ${view.blocking.side === 'ours' ? 'ta' : 'khách'}`
-                : 'xong cả hai bên'
+                ? t(
+                    message(
+                      `còn 1 · ${conditionSideInline(view.blocking.side, 'vi')}`,
+                      `1 left · ${conditionSideInline(view.blocking.side, 'en')}`,
+                      `1건 남음 · ${conditionSideInline(view.blocking.side, 'ko')}`,
+                    ),
+                  )
+                : t(message('xong cả hai bên', 'done on both sides', '양측 모두 완료'))
           }
         />
         <StatCard
           size="compact"
-          label="Hoá đơn"
-          value={invoice?.state === 'complete' ? 'Đã xuất' : 'Chưa xuất'}
-          source={invoice?.hint ?? 'chưa tới lượt'}
+          label={t(message('Hoá đơn', 'Invoice', '청구서'))}
+          value={
+            invoice?.state === 'complete'
+              ? t(message('Đã xuất', 'Issued', '발행됨'))
+              : t(message('Chưa xuất', 'Not issued', '미발행'))
+          }
+          source={
+            invoice?.hint ?? t(message('chưa tới lượt', 'not its turn yet', '아직 차례가 아님'))
+          }
         />
       </div>
     </RecordCard>
@@ -383,10 +446,13 @@ function InstallmentStats({
 }
 
 function DocsCard({ installment }: { installment: Installment }) {
+  const { t, lang } = useI18n()
   return (
-    <RunBlock title="Giấy tờ">
+    <RunBlock title={t(message('Giấy tờ', 'Papers', '서류'))}>
       {installment.docs.length === 0 ? (
-        <p className="text-muted-foreground m-0 text-[12px] leading-[1.6]">Chưa có tệp nào.</p>
+        <p className="text-muted-foreground m-0 text-[12px] leading-[1.6]">
+          {t(message('Chưa có tệp nào.', 'No files yet.', '아직 파일이 없습니다.'))}
+        </p>
       ) : (
         <div className="flex flex-col gap-2">
           {installment.docs.map((doc) => (
@@ -397,7 +463,7 @@ function DocsCard({ installment }: { installment: Installment }) {
                 <span className="text-muted-foreground text-[12px]">{doc.hint}</span>
               </span>
               <Badge tone={DOC_TONE[doc.state]} className="shrink-0">
-                {DOC_STATE_LABEL[doc.state]}
+                {docStateText(doc.state, lang)}
               </Badge>
             </div>
           ))}
@@ -418,12 +484,19 @@ function RecordsCard({
   installment: Installment
   canRemind: boolean
 }) {
+  const { t, lang } = useI18n()
   const [adding, setAdding] = useState(false)
   return (
     <GlassCard variant="b" className="flex min-w-0 flex-col gap-4 p-4 sm:p-5">
       <SectionTitle
         size="detail"
-        hint="Gồm lượt đã nhắc, khách trả lời và lượt sắp nhắc."
+        hint={t(
+          message(
+            'Gồm lượt đã nhắc, khách trả lời và lượt sắp nhắc.',
+            'Includes reminders sent, customer replies and upcoming reminders.',
+            '보낸 알림, 고객 답변, 예정된 알림이 포함됩니다.',
+          ),
+        )}
         actions={
           canRemind && (
             <Button
@@ -434,19 +507,31 @@ function RecordsCard({
               onClick={() => setAdding((was) => !was)}
             >
               <Icon icon={Plus} size={16} />
-              Ghi lần nhắc
+              {t(message('Ghi lần nhắc', 'Log a reminder', '알림 기록'))}
             </Button>
           )
         }
       >
-        {installment.records.length} lượt chạm
+        {t(
+          message(
+            `${installment.records.length} lượt chạm`,
+            `${installment.records.length} touches`,
+            `접점 ${installment.records.length}건`,
+          ),
+        )}
       </SectionTitle>
 
       {adding && <ReminderForm code={code} no={installment.no} onClose={() => setAdding(false)} />}
 
       {installment.records.length === 0 ? (
         <p className="text-muted-foreground m-0 text-[12px] leading-[1.6]">
-          Chưa có lượt nào. Lịch nhắc bắt đầu 14 ngày trước hạn.
+          {t(
+            message(
+              'Chưa có lượt nào. Lịch nhắc bắt đầu 14 ngày trước hạn.',
+              'No touches yet. The reminder schedule starts 14 days before the due date.',
+              '아직 접점이 없습니다. 알림 일정은 기한 14일 전에 시작됩니다.',
+            ),
+          )}
         </p>
       ) : (
         <Timeline
@@ -456,7 +541,7 @@ function RecordsCard({
             title: r.what,
             meta: (
               <div className="flex flex-wrap items-center gap-2">
-                <MetaPill>{RECORD_CHANNEL_LABEL[r.channel]}</MetaPill>
+                <MetaPill>{recordChannelText(r.channel, lang)}</MetaPill>
                 <span className="text-muted-foreground tnum text-[12px]">
                   {r.state === 'upcoming' || r.state === 'scheduled' ? dm(r.at) : dmhm(r.at)} ·{' '}
                   {r.detail}
@@ -471,8 +556,11 @@ function RecordsCard({
 }
 
 function NotesCard({ installment }: { installment: Installment }) {
+  const { t } = useI18n()
+  const unavailable = () =>
+    toast(t(message('Chưa dùng được.', 'Not available yet.', '아직 사용할 수 없습니다.')))
   return (
-    <RunBlock title="Ghi chú">
+    <RunBlock title={t(message('Ghi chú', 'Notes', '메모'))}>
       {installment.notes.map((note) => (
         <div key={note.id} className="bg-surface-ink/6 flex flex-col gap-2 rounded-md p-3">
           <div className="flex items-center gap-2">
@@ -485,28 +573,36 @@ function NotesCard({ installment }: { installment: Installment }) {
       ))}
 
       <div className="bg-accent flex flex-col gap-2 rounded-md p-3 shadow-[inset_0_1px_0_var(--sheen-b)]">
-        <span className="text-on-tint-primary text-[12.5px] font-semibold">Lời hứa của khách</span>
+        <span className="text-on-tint-primary text-[12.5px] font-semibold">
+          {t(message('Lời hứa của khách', 'Customer promise', '고객 약속'))}
+        </span>
         <p className="text-on-tint-primary-muted m-0 text-[12px] leading-[1.6]">
-          Chưa có dòng nào. Ghi lại ngày khách hẹn, ai hẹn và hẹn qua kênh nào.
+          {t(
+            message(
+              'Chưa có dòng nào. Ghi lại ngày khách hẹn, ai hẹn và hẹn qua kênh nào.',
+              'Nothing yet. Record the date the customer promised, who promised and through which channel.',
+              '아직 기록이 없습니다. 고객이 약속한 날짜, 약속한 사람, 약속한 채널을 기록하세요.',
+            ),
+          )}
         </p>
         <Button
           size="sm"
           variant="secondary"
           className="pointer-coarse:h-12 self-start"
-          onClick={() => toast('Chưa dùng được.')}
+          onClick={unavailable}
         >
           <Icon icon={PenLine} size={16} />
-          Ghi lời hứa
+          {t(message('Ghi lời hứa', 'Record promise', '약속 기록'))}
         </Button>
       </div>
 
       <button
         type="button"
         className="text-muted-foreground motion-std bg-surface-ink/6 hover:bg-surface-ink/12 flex min-h-12 items-center gap-2 rounded-md p-3 text-[12.5px]"
-        onClick={() => toast('Chưa dùng được.')}
+        onClick={unavailable}
       >
         <Icon icon={Paperclip} size={16} />
-        Viết ghi chú mới…
+        {t(message('Viết ghi chú mới…', 'Write a new note…', '새 메모 작성…'))}
       </button>
     </RunBlock>
   )

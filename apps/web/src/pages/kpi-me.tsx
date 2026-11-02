@@ -174,13 +174,7 @@ export function KpiMePage() {
       <ScreenLayout>
         <ScreenHeader
           title={t(message('KPI của tôi', 'My KPIs', '내 KPI'))}
-          description={t(
-            message(
-              DESCRIPTION,
-              'Track your monthly performance against assigned targets.',
-              '월간 실적과 배정된 목표를 확인하세요.',
-            ),
-          )}
+          description={t(DESCRIPTION)}
           actions={<MonthPicker pick={pick} onPick={setPick} />}
         />
 
@@ -191,7 +185,10 @@ export function KpiMePage() {
         {isTieredPeriod(period) && <AssignLink period={period} role={RoleId.enum.sale} />}
         {actorId && <AbsenceBlock me={actorId} />}
 
-        <QueryBlock query={withCatalog(me, catalog)} what="KPI của bạn">
+        <QueryBlock
+          query={withCatalog(me, catalog)}
+          what={message('KPI của bạn', 'your KPIs', '내 KPI')}
+        >
           {([data, defs]) => {
             /* Flags are not drawn on a closed month, so neither is their legend. */
             const legend =

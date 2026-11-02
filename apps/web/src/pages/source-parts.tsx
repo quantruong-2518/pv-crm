@@ -16,8 +16,9 @@ import {
 } from '@pv/ui'
 import { DAS_VINA_FROZEN_AT, dasVina } from '@pv/engines/fixtures/das-vina'
 import { dm } from '@/lib/date'
+import { message, useI18n } from '@/app/i18n'
 import {
-  DRAFT_TEMPLATE,
+  draftTemplate,
   LEAD_CATEGORIES,
   LEAD_TIERS,
   PROVINCES,
@@ -45,6 +46,8 @@ import {
  *
  *  Hằng số và phép dựng bản nháp nằm ở `campaign-model.ts`, không ở đây. */
 
+const START_RUNNING = message('Bắt đầu chạy', 'Start running', '실행 시작')
+
 /** Cố tình không làm — hai thứ bị bỏ có chủ ý, kèm lý do.
  *
  *  Khối này ở lại trên màn (không phải trong comment) vì cả hai là câu người xem
@@ -57,20 +60,47 @@ import {
  *  Không dùng `GlassCard`: khối này nằm trong cột phải của hồ sơ chiến dịch,
  *  thêm một mặt kính nữa là thêm một lớp nền (luật 12). */
 export function NotDoing() {
+  const { t } = useI18n()
   const items = [
     {
-      title: 'Không có bảng lead trên màn này',
-      body: 'Danh sách lead xem ở Sổ lead. Ở đây chỉ có số tổng.',
+      title: t(
+        message(
+          'Không có bảng lead trên màn này',
+          'No lead table on this screen',
+          '이 화면에는 리드 표가 없습니다',
+        ),
+      ),
+      body: t(
+        message(
+          'Danh sách lead xem ở Sổ lead. Ở đây chỉ có số tổng.',
+          'See the lead list in the Lead book. This screen shows totals only.',
+          '리드 목록은 리드 목록 화면에서 확인하세요. 여기에는 합계만 표시됩니다.',
+        ),
+      ),
     },
     {
-      title: 'Không vẽ đường theo thời gian',
-      body: `Số liệu chốt ngày ${dm(DAS_VINA_FROZEN_AT)}, chưa có số theo tháng hay quý.`,
+      title: t(
+        message(
+          'Không vẽ đường theo thời gian',
+          'No trend line over time',
+          '시간별 추이 그래프 없음',
+        ),
+      ),
+      body: t(
+        message(
+          `Số liệu chốt ngày ${dm(DAS_VINA_FROZEN_AT)}, chưa có số theo tháng hay quý.`,
+          `Figures are as of ${dm(DAS_VINA_FROZEN_AT)}; there are no monthly or quarterly figures yet.`,
+          `수치는 ${dm(DAS_VINA_FROZEN_AT)} 기준이며, 월별·분기별 수치는 아직 없습니다.`,
+        ),
+      ),
     },
   ]
 
   return (
     <div className="bg-surface-ink/5 flex flex-col gap-3 rounded-md p-4">
-      <h3 className="text-[12.5px] font-semibold">Cố tình không làm</h3>
+      <h3 className="text-[12.5px] font-semibold">
+        {t(message('Cố tình không làm', 'Deliberately not done', '의도적으로 하지 않은 것'))}
+      </h3>
       <ul className="m-0 flex list-none flex-col gap-3 p-0">
         {items.map((it) => (
           <li key={it.title} className="flex flex-col gap-1">
@@ -172,6 +202,7 @@ function ChipRow({
   disabled?: boolean
   max?: number
 }) {
+  const { t } = useI18n()
   const id = useId()
   const [open, setOpen] = useState(false)
 
@@ -199,7 +230,13 @@ function ChipRow({
         ))}
         {hidden > 0 ? (
           <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>
-            + {hidden} {label.toLowerCase()} nữa
+            {t(
+              message(
+                `+ ${hidden} ${label.toLowerCase()} nữa`,
+                `+ ${hidden} more ${label.toLowerCase()}`,
+                `${label} ${hidden}개 더 보기`,
+              ),
+            )}
           </Button>
         ) : null}
       </div>
@@ -222,6 +259,8 @@ function StepAudience({
   setDraft: (fn: (d: CampaignDraft) => CampaignDraft) => void
   locked: boolean
 }) {
+  const { t, lang } = useI18n()
+  const example = draftTemplate(lang).name
   const members = useMemo(() => membersOf(draft.group), [draft.group])
 
   const toggle = <K extends keyof LeadGroup>(key: K, value: string) =>
@@ -233,20 +272,30 @@ function StepAudience({
 
   return (
     <section className="flex flex-col gap-4">
-      <SectionTitle size="lg" kicker="Bước 1" hint="Ô có dấu sao là bắt buộc.">
-        Gửi cho ai?
+      <SectionTitle
+        size="lg"
+        kicker={t(message('Bước 1', 'Step 1', '1단계'))}
+        hint={t(
+          message(
+            'Ô có dấu sao là bắt buộc.',
+            'Fields marked with * are required.',
+            '*가 있는 항목은 필수입니다.',
+          ),
+        )}
+      >
+        {t(message('Gửi cho ai?', 'Who receives it?', '누구에게 보낼까요?'))}
       </SectionTitle>
 
       {/* Ô một dòng KHÔNG kéo hết 1.400px. Một ô nhập rộng bằng cả màn nói với
           người dùng rằng nó chờ một đoạn văn, và mắt phải đi hết bề ngang mới
           biết mình gõ tới đâu. */}
       <div className="max-w-2xl">
-        <Field label="Tên chiến dịch" required>
+        <Field label={t(message('Tên chiến dịch', 'Campaign name', '캠페인 이름'))} required>
           <Input
             value={draft.name}
             aria-required
             readOnly={locked}
-            placeholder={`Ví dụ ${DRAFT_TEMPLATE.name}`}
+            placeholder={t(message(`Ví dụ ${example}`, `e.g. ${example}`, `예: ${example}`))}
             onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
           />
         </Field>
@@ -254,7 +303,9 @@ function StepAudience({
 
       <div className="bg-surface-ink/5 flex flex-col gap-4 rounded-md p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <GroupLabel required>Nhóm người nhận</GroupLabel>
+          <GroupLabel required>
+            {t(message('Nhóm người nhận', 'Recipient group', '수신자 그룹'))}
+          </GroupLabel>
           {/* Con số phải to và phải đứng ngay trên các hàng chip. Nó là thứ nói
               cho người dùng biết họ đang hiểu bộ lọc đúng hay ngược — một dòng
               giải thích không làm được việc đó. */}
@@ -262,31 +313,39 @@ function StepAudience({
             <span className="tnum font-num text-[26px] font-semibold leading-none">
               {members.length}
             </span>
-            <span className="text-muted-foreground text-[11.5px]">người nhận</span>
+            <span className="text-muted-foreground text-[11.5px]">
+              {t(message('người nhận', 'recipients', '수신자'))}
+            </span>
           </span>
         </div>
 
         <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-          Để trống là lấy tất cả. Đang gửi cho:{' '}
-          <b className="text-foreground font-semibold">{groupText(draft.group)}</b>.
+          {t(
+            message(
+              'Để trống là lấy tất cả. Đang gửi cho:',
+              'Leave empty to include everyone. Sending to:',
+              '비워 두면 모두 포함됩니다. 발송 대상:',
+            ),
+          )}{' '}
+          <b className="text-foreground font-semibold">{groupText(draft.group, lang)}</b>.
         </p>
 
         <ChipRow
-          label="Ngành"
+          label={t(message('Ngành', 'Industry', '업종'))}
           disabled={locked}
           options={LEAD_CATEGORIES.map((c) => ({ value: c.key, label: c.label }))}
           picked={draft.group.categories}
           onToggle={(v) => toggle('categories', v)}
         />
         <ChipRow
-          label="Bậc"
+          label={t(message('Bậc', 'Tier', '등급'))}
           disabled={locked}
           options={LEAD_TIERS.map((t) => ({ value: t.key, label: t.label }))}
           picked={draft.group.tiers}
           onToggle={(v) => toggle('tiers', v)}
         />
         <ChipRow
-          label="Tỉnh"
+          label={t(message('Tỉnh', 'Province', '지역'))}
           disabled={locked}
           max={8}
           options={PROVINCES.map((p) => ({ value: p, label: p }))}
@@ -300,12 +359,20 @@ function StepAudience({
         {members.length === 0 ? (
           <p className="text-warning flex items-start gap-2 text-[11.5px] leading-[1.5]">
             <Icon icon={TriangleAlert} size={16} />
-            Không ai khớp cả ba điều kiện. Bỏ bớt một điều kiện để có người nhận.
+            {t(
+              message(
+                'Không ai khớp cả ba điều kiện. Bỏ bớt một điều kiện để có người nhận.',
+                'No one matches all three conditions. Remove a condition to get recipients.',
+                '세 가지 조건을 모두 만족하는 사람이 없습니다. 조건을 하나 줄이면 수신자가 생깁니다.',
+              ),
+            )}
           </p>
         ) : (
           <div className="flex flex-col gap-2">
             <span className="text-muted-foreground text-[11px]">
-              {members.length <= 5 ? 'Cả nhóm' : '5 người đầu nhóm'}
+              {members.length <= 5
+                ? t(message('Cả nhóm', 'Whole group', '전체 그룹'))
+                : t(message('5 người đầu nhóm', 'First 5 people', '처음 5명'))}
             </span>
             <ul className="m-0 flex list-none flex-col gap-1 p-0">
               {members.slice(0, 5).map((l) => (
@@ -320,7 +387,13 @@ function StepAudience({
             </ul>
             {members.length > 5 ? (
               <span className="text-muted-foreground text-[11px]">
-                còn {members.length - 5} người nữa
+                {t(
+                  message(
+                    `còn ${members.length - 5} người nữa`,
+                    `${members.length - 5} more`,
+                    `${members.length - 5}명 더 있음`,
+                  ),
+                )}
               </span>
             ) : null}
           </div>
@@ -353,6 +426,7 @@ function WaveCard({
   onDrop: () => void
   cardRef: (el: HTMLDivElement | null) => void
 }) {
+  const { t, lang } = useI18n()
   const uid = useId()
   const titleId = `${uid}-title`
   const channelId = `${uid}-channel`
@@ -374,23 +448,25 @@ function WaveCard({
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span id={titleId} className="text-[12.5px] font-semibold">
-          Đợt {index + 1}
+          {t(message(`Đợt ${index + 1}`, `Wave ${index + 1}`, `웨이브 ${index + 1}`))}
         </span>
-        <span className="text-muted-foreground text-[11px]">{whenText(wave)}</span>
+        <span className="text-muted-foreground text-[11px]">{whenText(wave, lang)}</span>
         <Button
           size="sm"
           variant="ghost"
           disabled={locked}
-          aria-label={`Bỏ đợt ${index + 1}`}
+          aria-label={t(
+            message(`Bỏ đợt ${index + 1}`, `Remove wave ${index + 1}`, `웨이브 ${index + 1} 삭제`),
+          )}
           onClick={onDrop}
         >
           <Icon icon={Trash2} size={16} />
-          Bỏ
+          {t(message('Bỏ', 'Remove', '삭제'))}
         </Button>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Field label="Tên đợt" required>
+        <Field label={t(message('Tên đợt', 'Wave name', '웨이브 이름'))} required>
           <Input
             value={wave.label}
             aria-required
@@ -401,7 +477,7 @@ function WaveCard({
 
         <div className="flex flex-col gap-2">
           <GroupLabel id={channelId} required>
-            Kênh bắn
+            {t(message('Kênh bắn', 'Send channel', '발송 채널'))}
           </GroupLabel>
           {/* Đây là thao tác CHÍNH của Bước 2, và ở iPad dọc 768px nó được bấm
               bằng ngón tay — `<button>` trần bọc một tag 11px chỉ cao 24px.
@@ -433,12 +509,24 @@ function WaveCard({
       {sendsViaE4(wave.channel) ? (
         <span className="text-muted-foreground flex items-start gap-2 text-[11px] leading-[1.5]">
           <Icon icon={Send} size={16} />
-          Gửi tự động, có nhật ký gửi và chống trùng người nhận
+          {t(
+            message(
+              'Gửi tự động, có nhật ký gửi và chống trùng người nhận',
+              'Sent automatically, with a send log and no duplicate recipients',
+              '자동 발송되며 발송 기록이 남고 수신자 중복이 방지됩니다',
+            ),
+          )}
         </span>
       ) : (
         <span className="text-warning flex items-start gap-2 text-[11px] leading-[1.5]">
           <Icon icon={TriangleAlert} size={16} />
-          Chưa gửi tự động qua {CHANNEL_LABEL[wave.channel]}. Bạn đăng bài rồi nhập số liệu về.
+          {t(
+            message(
+              `Chưa gửi tự động qua ${CHANNEL_LABEL[wave.channel]}. Bạn đăng bài rồi nhập số liệu về.`,
+              `Not sent automatically via ${CHANNEL_LABEL[wave.channel]}. Post it yourself, then enter the figures.`,
+              `${CHANNEL_LABEL[wave.channel]}로는 자동 발송되지 않습니다. 직접 게시한 뒤 수치를 입력하세요.`,
+            ),
+          )}
         </span>
       )}
 
@@ -447,7 +535,7 @@ function WaveCard({
           nói ra thứ hai ngày mấy. Ở đây chọn xong là đọc được thành ngày. */}
       <div className="flex flex-col gap-2">
         <GroupLabel id={whenId} required>
-          Gửi khi nào
+          {t(message('Gửi khi nào', 'When to send', '발송 시점'))}
         </GroupLabel>
         <div role="group" aria-labelledby={whenId} className="flex flex-wrap items-end gap-3">
           <Button
@@ -458,7 +546,7 @@ function WaveCard({
             onClick={() => onPatch({ sendNow: true })}
           >
             <Icon icon={Zap} size={16} />
-            Gửi ngay
+            {t(message('Gửi ngay', 'Send now', '즉시 발송'))}
           </Button>
           <Button
             size="sm"
@@ -468,7 +556,7 @@ function WaveCard({
             onClick={() => onPatch({ sendNow: false })}
           >
             <Icon icon={CalendarClock} size={16} />
-            Hẹn ngày
+            {t(message('Hẹn ngày', 'Schedule', '날짜 예약'))}
           </Button>
 
           {/* Ô ngày giờ KHÔNG biến mất khi bấm "Gửi ngay" — nó mờ đi. Biến mất
@@ -476,7 +564,9 @@ function WaveCard({
               nhiều. Giá trị vẫn nằm trong bản nháp, bấm lại là thấy. */}
           <div className={cn('flex flex-wrap items-end gap-2', wave.sendNow && 'opacity-40')}>
             <label className="flex flex-col gap-1">
-              <span className="text-muted-foreground text-[11px]">Ngày</span>
+              <span className="text-muted-foreground text-[11px]">
+                {t(message('Ngày', 'Date', '날짜'))}
+              </span>
               <Input
                 type="date"
                 className="w-[150px]"
@@ -488,7 +578,9 @@ function WaveCard({
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-muted-foreground text-[11px]">Giờ</span>
+              <span className="text-muted-foreground text-[11px]">
+                {t(message('Giờ', 'Time', '시간'))}
+              </span>
               <Input
                 type="time"
                 className="w-[110px]"
@@ -502,14 +594,36 @@ function WaveCard({
         </div>
         {wave.sendNow ? (
           <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-            "Gửi ngay" tính từ lúc bạn bấm <b className="text-foreground">Bắt đầu chạy</b>. Lưu nháp
-            thì chưa gửi mail nào.
+            {t(
+              message(
+                '"Gửi ngay" tính từ lúc bạn bấm ',
+                'Send now counts from when you press ',
+                '즉시 발송은 ',
+              ),
+            )}
+            <b className="text-foreground">{t(START_RUNNING)}</b>
+            {t(
+              message(
+                '. Lưu nháp thì chưa gửi mail nào.',
+                '. Saving a draft sends no email.',
+                '을 누른 시점부터 적용됩니다. 임시 저장 시에는 메일이 발송되지 않습니다.',
+              ),
+            )}
           </span>
         ) : null}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_2fr]">
-        <Field label="Kỳ vọng bao nhiêu lead" hint="Không bắt buộc. Để 0 nếu chưa đặt kỳ vọng.">
+        <Field
+          label={t(message('Kỳ vọng bao nhiêu lead', 'Expected leads', '예상 리드 수'))}
+          hint={t(
+            message(
+              'Không bắt buộc. Để 0 nếu chưa đặt kỳ vọng.',
+              'Optional. Leave 0 if no expectation is set.',
+              '선택 사항입니다. 기대치가 없으면 0으로 두세요.',
+            ),
+          )}
+        >
           <Input
             value={String(wave.expected)}
             inputMode="numeric"
@@ -520,7 +634,13 @@ function WaveCard({
 
         <div className="flex flex-col gap-2">
           <GroupLabel id={contentId} required>
-            Nội dung mail của đợt {index + 1}
+            {t(
+              message(
+                `Nội dung mail của đợt ${index + 1}`,
+                `Email content for wave ${index + 1}`,
+                `웨이브 ${index + 1} 메일 내용`,
+              ),
+            )}
           </GroupLabel>
           {locked ? (
             <div className="bg-input rounded-md p-3">
@@ -530,13 +650,31 @@ function WaveCard({
             <RichText
               value={wave.content}
               onChange={(html) => onPatch({ content: html })}
-              label={`Nội dung mail của đợt ${index + 1}`}
-              placeholder="Soạn nội dung đợt này. Chèn được ảnh, sửa được HTML."
+              label={t(
+                message(
+                  `Nội dung mail của đợt ${index + 1}`,
+                  `Email content for wave ${index + 1}`,
+                  `웨이브 ${index + 1} 메일 내용`,
+                ),
+              )}
+              placeholder={t(
+                message(
+                  'Soạn nội dung đợt này. Chèn được ảnh, sửa được HTML.',
+                  "Write this wave's content. You can insert images and edit HTML.",
+                  '이 웨이브의 내용을 작성하세요. 이미지를 삽입하고 HTML을 수정할 수 있습니다.',
+                ),
+              )}
             />
           )}
           {copied && wave.content.trim() === '' ? (
             <span className="text-muted-foreground text-[11px] leading-[1.5]">
-              Nội dung đợt cũ không còn lưu. Soạn lại ở ô này.
+              {t(
+                message(
+                  'Nội dung đợt cũ không còn lưu. Soạn lại ở ô này.',
+                  'The old wave content is no longer stored. Write it again here.',
+                  '이전 웨이브의 내용은 더 이상 저장되어 있지 않습니다. 여기에 다시 작성하세요.',
+                ),
+              )}
             </span>
           ) : null}
         </div>
@@ -577,6 +715,7 @@ export function CampaignForm({
   seededWave?: boolean
   onClose: () => void
 }) {
+  const { t } = useI18n()
   const uid = useId()
   const [draft, setDraft] = useState<CampaignDraft>(initial)
   /* Chuỗi duyệt mở đầu RỖNG — "không cần người duyệt vẫn tạo được". Ai muốn có
@@ -637,10 +776,22 @@ export function CampaignForm({
   const canSave = draft.name.trim() !== ''
 
   const missing = [
-    draft.name.trim() === '' ? 'tên chiến dịch' : null,
-    members.length === 0 ? 'ít nhất một người nhận' : null,
-    draft.waves.length === 0 ? 'ít nhất một đợt' : null,
-    blankWaves > 0 ? `nội dung mail cho ${blankWaves} đợt` : null,
+    draft.name.trim() === '' ? t(message('tên chiến dịch', 'campaign name', '캠페인 이름')) : null,
+    members.length === 0
+      ? t(message('ít nhất một người nhận', 'at least one recipient', '수신자 1명 이상'))
+      : null,
+    draft.waves.length === 0
+      ? t(message('ít nhất một đợt', 'at least one wave', '웨이브 1개 이상'))
+      : null,
+    blankWaves > 0
+      ? t(
+          message(
+            `nội dung mail cho ${blankWaves} đợt`,
+            `email content for ${blankWaves} waves`,
+            `웨이브 ${blankWaves}개의 메일 내용`,
+          ),
+        )
+      : null,
   ].filter((x): x is string => x !== null)
   const canRun = missing.length === 0
 
@@ -656,9 +807,18 @@ export function CampaignForm({
   const stopId = `${uid}-stop`
 
   const title =
-    mode === 'edit' ? `Sửa ${code}` : mode === 'duplicate' ? 'Nhân bản nguồn dẫn' : 'Nguồn dẫn mới'
+    mode === 'edit'
+      ? t(message(`Sửa ${code}`, `Edit ${code}`, `${code} 수정`))
+      : mode === 'duplicate'
+        ? t(message('Nhân bản nguồn dẫn', 'Duplicate source', '유입 경로 복제'))
+        : t(message('Nguồn dẫn mới', 'New source', '새 유입 경로'))
 
-  const kicker = mode === 'edit' ? 'Sửa' : mode === 'duplicate' ? 'Nhân bản' : 'Tạo mới'
+  const kicker =
+    mode === 'edit'
+      ? t(message('Sửa', 'Edit', '수정'))
+      : mode === 'duplicate'
+        ? t(message('Nhân bản', 'Duplicate', '복제'))
+        : t(message('Tạo mới', 'Create', '새로 만들기'))
 
   return (
     <GlassCard className="flex flex-col gap-5 p-5 lg:p-6">
@@ -669,8 +829,20 @@ export function CampaignForm({
             kicker={kicker}
             hint={
               mode === 'duplicate'
-                ? 'Đã chép chuỗi đợt và nội dung. Chọn lại người nhận ở Bước 1.'
-                : 'Lưu nháp lúc nào cũng được. Chỉ "Bắt đầu chạy" mới gửi mail.'
+                ? t(
+                    message(
+                      'Đã chép chuỗi đợt và nội dung. Chọn lại người nhận ở Bước 1.',
+                      'The wave sequence and content were copied. Choose the recipients again in Step 1.',
+                      '웨이브 순서와 내용이 복사되었습니다. 1단계에서 수신자를 다시 선택하세요.',
+                    ),
+                  )
+                : t(
+                    message(
+                      'Lưu nháp lúc nào cũng được. Chỉ "Bắt đầu chạy" mới gửi mail.',
+                      'You can save a draft any time. Only "Start running" sends email.',
+                      '임시 저장은 언제든 가능합니다. "실행 시작"을 눌러야만 메일이 발송됩니다.',
+                    ),
+                  )
             }
           >
             {title}
@@ -678,19 +850,37 @@ export function CampaignForm({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {saved === 'draft' ? <Badge tone="draft">Đã lưu nháp · chưa gửi ai</Badge> : null}
-          {saved === 'running' ? <Badge tone="running">Đang chạy</Badge> : null}
+          {saved === 'draft' ? (
+            <Badge tone="draft">
+              {t(
+                message(
+                  'Đã lưu nháp · chưa gửi ai',
+                  'Draft saved · nothing sent',
+                  '임시 저장됨 · 아직 발송 안 됨',
+                ),
+              )}
+            </Badge>
+          ) : null}
+          {saved === 'running' ? (
+            <Badge tone="running">{t(message('Đang chạy', 'Running', '진행 중'))}</Badge>
+          ) : null}
 
           {askCancel ? (
             <>
               <span className="text-warning text-[11.5px] leading-[1.5]">
-                Bỏ bản nháp đang soạn?
+                {t(
+                  message(
+                    'Bỏ bản nháp đang soạn?',
+                    'Discard the draft you are writing?',
+                    '작성 중인 초안을 버릴까요?',
+                  ),
+                )}
               </span>
               <Button size="md" variant="destructive" onClick={onClose}>
-                Bỏ nháp
+                {t(message('Bỏ nháp', 'Discard draft', '초안 버리기'))}
               </Button>
               <Button size="md" variant="ghost" onClick={() => setAskCancel(false)}>
-                Soạn tiếp
+                {t(message('Soạn tiếp', 'Keep writing', '계속 작성'))}
               </Button>
             </>
           ) : (
@@ -699,7 +889,9 @@ export function CampaignForm({
               variant="ghost"
               onClick={() => (saved !== 'none' || untouched ? onClose() : setAskCancel(true))}
             >
-              {saved === 'none' ? 'Huỷ' : 'Về sổ'}
+              {saved === 'none'
+                ? t(message('Huỷ', 'Cancel', '취소'))
+                : t(message('Về sổ', 'Back to list', '목록으로'))}
             </Button>
           )}
         </div>
@@ -711,15 +903,27 @@ export function CampaignForm({
         <section className="flex flex-col gap-4">
           <SectionTitle
             size="lg"
-            kicker="Bước 2"
-            hint="Mỗi đợt một nội dung riêng và một mốc gửi riêng."
+            kicker={t(message('Bước 2', 'Step 2', '2단계'))}
+            hint={t(
+              message(
+                'Mỗi đợt một nội dung riêng và một mốc gửi riêng.',
+                'Each wave has its own content and its own send time.',
+                '웨이브마다 내용과 발송 시점이 따로 있습니다.',
+              ),
+            )}
           >
-            Gửi cái gì, lúc nào?
+            {t(message('Gửi cái gì, lúc nào?', 'What to send, and when?', '무엇을 언제 보낼까요?'))}
           </SectionTitle>
 
           {copiedWaves > 0 ? (
             <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-              Nội dung của {copiedWaves} đợt cũ không còn lưu, ô nội dung để trống.
+              {t(
+                message(
+                  `Nội dung của ${copiedWaves} đợt cũ không còn lưu, ô nội dung để trống.`,
+                  `The content of ${copiedWaves} old waves is no longer stored, so the content box is empty.`,
+                  `이전 웨이브 ${copiedWaves}개의 내용은 더 이상 저장되어 있지 않아 내용 칸이 비어 있습니다.`,
+                ),
+              )}
             </p>
           ) : null}
 
@@ -746,19 +950,27 @@ export function CampaignForm({
               className="motion-std text-muted-foreground hover:text-foreground hover:bg-surface-ink/9 bg-surface-ink/5 flex min-h-[72px] flex-col items-center justify-center gap-2 rounded-md p-4 text-[12.5px] font-semibold"
             >
               <Icon icon={Plus} size={20} />
-              Thêm đợt
+              {t(message('Thêm đợt', 'Add wave', '웨이브 추가'))}
             </button>
           </div>
         </section>
 
         <section className="flex flex-col gap-4">
-          <SectionTitle size="lg" kicker="Bước 3" hint="Cả hai đều không bắt buộc.">
-            Khi nào dừng?
+          <SectionTitle
+            size="lg"
+            kicker={t(message('Bước 3', 'Step 3', '3단계'))}
+            hint={t(
+              message('Cả hai đều không bắt buộc.', 'Both are optional.', '둘 다 선택 사항입니다.'),
+            )}
+          >
+            {t(message('Khi nào dừng?', 'When to stop?', '언제 중단할까요?'))}
           </SectionTitle>
 
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="bg-surface-ink/5 flex flex-col gap-3 rounded-md p-4">
-              <GroupLabel id={stopId}>Điều kiện dừng</GroupLabel>
+              <GroupLabel id={stopId}>
+                {t(message('Điều kiện dừng', 'Stop conditions', '중단 조건'))}
+              </GroupLabel>
               <div role="group" aria-labelledby={stopId} className="flex flex-wrap gap-2">
                 <Button
                   size="sm"
@@ -767,13 +979,31 @@ export function CampaignForm({
                   variant={draft.stopOnReply ? 'default' : 'ghost'}
                   onClick={() => setDraft((d) => ({ ...d, stopOnReply: !d.stopOnReply }))}
                 >
-                  Khách trả lời thì ngưng nhắc
+                  {t(
+                    message(
+                      'Khách trả lời thì ngưng nhắc',
+                      'Stop reminding once the customer replies',
+                      '고객이 답장하면 알림 중단',
+                    ),
+                  )}
                 </Button>
               </div>
 
               <Field
-                label="Đủ bao nhiêu lead thì dừng cả chuỗi"
-                hint="Để 0 thì chạy hết các đợt đã soạn."
+                label={t(
+                  message(
+                    'Đủ bao nhiêu lead thì dừng cả chuỗi',
+                    'Stop the whole sequence after how many leads',
+                    '리드가 몇 건이면 전체 시퀀스를 중단할까요',
+                  ),
+                )}
+                hint={t(
+                  message(
+                    'Để 0 thì chạy hết các đợt đã soạn.',
+                    'Leave 0 to run all the waves written.',
+                    '0이면 작성한 웨이브를 끝까지 실행합니다.',
+                  ),
+                )}
               >
                 <Input
                   value={String(draft.stopAtLeads)}
@@ -789,17 +1019,32 @@ export function CampaignForm({
               </Field>
 
               <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Một người nằm trong hai chiến dịch không bị gửi hai lần trong cùng một khoảng thời
-                gian.
+                {t(
+                  message(
+                    'Một người nằm trong hai chiến dịch không bị gửi hai lần trong cùng một khoảng thời gian.',
+                    'A person in two campaigns is not emailed twice within the same period.',
+                    '두 캠페인에 속한 사람에게 같은 기간 중 두 번 발송되지 않습니다.',
+                  ),
+                )}
               </p>
             </div>
 
             <div className="bg-surface-ink/5 flex flex-col gap-3 rounded-md p-4">
-              <GroupLabel id={approverId}>Người duyệt (không bắt buộc)</GroupLabel>
+              <GroupLabel id={approverId}>
+                {t(
+                  message('Người duyệt (không bắt buộc)', 'Approvers (optional)', '승인자 (선택)'),
+                )}
+              </GroupLabel>
 
               {approvers.length === 0 ? (
                 <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                  Chưa có người duyệt. Thêm khi khoản chi hoặc danh sách gửi cần người xem lại.
+                  {t(
+                    message(
+                      'Chưa có người duyệt. Thêm khi khoản chi hoặc danh sách gửi cần người xem lại.',
+                      'No approvers yet. Add one when the spend or the send list needs review.',
+                      '승인자가 아직 없습니다. 비용이나 발송 목록에 검토가 필요하면 추가하세요.',
+                    ),
+                  )}
                 </p>
               ) : (
                 <ul className="m-0 flex list-none flex-col gap-2 p-0">
@@ -814,11 +1059,17 @@ export function CampaignForm({
                         size="sm"
                         variant="ghost"
                         disabled={locked}
-                        aria-label={`Bỏ ${name} khỏi chuỗi duyệt`}
+                        aria-label={t(
+                          message(
+                            `Bỏ ${name} khỏi chuỗi duyệt`,
+                            `Remove ${name} from the approval chain`,
+                            `${name}님을 승인 단계에서 삭제`,
+                          ),
+                        )}
                         onClick={() => setApprovers((prev) => prev.filter((n) => n !== name))}
                       >
                         <Icon icon={Trash2} size={16} />
-                        Bỏ
+                        {t(message('Bỏ', 'Remove', '삭제'))}
                       </Button>
                     </li>
                   ))}
@@ -834,7 +1085,7 @@ export function CampaignForm({
                   onClick={() => setPicking((v) => !v)}
                 >
                   <Icon icon={UserPlus} size={16} />
-                  Thêm người duyệt
+                  {t(message('Thêm người duyệt', 'Add approver', '승인자 추가'))}
                 </Button>
               ) : null}
 
@@ -865,8 +1116,13 @@ export function CampaignForm({
                     }))}
                   />
                   <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                    Duyệt lần lượt từ trái sang phải. Đợt nào cũng chờ người cuối duyệt xong mới
-                    gửi.
+                    {t(
+                      message(
+                        'Duyệt lần lượt từ trái sang phải. Đợt nào cũng chờ người cuối duyệt xong mới gửi.',
+                        'Approval goes left to right. Every wave waits until the last approver is done before sending.',
+                        '왼쪽에서 오른쪽 순서로 승인합니다. 모든 웨이브는 마지막 승인자가 승인한 뒤에 발송됩니다.',
+                      ),
+                    )}
                   </p>
                 </>
               ) : null}
@@ -900,10 +1156,28 @@ export function CampaignForm({
           )}
         >
           {locked
-            ? 'Đang chạy. Ô nhập đã khoá. Chiến dịch này chưa lên sổ.'
+            ? t(
+                message(
+                  'Đang chạy. Ô nhập đã khoá. Chiến dịch này chưa lên sổ.',
+                  'Running. Inputs are locked. This campaign is not in the list yet.',
+                  '진행 중입니다. 입력란이 잠겼습니다. 이 캠페인은 아직 목록에 올라가지 않았습니다.',
+                ),
+              )
             : canRun
-              ? `Gửi cho ${members.length} người · ${draft.waves.length} đợt · đợt đầu ${whenText(draft.waves[0]!)} · ${draft.stopOnReply ? 'khách trả lời thì ngưng nhắc' : 'khách trả lời vẫn gửi tiếp'}.`
-              : `Chưa chạy được, còn thiếu ${missing.join(' · ')}. Vẫn lưu nháp được.`}
+              ? t(
+                  message(
+                    `Gửi cho ${members.length} người · ${draft.waves.length} đợt · đợt đầu ${whenText(draft.waves[0]!, 'vi')} · ${draft.stopOnReply ? 'khách trả lời thì ngưng nhắc' : 'khách trả lời vẫn gửi tiếp'}.`,
+                    `Sending to ${members.length} people · ${draft.waves.length} waves · first wave ${whenText(draft.waves[0]!, 'en')} · ${draft.stopOnReply ? 'stops reminding once the customer replies' : 'keeps sending after a reply'}.`,
+                    `수신자 ${members.length}명 · 웨이브 ${draft.waves.length}개 · 첫 웨이브 ${whenText(draft.waves[0]!, 'ko')} · ${draft.stopOnReply ? '고객이 답장하면 알림 중단' : '고객이 답장해도 계속 발송'}.`,
+                  ),
+                )
+              : t(
+                  message(
+                    `Chưa chạy được, còn thiếu ${missing.join(' · ')}. Vẫn lưu nháp được.`,
+                    `Cannot run yet, missing ${missing.join(' · ')}. You can still save a draft.`,
+                    `아직 실행할 수 없습니다. 부족한 항목: ${missing.join(' · ')}. 임시 저장은 가능합니다.`,
+                  ),
+                )}
         </p>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -918,7 +1192,7 @@ export function CampaignForm({
             }}
           >
             <Icon icon={Save} size={16} />
-            Lưu nháp
+            {t(message('Lưu nháp', 'Save draft', '임시 저장'))}
           </Button>
 
           <Button
@@ -934,7 +1208,7 @@ export function CampaignForm({
             }}
           >
             <Icon icon={Zap} size={16} />
-            Bắt đầu chạy
+            {t(START_RUNNING)}
           </Button>
         </div>
       </div>

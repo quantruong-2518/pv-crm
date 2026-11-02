@@ -44,7 +44,7 @@ export function OpportunityNewPage() {
       message(
         'Tìm khách hàng, cơ hội, báo giá, hồ sơ…',
         'Search accounts, opportunities, quotes, and profiles…',
-        '고객사, 영업 기회, 견적 및 프로필 검색…',
+        '고객사, 기회, 견적 및 프로필 검색…',
       ),
     ),
   })
@@ -67,7 +67,7 @@ export function OpportunityNewPage() {
               message(
                 'Vai trò của bạn chưa có quyền mở cơ hội mới.',
                 'Your role cannot create opportunities.',
-                '현재 역할에는 영업 기회 생성 권한이 없습니다.',
+                '현재 역할에는 기회 생성 권한이 없습니다.',
               ),
             )}
             onBack={() => navigate('/sales/opportunities')}
@@ -85,11 +85,11 @@ export function OpportunityNewPage() {
       <ScreenLayout>
         <ScreenHeader
           back={{
-            label: t(message('Sổ cơ hội', 'Opportunities', '영업 기회')),
+            label: t(message('Sổ cơ hội', 'Opportunities', '기회')),
             onClick: () => navigate('/sales/opportunities'),
           }}
-          kicker={t(message('Cơ hội', 'Opportunity', '영업 기회'))}
-          title={t(message('Mở cơ hội', 'Create opportunity', '영업 기회 만들기'))}
+          kicker={t(message('Cơ hội', 'Opportunity', '기회'))}
+          title={t(message('Mở cơ hội', 'Create opportunity', '기회 만들기'))}
         />
         <GlassCard variant="b" className="flex flex-col gap-5 p-4 sm:p-5 lg:p-6">
           <SectionTitle
@@ -106,7 +106,7 @@ export function OpportunityNewPage() {
               message(
                 'Cơ hội này dành cho khách hàng nào?',
                 'Which customer is this opportunity for?',
-                '어느 고객사의 영업 기회인가요?',
+                '어느 고객사의 기회인가요?',
               ),
             )}
           </SectionTitle>
@@ -195,11 +195,11 @@ function NewDealScreen({ lead }: { lead: LeadProfile }) {
     <ScreenLayout>
       <ScreenHeader
         back={{
-          label: t(message('Sổ cơ hội', 'Opportunities', '영업 기회')),
+          label: t(message('Sổ cơ hội', 'Opportunities', '기회')),
           onClick: () => navigate('/sales/opportunities'),
         }}
-        kicker={t(message('Cơ hội', 'Opportunity', '영업 기회'))}
-        title={t(message('Mở cơ hội', 'Create opportunity', '영업 기회 만들기'))}
+        kicker={t(message('Cơ hội', 'Opportunity', '기회'))}
+        title={t(message('Mở cơ hội', 'Create opportunity', '기회 만들기'))}
         description={t(
           message(
             'Mã được cấp tự động.',

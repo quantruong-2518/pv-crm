@@ -1212,7 +1212,7 @@
       "count": 5
     },
     "aurora/comments-in-english": {
-      "count": 29
+      "count": 21
     },
     "max-lines-per-function": {
       "count": 1
@@ -1398,7 +1398,7 @@
       "count": 1
     },
     "aurora/comments-in-english": {
-      "count": 5
+      "count": 4
     }
   },
   "apps/web/src/data/mas.ts": {
@@ -1717,10 +1717,10 @@
   },
   "apps/web/src/pages/users-parts.tsx": {
     "aurora/comment-budget": {
-      "count": 13
+      "count": 10
     },
     "aurora/comments-in-english": {
-      "count": 8
+      "count": 5
     },
     "max-lines-per-function": {
       "count": 1

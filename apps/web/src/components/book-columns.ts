@@ -1,4 +1,5 @@
 import { OWNER_NONE } from '@pv/contracts'
+import { message } from '@/app/i18n'
 
 /** Column geometry and filter plumbing shared by the paged books (contracts,
  *  opportunities, leads, campaigns, workstreams). Plain data, no components, so
@@ -32,7 +33,7 @@ export const COL = {
 
 /** The unit an amount filter is typed in and its chip says: people say five
  *  hundred million, not nine zeros. */
-export const AMOUNT_UNIT = 'triệu ₫'
+export const AMOUNT_UNIT_COPY = message('triệu ₫', 'million ₫', '백만 ₫')
 export const AMOUNT_SCALE = 1e6
 
 /** DataTable `flush`: `gap-3` between tracks, `px-5` on each row. */

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type * as VietmapGlModule from '@vietmap/vietmap-gl-js/dist/vietmap-gl.js'
 import { cn } from '@pv/ui'
+import { message, useI18n } from '@/app/i18n'
 import type { MapPoint } from '@/data/address-place'
 
 /** The map itself, and the only place the tile library is touched.
@@ -32,8 +33,12 @@ const OPEN_CENTER: [number, number] = [106, 16]
 const OPEN_ZOOM = 5
 const PLACE_ZOOM = 16
 
-const LOADING_TEXT = 'Đang mở bản đồ…'
-const FAILED_TEXT = 'Không tải được bản đồ. Dùng ô tìm kiếm ở trên.'
+const LOADING_TEXT = message('Đang mở bản đồ…', 'Opening the map…', '지도를 여는 중…')
+const FAILED_TEXT = message(
+  'Không tải được bản đồ. Dùng ô tìm kiếm ở trên.',
+  'Could not load the map. Use the search box above.',
+  '지도를 불러오지 못했습니다. 위의 검색창을 이용하세요.',
+)
 
 async function loadVietmapGl(): Promise<VietmapGl> {
   const [mod] = await Promise.all([
@@ -69,6 +74,7 @@ export function AddressMapCanvas({
   onPickPoint,
   className,
 }: AddressMapCanvasProps) {
+  const { t } = useI18n()
   const box = useRef<HTMLDivElement>(null)
   const gl = useRef<VietmapGl | null>(null)
   const map = useRef<VietmapMap | null>(null)
@@ -148,7 +154,7 @@ export function AddressMapCanvas({
             failed ? 'text-destructive-foreground' : 'text-muted-foreground',
           )}
         >
-          {failed ? FAILED_TEXT : LOADING_TEXT}
+          {t(failed ? FAILED_TEXT : LOADING_TEXT)}
         </p>
       )}
     </div>

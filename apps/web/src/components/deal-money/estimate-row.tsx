@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Button, Icon, MetaPill, Pencil } from '@pv/ui'
 import type { OpportunityProfileResponse } from '@pv/contracts'
 import { dmy } from '@/lib/date'
+import { message, useI18n } from '@/app/i18n'
 import { compactMoney } from './money'
 
 const WHOLE_PERCENT = 100
@@ -22,6 +23,7 @@ export function EstimateRow({
   shown: number
   onEdit: () => void
 }) {
+  const { t } = useI18n()
   const { amount, currency } = op
   const ratio =
     amount !== null && amount > 0 && currency === op.money.totals.currency && shown > 0
@@ -51,23 +53,28 @@ export function EstimateRow({
             />
           </div>
           <span className="text-muted-foreground tnum text-[12px]">
-            {compactMoney(shown, currency)} / dự kiến {compactMoney(amount, currency)}
+            {compactMoney(shown, currency)} / {t(message('dự kiến', 'estimated', '예상'))}{' '}
+            {compactMoney(amount, currency)}
           </span>
         </div>
       )}
-      <Fact label="Giá trị dự kiến">
+      <Fact label={t(message('Giá trị dự kiến', 'Estimated value', '예상 금액'))}>
         <span className="tnum text-[14px] font-semibold">
-          {amount === null ? 'Chưa có' : compactMoney(amount, currency)}
+          {amount === null
+            ? t(message('Chưa có', 'None yet', '없음'))
+            : compactMoney(amount, currency)}
         </span>
       </Fact>
-      <Fact label="Ngày chốt dự kiến">
+      <Fact label={t(message('Ngày chốt dự kiến', 'Expected close date', '예상 마감일'))}>
         <span className="tnum text-[14px] font-semibold">
-          {op.expectedClose ? dmy(op.expectedClose) : 'Chưa đặt'}
+          {op.expectedClose ? dmy(op.expectedClose) : t(message('Chưa đặt', 'Not set', '미설정'))}
         </span>
       </Fact>
-      <Fact label="Sản phẩm">
+      <Fact label={t(message('Sản phẩm', 'Products', '제품'))}>
         {op.products.length === 0 ? (
-          <span className="text-muted-foreground text-[13px]">Chưa chọn</span>
+          <span className="text-muted-foreground text-[13px]">
+            {t(message('Chưa chọn', 'None selected', '선택 없음'))}
+          </span>
         ) : (
           <span className="flex flex-wrap gap-2">
             {op.products.map((p) => (
@@ -84,7 +91,7 @@ export function EstimateRow({
           onClick={onEdit}
         >
           <Icon icon={Pencil} size={16} />
-          Sửa phiếu
+          {t(message('Sửa phiếu', 'Edit terms', '조건 수정'))}
         </Button>
       )}
     </div>

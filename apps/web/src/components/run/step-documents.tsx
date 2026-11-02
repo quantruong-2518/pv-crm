@@ -2,6 +2,7 @@ import type { WorkstreamDocumentStep } from '@pv/contracts'
 import { Skeleton } from '@pv/ui'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { stepKey, useWorkstreamDocuments } from '@/data/workstream-documents'
 import { DocList, DropZone } from './run-documents'
 
@@ -34,6 +35,7 @@ function StepFiles({
   step: WorkstreamDocumentStep
   writable: boolean
 }) {
+  const { t } = useI18n()
   const { data, isPending, error } = useWorkstreamDocuments(code)
   const mine = stepKey(step)
   const rows = (data?.rows ?? [])
@@ -46,11 +48,20 @@ function StepFiles({
         <Skeleton className="h-16 w-full" />
       ) : error ? (
         <p className="text-destructive-foreground m-0 text-[12.5px] leading-[1.6]">
-          Không đọc được tài liệu. {isApiError(error) ? userMessage(error) : 'Thử lại.'}
+          {t(
+            message(
+              'Không đọc được tài liệu.',
+              'Could not load the documents.',
+              '문서를 불러오지 못했습니다.',
+            ),
+          )}{' '}
+          {isApiError(error)
+            ? userMessage(error)
+            : t(message('Thử lại.', 'Try again.', '다시 시도하세요.'))}
         </p>
       ) : rows.length === 0 ? (
         <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-          Chưa có tài liệu nào.
+          {t(message('Chưa có tài liệu nào.', 'No documents yet.', '문서가 없습니다.'))}
         </p>
       ) : (
         <DocList code={code} rows={rows} canRemove={writable} />

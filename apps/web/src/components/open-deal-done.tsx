@@ -49,11 +49,12 @@ const Pair = ({ label, children }: { label: string; children: ReactNode }) => (
 )
 
 function contactLine(created: Created, lang: ReturnType<typeof useI18n>['lang']): string {
+  const primary = translate(message('chính', 'primary', '주 담당'), lang)
   return created.picks
     .map((pick) => {
       const name = created.contactNames[pick.contactCode] ?? pick.contactCode
       const note = pick.primary
-        ? 'chính'
+        ? primary
         : pick.role
           ? opportunityContactRoleLabel(pick.role, lang).toLowerCase()
           : null
@@ -75,7 +76,7 @@ function nextText(created: Created, lang: ReturnType<typeof useI18n>['lang']): s
           message(
             `Cơ hội chờ trưởng phòng Nhận PIC và giao Sale${days === null ? '' : `, hạn ${days} ngày`}. Trên bảng lượt bán, thẻ ${ws ?? 'lượt bán'} đã chuyển sang cơ hội · ${newStage}${days === null ? '' : ', quá hạn thì hiện trễ'}.`,
             `The opportunity is waiting for a manager to assign an owner and salesperson${days === null ? '' : `, due in ${days} days`}. Workstream ${ws ?? ''} now includes the ${newStage} opportunity${days === null ? '' : '; overdue items are marked late'}.`,
-            `영업 기회 담당자와 영업 담당자를 관리자에게 배정 대기 중${days === null ? '' : `, 기한 ${days}일`}. 영업 건 ${ws ?? ''}에 ${newStage} 영업 기회가 추가되었습니다${days === null ? '' : '; 기한이 지나면 지연으로 표시됩니다'}.`,
+            `기회 담당자와 영업 담당자를 관리자에게 배정 대기 중${days === null ? '' : `, 기한 ${days}일`}. 영업 건 ${ws ?? ''}에 ${newStage} 기회가 추가되었습니다${days === null ? '' : '; 기한이 지나면 지연으로 표시됩니다'}.`,
           ),
           lang,
         )
@@ -83,7 +84,7 @@ function nextText(created: Created, lang: ReturnType<typeof useI18n>['lang']): s
           message(
             `Cơ hội đã nhận PIC và nằm ở cột ${assigned}. Trên bảng lượt bán, thẻ ${ws ?? 'lượt bán'} đã chuyển sang cơ hội · ${assigned}.`,
             `The opportunity has an owner and is in ${assigned}. Workstream ${ws ?? ''} now includes it.`,
-            `영업 기회 담당자가 지정되어 ${assigned} 단계입니다. 영업 건 ${ws ?? ''}에 해당 기회가 추가되었습니다.`,
+            `기회 담당자가 지정되어 ${assigned} 단계입니다. 영업 건 ${ws ?? ''}에 해당 기회가 추가되었습니다.`,
           ),
           lang,
         )
@@ -126,13 +127,20 @@ export function CreatedPanel({
         </span>
         <div className="flex flex-col gap-2">
           <h3 className="font-display m-0 text-[24px] font-semibold leading-[1.3]">
-            Đã mở cơ hội <span className="text-accent-foreground font-mono">{row.code}</span>
+            {t(message('Đã mở cơ hội ', 'Opportunity ', '기회 '))}
+            <span className="text-accent-foreground font-mono">{row.code}</span>
+            {t(message('', ' created', ' 생성 완료'))}
           </h3>
           <p className="text-muted-foreground m-0 text-[14px]">{row.name}</p>
         </div>
       </div>
 
-      <div className="flex flex-col" aria-label="Tóm tắt cơ hội vừa mở">
+      <div
+        className="flex flex-col"
+        aria-label={t(
+          message('Tóm tắt cơ hội vừa mở', 'Summary of the new opportunity', '새 기회 요약'),
+        )}
+      >
         {workstream && (
           <Pair label={t(message('Lượt bán', 'Workstream', '영업 건'))}>
             <Chip>{workstream.code}</Chip>
@@ -149,7 +157,7 @@ export function CreatedPanel({
             )}
           </Pair>
         )}
-        <Pair label={t(message('Giá trị đơn', 'Opportunity value', '영업 기회 금액'))}>
+        <Pair label={t(message('Giá trị đơn', 'Opportunity value', '기회 금액'))}>
           <span className="tnum font-mono">{moneyText(row, lang)}</span>
         </Pair>
         <Pair label={t(message('Ngày chốt dự kiến', 'Expected close date', '예상 종료일'))}>

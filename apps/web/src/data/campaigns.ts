@@ -19,6 +19,7 @@ import {
 import { bandText, costBreakdown, costOf, type CostBreakdown } from '@/data/source-cost'
 import { api } from '@/app/api'
 import { cacheTier } from '@/app/query-client'
+import { getLang, message, translate, type Lang, type Message } from '@/app/i18n'
 
 /** Nguồn lead — module 1 · Chiến dịch & Sự kiện. ĐỌC TỪ MÁY CHỦ.
  *
@@ -99,9 +100,9 @@ export const dayAfterToday = (n: number): string =>
  *  màn phải vẽ được nó ngay khi form lưu nháp, chứ không phải vì fixture có
  *  dòng nào mang nó. */
 export const CAMPAIGN_STATUS = [
-  { key: 'draft', label: 'Nháp', tone: 'draft' },
-  { key: 'running', label: 'Đang chạy', tone: 'running' },
-  { key: 'done', label: 'Đã hoàn tất', tone: 'success' },
+  { key: 'draft', label: 'Nháp', tone: 'draft' }, // i18n-ignore
+  { key: 'running', label: 'Đang chạy', tone: 'running' }, // i18n-ignore
+  { key: 'done', label: 'Đã hoàn tất', tone: 'success' }, // i18n-ignore
 ] as const satisfies readonly {
   key: string
   label: string
@@ -113,6 +114,13 @@ export type CampaignStatus = (typeof CAMPAIGN_STATUS)[number]['key']
 export const STATUS_LABEL = Object.fromEntries(
   CAMPAIGN_STATUS.map((s) => [s.key, s.label]),
 ) as Record<CampaignStatus, string>
+
+/** Display copy per status; `STATUS_LABEL` stays the Vietnamese key `sources.tsx` wraps. */
+export const STATUS_TEXT: Record<CampaignStatus, Message> = {
+  draft: message('Nháp', 'Draft', '초안'),
+  running: message('Đang chạy', 'Running', '진행 중'),
+  done: message('Đã hoàn tất', 'Completed', '완료'),
+}
 
 export const STATUS_TONE = Object.fromEntries(
   CAMPAIGN_STATUS.map((s) => [s.key, s.tone]),
@@ -329,12 +337,19 @@ export const DRAFT_STEP_DAYS = 14
  *
  *  `name` là VÍ DỤ để làm placeholder, không phải dữ liệu — màn in nó sau chữ
  *  "Ví dụ", và nó phải đọc ra như một cái tên người ta sẽ gõ. */
-export const DRAFT_TEMPLATE = {
+export const draftTemplate = (lang: Lang = getLang()) => ({
   fromCode: '',
-  name: 'Chuỗi email nhà máy chip Bắc Ninh',
+  name: translate(
+    message(
+      'Chuỗi email nhà máy chip Bắc Ninh',
+      'Bac Ninh chip factory email sequence',
+      '박닌 반도체 공장 이메일 시퀀스',
+    ),
+    lang,
+  ),
   waves: [
     {
-      label: 'Đợt mở màn',
+      label: translate(message('Đợt mở màn', 'Opening wave', '시작 웨이브'), lang),
       channel: 'email',
       sendNow: true,
       dateISO: TODAY,
@@ -343,7 +358,7 @@ export const DRAFT_TEMPLATE = {
       content: '',
     },
   ] satisfies DraftWave[],
-}
+})
 
 // ---------------------------------------------------------------------------
 // NHÓM NGƯỜI NHẬN — "tạo nhóm lead để bắn campaign"
@@ -400,18 +415,33 @@ export function membersOf(g: LeadGroup): Lead[] {
 /** Nhóm viết thành một câu tiếng Việt, cho thanh tóm tắt và cho hồ sơ chiến
  *  dịch đọc lại. Ở tầng data vì cả form lẫn hồ sơ đều in nó, và hai bản chép
  *  tay sẽ lệch nhau ngay lần đầu ai đó thêm một chiều lọc. */
-export function groupText(g: LeadGroup): string {
+export function groupText(g: LeadGroup, lang: Lang = getLang()): string {
+  const m = (vi: string, en: string, ko: string) => translate(message(vi, en, ko), lang)
+  const cats = g.categories.map((k) => LEAD_CATEGORIES.find((c) => c.key === k)?.label ?? k)
+  const tiers = g.tiers.map((k) => LEAD_TIERS.find((t) => t.key === k)?.label ?? k)
   const parts = [
     g.categories.length > 0
-      ? `ngành ${g.categories.map((k) => LEAD_CATEGORIES.find((c) => c.key === k)?.label ?? k).join(', ')}`
+      ? m(`ngành ${cats.join(', ')}`, `industry ${cats.join(', ')}`, `업종 ${cats.join(', ')}`)
       : null,
     g.tiers.length > 0
-      ? `bậc ${g.tiers.map((k) => LEAD_TIERS.find((t) => t.key === k)?.label ?? k).join(', ')}`
+      ? m(`bậc ${tiers.join(', ')}`, `tier ${tiers.join(', ')}`, `등급 ${tiers.join(', ')}`)
       : null,
-    g.provinces.length > 0 ? `ở ${g.provinces.join(', ')}` : null,
+    g.provinces.length > 0
+      ? m(
+          `ở ${g.provinces.join(', ')}`,
+          `in ${g.provinces.join(', ')}`,
+          `지역 ${g.provinces.join(', ')}`,
+        )
+      : null,
   ].filter((p): p is string => p !== null)
 
-  return parts.length === 0 ? 'cả sổ lead, chưa lọc chiều nào' : parts.join(' · ')
+  return parts.length === 0
+    ? m(
+        'cả sổ lead, chưa lọc chiều nào',
+        'the whole lead book, no filter set',
+        '전체 리드 목록, 필터 없음',
+      )
+    : parts.join(' · ')
 }
 
 // ---------------------------------------------------------------------------
@@ -456,7 +486,8 @@ function rowOf(s: CampaignSource, period: { fromISO: string; toISO: string }): S
     active: s.active,
     /* Nguồn chưa ai đứng tên in ra một câu, không in ra chuỗi rỗng: một ô
        trống trên cột "PIC" đọc như lỗi tải, còn "chưa ai" là một câu trả lời. */
-    owner: s.ownerName ?? 'Chưa có người phụ trách',
+    owner:
+      s.ownerName ?? translate(message('Chưa có người phụ trách', 'No owner yet', '담당자 없음')),
     ownerId: s.ownerId,
     followers: s.followers.map((f) => f.name),
 
@@ -583,10 +614,10 @@ export type SourceSortKey = (typeof SOURCE_SORTS)[number]['key']
  *  cho chọn tháng sau sẽ luôn trả về bảng rỗng — ba nút phủ đúng khoảng dữ liệu
  *  có thật thì người mới không bấm vào chỗ không có gì. */
 export const TIME_WINDOWS = [
-  { key: 'all', label: 'Cả kỳ', days: null },
-  { key: '30', label: '30 ngày qua', days: 30 },
-  { key: '60', label: '60 ngày qua', days: 60 },
-] as const satisfies readonly { key: string; label: string; days: number | null }[]
+  { key: 'all', label: message('Cả kỳ', 'Whole period', '전체 기간'), days: null },
+  { key: '30', label: message('30 ngày qua', 'Last 30 days', '최근 30일'), days: 30 },
+  { key: '60', label: message('60 ngày qua', 'Last 60 days', '최근 60일'), days: 60 },
+] as const satisfies readonly { key: string; label: Message; days: number | null }[]
 
 export type TimeWindowKey = (typeof TIME_WINDOWS)[number]['key']
 

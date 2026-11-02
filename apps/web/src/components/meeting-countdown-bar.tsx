@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowRight, Button, CalendarCheck, CalendarClock, Icon, Link, Timer } from '@pv/ui'
 import type { MeetingTodayResponse } from '@pv/contracts'
 import { subjectKindLabel, subjectPath } from '@/data/comm-record-detail'
+import { message, useI18n } from '@/app/i18n'
 import { meetingSlotOf } from '@/data/meeting-labels'
 import { useMinuteClock } from '@/data/minute-clock'
 
@@ -18,6 +19,7 @@ import { useMinuteClock } from '@/data/minute-clock'
 const MINUTE_MS = 60_000
 
 export function MeetingCountdownBar({ today }: { today: MeetingTodayResponse | undefined }) {
+  const { t, lang } = useI18n()
   const now = useMinuteClock()
   const navigate = useNavigate()
   const next = today?.next
@@ -29,11 +31,15 @@ export function MeetingCountdownBar({ today }: { today: MeetingTodayResponse | u
   const live = now >= at
   const left = hhmm((live ? ends : at) - now)
   const path = subjectPath(next.subjectCode)
-  const kind = subjectKindLabel(next.subjectCode)
+  const kind = subjectKindLabel(next.subjectCode, lang)
+  const leftText = t(message(`Còn ${left}`, `${left} left`, `${left} 남음`))
   const remaining = today.remaining
 
   return (
-    <section aria-label="Buổi họp tiếp theo hôm nay" className="relative">
+    <section
+      aria-label={t(message('Buổi họp tiếp theo hôm nay', 'Next meeting today', '오늘 다음 회의'))}
+      className="relative"
+    >
       <div aria-hidden className="bg-popover absolute inset-0" />
       <div aria-hidden className="bg-warning/12 absolute inset-0" />
       <div className="pointer-coarse:min-h-12 relative mx-auto flex min-h-10 w-full max-w-[1648px] items-center gap-x-3 px-4 py-1 lg:px-6">
@@ -47,17 +53,31 @@ export function MeetingCountdownBar({ today }: { today: MeetingTodayResponse | u
           {live ? (
             <>
               <span aria-hidden className="sm:hidden">
-                Còn {left}
+                {leftText}
               </span>
-              <span className="sr-only sm:not-sr-only">Đang họp · còn {left}</span>
+              <span className="sr-only sm:not-sr-only">
+                {t(
+                  message(
+                    `Đang họp · còn ${left}`,
+                    `In meeting · ${left} left`,
+                    `회의 중 · ${left} 남음`,
+                  ),
+                )}
+              </span>
             </>
           ) : (
-            `Còn ${left}`
+            leftText
           )}
         </span>
         {!live && (
           <span className="text-muted-foreground tnum hidden shrink-0 text-[12px] sm:inline">
-            tới buổi họp lúc {meetingSlotOf(next.at).time}
+            {t(
+              message(
+                `tới buổi họp lúc ${meetingSlotOf(next.at).time}`,
+                `until the meeting at ${meetingSlotOf(next.at).time}`,
+                `회의 시작(${meetingSlotOf(next.at).time})까지`,
+              ),
+            )}
           </span>
         )}
         <span className="text-foreground min-w-0 flex-1 truncate text-[12.5px] font-medium">
@@ -69,7 +89,13 @@ export function MeetingCountdownBar({ today }: { today: MeetingTodayResponse | u
         </span>
         {remaining > 0 && (
           <span className="text-muted-foreground tnum hidden shrink-0 text-[12px] md:inline">
-            còn {remaining} buổi khác hôm nay
+            {t(
+              message(
+                `còn ${remaining} buổi khác hôm nay`,
+                `${remaining} more ${remaining === 1 ? 'meeting' : 'meetings'} today`,
+                `오늘 회의 ${remaining}건 더 있음`,
+              ),
+            )}
           </span>
         )}
         {next.link && (
@@ -77,11 +103,13 @@ export function MeetingCountdownBar({ today }: { today: MeetingTodayResponse | u
             size="sm"
             variant="ghost"
             className="pointer-coarse:h-12 pointer-coarse:max-sm:w-12 shrink-0"
-            aria-label="Vào họp"
+            aria-label={t(message('Vào họp', 'Join meeting', '회의 참여'))}
             onClick={() => openTab(next.link)}
           >
             <Icon icon={Link} size={16} />
-            <span className="hidden sm:inline">Vào họp</span>
+            <span className="hidden sm:inline">
+              {t(message('Vào họp', 'Join meeting', '회의 참여'))}
+            </span>
           </Button>
         )}
         {next.eventUrl && (
@@ -89,11 +117,19 @@ export function MeetingCountdownBar({ today }: { today: MeetingTodayResponse | u
             size="sm"
             variant="ghost"
             className="pointer-coarse:h-12 shrink-0 max-sm:hidden"
-            aria-label="Mở buổi họp trên Google Calendar"
+            aria-label={t(
+              message(
+                'Mở buổi họp trên Google Calendar',
+                'Open the meeting in Google Calendar',
+                'Google Calendar에서 회의 열기',
+              ),
+            )}
             onClick={() => openTab(next.eventUrl)}
           >
             <Icon icon={CalendarCheck} size={16} />
-            <span>Mở Google Calendar</span>
+            <span>
+              {t(message('Mở Google Calendar', 'Open Google Calendar', 'Google Calendar 열기'))}
+            </span>
           </Button>
         )}
         {path && (
@@ -101,10 +137,18 @@ export function MeetingCountdownBar({ today }: { today: MeetingTodayResponse | u
             size="sm"
             variant="ghost"
             className="pointer-coarse:h-12 pointer-coarse:max-sm:w-12 shrink-0"
-            aria-label={`Mở ${kind.toLowerCase()} ${next.subjectCode}`}
+            aria-label={t(
+              message(
+                `Mở ${kind.toLowerCase()} ${next.subjectCode}`,
+                `Open ${kind.toLowerCase()} ${next.subjectCode}`,
+                `${kind} ${next.subjectCode} 열기`,
+              ),
+            )}
             onClick={() => navigate(path)}
           >
-            <span className="hidden sm:inline">Mở {kind.toLowerCase()}</span>
+            <span className="hidden sm:inline">
+              {t(message(`Mở ${kind.toLowerCase()}`, `Open ${kind.toLowerCase()}`, `${kind} 열기`))}
+            </span>
             <Icon icon={ArrowRight} size={16} />
           </Button>
         )}

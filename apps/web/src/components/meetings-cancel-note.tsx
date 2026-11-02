@@ -1,4 +1,5 @@
 import { useQueries } from '@tanstack/react-query'
+import { message, useI18n } from '@/app/i18n'
 import { cancellableOf } from '@/data/meeting-upcoming'
 import { meetingsQuery, type MeetingSubject } from '@/data/meetings'
 import { useMinuteClock } from '@/data/minute-clock'
@@ -13,6 +14,7 @@ export function MeetingsCancelNote({
   subjects: readonly MeetingSubject[]
   enabled: boolean
 }) {
+  const { t } = useI18n()
   const now = useMinuteClock()
   const lists = useQueries({ queries: subjects.map((s) => ({ ...meetingsQuery(s), enabled })) })
   const rows = lists.flatMap((list) => cancellableOf(list.data?.rows, now))
@@ -22,7 +24,19 @@ export function MeetingsCancelNote({
   const mailed = rows.some((row) => row.eventUrl)
   return (
     <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-      {rows.length} lịch họp sắp tới sẽ huỷ{mailed ? ', khách nhận thư báo huỷ' : ''}.
+      {t(
+        mailed
+          ? message(
+              `${rows.length} lịch họp sắp tới sẽ huỷ, khách nhận thư báo huỷ.`,
+              `${rows.length} upcoming ${rows.length === 1 ? 'meeting' : 'meetings'} will be cancelled and guests receive a cancellation email.`,
+              `예정된 미팅 ${rows.length}건이 취소되며 게스트에게 취소 메일이 발송됩니다.`,
+            )
+          : message(
+              `${rows.length} lịch họp sắp tới sẽ huỷ.`,
+              `${rows.length} upcoming ${rows.length === 1 ? 'meeting' : 'meetings'} will be cancelled.`,
+              `예정된 미팅 ${rows.length}건이 취소됩니다.`,
+            ),
+      )}
     </p>
   )
 }

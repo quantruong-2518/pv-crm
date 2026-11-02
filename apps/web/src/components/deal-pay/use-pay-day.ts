@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { message, translate } from '@/app/i18n'
 import { vnToday } from '@/data/opportunities'
 import { vnDayOf } from '@/data/quotations-write'
 import { dmy } from '@/lib/date'
@@ -31,9 +32,21 @@ export function usePayDay(open: boolean, signedAt: string) {
   const day = pick === 'today' ? today : pick === 'yesterday' ? yesterday : other
   const blocker =
     day === ''
-      ? 'Chọn ngày nhận tiền.'
+      ? translate(
+          message(
+            'Chọn ngày nhận tiền.',
+            'Choose the day the money arrived.',
+            '입금일을 선택하세요.',
+          ),
+        )
       : day < min || day > today
-        ? `Chọn ngày từ ${dmy(min)} đến hôm nay.`
+        ? translate(
+            message(
+              `Chọn ngày từ ${dmy(min)} đến hôm nay.`,
+              `Choose a day from ${dmy(min)} to today.`,
+              `${dmy(min)}부터 오늘까지의 날짜를 선택하세요.`,
+            ),
+          )
         : ''
 
   return { pick, setPick, other, setOther, day, blocker, today, min, yesterdayOk: yesterday >= min }

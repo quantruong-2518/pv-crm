@@ -412,7 +412,7 @@ export function ReasonsTile({
                 {tr('chuyển sang', 'moved to', '전환')}{' '}
                 {tr(LEAD_STATE_LABEL.nurturing, 'Nurturing', '육성')} ·{' '}
                 <strong className="text-foreground font-semibold">
-                  {num(dealTotal)} {tr('cơ hội', 'opportunities', '영업 기회')}
+                  {num(dealTotal)} {tr('cơ hội', 'opportunities', '기회')}
                 </strong>{' '}
                 {tr('đã dừng', 'stopped', '중단됨')}
                 {endedTotal > 0 && (
@@ -437,7 +437,7 @@ export function ReasonsTile({
           {tr(
             `Kỳ này chưa có lead chuyển sang ${LEAD_STATE_LABEL.nurturing}, cơ hội dừng hay hợp đồng chấm dứt.`,
             `No leads moved to nurturing, opportunities stopped, or contracts terminated in this period.`,
-            `이번 기간에는 육성 단계로 전환된 리드, 중단된 영업 기회 또는 해지된 계약이 없습니다.`,
+            `이번 기간에는 육성 단계로 전환된 리드, 중단된 기회 또는 해지된 계약이 없습니다.`,
           )}
         </p>
       ) : (
@@ -468,8 +468,8 @@ export function ReasonsTile({
             <ReasonGroup
               kind="deal"
               side={side}
-              title={tr('Cơ hội đã dừng', 'Stopped opportunities', '중단된 영업 기회')}
-              unit={tr('cơ hội', 'opportunities', '영업 기회')}
+              title={tr('Cơ hội đã dừng', 'Stopped opportunities', '중단된 기회')}
+              unit={tr('cơ hội', 'opportunities', '기회')}
               rows={data.dealStops}
               hrefOf={(r) =>
                 canDeals && r.stage ? stoppedDealsHref(r.key, r.stage, days) : undefined

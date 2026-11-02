@@ -3,11 +3,12 @@ import { Badge, Check, Chip, CircleAlert, Icon, Inbox, Skeleton, cn } from '@pv/
 import type { MailRunRecipientRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { dmhm } from '@/lib/date'
+import { message, translate, useI18n, type Lang, type Message } from '@/app/i18n'
 import {
   DELIVERED_MAIL,
   FAILED_MAIL,
   SKIPPED_MAIL,
-  SKIPPED_MAIL_LABEL,
+  SKIPPED_MAIL_COPY,
   mailRunRecipientsQuery,
 } from '@/data/mail-runs'
 
@@ -55,6 +56,7 @@ import {
  *  `mailRunRecipientsQuery` and follows the state of the LETTERS, not of the
  *  batch. */
 export function WaveRecipients({ runId, template }: { runId: string; template: string }) {
+  const { t } = useI18n()
   const { data, isPending, error } = useQuery(mailRunRecipientsQuery(runId))
   const rows = data?.rows ?? []
 
@@ -70,8 +72,16 @@ export function WaveRecipients({ runId, template }: { runId: string; template: s
   if (error) {
     return (
       <p className="text-destructive-foreground px-3 py-4 text-[12px]">
-        Không đọc được danh sách người nhận của đợt này.{' '}
-        {isApiError(error) ? userMessage(error) : 'Thử lại.'}
+        {t(
+          message(
+            'Không đọc được danh sách người nhận của đợt này.',
+            'Could not read the recipient list of this wave.',
+            '이 웨이브의 수신자 목록을 읽지 못했습니다.',
+          ),
+        )}{' '}
+        {isApiError(error)
+          ? userMessage(error)
+          : t(message('Thử lại.', 'Try again.', '다시 시도해 주세요.'))}
       </p>
     )
   }
@@ -80,7 +90,13 @@ export function WaveRecipients({ runId, template }: { runId: string; template: s
     return (
       <div className="text-muted-foreground flex items-center gap-2 px-3 py-4 text-[12px]">
         <Icon icon={Inbox} size={16} />
-        Đợt này chưa gửi thư nào.
+        {t(
+          message(
+            'Đợt này chưa gửi thư nào.',
+            'This wave has not sent any letters yet.',
+            '이 웨이브는 아직 발송된 메일이 없습니다.',
+          ),
+        )}
       </div>
     )
   }
@@ -99,10 +115,30 @@ export function WaveRecipients({ runId, template }: { runId: string; template: s
       >
         <span />
         <span className="min-w-0 truncate">
-          <span className="text-foreground font-medium">{rows.length} người nhận</span> · {opened}{' '}
-          đã mở
-          {clicked > 0 && <span className="text-accent-foreground"> · {clicked} đã bấm</span>}
-          {failed > 0 && <span className="text-warning"> · {failed} không tới nơi</span>}
+          <span className="text-foreground font-medium">
+            {t(
+              message(
+                `${rows.length} người nhận`,
+                `${rows.length} recipients`,
+                `수신자 ${rows.length}명`,
+              ),
+            )}
+          </span>{' '}
+          · {t(message(`${opened} đã mở`, `${opened} opened`, `${opened}명 열람`))}
+          {clicked > 0 && (
+            <span className="text-accent-foreground">
+              {' · '}
+              {t(message(`${clicked} đã bấm`, `${clicked} clicked`, `${clicked}명 클릭`))}
+            </span>
+          )}
+          {failed > 0 && (
+            <span className="text-warning">
+              {' · '}
+              {t(
+                message(`${failed} không tới nơi`, `${failed} not delivered`, `${failed}명 미도착`),
+              )}
+            </span>
+          )}
         </span>
       </div>
 
@@ -116,7 +152,8 @@ export function WaveRecipients({ runId, template }: { runId: string; template: s
 }
 
 function RecipientLine({ row, template }: { row: MailRunRecipientRow; template: string }) {
-  const face = deliveryFace(row)
+  const { lang } = useI18n()
+  const face = deliveryFace(row, lang)
 
   return (
     <li
@@ -164,7 +201,7 @@ function RecipientLine({ row, template }: { row: MailRunRecipientRow; template: 
               {row.failReason}
             </>
           ) : (
-            signalOf(row)
+            signalOf(row, lang)
           )}
         </span>
       </div>
@@ -174,11 +211,11 @@ function RecipientLine({ row, template }: { row: MailRunRecipientRow; template: 
           tick is `deliveredAt`, not `DELIVERED_MAIL` — a letter merely accepted
           by the provider counts as sent and not yet as arrived, and that gap is
           what a reader opens this panel to see. */}
-      <Mark on={row.sentAt !== undefined} label="đã gửi" />
-      <Mark on={row.deliveredAt !== undefined} label="tới nơi" />
-      <Mark on={row.openCount > 0} label="đã mở" />
-      <Mark on={row.clickCount > 0} label="đã bấm" />
-      <Mark on={Boolean(FAILED_MAIL[row.deliveryState])} label="bounce" warn />
+      <Mark on={row.sentAt !== undefined} label={MARK.sent} />
+      <Mark on={row.deliveredAt !== undefined} label={MARK.delivered} />
+      <Mark on={row.openCount > 0} label={MARK.opened} />
+      <Mark on={row.clickCount > 0} label={MARK.clicked} />
+      <Mark on={Boolean(FAILED_MAIL[row.deliveryState])} label={MARK.bounced} warn />
     </li>
   )
 }
@@ -187,10 +224,22 @@ function RecipientLine({ row, template }: { row: MailRunRecipientRow; template: 
  *  the reason `signalOf` writes a sentence: nothing at all reads as data that
  *  has not loaded. `Icon` is `aria-hidden`, so the word reaches a screen reader
  *  through `sr-only` instead. */
-function Mark({ on, label, warn }: { on: boolean; label: string; warn?: boolean }) {
+const MARK = {
+  sent: message('đã gửi', 'sent', '발송'),
+  delivered: message('tới nơi', 'delivered', '도착'),
+  opened: message('đã mở', 'opened', '열람'),
+  clicked: message('đã bấm', 'clicked', '클릭'),
+  bounced: message('bounce', 'bounced', '반송'),
+}
+
+function Mark({ on, label, warn }: { on: boolean; label: Message; warn?: boolean }) {
+  const { t } = useI18n()
+  const word = t(label)
   return (
     <span className="flex justify-end">
-      <span className="sr-only">{on ? label : `không ${label}`}</span>
+      <span className="sr-only">
+        {on ? word : t(message(`không ${word}`, `not ${word}`, `${word} 안 됨`))}
+      </span>
       {on ? (
         <Icon icon={Check} size={14} className={warn ? 'text-warning' : 'text-success'} />
       ) : (
@@ -217,20 +266,25 @@ type DeliveryFace = {
  *  row prints that in its own `Badge`, and a letter reading "cancelled" under a
  *  wave reading "sent" is two sentences contradicting each other on one
  *  screen. */
-function deliveryFace(row: MailRunRecipientRow): DeliveryFace {
+function deliveryFace(row: MailRunRecipientRow, lang: Lang): DeliveryFace {
+  const m = (vi: string, en: string, ko: string) => translate(message(vi, en, ko), lang)
   if (FAILED_MAIL[row.deliveryState]) {
-    return { label: 'Không tới nơi', tone: 'danger' }
+    return { label: m('Không tới nơi', 'Not delivered', '도착하지 않음'), tone: 'danger' }
   }
-  if (SKIPPED_MAIL[row.deliveryState]) return { label: SKIPPED_MAIL_LABEL, tone: 'draft' }
+  if (SKIPPED_MAIL[row.deliveryState]) {
+    return { label: translate(SKIPPED_MAIL_COPY, lang), tone: 'draft' }
+  }
   if (DELIVERED_MAIL[row.deliveryState]) {
     const at = row.deliveredAt ?? row.sentAt
     return {
-      label: row.deliveredAt ? 'Đã tới hộp thư' : 'Đã gửi',
+      label: row.deliveredAt
+        ? m('Đã tới hộp thư', 'In the inbox', '받은편지함 도착')
+        : m('Đã gửi', 'Sent', '발송됨'),
       tone: 'success',
       ...(at ? { at: dmhm(at) } : {}),
     }
   }
-  return { label: 'Đang gửi', tone: 'warning' }
+  return { label: m('Đang gửi', 'Sending', '발송 중'), tone: 'warning' }
 }
 
 /** The recipient's signal, or the sentence saying there is not one yet.
@@ -239,14 +293,22 @@ function deliveryFace(row: MailRunRecipientRow): DeliveryFace {
  *  as data that has not loaded, while a sentence reads as a fact. It can only
  *  be said once the letter ARRIVED — one still on its way has nothing to have
  *  failed to record. */
-function signalOf(row: MailRunRecipientRow): string {
+function signalOf(row: MailRunRecipientRow, lang: Lang): string {
+  const m = (vi: string, en: string, ko: string) => translate(message(vi, en, ko), lang)
   if (row.clickCount > 0) {
-    const count = row.clickCount === 1 ? 'Đã bấm liên kết' : `Đã bấm ${row.clickCount} lần`
+    const n = row.clickCount
+    const count =
+      n === 1
+        ? m('Đã bấm liên kết', 'Clicked the link', '링크를 클릭함')
+        : m(`Đã bấm ${n} lần`, `Clicked ${n} times`, `${n}회 클릭`)
     return row.lastClickAt ? `${count} · ${dmhm(row.lastClickAt)}` : count
   }
   if (row.openCount > 0) {
-    const count = `${row.openCount} tín hiệu mở`
+    const n = row.openCount
+    const count = m(`${n} tín hiệu mở`, `${n} open signals`, `열람 신호 ${n}회`)
     return row.lastOpenAt ? `${count} · ${dmhm(row.lastOpenAt)}` : count
   }
-  return DELIVERED_MAIL[row.deliveryState] ? 'Chưa ghi nhận lượt mở' : '—'
+  return DELIVERED_MAIL[row.deliveryState]
+    ? m('Chưa ghi nhận lượt mở', 'No open recorded', '열람 기록 없음')
+    : '—'
 }

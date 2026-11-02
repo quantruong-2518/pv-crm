@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react'
 import { Chip, FileText, Icon, RadialGauge, type RadialGaugeTone } from '@pv/ui'
-import { QUOTATION_OUTCOME_LABEL, type OpportunityMoneyContract } from '@pv/contracts'
+import type { OpportunityMoneyContract } from '@pv/contracts'
+import { message, useI18n, type Message } from '@/app/i18n'
 import { dm } from '@/lib/date'
+import { QUOTE_PENDING, standingText } from '@/data/installment-copy'
 import { useContractKindLabel } from '@/data/sales-config'
-import { NO_AMOUNT, compactMoney, kindLabel, ratioOfShare, type Standing } from './money'
+import { NO_AMOUNT_COPY, compactMoney, kindLabel, ratioOfShare, type Standing } from './money'
 import type { Paper } from './papers'
 import { TintBadge } from './tint-badge'
 
@@ -19,21 +21,31 @@ const RING_TONE: Record<Standing['tone'], RadialGaugeTone> = {
 
 export function QuoteCard({ paper }: { paper: Extract<Paper, { kind: 'quote' }> }) {
   const { negotiation: n, round } = paper
+  const { t, lang } = useI18n()
   const resolveKind = useContractKindLabel()
   return (
     <>
       <Top
-        badge={<TintBadge tone="running">{QUOTATION_OUTCOME_LABEL.pending}</TintBadge>}
-        side="chưa ký"
+        badge={<TintBadge tone="running">{t(QUOTE_PENDING)}</TintBadge>}
+        side={t(message('chưa ký', 'not signed', '미체결'))}
       />
       <Body
         ring={<Placeholder />}
-        kind={kindLabel(n.kind, resolveKind)}
-        amount={n.amount === null ? NO_AMOUNT : compactMoney(n.amount, n.currency)}
+        kind={kindLabel(n.kind, resolveKind, lang)}
+        amount={n.amount === null ? t(NO_AMOUNT_COPY) : compactMoney(n.amount, n.currency)}
       />
       <span className="text-muted-foreground tnum text-[12px]">
-        {round ? `Lần ${round.roundNo}` : 'Báo giá'}
-        {round?.validUntil && ` · hiệu lực đến ${dm(round.validUntil)}`}
+        {round
+          ? t(message(`Lần ${round.roundNo}`, `Round ${round.roundNo}`, `${round.roundNo}차`))
+          : t(message('Báo giá', 'Quotation', '견적서'))}
+        {round?.validUntil &&
+          t(
+            message(
+              ` · hiệu lực đến ${dm(round.validUntil)}`,
+              ` · valid until ${dm(round.validUntil)}`,
+              ` · ${dm(round.validUntil)}까지 유효`,
+            ),
+          )}
       </span>
     </>
   )
@@ -46,30 +58,52 @@ export function ContractCard({
   contract: OpportunityMoneyContract
   standing: Standing | null
 }) {
+  const { t, lang } = useI18n()
   const resolveKind = useContractKindLabel()
   return (
     <>
       <Top
-        badge={standing && <TintBadge tone={standing.tone}>{standing.label}</TintBadge>}
-        side={`ký ${dm(c.signedAt)}`}
+        badge={
+          standing && (
+            <TintBadge tone={standing.tone}>{standingText(standing.tone, lang)}</TintBadge>
+          )
+        }
+        side={t(
+          message(`ký ${dm(c.signedAt)}`, `signed ${dm(c.signedAt)}`, `${dm(c.signedAt)} 체결`),
+        )}
       />
       <Body
         ring={<Ring contract={c} standing={standing} />}
-        kind={kindLabel(c.kind, resolveKind)}
-        amount={c.amount === null ? NO_AMOUNT : compactMoney(c.amount, c.currency)}
+        kind={kindLabel(c.kind, resolveKind, lang)}
+        amount={c.amount === null ? t(NO_AMOUNT_COPY) : compactMoney(c.amount, c.currency)}
       />
       <span className="flex items-center gap-2">
         <Chip>{c.code}</Chip>
-        <span className="text-muted-foreground tnum text-[12px]">{metaOf(c)}</span>
+        <span className="text-muted-foreground tnum text-[12px]">{metaOf(c, t)}</span>
       </span>
     </>
   )
 }
 
-const metaOf = (c: OpportunityMoneyContract) =>
+const metaOf = (c: OpportunityMoneyContract, t: (copy: Message) => string) =>
   [
-    c.rounds.length > 0 && `${c.rounds.length} lần báo giá`,
-    c.files.contract > 0 ? `${c.files.contract} tệp` : 'chưa có tệp',
+    c.rounds.length > 0 &&
+      t(
+        message(
+          `${c.rounds.length} lần báo giá`,
+          `${c.rounds.length} quotation rounds`,
+          `견적 ${c.rounds.length}회`,
+        ),
+      ),
+    c.files.contract > 0
+      ? t(
+          message(
+            `${c.files.contract} tệp`,
+            `${c.files.contract} files`,
+            `파일 ${c.files.contract}개`,
+          ),
+        )
+      : t(message('chưa có tệp', 'no files yet', '파일 없음')),
   ]
     .filter(Boolean)
     .join(' · ')
@@ -102,13 +136,14 @@ function Ring({
   contract: OpportunityMoneyContract
   standing: Standing | null
 }) {
+  const { t } = useI18n()
   if (!standing || c.collectedShare === null) return <Placeholder />
   return (
     <RadialGauge
       size={64}
       value={ratioOfShare(c.collectedShare)}
       center={`${c.collectedShare}%`}
-      label="Đã thu"
+      label={t(message('Đã thu', 'Collected', '수금액'))}
       tone={RING_TONE[standing.tone]}
     />
   )

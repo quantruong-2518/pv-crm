@@ -1,15 +1,17 @@
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AppShell, Badge, Button, Chip, ScreenLayout, SearchField, type TableSort } from '@pv/ui'
+import { AppShell, Badge, ScreenLayout, type TableSort } from '@pv/ui'
 import { ContactBookQuery, ContactSortKey, type ContactBookRow } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { message, useI18n, type Lang } from '@/app/i18n'
-import { searchHint } from '@/lib/search-box'
 import { isApiError, userMessage } from '@/app/api'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { contactBookQuery } from '@/data/contacts'
-import { BookCount, BookPage, type BookTable } from '@/components/book-page'
-import { AvatarCell, TableFooter } from '@/components/table-bits'
+import { BookCount, BookPage, BookSearch, type BookTable } from '@/components/book-page'
+import { TableFooter } from '@/components/table-bits'
+import { CodeCell, PicCell } from '@/components/book-cells'
+import { COL } from '@/components/book-columns'
+import { phoneText } from '@/lib/phone'
 import { SortSelect, ViewSwitch } from '@/components/book-cards'
 import { GRID_PAGE_SIZE, useBookView } from '@/components/book-view'
 import { ContactCardGrid } from '@/components/contact-cards'
@@ -76,47 +78,46 @@ function contactTable(
   t: (copy: ReturnType<typeof message>) => string,
 ): BookTable {
   return {
-    minWidth: 'min-w-[1100px]',
+    pageSize: PAGE_SIZE,
     sort,
     onSort,
+    /* Tracks with a px floor (book-columns.ts) so the name never crushes under its badge. */
     columns: [
-      { header: t(message('Mã', 'Code', '코드')), width: '0.8fr' },
+      { header: t(message('Mã', 'Code', '코드')), width: COL.code },
       {
         header: t(message('Họ và tên', 'Full name', '이름')),
-        width: '1.6fr',
+        width: 'minmax(232px,1.8fr)',
         sortKey: 'name',
         filter: filters.primaryFilter,
       },
-      { header: t(message('Chức danh', 'Job title', '직함')), width: '1.2fr' },
+      { header: t(message('Chức danh', 'Job title', '직함')), width: COL.text },
       {
         header: t(message('Công ty', 'Company', '회사')),
-        width: '1.6fr',
+        width: 'minmax(176px,1.6fr)',
         sortKey: 'company',
         filter: filters.account,
       },
-      { header: filters.email, width: '1.6fr' },
-      { header: filters.phone, width: '1fr' },
+      { header: filters.email, width: 'minmax(176px,1.4fr)' },
+      { header: filters.phone, width: '136px' },
       {
         header: t(message('Ngày tạo', 'Created', '생성일')),
-        width: '0.9fr',
+        width: COL.date,
         sortKey: 'createdAt',
         filter: filters.dateFilter,
       },
-      {
-        header: filters.owner,
-        width: '140px',
-        align: 'center',
-      },
+      { header: filters.owner, width: 'minmax(144px,1fr)' },
     ],
     rows: rows.map((c) => ({
       id: c.code,
       onOpen: () => navigate(`/sales/contacts/${c.code}`),
       cells: [
-        <Chip key="c">{c.code}</Chip>,
+        <CodeCell key="c" code={c.code} />,
         <span key="n" className="flex min-w-0 items-center gap-2">
-          <span className="truncate">{c.name}</span>
+          <span className="truncate" title={c.name}>
+            {c.name}
+          </span>
           {c.isPrimary && (
-            <Badge tone="success">
+            <Badge tone="success" className="shrink-0">
               {t(message('Liên hệ chính', 'Primary contact', '주 연락처'))}
             </Badge>
           )}
@@ -137,7 +138,7 @@ function contactTable(
           {c.email ?? '—'}
         </span>,
         <span key="p" className="tnum font-num block truncate">
-          {c.phone ?? '—'}
+          {c.phone ? phoneText(c.phone) : '—'}
         </span>,
         <span key="d" className="tnum font-num block truncate">
           {new Intl.DateTimeFormat(lang === 'vi' ? 'vi-VN' : lang === 'ko' ? 'ko-KR' : 'en-US', {
@@ -147,10 +148,9 @@ function contactTable(
             year: 'numeric',
           }).format(new Date(c.createdAt))}
         </span>,
-        <AvatarCell
+        <PicCell
           key="o"
-          name={c.ownerName}
-          email={c.ownerEmail}
+          people={[{ name: c.ownerName, email: c.ownerEmail }]}
           empty={t(message('Chưa có người phụ trách', 'No owner assigned', '담당자 미지정'))}
         />,
       ],
@@ -181,7 +181,7 @@ export default function ContactsPage() {
     patch(
       query.sort === parsed.data
         ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
-        : { sort: parsed.data, dir: 'asc' },
+        : { sort: parsed.data, dir: parsed.data === 'createdAt' ? 'desc' : 'asc' },
     )
   }
 
@@ -195,9 +195,11 @@ export default function ContactsPage() {
           count={
             <BookCount total={total} noun={t(message('người liên hệ', 'contacts', '연락처'))} />
           }
+          filters={filters.chips}
+          onClearFilters={book.dirty ? book.clear : undefined}
           tools={
             <>
-              <SearchField
+              <BookSearch
                 placeholder={t(
                   message(
                     'Tìm theo tên, email hoặc số điện thoại…',
@@ -206,9 +208,7 @@ export default function ContactsPage() {
                   ),
                 )}
                 value={book.text}
-                meta={searchHint(book.text)}
                 onChange={book.setText}
-                className="min-w-0 flex-1 sm:max-w-[320px]"
               />
               {view === 'grid' && (
                 <>
@@ -224,16 +224,6 @@ export default function ContactsPage() {
                 </>
               )}
               <ViewSwitch value={view} onChange={setView} />
-              {book.dirty && (
-                <Button
-                  size="md"
-                  variant="ghost"
-                  className="pointer-coarse:h-12"
-                  onClick={book.clear}
-                >
-                  {t(message('Bỏ hết bộ lọc', 'Clear filters', '필터 지우기'))}
-                </Button>
-              )}
             </>
           }
           pending={isPending}

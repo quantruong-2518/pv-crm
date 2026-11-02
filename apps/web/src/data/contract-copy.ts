@@ -1,6 +1,6 @@
 import type { ContractPenaltyDirection } from '@pv/contracts'
 import type { DueLevel } from '@pv/engines'
-import { formatDate, formatNumber, message, translate, type Lang } from '@/app/i18n'
+import { formatDate, formatNumber, getLang, message, translate, type Lang } from '@/app/i18n'
 
 export const CONTRACT_COPY = {
   bookTitle: message('Hợp đồng', 'Contracts', '계약'),
@@ -15,17 +15,13 @@ export const CONTRACT_COPY = {
   totalValue: message('Tổng giá trị hợp đồng', 'Total contract value', '총 계약 금액'),
   amountMissing: message('chưa nhập giá trị', 'without an amount', '금액 미입력'),
   collectedAmount: message('Đã thu tiền', 'Collected', '수금액'),
-  noInstallments: message(
-    'Chưa có đợt thanh toán nào',
-    'No payment schedule yet',
-    '납부 일정 없음',
-  ),
+  noInstallments: message('Chưa có đợt thanh toán nào', 'No installments yet', '납부 회차 없음'),
   scheduledTotal: message('tổng tiền theo lịch thu', 'of scheduled payments', '예정 금액 대비'),
   overdueAmount: message('Tiền quá hạn', 'Overdue payments', '연체 금액'),
   overdueInstallments: message(
     'đợt thanh toán cần xử lý',
-    'payments need attention',
-    '건의 납부 처리 필요',
+    'installments need attention',
+    '건의 납부 회차 처리 필요',
   ),
   noOverdueAmount: message('Không có khoản thu quá hạn', 'No overdue payments', '연체 금액 없음'),
   overdueConditions: message('Điều kiện quá hạn', 'Overdue conditions', '기한 초과 조건'),
@@ -49,7 +45,7 @@ export const CONTRACT_COPY = {
   ),
   clearFilters: message('Bỏ hết bộ lọc', 'Clear filters', '필터 지우기'),
   noContracts: message('Chưa có hợp đồng nào.', 'No contracts yet.', '아직 계약이 없습니다.'),
-  viewOpportunities: message('Xem sổ cơ hội', 'View opportunities', '영업 기회 보기'),
+  viewOpportunities: message('Xem sổ cơ hội', 'View opportunities', '기회 보기'),
   customerAndKind: message(
     'Khách hàng / Loại hợp đồng',
     'Customer / Contract type',
@@ -62,7 +58,7 @@ export const CONTRACT_COPY = {
   saleAndBd: message('Sale / BD', 'Sales / BD', '영업 / BD'),
   estimatedValue: message('Giá trị ước đoán (₫)', 'Estimated value (₫)', '예상 금액 (₫)'),
   collectedProgress: message('Tiến độ thu (₫)', 'Collection progress (₫)', '수금 진행 (₫)'),
-  nextPayment: message('Đợt thu tiếp theo', 'Next payment', '다음 수금'),
+  nextPayment: message('Đợt thu tiếp theo', 'Next installment', '다음 납부 회차'),
   convertedWhy: message(
     'Bộ lọc và thứ tự sắp xếp so số tiền đã quy ra đồng',
     'Filters and sorting use the amount converted to VND',
@@ -110,7 +106,8 @@ const LEVEL_COPY: Record<DueLevel, (typeof CONTRACT_COPY)[keyof typeof CONTRACT_
   'long-overdue': CONTRACT_COPY.longOverdue,
 }
 
-export const dueLevelText = (level: DueLevel, lang: Lang) => translate(LEVEL_COPY[level], lang)
+export const dueLevelText = (level: DueLevel, lang: Lang = getLang()) =>
+  translate(LEVEL_COPY[level], lang)
 
 export function penaltyDirectionText(direction: ContractPenaltyDirection, lang: Lang) {
   return translate(
@@ -137,15 +134,22 @@ export function penaltyStatusText(direction: ContractPenaltyDirection, done: boo
 export function daysUntilText(daysLeft: number, lang: Lang): string {
   if (daysLeft === 0) return translate(CONTRACT_COPY.due, lang)
   const n = formatNumber(Math.abs(daysLeft), lang)
-  if (lang === 'en') return daysLeft > 0 ? `${n} days left` : `${n} days late`
-  if (lang === 'ko') return daysLeft > 0 ? `${n}일 남음` : `${n}일 지남`
-  return daysLeft > 0 ? `còn ${n} ngày` : `trễ ${n} ngày`
+  const text =
+    daysLeft > 0
+      ? message(`còn ${n} ngày`, `${n} days left`, `${n}일 남음`)
+      : message(`trễ ${n} ngày`, `${n} days late`, `${n}일 지남`)
+  return translate(text, lang)
 }
 
 export function installmentCaption(no: number, due: string, daysLeft: number, lang: Lang): string {
   const day = formatDate(due, lang)
   const relative = daysUntilText(daysLeft, lang)
-  if (lang === 'en') return `${relative} · installment ${no} · ${day}`
-  if (lang === 'ko') return `${relative} · ${no}차 납부 · ${day}`
-  return `${relative} · đợt ${no} · ${day}`
+  return translate(
+    message(
+      `${relative} · đợt ${no} · ${day}`,
+      `${relative} · installment ${no} · ${day}`,
+      `${relative} · 납부 회차 ${no} · ${day}`,
+    ),
+    lang,
+  )
 }

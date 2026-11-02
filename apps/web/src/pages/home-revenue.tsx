@@ -39,12 +39,6 @@ const FIGURE_CARD = `flex min-w-0 flex-col gap-1 rounded-2xl px-4 py-3 ${SHORT_C
 const FIGURE_LABEL = 'text-[13px] font-semibold leading-[18px]'
 const FIGURE_VALUE =
   'tnum font-num text-[30px] font-bold leading-[38px] tracking-[-0.025em] [@media(max-height:860px)]:text-[24px] [@media(max-height:860px)]:leading-8'
-const unitLabel = (unit: string) =>
-  unit === 'ngày'
-    ? tr('ngày', 'day', '일')
-    : unit === 'tuần'
-      ? tr('tuần', 'week', '주')
-      : tr('tháng', 'month', '월')
 
 function PenaltyLine({ label, value, ink }: { label: string; value: string; ink: string }) {
   return (
@@ -61,7 +55,7 @@ function penaltyNote(a: SalesPenaltyFigure, b: SalesPenaltyFigure) {
   if (count === 0)
     return tr('Không có hợp đồng bị phạt', 'No penalized contracts', '위약금이 부과된 계약 없음')
   return tr(
-    `${num(count)} hợp đồng chấm dứt${pending > 0 ? ` · ${num(pending)} chưa trả` : ''}`,
+    `${num(count)} hợp đồng chấm dứt${pending > 0 ? ` · ${num(pending)} chưa trả` : ''}`, // i18n-ignore
     `${num(count)} terminated contracts${pending > 0 ? ` · ${num(pending)} unpaid` : ''}`,
     `해지 계약 ${num(count)}건${pending > 0 ? ` · 미납 ${num(pending)}건` : ''}`,
   )
@@ -203,7 +197,7 @@ export function RevenueTile({
           )}
           {canViewDeals && perf.open.count > 0 && (
             <Link to={dealsHref('open')} className={PILL_LINK}>
-              {tr('Xem cơ hội', 'View opportunities', '영업 기회 보기')}
+              {tr('Xem cơ hội', 'View opportunities', '기회 보기')}
               <Icon icon={ArrowRight} size={14} />
             </Link>
           )}
@@ -217,9 +211,9 @@ export function RevenueTile({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span className={NOTE}>
             {tr(
-              `Theo ${unit} · triệu đồng`,
-              `By ${unitLabel(unit)} · VND millions`,
-              `${unitLabel(unit)}별 · 백만 VND`,
+              `Theo ${unit.vi} · triệu đồng`,
+              `By ${unit.en} · VND millions`,
+              `${unit.ko}별 · 백만 VND`,
             )}
           </span>
           <Legend />
@@ -249,7 +243,7 @@ export function RevenueTile({
                 title={
                   card.kinds.length > 1
                     ? nameOf(shown)
-                    : `${KIND_TITLE[card.kinds[0]!]} · ${nameOf(shown)}`
+                    : `${translate(KIND_TITLE[card.kinds[0]!])} · ${nameOf(shown)}`
                 }
                 cardProps={cardProps}
                 onClose={close}

@@ -43,11 +43,7 @@ export function CampaignDetailPage() {
   const { t } = useI18n()
   const chrome = useAppChrome({
     searchPlaceholder: t(
-      message(
-        'Tìm chiến dịch, đợt gửi…',
-        'Search campaigns and waves…',
-        '캠페인 및 발송 차수 검색…',
-      ),
+      message('Tìm chiến dịch, đợt gửi…', 'Search campaigns and waves…', '캠페인 및 웨이브 검색…'),
     ),
   })
   const navigate = useNavigate()
@@ -157,7 +153,7 @@ function CampaignWorkspace({ campaign }: { campaign: CampaignProfile }) {
   const tabOptions = [
     {
       value: 'waves',
-      label: t(message('Các đợt gửi', 'Waves', '발송 차수')),
+      label: t(message('Các đợt gửi', 'Waves', '웨이브')),
       icon: Send,
       count: campaign.waveCount || '',
     },

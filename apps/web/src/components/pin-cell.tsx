@@ -1,6 +1,7 @@
 import { Button, Icon, Pin, cn } from '@pv/ui'
 import type { PinSubject } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 import { toastDone, toastFail } from '@/app/toast'
 import { usePinToggle, usePins, useSetPins } from '@/data/pins'
 
@@ -21,12 +22,17 @@ export function PinCell({
   code: string
   label: string
 }) {
+  const { t } = useI18n()
   const { pinned: on, toggle } = usePinToggle(subject, code)
   return (
     <button
       type="button"
       aria-pressed={on}
-      aria-label={on ? `Bỏ ghim ${label}` : `Ghim ${label}`}
+      aria-label={t(
+        on
+          ? message(`Bỏ ghim ${label}`, `Unpin ${label}`, `${label} 고정 해제`)
+          : message(`Ghim ${label}`, `Pin ${label}`, `${label} 고정`),
+      )}
       onClick={(e) => {
         e.stopPropagation()
         toggle()
@@ -57,10 +63,25 @@ export function PinSelectionAction({
   noun: string
   onDone: () => void
 }) {
+  const { t } = useI18n()
   const pins = usePins(subject).codes
   const setPins = useSetPins(subject)
   const allPinned = codes.every((code) => pins.includes(code))
-  const verb = allPinned ? 'bỏ ghim' : 'ghim'
+
+  const failed = (count: number) =>
+    t(
+      allPinned
+        ? message(
+            `Không bỏ ghim được ${count} ${noun}.`,
+            `Could not unpin ${count} ${noun}.`,
+            `${noun} ${count}개의 고정을 해제하지 못했습니다.`,
+          )
+        : message(
+            `Không ghim được ${count} ${noun}.`,
+            `Could not pin ${count} ${noun}.`,
+            `${noun} ${count}개를 고정하지 못했습니다.`,
+          ),
+    )
 
   return (
     <Button
@@ -70,17 +91,36 @@ export function PinSelectionAction({
         const count = codes.length
         void setPins.mutateAsync({ codes, pinned: !allPinned }).then(
           ({ changed }) => {
-            const done = `Đã ${verb} ${changed.length} ${noun}`
-            if (changed.length === 0) toastFail(`Không ${verb} được ${count} ${noun}.`)
+            const n = changed.length
+            const done = t(
+              allPinned
+                ? message(
+                    `Đã bỏ ghim ${n} ${noun}`,
+                    `Unpinned ${n} ${noun}`,
+                    `${noun} ${n}개 고정 해제함`,
+                  )
+                : message(`Đã ghim ${n} ${noun}`, `Pinned ${n} ${noun}`, `${noun} ${n}개 고정함`),
+            )
+            if (n === 0) toastFail(failed(count))
             else
-              toastDone(count > changed.length ? `${done}, bỏ qua ${count - changed.length}` : done)
+              toastDone(
+                count > n
+                  ? t(
+                      message(
+                        `${done}, bỏ qua ${count - n}`,
+                        `${done}, skipped ${count - n}`,
+                        `${done}, ${count - n}개 제외`,
+                      ),
+                    )
+                  : done,
+              )
           },
-          (error: unknown) => toastFail(`Không ${verb} được ${count} ${noun}.`, failureOf(error)),
+          (error: unknown) => toastFail(failed(count), failureOf(error)),
         )
         onDone()
       }}
     >
-      {allPinned ? 'Bỏ ghim' : 'Ghim'}
+      {allPinned ? t(message('Bỏ ghim', 'Unpin', '고정 해제')) : t(message('Ghim', 'Pin', '고정'))}
     </Button>
   )
 }

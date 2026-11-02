@@ -9,6 +9,7 @@ import {
 } from '@pv/contracts'
 import { api, userMessage, type ApiError } from '@/app/api'
 import { toastDone } from '@/app/toast'
+import { getLang, message, translate, type Lang, type Message } from '@/app/i18n'
 import { COMM_RECORDS_KEY, clearCommDraft, commClosed } from '@/data/comm-record-detail'
 import { COMM_VIEW_NEED } from '@/data/comms'
 import { invalidateLeadState } from '@/data/lead-exit'
@@ -98,7 +99,11 @@ export function useMarkCommUnreached() {
     onSuccess: (view) => {
       commClosed(client, view)
       clearCommDraft(view.id)
-      toastDone('Đã đóng lượt liên hệ')
+      toastDone(
+        translate(
+          message('Đã đóng lượt liên hệ', 'Interaction closed', '연락 기록을 종료했습니다'),
+        ),
+      )
     },
   })
 }
@@ -109,16 +114,25 @@ export const workstreamCommsPath = (code: string) =>
   `/sales/workstreams/${encodeURIComponent(code)}/comms`
 
 /** How a subject kind is named inside a sentence. */
-export const COMM_SUBJECT_NOUN: Record<MailSubjectKind, string> = {
-  lead: 'lead',
-  opportunity: 'cơ hội',
-  contract: 'hợp đồng',
+export const COMM_SUBJECT_NOUN: Record<MailSubjectKind, Message> = {
+  lead: message('lead', 'lead', '리드'),
+  opportunity: message('cơ hội', 'opportunity', '기회'),
+  contract: message('hợp đồng', 'contract', '계약'),
 }
 
 /** One wording for "this caller could not confirm a comm here", shared by the
  *  buttons and the dialog so the two never say it differently. */
-export const notConfirmableReason = (kind: MailSubjectKind) =>
-  `Bạn không xác nhận được lượt liên hệ trên ${COMM_SUBJECT_NOUN[kind]} này.`
+export const notConfirmableReason = (kind: MailSubjectKind, lang: Lang = getLang()) => {
+  const noun = translate(COMM_SUBJECT_NOUN[kind], lang)
+  return translate(
+    message(
+      `Bạn không xác nhận được lượt liên hệ trên ${noun} này.`,
+      `You cannot confirm an interaction on this ${noun}.`,
+      `이 ${noun}의 연락 기록은 확인할 수 없습니다.`,
+    ),
+    lang,
+  )
+}
 
 /** A lead's own contact person, as the comm buttons take it — no `code`, since
  *  that person has no `sales.contact` row. */

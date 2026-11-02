@@ -1,12 +1,9 @@
-import {
-  OPPORTUNITY_STAGE_LABEL,
-  type OpportunityProfileResponse,
-  type OpportunityStageSpan,
-} from '@pv/contracts'
+import { type OpportunityProfileResponse, type OpportunityStageSpan } from '@pv/contracts'
 import { PenLine, UsersRound } from '@pv/ui'
 import { dm } from '@/lib/date'
-import { OVERDUE_WORD, refusalOf } from '@/data/opportunities'
-import { QUOTE_LABEL } from '@/components/deal-money/money'
+import { getLang, message, translate } from '@/app/i18n'
+import { opportunityStageLabel } from '@/data/sales-labels-i18n'
+import { refusalOf } from '@/data/opportunities'
 import type { MenuChoice } from '@/components/record/menu-button'
 import type { TodoRung } from '@/components/record/todo-card'
 
@@ -18,12 +15,20 @@ import type { TodoRung } from '@/components/record/todo-card'
 
 type Profile = OpportunityProfileResponse
 
+const msg = (vi: string, en: string, ko: string) => translate(message(vi, en, ko))
+
 /** The run's customer tag, new or returning with its ordinal (ADR 0076 §3);
  *  `null` when the run has no account to judge. */
 export function customerTagOf(op: Pick<Profile, 'workstream'>): string | null {
   const run = op.workstream
   if (!run?.customer) return null
-  return run.customer === 'new' ? 'Khách mới' : `Khách cũ · lượt bán thứ ${run.ordinal}`
+  return run.customer === 'new'
+    ? msg('Khách mới', 'New customer', '신규 고객')
+    : msg(
+        `Khách cũ · lượt bán thứ ${run.ordinal}`,
+        `Existing customer · workstream no. ${run.ordinal}`,
+        `기존 고객 · ${run.ordinal}번째 영업 건`,
+      )
 }
 
 const span = (from: string, to: string | null) => {
@@ -36,20 +41,37 @@ const span = (from: string, to: string | null) => {
  *  the server's `position.overdueBy` when it has one. */
 function clockCaption(s: OpportunityStageSpan, overdueBy: number | null) {
   if (s.days === null) return { caption: null, late: false }
-  const here = `đã ${s.days} ngày`
-  if (s.limitDays === null) return { caption: `${here} · chưa đặt hạn`, late: false }
+  const here = msg(`đã ${s.days} ngày`, `${s.days} days in`, `${s.days}일 경과`)
+  if (s.limitDays === null) {
+    return {
+      caption: `${here} · ${msg('chưa đặt hạn', 'no limit set', '기한 미설정')}`,
+      late: false,
+    }
+  }
   const over = overdueBy ?? s.days - s.limitDays
   return over > 0
-    ? { caption: `${here} · ${OVERDUE_WORD} ${over} ngày`, late: true }
-    : { caption: `${here} · hạn ${s.limitDays} ngày`, late: false }
+    ? {
+        caption: `${here} · ${msg(`quá hạn ${over} ngày`, `${over} days overdue`, `${over}일 지연`)}`,
+        late: true,
+      }
+    : {
+        caption: `${here} · ${msg(`hạn ${s.limitDays} ngày`, `limit ${s.limitDays} days`, `기한 ${s.limitDays}일`)}`,
+        late: false,
+      }
 }
 
 function stageStep(op: Profile, s: OpportunityStageSpan, i: number): TodoRung {
-  const label = OPPORTUNITY_STAGE_LABEL[s.key]
+  const label = opportunityStageLabel(s.key, getLang())
   const base = { key: s.key, label, late: false }
   if (op.state === 'lost' && op.stoppedAtStage === s.key) {
     const at = op.closedAt ?? s.leftAt
-    return { ...base, mark: 'stopped', caption: at ? `dừng ${dm(at)}` : 'dừng' }
+    return {
+      ...base,
+      mark: 'stopped',
+      caption: at
+        ? msg(`dừng ${dm(at)}`, `stopped ${dm(at)}`, `${dm(at)} 중단`)
+        : msg('dừng', 'stopped', '중단'),
+    }
   }
   if (s.enteredAt && (s.leftAt || op.state !== 'open')) {
     return { ...base, mark: 'done', caption: span(s.enteredAt, s.leftAt) }
@@ -60,13 +82,13 @@ function stageStep(op: Profile, s: OpportunityStageSpan, i: number): TodoRung {
   /* Never entered, yet a later column was: the deal went past it. */
   const passed = op.stages.slice(i + 1).some((later) => later.enteredAt !== null)
   return passed || op.state === 'won' || op.state === 'terminated'
-    ? { ...base, mark: 'skipped', caption: 'bỏ qua' }
+    ? { ...base, mark: 'skipped', caption: msg('bỏ qua', 'skipped', '건너뜀') }
     : { ...base, mark: 'future', caption: null }
 }
 
 /** The date only: how many signed and what waits are the money block's. */
 function contractStep(op: Profile): TodoRung {
-  const base = { key: 'contract', label: 'Hợp đồng', late: false }
+  const base = { key: 'contract', label: msg('Hợp đồng', 'Contract', '계약'), late: false }
   const last = op.contracts.at(-1)
   if (last) return { ...base, mark: 'done', caption: dm(last.signedAt) }
   return { ...base, mark: op.pendingSign ? 'waiting' : 'future', caption: null }
@@ -140,13 +162,16 @@ export function primaryStateOf(
   }
 }
 
-/** One label for the quote door wherever it stands (header, rail): the modal
- *  decides which negotiation the round joins. */
-export { QUOTE_LABEL }
-
 /** The sign button's wording by what it does — the header's and the waiting
  *  quote's share it. */
-export const SIGN_LABEL = { win: 'Chốt thắng', again: 'Ký thêm hợp đồng' } as const
+export const SIGN_LABEL = {
+  get win() {
+    return msg('Chốt thắng', 'Close as won', '수주 확정')
+  },
+  get again() {
+    return msg('Ký thêm hợp đồng', 'Sign another contract', '계약 추가 체결')
+  },
+}
 
 /** The floating bar's other moves: the activity record, the owners' drawer, the
  *  hold and the stop. Quoting and signing are the header's, and the seller swap
@@ -166,7 +191,7 @@ export function dealMoreChoices(
   if (op.acts.activity.ok) {
     choices.push({
       key: 'activity',
-      label: 'Ghi hoạt động',
+      label: msg('Ghi hoạt động', 'Log activity', '활동 기록'),
       icon: PenLine,
       onSelect: doors.onRecord,
     })
@@ -174,16 +199,25 @@ export function dealMoreChoices(
   if (op.acts.editDetails.ok) {
     choices.push({
       key: 'owners',
-      label: 'Sửa người chịu trách nhiệm',
+      label: msg('Sửa người chịu trách nhiệm', 'Edit owners', '담당자 수정'),
       icon: UsersRound,
       onSelect: doors.onEditOwners,
     })
   }
   if (op.acts.hold.ok) {
-    choices.push({ key: 'hold', label: 'Tạm hoãn', onSelect: doors.onHold })
+    choices.push({
+      key: 'hold',
+      label: msg('Tạm hoãn', 'Put on hold', '보류'),
+      onSelect: doors.onHold,
+    })
   }
   if (op.acts.stop.ok) {
-    choices.push({ key: 'stop', label: 'Dừng cơ hội', tone: 'danger', onSelect: doors.onStop })
+    choices.push({
+      key: 'stop',
+      label: msg('Dừng cơ hội', 'Stop opportunity', '기회 중단'),
+      tone: 'danger',
+      onSelect: doors.onStop,
+    })
   }
   return choices
 }

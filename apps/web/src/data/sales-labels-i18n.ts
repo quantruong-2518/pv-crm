@@ -1,3 +1,4 @@
+/* i18n-ignore-file: tuple keys below are lookup keys, each paired with its own message() */
 import {
   LEAD_STATE_LABEL,
   OPPORTUNITY_CONTACT_ROLE_LABEL,
@@ -21,7 +22,7 @@ const LEAD_STATE: Record<LeadState, Message> = {
   assigned: message(LEAD_STATE_LABEL.assigned, 'Assigned', '담당자 배정됨'),
   working: message(LEAD_STATE_LABEL.working, 'In follow-up', '후속 연락 중'),
   nurturing: message(LEAD_STATE_LABEL.nurturing, 'Nurturing', '육성 대기'),
-  converted: message(LEAD_STATE_LABEL.converted, 'Converted to opportunity', '영업 기회로 전환됨'),
+  converted: message(LEAD_STATE_LABEL.converted, 'Converted to opportunity', '기회로 전환됨'),
 }
 
 const STAGE: Record<StageKey, Message> = {
@@ -88,7 +89,7 @@ const byVietnameseLabel = new Map<string, Message>([
   ['Quá hạn lâu', message('Quá hạn lâu', 'Long overdue', '장기 연체')],
   ['Chờ duyệt ký', message('Chờ duyệt ký', 'Pending signature approval', '서명 승인 대기')],
   ['Giai đoạn', message('Giai đoạn', 'Stage', '단계')],
-  ['Cơ hội đã kết thúc', message('Cơ hội đã kết thúc', 'Opportunity closed', '영업 기회 종료')],
+  ['Cơ hội đã kết thúc', message('Cơ hội đã kết thúc', 'Opportunity closed', '기회 종료')],
 ])
 
 export const leadStateLabel = (state: LeadState, lang: Lang) => translate(LEAD_STATE[state], lang)

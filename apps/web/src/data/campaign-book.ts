@@ -20,6 +20,7 @@ import type {
   CampaignWaveAddResponse,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { message, type Message } from '@/app/i18n'
 import { bookQueryParams, keepPageUnderSameFilters } from '@/app/book-query'
 import { cacheTier, untilPushed } from '@/app/query-client'
 
@@ -75,11 +76,11 @@ export const NO_CAMPAIGN_FILTER: CampaignBookFilter = { state: null, owner: null
 
 /** Nhãn tiếng Việt của bốn trạng thái. MỘT bảng, mọi màn đọc chung — hai bản
  *  chép sẽ lệch nhau ở đúng cái mới thêm. */
-export const CAMPAIGN_STATE_LABEL: Record<CampaignState, string> = {
-  DRAFT: 'Nháp',
-  RUNNING: 'Đang chạy',
-  STOPPED: 'Đã dừng',
-  DONE: 'Đã hoàn tất',
+export const CAMPAIGN_STATE_LABEL: Record<CampaignState, Message> = {
+  DRAFT: message('Nháp', 'Draft', '초안'),
+  RUNNING: message('Đang chạy', 'Running', '진행 중'),
+  STOPPED: message('Đã dừng', 'Stopped', '중단됨'),
+  DONE: message('Đã hoàn tất', 'Completed', '완료'),
 }
 
 /** Tông `Badge` của bốn trạng thái — cùng bảng màu sổ cơ hội dùng.

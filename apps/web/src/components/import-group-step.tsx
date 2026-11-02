@@ -8,6 +8,7 @@ import {
   type GroupMode,
   type GroupPlan,
 } from '@/data/import-group'
+import { message, useI18n, type Message } from '@/app/i18n'
 import type { ImportSpec } from '@/data/intake'
 
 /** Group by company — the step between mapping and loading, shown only when
@@ -20,10 +21,13 @@ import type { ImportSpec } from '@/data/intake'
  *  Not an AI block (law 9 does not apply): nothing here is proposed, the
  *  clusters are an exact fold of the company cell. */
 
-const MODES: { value: GroupMode; label: string }[] = [
-  { value: 'together', label: 'Chung một lead' },
-  { value: 'apart', label: 'Mỗi người một lead' },
-  { value: 'split', label: 'Tự chia lead' },
+const MODES: { value: GroupMode; label: Message }[] = [
+  { value: 'together', label: message('Chung một lead', 'One shared lead', '하나의 공동 리드') },
+  {
+    value: 'apart',
+    label: message('Mỗi người một lead', 'One lead per person', '사람마다 리드 하나'),
+  },
+  { value: 'split', label: message('Tự chia lead', 'Split leads manually', '리드 직접 나누기') },
 ]
 
 type Fields = NonNullable<ImportSpec['groupBy']>
@@ -42,6 +46,7 @@ export function StepGroup({
   onPlan: (plan: GroupPlan) => void
   fields: Fields
 }) {
+  const { t } = useI18n()
   const lettersOf = (key: string) => plan.companies[key]?.letters ?? {}
 
   const setAll = (mode: GroupMode) =>
@@ -54,15 +59,33 @@ export function StepGroup({
 
   return (
     <section className="flex flex-col gap-4">
-      <SectionTitle size="lg">Gộp theo công ty</SectionTitle>
+      <SectionTitle size="lg">
+        {t(message('Gộp theo công ty', 'Group by company', '회사별로 묶기'))}
+      </SectionTitle>
 
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-glass-foreground min-w-[200px] flex-1 text-[12.5px]">
-          <span className="font-num tnum">{clusters.length}</span> công ty có nhiều người liên hệ
+          <span className="font-num tnum">{clusters.length}</span>{' '}
+          {t(
+            message(
+              'công ty có nhiều người liên hệ',
+              clusters.length === 1
+                ? 'company has several contacts'
+                : 'companies have several contacts',
+              '개 회사에 연락처가 여러 명 있습니다',
+            ),
+          )}
           {filtered > 0 && (
             <>
-              {' · đã lọc '}
-              <span className="font-num tnum">{filtered}</span> dòng trùng
+              {t(message(' · đã lọc ', ' · filtered out ', ' · 제외됨 '))}
+              <span className="font-num tnum">{filtered}</span>{' '}
+              {t(
+                message(
+                  'dòng trùng',
+                  filtered === 1 ? 'duplicate row' : 'duplicate rows',
+                  '개 중복 행',
+                ),
+              )}
             </>
           )}
         </span>
@@ -72,7 +95,7 @@ export function StepGroup({
           className="pointer-coarse:h-12"
           onClick={() => setAll('together')}
         >
-          Tất cả: chung một lead
+          {t(message('Tất cả: chung một lead', 'All: one shared lead', '전체: 공동 리드 하나'))}
         </Button>
         <Button
           size="md"
@@ -80,7 +103,13 @@ export function StepGroup({
           className="pointer-coarse:h-12"
           onClick={() => setAll('apart')}
         >
-          Tất cả: mỗi người một lead
+          {t(
+            message(
+              'Tất cả: mỗi người một lead',
+              'All: one lead per person',
+              '전체: 사람마다 리드 하나',
+            ),
+          )}
         </Button>
       </div>
 
@@ -141,16 +170,22 @@ function CompanyBlock({
   onLetter: (line: number, letter: number) => void
   onMain: (line: number) => void
 }) {
+  const { t } = useI18n()
   const mode = modeOf(plan, cluster)
   const marks = groupMarks(cluster, plan)
-  const leads = cluster.rows.map((_, i) => ({ value: String(i), label: `Lead ${i + 1}` }))
+  const leads = cluster.rows.map((_, i) => ({
+    value: String(i),
+    label: t(message(`Lead ${i + 1}`, `Lead ${i + 1}`, `리드 ${i + 1}`)),
+  }))
   /* What the choice above produces, as a number the person can check. */
   const leadCount =
     cluster.rows.length - marks.size + new Set([...marks.values()].map((m) => m.group)).size
   /* Two people can only be apart or together; a third is what makes a split. */
-  const modes = MODES.map((m) =>
-    m.value === 'split' ? { ...m, disabled: cluster.rows.length < 3 } : m,
-  )
+  const modes = MODES.map((m) => ({
+    value: m.value,
+    label: t(m.label),
+    ...(m.value === 'split' && { disabled: cluster.rows.length < 3 }),
+  }))
 
   return (
     /* Law 8: a list of people sits on `.glass-b`. */
@@ -161,13 +196,21 @@ function CompanyBlock({
             {cluster.name}
           </span>
           <span className="text-muted-foreground shrink-0">
-            <span className="font-num tnum">{cluster.rows.length}</span> người →{' '}
-            <span className="font-num tnum">{leadCount}</span> lead
+            <span className="font-num tnum">{cluster.rows.length}</span>{' '}
+            {t(message('người', cluster.rows.length === 1 ? 'person' : 'people', '명'))} →{' '}
+            <span className="font-num tnum">{leadCount}</span>{' '}
+            {t(message('lead', leadCount === 1 ? 'lead' : 'leads', '리드'))}
           </span>
         </span>
         {/* `quiet`: azure stays with the load button in the footer (law 3). */}
         <SegmentedControl
-          label={`Cách nạp ${cluster.name}`}
+          label={t(
+            message(
+              `Cách nạp ${cluster.name}`,
+              `How to load ${cluster.name}`,
+              `${cluster.name} 등록 방식`,
+            ),
+          )}
           hideLabel
           tone="quiet"
           value={mode}
@@ -193,7 +236,13 @@ function CompanyBlock({
                     <button
                       type="button"
                       aria-pressed={mark.primary}
-                      aria-label={`Liên hệ chính: ${name}`}
+                      aria-label={t(
+                        message(
+                          `Liên hệ chính: ${name}`,
+                          `Primary contact: ${name}`,
+                          `주 연락처: ${name}`,
+                        ),
+                      )}
                       onClick={() => onMain(row.line)}
                       className="motion-std hover:bg-surface-ink/8 pointer-coarse:size-12 flex size-8 items-center justify-center rounded-full"
                     >
@@ -209,7 +258,9 @@ function CompanyBlock({
                   {name}
                 </span>
                 {mark?.primary && (
-                  <span className="text-accent-foreground shrink-0 text-[11px]">Liên hệ chính</span>
+                  <span className="text-accent-foreground shrink-0 text-[11px]">
+                    {t(message('Liên hệ chính', 'Primary contact', '주 연락처'))}
+                  </span>
                 )}
               </span>
               <span className="flex min-w-0 flex-1 items-center gap-3 max-sm:basis-full">
@@ -221,7 +272,7 @@ function CompanyBlock({
                 </span>
                 {mode === 'split' && (
                   <Select
-                    label={`Lead của ${name}`}
+                    label={t(message(`Lead của ${name}`, `Lead for ${name}`, `${name}의 리드`))}
                     hideLabel
                     size="lg"
                     value={String(letterOf(plan, cluster, row.line))}

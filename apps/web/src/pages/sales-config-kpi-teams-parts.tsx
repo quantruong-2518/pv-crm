@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Check, Checkbox, Drawer, Input, Select, Trash2 } from '@pv/ui'
 import { KpiTeamBody, type KpiTeam, type KpiTeamMember } from '@pv/contracts'
-import { message, useI18n } from '@/app/i18n'
+import { message, useI18n, type Lang } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import { StepFooter } from '@/components/step-footer'
 import { useCreateKpiTeam, useDeleteKpiTeam, useUpdateKpiTeam } from '@/data/kpi-team-roster'
-import { ROLE_LABEL } from '@/data/users'
+import { kpiRoleText } from '@/data/kpi-i18n'
 import { monthText } from './kpi-model'
 
 /** The two dialogs of the Teams section: add or edit a team, and remove one.
@@ -15,7 +15,8 @@ import { monthText } from './kpi-model'
  *  name, no member, and a lead outside the members, so the confirm button
  *  waits for it and the footer says which. */
 
-const rolesOf = (m: KpiTeamMember) => m.roleIds.map((r) => ROLE_LABEL[r]).join(', ')
+const rolesOf = (m: KpiTeamMember, lang: Lang) =>
+  m.roleIds.map((r) => kpiRoleText(r, lang)).join(', ')
 
 const NONE = ''
 
@@ -34,7 +35,7 @@ export function TeamFormDrawer({
   editableFrom: string
   onClose: () => void
 }) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const [name, setName] = useState('')
   const [picked, setPicked] = useState<string[]>([])
   const [leadId, setLeadId] = useState(NONE)
@@ -136,7 +137,7 @@ export function TeamFormDrawer({
                 checked={picked.includes(m.actorId)}
                 onChange={(on) => toggle(m.actorId, on)}
                 label={m.name}
-                hint={rolesOf(m)}
+                hint={rolesOf(m, lang)}
               />
             ))
           )}

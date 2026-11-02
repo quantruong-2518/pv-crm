@@ -1,4 +1,5 @@
-import { ADMISSION_VERDICT_LABEL, type AdmissionVerdict } from '@pv/contracts'
+import type { AdmissionVerdict } from '@pv/contracts'
+import { admissionVerdictText } from '@/data/import-admission-copy'
 import type { BuiltRow } from '@/data/intake'
 
 /** The two admission verdicts worth a second look on a row that went in. The
@@ -18,5 +19,5 @@ export const hasAdmissionMarks = (rows: readonly BuiltRow[]): boolean =>
 /** Search text of one row's mark, so the list's search box finds it. */
 export function admissionMarkText(row: BuiltRow): string {
   const mark = admissionMarkOf(row)
-  return mark ? `${ADMISSION_VERDICT_LABEL[mark]} ${row.accountCode ?? ''}` : ''
+  return mark ? `${admissionVerdictText(mark)} ${row.accountCode ?? ''}` : ''
 }

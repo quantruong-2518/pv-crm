@@ -124,7 +124,7 @@ export default function AccountDetailPage() {
           message(
             'Lượt, người liên hệ, lead và cơ hội của công ty',
             'Company activity, contacts, leads, and opportunities',
-            '회사 활동, 연락처, 리드 및 영업 기회',
+            '회사 활동, 연락처, 리드 및 기회',
           ),
         )}
         rail={
@@ -177,7 +177,7 @@ function RunsCard({
           message(
             'Mỗi lượt là một lần bán: một lead, các cơ hội và hợp đồng của nó.',
             'Each activity is one sales journey: a lead and its opportunities and contracts.',
-            '각 활동은 리드와 관련 영업 기회 및 계약으로 구성된 하나의 영업 여정입니다.',
+            '각 활동은 리드와 관련 기회 및 계약으로 구성된 하나의 영업 여정입니다.',
           ),
         )}
       >
@@ -310,7 +310,7 @@ function AccountCard({ account }: { account: AccountProfile }) {
               message(
                 'Sửa ở đây là sửa cho mọi lead, cơ hội và hợp đồng của công ty.',
                 'Changes here apply to all company leads, opportunities, and contracts.',
-                '여기서 수정하면 회사의 모든 리드, 영업 기회 및 계약에 반영됩니다.',
+                '여기서 수정하면 회사의 모든 리드, 기회 및 계약에 반영됩니다.',
               ),
             )
           : t(
@@ -441,7 +441,7 @@ function DealsCard({
     <GlassCard
       variant="b"
       className="flex flex-col gap-4 p-5 lg:p-6"
-      aria-label={t(message('Cơ hội của công ty', 'Company opportunities', '회사 영업 기회'))}
+      aria-label={t(message('Cơ hội của công ty', 'Company opportunities', '회사 기회'))}
     >
       <SectionTitle
         size="sm"
@@ -449,19 +449,19 @@ function DealsCard({
           message(
             'Gồm cả cơ hội đã đóng.',
             'Includes closed opportunities.',
-            '종료된 영업 기회도 포함됩니다.',
+            '종료된 기회도 포함됩니다.',
           ),
         )}
       >
         <span className="flex items-center gap-2">
           <Icon icon={BriefcaseDollar} size={16} />
-          {t(message('Cơ hội', 'Opportunities', '영업 기회'))} · {account.dealRows.length}
+          {t(message('Cơ hội', 'Opportunities', '기회'))} · {account.dealRows.length}
         </span>
       </SectionTitle>
 
       {account.dealRows.length === 0 ? (
         <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-          {t(message('Chưa có cơ hội nào.', 'No opportunities yet.', '영업 기회가 없습니다.'))}
+          {t(message('Chưa có cơ hội nào.', 'No opportunities yet.', '기회가 없습니다.'))}
         </p>
       ) : (
         <ul className="flex flex-col gap-3">

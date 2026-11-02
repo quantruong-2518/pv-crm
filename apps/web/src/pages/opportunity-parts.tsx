@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Badge, Button, Icon, cn, type IconGlyph } from '@pv/ui'
 import type { OpportunityProfileResponse } from '@pv/contracts'
 import { BADGE_INK, STATE_TONE, standingLabel } from '@/data/opportunities'
+import { message, useI18n } from '@/app/i18n'
 import { RecordHeader } from '@/components/record/record-header'
 import { DealPrimary } from './opportunity-moves'
 import { customerTagOf, hasDealMoves, type DealPrimaryState } from './opportunity-model'
@@ -70,6 +71,7 @@ export function EmptyOp({
   failed?: boolean
   onBack: () => void
 }) {
+  const { t } = useI18n()
   const ink = failed ? 'text-destructive-foreground' : 'text-muted-foreground'
   return (
     <div
@@ -79,7 +81,7 @@ export function EmptyOp({
       <Icon icon={icon} size={26} className={ink} />
       <p className={cn(ink, 'text-[12.5px] leading-[1.65]')}>{note}</p>
       <Button size="sm" variant="ghost" className="pointer-coarse:h-12" onClick={onBack}>
-        Về sổ cơ hội
+        {t(message('Về sổ cơ hội', 'Back to opportunities', '기회 목록으로'))}
       </Button>
     </div>
   )

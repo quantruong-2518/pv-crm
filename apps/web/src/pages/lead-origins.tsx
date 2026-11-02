@@ -1,19 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Button, Checkbox, Icon, Plus, SearchField, Select, type TableRowModel } from '@pv/ui'
-import { LeadMotion, type LeadOrigin } from '@pv/contracts'
+import { Button, Icon, Plus, SearchField, type TableRowModel } from '@pv/ui'
+import type { LeadMotion, LeadOrigin } from '@pv/contracts'
 import { SettingsShell } from '@/components/settings-shell'
 import { useCan } from '@/app/auth'
+import { message, useI18n, type Message } from '@/app/i18n'
 import { isApiError, userMessage } from '@/app/api'
 import { leadOriginsQuery } from '@/data/lead-origins'
 import { searchHint, searchableText } from '@/lib/search-box'
-import { useMotionLabel } from '@/data/sales-motions'
 import { BookCount, BookPage } from '@/components/book-page'
-import { FilterMenu } from '@/components/table-bits'
 import {
   AddOriginModal,
   EditOriginModal,
   MotionChips,
+  OriginFilterMenu,
   OriginNameCell,
   OriginStatus,
 } from './lead-origins-parts'
@@ -32,11 +32,41 @@ import { MotionPickerSection } from './lead-origins-motions'
  *  The second section is level 1 — the six motions — through the same
  *  propose-then-approve door as the sales config screen. */
 
-const ANY = 'all'
 const SEARCH_DELAY_MS = 300
+
+const COPY = {
+  add: message('Thêm nguồn lead', 'Add lead source', '리드 유입 경로 추가'),
+  search: message(
+    'Tìm theo tên nguồn hoặc tên gọi khác…',
+    'Search by source name or alias…',
+    '유입 경로 이름 또는 다른 이름으로 검색…',
+  ),
+  loadFailed: message(
+    'Không tải được danh sách nguồn lead.',
+    'Could not load lead sources.',
+    '리드 유입 경로 목록을 불러오지 못했습니다.',
+  ),
+  retry: message('Thử lại.', 'Try again.', '다시 시도하세요.'),
+  noMatch: message(
+    'Không có nguồn lead nào khớp bộ lọc.',
+    'No lead sources match these filters.',
+    '필터에 맞는 리드 유입 경로가 없습니다.',
+  ),
+  clearFilters: message('Bỏ hết bộ lọc', 'Clear filters', '필터 지우기'),
+  none: message('Chưa có nguồn lead nào.', 'No lead sources yet.', '리드 유입 경로가 없습니다.'),
+}
+
+const COLUMNS: { header: Message; width: string; align?: 'right' }[] = [
+  { header: message('Tên nguồn', 'Source name', '유입 경로 이름'), width: 'minmax(0,1.6fr)' },
+  { header: message('Phương án tiếp cận', 'Approach', '접근 방식'), width: 'minmax(0,1.6fr)' },
+  { header: message('Tên gọi khác', 'Aliases', '다른 이름'), width: 'minmax(0,1.2fr)' },
+  { header: message('Số lead', 'Leads', '리드 수'), width: '0.6fr', align: 'right' },
+  { header: message('Trạng thái', 'Status', '상태'), width: 'minmax(0,1.2fr)' },
+]
 const NO_ORIGINS: LeadOrigin[] = []
 
 export function LeadOriginsPage() {
+  const { t } = useI18n()
   const canSeeMotions = useCan('config.view')
 
   const [text, setText] = useState('')
@@ -50,7 +80,6 @@ export function LeadOriginsPage() {
     setAddSeq((n) => n + 1)
     setAdding(true)
   }
-  const motionLabel = useMotionLabel()
   const [editingId, setEditingId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -104,50 +133,41 @@ export function LeadOriginsPage() {
   return (
     <SettingsShell>
       <BookPage
-        title="Nguồn lead"
+        title={t(message('Nguồn lead', 'Lead sources', '리드 유입 경로'))}
         actions={
           <Button size="md" className="pointer-coarse:h-12 max-sm:flex-1" onClick={openAdd}>
             <Icon icon={Plus} size={16} />
-            Thêm nguồn lead
+            {t(COPY.add)}
           </Button>
         }
-        count={<BookCount total={rows.length} noun="nguồn lead" />}
+        count={
+          <BookCount
+            total={rows.length}
+            noun={t(message('nguồn lead', 'lead sources', '리드 유입 경로'))}
+          />
+        }
         tools={
           <>
             <SearchField
-              placeholder="Tìm theo tên nguồn hoặc tên gọi khác…"
+              placeholder={t(COPY.search)}
               value={text}
               meta={searchHint(text)}
               onChange={setText}
               className="min-w-0 flex-1 sm:max-w-[320px]"
             />
-            <FilterMenu label="Bộ lọc nguồn lead" active={(motion ? 1 : 0) + (showHidden ? 1 : 0)}>
-              <Select
-                label="Phương án tiếp cận"
-                value={motion ?? ANY}
-                neutralValue={ANY}
-                onChange={(v) => setMotion(v === ANY ? undefined : (v as LeadMotion))}
-                className="w-full max-w-none"
-                options={[
-                  { value: ANY, label: 'Tất cả phương án' },
-                  ...LeadMotion.options.map((m) => ({ value: m, label: motionLabel(m) })),
-                ]}
-              />
-              <Checkbox
-                checked={showHidden}
-                onChange={setShowHidden}
-                label="Hiển thị nguồn đã ẩn"
-              />
-            </FilterMenu>
+            <OriginFilterMenu
+              motion={motion}
+              onMotion={setMotion}
+              showHidden={showHidden}
+              onShowHidden={setShowHidden}
+            />
           </>
         }
         pending={isPending}
         failure={
           error
             ? {
-                message: `Không tải được danh sách nguồn lead. ${
-                  isApiError(error) ? userMessage(error) : 'Thử lại.'
-                }`,
+                message: `${t(COPY.loadFailed)} ${isApiError(error) ? userMessage(error) : t(COPY.retry)}`,
                 onRetry: () => void refetch(),
               }
             : undefined
@@ -156,24 +176,18 @@ export function LeadOriginsPage() {
           rows.length === 0
             ? filtering
               ? {
-                  message: 'Không có nguồn lead nào khớp bộ lọc.',
-                  action: { label: 'Bỏ hết bộ lọc', onClick: clear },
+                  message: t(COPY.noMatch),
+                  action: { label: t(COPY.clearFilters), onClick: clear },
                 }
               : {
-                  message: 'Chưa có nguồn lead nào.',
-                  action: { label: 'Thêm nguồn lead', onClick: openAdd },
+                  message: t(COPY.none),
+                  action: { label: t(COPY.add), onClick: openAdd },
                 }
             : undefined
         }
         table={{
           minWidth: 'min-w-[880px]',
-          columns: [
-            { header: 'Tên nguồn', width: 'minmax(0,1.6fr)' },
-            { header: 'Phương án tiếp cận', width: 'minmax(0,1.6fr)' },
-            { header: 'Tên gọi khác', width: 'minmax(0,1.2fr)' },
-            { header: 'Số lead', width: '0.6fr', align: 'right' },
-            { header: 'Trạng thái', width: 'minmax(0,1.2fr)' },
-          ],
+          columns: COLUMNS.map((c) => ({ ...c, header: t(c.header) })),
           rows: tableRows,
         }}
       />

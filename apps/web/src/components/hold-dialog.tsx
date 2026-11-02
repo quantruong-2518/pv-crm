@@ -1,9 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { CalendarClock, Drawer, Input, Textarea } from '@pv/ui'
 import { HOLD_NOTE_MAX, type Hold, type HoldSubjectType } from '@pv/contracts'
+import { useI18n } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import { localSlot } from '@/lib/date'
 import { usePatchHold, useSetHold } from '@/data/holds'
+import { HOLD_COPY, holdChangedToast, holdSetToast } from '@/data/hold-copy'
 import { StepFooter } from '@/components/step-footer'
 
 /** The date input's `min` — a hint only: the door judges "later than today"
@@ -33,6 +35,7 @@ export function HoldDialog({
   open: boolean
   onClose: () => void
 }) {
+  const { t, lang } = useI18n()
   const [until, setUntil] = useState('')
   const [note, setNote] = useState('')
   const set = useSetHold(subjectType, code)
@@ -54,8 +57,8 @@ export function HoldDialog({
   const trimmed = note.trim()
   const changed = !hold || until !== hold.until || trimmed !== (hold.note ?? '')
   const ready = until !== '' && changed
-  const finish = (message: string) => {
-    toastDone(message)
+  const finish = (text: string) => {
+    toastDone(text)
     onClose()
   }
 
@@ -63,17 +66,22 @@ export function HoldDialog({
     <Drawer
       open={open}
       onClose={onClose}
-      title={hold ? 'Đổi ngày hẹn' : 'Tạm hoãn'}
-      subtitle={<>{caption}. Có thông báo nhắc khi gần tới và đúng ngày hẹn.</>}
+      title={t(hold ? HOLD_COPY.changeDay : HOLD_COPY.title)}
+      subtitle={
+        <>
+          {caption}
+          {t(HOLD_COPY.reminderTail)}
+        </>
+      }
       footer={
         <StepFooter
           error={door.error}
           pending={door.isPending}
-          hint={until === '' ? 'Chọn ngày hẹn gặp lại.' : ''}
+          hint={until === '' ? t(HOLD_COPY.pickDay) : ''}
           onClose={onClose}
           confirm={{
             icon: CalendarClock,
-            label: hold ? 'Lưu ngày hẹn' : 'Tạm hoãn',
+            label: t(hold ? HOLD_COPY.saveDay : HOLD_COPY.title),
             disabled: !ready,
             onClick: () =>
               hold
@@ -83,11 +91,11 @@ export function HoldDialog({
                       ...(until !== hold.until ? { until } : {}),
                       ...(trimmed !== (hold.note ?? '') ? { note: trimmed || null } : {}),
                     },
-                    { onSuccess: () => finish(`Đã đổi ngày hẹn của ${code}.`) },
+                    { onSuccess: () => finish(holdChangedToast(code, lang)) },
                   )
                 : set.mutate(
                     { until, ...(trimmed === '' ? {} : { note: trimmed }) },
-                    { onSuccess: () => finish(`Đã tạm hoãn ${code}.`) },
+                    { onSuccess: () => finish(holdSetToast(code, lang)) },
                   ),
           }}
         />
@@ -96,7 +104,7 @@ export function HoldDialog({
       <div className="flex flex-col gap-6">
         <label className="flex flex-col gap-2">
           <span className="text-muted-foreground text-[11px]">
-            Ngày hẹn gặp lại
+            {t(HOLD_COPY.resumeDay)}
             <span className="text-destructive-foreground" aria-hidden="true">
               {' '}
               *
@@ -112,13 +120,13 @@ export function HoldDialog({
           />
         </label>
         <label className="flex flex-col gap-2">
-          <span className="text-muted-foreground text-[11px]">Ghi chú</span>
+          <span className="text-muted-foreground text-[11px]">{t(HOLD_COPY.note)}</span>
           <Textarea
             autoGrow
             rows={3}
             value={note}
             maxLength={HOLD_NOTE_MAX}
-            placeholder="Khách hẹn gì, chờ điều gì…"
+            placeholder={t(HOLD_COPY.notePlaceholder)}
             onChange={(e) => setNote(e.target.value)}
           />
         </label>

@@ -2,7 +2,8 @@ import { queryOptions } from '@tanstack/react-query'
 import { Phone, Users, Whatsapp, type IconGlyph } from '@pv/ui'
 import { type ThreadChannel, type ThreadMessagesResponse } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
-import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/channels'
+import { getLang, message, translate, type Lang, type Message } from '@/app/i18n'
+import { CHANNEL_ICON } from '@/data/channels'
 
 /** The conversation book — the four doors under `/comms`, turn 1 of `comms`.
  *
@@ -75,14 +76,22 @@ export const COMMS_CHANNEL_ICON: Record<ThreadChannel, IconGlyph> = {
   meeting: Users,
 }
 
-export const COMMS_CHANNEL_LABEL: Record<ThreadChannel, string> = {
-  email: CHANNEL_LABEL.email,
+const CHANNEL_COPY: Record<ThreadChannel, Message> = {
+  email: message('Email', 'Email', '이메일'),
   /* Not the send table's "Zalo OA": a comm on this key is mostly a person's
      own Zalo opened from a contact row, and naming it OA would misstate it. */
-  'zalo-oa': 'Zalo',
-  telegram: CHANNEL_LABEL.telegram,
-  whatsapp: 'WhatsApp',
-  'in-app': CHANNEL_LABEL['in-app'],
-  phone: 'Điện thoại',
-  meeting: 'Gặp mặt',
+  'zalo-oa': message('Zalo', 'Zalo', 'Zalo'),
+  telegram: message('Telegram', 'Telegram', 'Telegram'),
+  whatsapp: message('WhatsApp', 'WhatsApp', 'WhatsApp'),
+  'in-app': message('Trong app', 'In-app', '앱 내'),
+  phone: message('Điện thoại', 'Phone', '전화'),
+  meeting: message('Gặp mặt', 'In person', '대면'),
 }
+
+export const commsChannelLabel = (channel: ThreadChannel, lang: Lang = getLang()) =>
+  translate(CHANNEL_COPY[channel], lang)
+
+/** Read-time lookup, so the many call sites that index it follow the language. */
+export const COMMS_CHANNEL_LABEL = new Proxy({} as Record<ThreadChannel, string>, {
+  get: (_target, channel) => commsChannelLabel(channel as ThreadChannel),
+})

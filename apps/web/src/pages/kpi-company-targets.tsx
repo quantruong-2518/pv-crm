@@ -1,9 +1,6 @@
 import { useState } from 'react'
 import { Badge, Button, GlassCard, Input, cn } from '@pv/ui'
 import {
-  KPI_LAYER_LABEL,
-  KPI_METRIC_LABEL,
-  KPI_VERDICT_LABEL,
   KpiProposeBody,
   type KpiMetricDef,
   type KpiMetricKey,
@@ -11,11 +8,12 @@ import {
   type KpiRoleTargets,
 } from '@pv/contracts'
 import { userMessage, type ApiError } from '@/app/api'
+import { message, translate, useI18n, type Message } from '@/app/i18n'
 import { toastDone, toastFail } from '@/app/toast'
 import { StackTable, type StackColumn } from '@/components/stack-table'
 import { useAgreeKpiTargets, useProposeKpiTargets } from '@/data/kpi'
 import type { KpiCatalog } from '@/data/kpi-catalog'
-import { ROLE_LABEL } from '@/data/users'
+import { kpiLayerText, kpiMetricText, kpiRoleText, kpiVerdictText } from '@/data/kpi-i18n'
 import { dmhm } from '@/lib/date'
 import { num } from './home-model'
 import { NOTE } from './home-tiles'
@@ -30,18 +28,24 @@ import { DASH, UNIT_WORD, parseTyped, printValue } from './kpi-model'
  *  one metric and leave the others as approved. Approving sends the pending
  *  rows as they stand on screen, so the server never locks an unseen value. */
 
-const READ_COLUMNS: StackColumn[] = [
-  { header: 'Chỉ số', width: 'minmax(0,1.6fr)' },
-  { header: 'Chỉ tiêu đã duyệt', width: 'minmax(0,1.2fr)' },
-  { header: 'Người duyệt', width: 'minmax(0,1.2fr)' },
-  { header: 'Đề nghị chờ duyệt', width: 'minmax(0,1.4fr)' },
+const readColumns = (t: (copy: Message) => string): StackColumn[] => [
+  { header: t(message('Chỉ số', 'Metric', '지표')), width: 'minmax(0,1.6fr)' },
+  {
+    header: t(message('Chỉ tiêu đã duyệt', 'Approved target', '승인된 목표')),
+    width: 'minmax(0,1.2fr)',
+  },
+  { header: t(message('Người duyệt', 'Approved by', '승인자')), width: 'minmax(0,1.2fr)' },
+  {
+    header: t(message('Đề nghị chờ duyệt', 'Proposal awaiting approval', '승인 대기 제안')),
+    width: 'minmax(0,1.4fr)',
+  },
 ]
 /* The floor fits a full dong figure ("1.500.000.000") beside its unit word. */
-const WRITE_COLUMN: StackColumn = {
-  header: 'Đề nghị mới',
+const writeColumn = (t: (copy: Message) => string): StackColumn => ({
+  header: t(message('Đề nghị mới', 'New proposal', '새 제안')),
   width: 'minmax(168px,1.2fr)',
   stack: 'wide',
-}
+})
 
 const TWO_LINES = 'flex min-w-0 flex-col gap-1'
 const NOTE_NUM = cn(NOTE, 'tnum font-num')
@@ -49,21 +53,29 @@ const NOTE_NUM = cn(NOTE, 'tnum font-num')
 type Draft = Partial<Record<KpiMetricKey, string>>
 type Line = { def: KpiMetricDef; target: KpiMetricTarget }
 
-function readCells({ def, target }: Line) {
+function readCells({ def, target }: Line, t: (copy: Message) => string) {
   const { agreed, pending } = target
   return [
     <span key="metric" className={TWO_LINES}>
-      <span className="font-semibold">{KPI_METRIC_LABEL[def.key]}</span>
-      <span className={NOTE}>{KPI_LAYER_LABEL[def.layer]}</span>
+      <span className="font-semibold">{kpiMetricText(def.key)}</span>
+      <span className={NOTE}>{kpiLayerText(def.layer)}</span>
     </span>,
     agreed ? (
       <span key="agreed" className={TWO_LINES}>
         <span className="tnum font-num font-semibold">{printValue(def.unit, agreed.value)}</span>
-        <span className={NOTE_NUM}>Lần duyệt {num(agreed.version)}</span>
+        <span className={NOTE_NUM}>
+          {t(
+            message(
+              `Lần duyệt ${num(agreed.version)}`,
+              `Approval ${num(agreed.version)}`,
+              `승인 ${num(agreed.version)}차`,
+            ),
+          )}
+        </span>
       </span>
     ) : (
       <span key="agreed" className="text-muted-foreground">
-        {pending ? 'Chưa duyệt' : KPI_VERDICT_LABEL.unset}
+        {pending ? t(message('Chưa duyệt', 'Not approved', '미승인')) : kpiVerdictText('unset')}
       </span>
     ),
     agreed ? (
@@ -102,7 +114,13 @@ function bodyOf(lines: Line[], draft: Draft): KpiProposeBody | null {
 const failed = (error: ApiError) =>
   toastFail(
     error.kind === 'conflict'
-      ? 'Đề nghị vừa thay đổi. Bảng đã tải lại, xem lại rồi thao tác.'
+      ? translate(
+          message(
+            'Đề nghị vừa thay đổi. Bảng đã tải lại, xem lại rồi thao tác.',
+            'The proposal just changed. The table has reloaded; review it and try again.',
+            '제안이 방금 변경되었습니다. 표를 다시 불러왔으니 확인 후 다시 진행하세요.',
+          ),
+        )
       : userMessage(error),
   )
 
@@ -121,6 +139,7 @@ export function RoleTargets({
   /** The reader's actor id: the server refuses approving your own proposal. */
   me: string | undefined
 }) {
+  const { t } = useI18n()
   const propose = useProposeKpiTargets(period, entry.role)
   const agree = useAgreeKpiTargets(period, entry.role)
   const [draft, setDraft] = useState<Draft>({})
@@ -139,7 +158,13 @@ export function RoleTargets({
     <span key="field" className="flex items-center gap-2">
       <Input
         inputMode="decimal"
-        aria-label={`Đề nghị mới cho ${KPI_METRIC_LABEL[def.key]}`}
+        aria-label={t(
+          message(
+            `Đề nghị mới cho ${kpiMetricText(def.key)}`,
+            `New proposal for ${kpiMetricText(def.key)}`,
+            `${kpiMetricText(def.key)} 새 제안`,
+          ),
+        )}
         className="pointer-coarse:h-12 tnum font-num text-right"
         value={draft[def.key] ?? ''}
         invalid={parseTyped(def.unit, draft[def.key] ?? '') === null}
@@ -152,8 +177,10 @@ export function RoleTargets({
   return (
     <GlassCard variant="b" className="flex flex-col gap-3 py-4">
       <div className="flex flex-wrap items-center justify-between gap-2 px-5">
-        <h3 className="font-display text-[14px] font-semibold">{ROLE_LABEL[entry.role]}</h3>
-        {seen.length > 0 && <Badge tone="warning">Chờ duyệt</Badge>}
+        <h3 className="font-display text-[14px] font-semibold">{kpiRoleText(entry.role)}</h3>
+        {seen.length > 0 && (
+          <Badge tone="warning">{t(message('Chờ duyệt', 'Awaiting approval', '승인 대기'))}</Badge>
+        )}
       </div>
 
       <StackTable
@@ -161,10 +188,10 @@ export function RoleTargets({
         flush
         rowHeight="min-h-14 py-2"
         tableClassName={canSet ? 'min-w-5xl' : 'min-w-3xl'}
-        columns={canSet ? [...READ_COLUMNS, WRITE_COLUMN] : READ_COLUMNS}
+        columns={canSet ? [...readColumns(t), writeColumn(t)] : readColumns(t)}
         rows={lines.map((line) => ({
           id: line.def.key,
-          cells: canSet ? [...readCells(line), field(line)] : readCells(line),
+          cells: canSet ? [...readCells(line, t), field(line)] : readCells(line, t),
         }))}
       />
 
@@ -173,12 +200,23 @@ export function RoleTargets({
           {/* In words, so a refused field is not told by its red ring alone. */}
           <div className="mr-auto flex min-w-0 flex-col gap-1">
             <p className={NOTE}>
-              Hàng nghìn ngăn bằng dấu chấm, số lẻ dùng dấu phẩy. Tỷ lệ nhập theo phần trăm, tối đa
-              100.
+              {t(
+                message(
+                  'Hàng nghìn ngăn bằng dấu chấm, số lẻ dùng dấu phẩy. Tỷ lệ nhập theo phần trăm, tối đa 100.',
+                  'Separate thousands with a period and decimals with a comma. Enter rates as percentages, up to 100.',
+                  '천 단위는 마침표, 소수점은 쉼표로 입력하세요. 비율은 퍼센트로 입력하며 최대 100입니다.',
+                ),
+              )}
             </p>
             {mine && (
               <p className={NOTE}>
-                Bạn gửi đề nghị này nên không tự duyệt được. Cần người khác duyệt.
+                {t(
+                  message(
+                    'Bạn gửi đề nghị này nên không tự duyệt được. Cần người khác duyệt.',
+                    'You sent this proposal, so you cannot approve it yourself. Someone else must approve it.',
+                    '직접 보낸 제안이므로 스스로 승인할 수 없습니다. 다른 사람의 승인이 필요합니다.',
+                  ),
+                )}
               </p>
             )}
           </div>
@@ -190,11 +228,17 @@ export function RoleTargets({
               onClick={() =>
                 agree.mutate(
                   { seen },
-                  { onSuccess: () => toastDone('Đã duyệt chỉ tiêu'), onError: failed },
+                  {
+                    onSuccess: () =>
+                      toastDone(
+                        t(message('Đã duyệt chỉ tiêu', 'Targets approved', '목표를 승인했습니다')),
+                      ),
+                    onError: failed,
+                  },
                 )
               }
             >
-              Duyệt chỉ tiêu
+              {t(message('Duyệt chỉ tiêu', 'Approve targets', '목표 승인'))}
             </Button>
           )}
           <Button
@@ -205,13 +249,21 @@ export function RoleTargets({
               propose.mutate(body, {
                 onSuccess: () => {
                   setDraft({})
-                  toastDone('Đã gửi đề nghị · chờ duyệt.')
+                  toastDone(
+                    t(
+                      message(
+                        'Đã gửi đề nghị · chờ duyệt.',
+                        'Proposal sent · awaiting approval.',
+                        '제안을 보냈습니다 · 승인 대기 중.',
+                      ),
+                    ),
+                  )
                 },
                 onError: failed,
               })
             }
           >
-            Gửi đề nghị
+            {t(message('Gửi đề nghị', 'Send proposal', '제안 보내기'))}
           </Button>
         </div>
       )}

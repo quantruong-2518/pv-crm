@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { RailObject } from '@pv/ui'
 import type { JourneyContract } from '@pv/contracts'
 import { useCan } from '@/app/auth'
-import { useI18n } from '@/app/i18n'
+import { getLang, message, translate, useI18n, type Lang } from '@/app/i18n'
 import type { Contract } from '@/data/contracts'
 import { opportunityProfileQuery, railOf } from '@/data/opportunities'
 import { useContractKindLabel } from '@/data/sales-config'
@@ -18,7 +18,15 @@ import type { BarContact } from '@/components/record/action-bar'
 
 /** The mail row's refusal without `lead.send-email`, word for word as
  *  `comm-actions.tsx` says it. */
-export const MAIL_BLOCKED = 'Cần quyền gửi email cho lead.'
+export const mailBlockedText = (lang: Lang = getLang()) =>
+  translate(
+    message(
+      'Cần quyền gửi email cho lead.',
+      'You need permission to email this lead.',
+      '이 리드에 이메일을 보낼 권한이 필요합니다.',
+    ),
+    lang,
+  )
 
 /** `denied` = no `workstream.view`; `unread` = no run, or this contract is not in it. */
 export type RunRead = 'pending' | 'denied' | 'unread' | 'ready'
@@ -62,7 +70,7 @@ export function contractChain(contract: Contract, go: (path: string) => void): R
     [
       { kind: 'LD', code: contract.leadCode, label: '' },
       { kind: 'OP', code: contract.opportunityCode, label: '' },
-      { kind: 'HĐ', code: contract.code, label: '' },
+      { kind: 'HĐ', code: contract.code, label: '' }, // i18n-ignore
     ],
     contract.code,
     go,

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Check, Minus, Octagon } from '@pv/ui'
 import { GlassCard, Icon, cn } from '@pv/ui'
+import { message, useI18n, type Message } from '@/app/i18n'
 
 /** The record's stepper and, under it, its next step (ADR 0078 §1, reshaped
  *  14/10): rungs joined by a line on the bare screen background, then ONE
@@ -143,9 +144,11 @@ function RungStep({
   joined: boolean
   list: boolean
 }) {
+  const { t } = useI18n()
   const { mark } = rung
   const tone = TONE[mark]
-  const caption = rung.caption ?? CAPTION_FALLBACK[mark]
+  const fallback = CAPTION_FALLBACK[mark]
+  const caption = rung.caption ?? (fallback && t(fallback))
 
   return (
     <li
@@ -197,26 +200,27 @@ function RungStep({
 
 /** Only a mark with something to add says it: a future or current rung needs
  *  no sentence under a label that already names it. */
-const CAPTION_FALLBACK: Record<RungMark, string | null> = {
-  done: 'Đã xong',
+const CAPTION_FALLBACK: Record<RungMark, Message | null> = {
+  done: message('Đã xong', 'Done', '완료'),
   current: null,
-  waiting: 'Đang chờ',
-  stopped: 'Đã dừng',
-  skipped: 'Bỏ qua',
+  waiting: message('Đang chờ', 'Waiting', '대기 중'),
+  stopped: message('Đã dừng', 'Stopped', '중단됨'),
+  skipped: message('Bỏ qua', 'Skipped', '건너뜀'),
   future: null,
 }
 
-const MARK_WORD: Record<RungMark, string> = {
-  done: 'đã xong',
-  current: 'đang ở bậc này',
-  waiting: 'đang chờ',
-  stopped: 'đã dừng',
-  skipped: 'bỏ qua',
-  future: 'chưa tới',
+const MARK_WORD: Record<RungMark, Message> = {
+  done: message('đã xong', 'done', '완료'),
+  current: message('đang ở bậc này', 'current stage', '현재 단계'),
+  waiting: message('đang chờ', 'waiting', '대기 중'),
+  stopped: message('đã dừng', 'stopped', '중단됨'),
+  skipped: message('bỏ qua', 'skipped', '건너뜀'),
+  future: message('chưa tới', 'upcoming', '예정'),
 }
 
 /** A marker's meaning is said in words too, not only by glyph and colour. */
 function RungGlyph({ mark, no }: { mark: RungMark; no: number }) {
+  const { t } = useI18n()
   return (
     <>
       {mark === 'done' ? (
@@ -228,7 +232,7 @@ function RungGlyph({ mark, no }: { mark: RungMark; no: number }) {
       ) : (
         no
       )}
-      <span className="sr-only">{MARK_WORD[mark]}</span>
+      <span className="sr-only">{t(MARK_WORD[mark])}</span>
     </>
   )
 }

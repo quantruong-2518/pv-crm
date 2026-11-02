@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight, Filter, Mail } from '@pv/ui'
 import { Avatar, Button, Checkbox, Icon, cn } from '@pv/ui'
+import { message, translate, useI18n, type Lang } from '@/app/i18n'
 
 /** Những mảnh dùng chung của MỌI SỔ — lead · cơ hội · chiến dịch.
  *
@@ -56,6 +57,23 @@ function PageButton({
   )
 }
 
+/** The footer line per language; Korean names the total before the range. */
+const showing = (from: number, to: number, total: number, lang: Lang) =>
+  translate(
+    message(
+      `Hiển thị ${from}–${to} trong ${total}`,
+      `Showing ${from}–${to} of ${total}`,
+      `${total}개 중 ${from}–${to}`,
+    ),
+    lang,
+  )
+const pageOf = (page: number, count: number, lang: Lang) =>
+  translate(
+    message(`trang ${page}/${count}`, `page ${page}/${count}`, `${page}/${count} 페이지`),
+    lang,
+  )
+const PAGE_N = message('Trang', 'Page', '페이지')
+
 /** The foot of a book card: which rows are showing, then numbered pages.
  *  `page` is 0-based. With `noun` the text is total, noun, page/pages instead
  *  of the from–to range. */
@@ -75,17 +93,25 @@ export function TableFooter({
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
   const from = total === 0 ? 0 : page * pageSize + 1
   const to = Math.min(total, (page + 1) * pageSize)
+  const { t, lang } = useI18n()
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
       <span className="text-muted-foreground tnum text-[11.5px]">
         {noun
-          ? `${total} ${noun} · trang ${page + 1}/${pageCount}`
-          : `Hiển thị ${from}–${to} trong ${total}`}
+          ? `${total} ${noun} · ${pageOf(page + 1, pageCount, lang)}`
+          : showing(from, to, total, lang)}
       </span>
       {
-        <nav aria-label="Phân trang" className="flex items-center gap-1">
-          <PageButton label="Trang trước" disabled={page === 0} onClick={() => onPage(page - 1)}>
+        <nav
+          aria-label={t(message('Phân trang', 'Pagination', '페이지 이동'))}
+          className="flex items-center gap-1"
+        >
+          <PageButton
+            label={t(message('Trang trước', 'Previous page', '이전 페이지'))}
+            disabled={page === 0}
+            onClick={() => onPage(page - 1)}
+          >
             <Icon icon={ChevronLeft} size={16} />
           </PageButton>
           {pageWindow(page, pageCount).map((p, i) =>
@@ -96,7 +122,7 @@ export function TableFooter({
             ) : (
               <PageButton
                 key={p}
-                label={`Trang ${p + 1}`}
+                label={`${t(PAGE_N)} ${p + 1}`}
                 current={p === page}
                 onClick={() => onPage(p)}
               >
@@ -105,7 +131,7 @@ export function TableFooter({
             ),
           )}
           <PageButton
-            label="Trang sau"
+            label={t(message('Trang sau', 'Next page', '다음 페이지'))}
             disabled={page >= pageCount - 1}
             onClick={() => onPage(page + 1)}
           >
@@ -183,6 +209,7 @@ export function FilterMenu({
   active: number
   children: ReactNode
 }) {
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
 
@@ -215,7 +242,7 @@ export function FilterMenu({
         onClick={() => setOpen((o) => !o)}
       >
         <Icon icon={Filter} size={16} />
-        Bộ lọc
+        {t(message('Bộ lọc', 'Filters', '필터'))}
         {active > 0 && (
           <span className="bg-primary/24 text-on-tint-primary tnum rounded-sm px-1 text-[11px] font-semibold">
             {active}
@@ -252,6 +279,7 @@ export function SelectionCell({
   onChange: (checked: boolean) => void
   onPress: (event: PointerEvent<HTMLSpanElement>) => void
 }) {
+  const { t } = useI18n()
   return (
     <span
       className="flex w-full justify-center"
@@ -261,7 +289,11 @@ export function SelectionCell({
       <Checkbox
         checked={checked}
         onChange={onChange}
-        label={<span className="sr-only">Chọn {label}</span>}
+        label={
+          <span className="sr-only">
+            {t(message(`Chọn ${label}`, `Select ${label}`, `${label} 선택`))}
+          </span>
+        }
         className="h-12 w-full justify-center gap-0 bg-transparent p-0 hover:bg-transparent"
       />
     </span>
@@ -293,11 +325,18 @@ export function BookSelectionBar({
   /** A book's own bulk actions, drawn before the mail button. */
   actions?: ReactNode
 }) {
+  const { t } = useI18n()
   return (
     <div
       className="glass-overlay fixed bottom-[calc(84px+env(safe-area-inset-bottom)+8px)] left-1/2 z-30 flex w-[min(760px,calc(100vw-32px))] -translate-x-1/2 flex-wrap items-center justify-between gap-4 rounded-lg p-3 lg:bottom-6"
       role="region"
-      aria-label={`Đang chọn ${count} ${noun}`}
+      aria-label={t(
+        message(
+          `Đang chọn ${count} ${noun}`,
+          `${count} ${noun} selected`,
+          `${noun} ${count}개 선택됨`,
+        ),
+      )}
     >
       <div className="flex min-w-0 items-center gap-3" aria-live="polite">
         <span className="bg-accent text-accent-foreground font-num tnum flex size-10 shrink-0 items-center justify-center rounded-md text-[16px] font-semibold">
@@ -305,20 +344,26 @@ export function BookSelectionBar({
         </span>
         <span className="flex min-w-0 flex-col">
           <span className="text-[13px] font-semibold">
-            {count} {noun} đã chọn
+            {t(
+              message(
+                `${count} ${noun} đã chọn`,
+                `${count} ${noun} selected`,
+                `${noun} ${count}개 선택됨`,
+              ),
+            )}
           </span>
           {meta && <span className="text-muted-foreground text-[11.5px]">{meta}</span>}
         </span>
       </div>
       <div className="flex flex-1 flex-wrap justify-end gap-2 max-sm:w-full">
         <Button size="lg" variant="ghost" onClick={onClear}>
-          Bỏ chọn hết
+          {t(message('Bỏ chọn hết', 'Clear selection', '선택 모두 해제'))}
         </Button>
         {actions}
         {onSend && (
           <Button size="lg" onClick={onSend}>
             <Icon icon={Mail} size={16} />
-            Gửi email
+            {t(message('Gửi email', 'Send email', '이메일 보내기'))}
           </Button>
         )}
       </div>

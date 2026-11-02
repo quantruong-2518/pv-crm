@@ -16,7 +16,7 @@ import { router } from '@/routes'
 import '@/styles/app.css'
 
 const host = document.getElementById('root')
-if (!host) throw new Error('#root không tồn tại trong index.html')
+if (!host) throw new Error('#root không tồn tại trong index.html') // i18n-ignore
 
 /** Vòng đời phiên bật TRƯỚC khi React dựng cây, và ở ngoài `StrictMode`.
  *

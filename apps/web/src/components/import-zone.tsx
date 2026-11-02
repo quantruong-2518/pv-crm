@@ -1,51 +1,22 @@
-import { useRef, useState, type ReactNode } from 'react'
-import { ArrowLeft, Download, Upload } from '@pv/ui'
-import {
-  Badge,
-  Button,
-  Chip,
-  Drawer,
-  FileDrop,
-  GlassCard,
-  Icon,
-  Kicker,
-  SectionTitle,
-  Select,
-  Stepper,
-  cn,
-} from '@pv/ui'
+import { useRef, useState } from 'react'
+import { ArrowLeft, Upload } from '@pv/ui'
+import { Badge, Button, Drawer, Icon, Stepper } from '@pv/ui'
 import { MOTION_BY_INTAKE, type LeadMotion } from '@pv/engines'
-import {
-  ACCEPT,
-  MAX_BYTES,
-  detectMojibakeColumn,
-  downloadCsv,
-  readSheet,
-  sheetFromPaste,
-  SheetError,
-  type Sheet,
-} from '@/data/intake-file'
+import { message, useI18n, type Message } from '@/app/i18n'
+import { readSheet, sheetFromPaste, SheetError, type Sheet } from '@/data/intake-file'
 import {
   buildRows,
   guessMapping,
-  sampleRows,
   trustOf,
   unmappedRequired,
-  anyOfLabel,
   type BuiltRow,
   type ColumnMapping,
-  type ImportField,
   type ImportReport,
   type ImportSpec,
 } from '@/data/intake'
-import {
-  BatchAssign,
-  FileStrip,
-  MojibakeNote,
-  StepRun,
-  WindowDropCatcher,
-  type BatchExtra,
-} from '@/components/import-zone-bits'
+import { WindowDropCatcher, type BatchExtra } from '@/components/import-zone-bits'
+import { StepRun } from '@/components/import-zone-results'
+import { StepMap, StepPick } from '@/components/import-zone-steps'
 import { StepGroup } from '@/components/import-group-step'
 import { mergeResent } from '@/data/import-held'
 import {
@@ -156,13 +127,13 @@ type Phase = 'pick' | 'map' | 'group' | 'run' | 'done'
 
 /** The two steps of the bar. `run` and `done` get NO step of their own — they
  *  grow under the mapping table, so the bar stays on step 2 while loading. */
-const STEPS = [
-  { key: 'pick', label: 'Chọn tệp' },
-  { key: 'map', label: 'Khớp cột và nạp' },
+const STEPS: { key: string; label: Message }[] = [
+  { key: 'pick', label: message('Chọn tệp', 'Choose file', '파일 선택') },
+  {
+    key: 'map',
+    label: message('Khớp cột và nạp', 'Match columns and import', '열 매칭 및 가져오기'),
+  },
 ]
-
-/** Số dòng xem trước ở bước 2. Ba là đủ để thấy cột lệch mà chưa phải cuộn. */
-const PREVIEW = 3
 
 /** Ô đầu tiên của một dòng, đọc lại từ chính tệp theo số dòng.
  *
@@ -191,6 +162,7 @@ export function ImportZone({
   buttonLabel,
   className,
 }: ImportZoneProps) {
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const [picked, setPicked] = useState(scopeOptions?.[0]?.value ?? '')
   const [phase, setPhase] = useState<Phase>('pick')
@@ -260,7 +232,17 @@ export function ImportZone({
       setMapping(guessMapping(read.headers, spec, read.rows))
       setPhase('map')
     } catch (e) {
-      setError(e instanceof SheetError ? e.message : 'Không đọc được tệp này.')
+      setError(
+        e instanceof SheetError
+          ? e.message
+          : t(
+              message(
+                'Không đọc được tệp này.',
+                'This file could not be read.',
+                '이 파일을 읽을 수 없습니다.',
+              ),
+            ),
+      )
       setPhase('pick')
     } finally {
       setBusy(false)
@@ -279,7 +261,17 @@ export function ImportZone({
       setMapping(guessMapping(read.headers, spec, read.rows))
       setPhase('map')
     } catch (e) {
-      setError(e instanceof SheetError ? e.message : 'Không đọc được phần vừa dán.')
+      setError(
+        e instanceof SheetError
+          ? e.message
+          : t(
+              message(
+                'Không đọc được phần vừa dán.',
+                'The pasted data could not be read.',
+                '붙여넣은 내용을 읽을 수 없습니다.',
+              ),
+            ),
+      )
     }
   }
 
@@ -407,12 +399,14 @@ export function ImportZone({
      đường dịch của mình, không phải ở đây. */
   const motions = (spec.motions ?? []).filter((m) => MOTION_BY_INTAKE[spec.intake].includes(m))
   const trust = trustOf(spec.intake)
+  const loadCount =
+    (phase === 'group' && held ? held.built.rows.length - held.filtered : sheet?.rows.length) ?? 0
 
   return (
     <div className={className}>
       <Button size="md" variant="ghost" onClick={() => setOpen(true)}>
         <Icon icon={Upload} size={16} />
-        {buttonLabel ?? 'Nạp tệp'}
+        {buttonLabel ?? t(message('Nạp tệp', 'Import file', '파일 가져오기'))}
       </Button>
 
       {/* Tấm phủ chỉ nghe khi panel ĐÓNG. Panel mở rồi thì vùng thả nằm trong
@@ -437,14 +431,28 @@ export function ImportZone({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="text-muted-foreground text-[11.5px]">
               {phase === 'done'
-                ? 'Nạp xong. Đóng để về sổ.'
+                ? t(
+                    message(
+                      'Nạp xong. Đóng để về sổ.',
+                      'Import finished. Close to return to the list.',
+                      '가져오기가 끝났습니다. 닫고 목록으로 돌아가세요.',
+                    ),
+                  )
                 : missing.length > 0
-                  ? `Còn thiếu cột: ${missing.join(' · ')}`
+                  ? t(
+                      message(
+                        `Còn thiếu cột: ${missing.join(' · ')}`,
+                        `Missing columns: ${missing.join(' · ')}`,
+                        `누락된 열: ${missing.join(' · ')}`,
+                      ),
+                    )
                   : (extra?.missing ?? trust.blurb)}
             </span>
             <div className="flex flex-wrap items-center justify-end gap-3">
               <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={close}>
-                {phase === 'done' ? 'Đóng' : 'Huỷ'}
+                {phase === 'done'
+                  ? t(message('Đóng', 'Close', '닫기'))
+                  : t(message('Huỷ', 'Cancel', '취소'))}
               </Button>
               {phase === 'group' && (
                 <Button
@@ -454,7 +462,9 @@ export function ImportZone({
                   onClick={() => setPhase('map')}
                 >
                   <Icon icon={ArrowLeft} size={16} />
-                  Quay lại khớp cột
+                  {t(
+                    message('Quay lại khớp cột', 'Back to column matching', '열 매칭으로 돌아가기'),
+                  )}
                 </Button>
               )}
               {(phase === 'map' || phase === 'group') && (
@@ -465,8 +475,14 @@ export function ImportZone({
                   onClick={() => void (phase === 'map' ? run() : resume())}
                 >
                   {groupsFirst
-                    ? 'Tiếp tục'
-                    : `Nạp ${(phase === 'group' && held ? held.built.rows.length - held.filtered : sheet?.rows.length) ?? 0} dòng`}
+                    ? t(message('Tiếp tục', 'Continue', '계속'))
+                    : t(
+                        message(
+                          `Nạp ${loadCount} dòng`,
+                          `Import ${loadCount} rows`,
+                          `${loadCount}개 행 가져오기`,
+                        ),
+                      )}
                 </Button>
               )}
             </div>
@@ -475,7 +491,7 @@ export function ImportZone({
       >
         <div className="flex flex-col gap-6">
           <Stepper
-            steps={STEPS}
+            steps={STEPS.map((s) => ({ key: s.key, label: t(s.label) }))}
             current={phase === 'pick' ? 0 : 1}
             reached={sheet ? 1 : 0}
             /* The bar is frozen while loading and after: stepping back mid-run
@@ -549,321 +565,5 @@ export function ImportZone({
         </div>
       </Drawer>
     </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Bước 1 · Chọn tệp
-// ---------------------------------------------------------------------------
-
-function StepPick({
-  spec,
-  busy,
-  error,
-  fileName,
-  onPick,
-  onPasteText,
-}: {
-  spec: ImportSpec
-  busy: boolean
-  error?: string
-  fileName?: string
-  onPick: (file: File) => void
-  onPasteText: (text: string) => void
-}) {
-  const required = spec.fields.filter((f) => f.required)
-
-  return (
-    <section className="flex flex-col gap-4">
-      <SectionTitle size="lg">Chọn tệp</SectionTitle>
-
-      <FileDrop
-        accept={ACCEPT}
-        maxBytes={MAX_BYTES}
-        busy={busy}
-        error={error}
-        fileName={fileName}
-        onPick={onPick}
-        /* Đường dán chỉ mở ở bước 1 — nay là do chính khối này chỉ đứng ở bước
-           1: dán một bảng khác lúc đang khớp cột sẽ vứt bảng khớp vừa sửa. */
-        onPasteText={onPasteText}
-      />
-
-      {/* The file's contract, read BEFORE going to look for the file. A block
-          and not a hint line: these are three different answers, and packing all
-          three into one grey 11px line is how none of them get read. Law 8. */}
-      <GlassCard variant="b" className="flex flex-col gap-3 p-4">
-        <Kicker>Tệp cần có</Kicker>
-        <dl className="grid gap-3 sm:grid-cols-[132px_1fr]">
-          <dt className="text-muted-foreground text-[11.5px]">Cột bắt buộc</dt>
-          <dd className="flex flex-wrap gap-2">
-            {/* `object`, not `source`: azure already belongs to the load button
-                in the footer (law 3), and three blue chips only dilute it. */}
-            {required.map((f) => (
-              <Chip key={f.key}>{f.label}</Chip>
-            ))}
-            {anyOfLabel(spec) && <Chip>{anyOfLabel(spec)}</Chip>}
-          </dd>
-
-          <dt className="text-muted-foreground text-[11.5px]">Cột khác</dt>
-          <dd className="text-glass-foreground text-[11.5px] leading-[1.7]">Thiếu thì bỏ qua.</dd>
-
-          <dt className="text-muted-foreground text-[11.5px]">Tệp mẫu</dt>
-          <dd className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => downloadCsv(`${spec.sampleStem}.csv`, sampleRows(spec))}
-              className="motion-std text-accent-foreground inline-flex items-center gap-2 text-[11.5px] hover:brightness-125"
-            >
-              <Icon icon={Download} size={14} />
-              Tải tệp mẫu
-            </button>
-            <span className="text-muted-foreground text-[11.5px]">
-              Một dòng tiêu đề, một dòng ví dụ
-            </span>
-          </dd>
-        </dl>
-      </GlassCard>
-    </section>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Bước 2 · Khớp cột
-// ---------------------------------------------------------------------------
-
-/** Giá trị "bỏ qua cột này" của ô chọn. `<select>` gốc chỉ chở được chuỗi. */
-const SKIP = '-1'
-
-/** One line saying how many rows the batch-wide source actually touches.
- *
- *  The source column IN THE FILE wins over this pick (the server decides that),
- *  so the number worth printing is how many rows leave that column EMPTY —
- *  "which source" is a meaningless question for a file that carries its own. */
-function sourceNote(spec: ImportSpec, sheet: Sheet, mapping: ColumnMapping): string {
-  const n = sheet.rows.length
-  if (!spec.fields.some((f) => f.key === 'source')) return `Cả ${n} dòng lấy nguồn chọn ở đây.`
-
-  const at = mapping.source ?? -1
-  if (at < 0) return `Tệp chưa khớp cột Nguồn. Cả ${n} dòng lấy nguồn chọn ở đây.`
-
-  const blank = sheet.rows.filter((r) => (r[at] ?? '').trim() === '').length
-  return blank === 0
-    ? `Cả ${n} dòng đã có nguồn trong tệp. Lựa chọn này không áp dụng.`
-    : `${blank}/${n} dòng bỏ trống cột Nguồn sẽ lấy nguồn chọn ở đây.`
-}
-
-/** One group of mapping selects. Two groups and not one flat grid — see `StepMap`. */
-function FieldGrid({
-  title,
-  fields,
-  mapping,
-  columnOptions,
-  onMap,
-}: {
-  title: string
-  fields: ImportField[]
-  mapping: ColumnMapping
-  columnOptions: { value: string; label: string }[]
-  onMap: (key: string, at: number) => void
-}) {
-  return (
-    <div className="flex flex-col gap-3">
-      <Kicker>{title}</Kicker>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {fields.map((field) => (
-          <Select
-            key={field.key}
-            label={field.label}
-            required={field.required}
-            value={String(mapping[field.key] ?? -1)}
-            neutralValue={SKIP}
-            options={columnOptions}
-            onChange={(v) => onMap(field.key, Number(v))}
-            className="w-full"
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-/** Fields the file has no column for — names only, no selects.
- *
- *  Ten selects all reading '— bỏ qua cột này —' are ten rows to check before
- *  learning that none of them holds anything; one row of chips answers that at
- *  a glance. 'Khớp thêm' hands the selects back to whoever knows better. */
-function SkippedFields({
-  fields,
-  onRevealAll,
-}: {
-  fields: ImportField[]
-  onRevealAll: () => void
-}) {
-  return (
-    <GlassCard variant="b" className="flex flex-wrap items-center gap-3 p-4">
-      <Kicker className="w-full">Không có cột tương ứng · bỏ qua</Kicker>
-      {fields.map((f) => (
-        <Chip key={f.key}>{f.label}</Chip>
-      ))}
-      <button
-        type="button"
-        onClick={onRevealAll}
-        className="motion-std text-accent-foreground text-[11.5px] hover:brightness-125"
-      >
-        Khớp thêm
-      </button>
-    </GlassCard>
-  )
-}
-
-/** The mapping table, in TWO GROUPS rather than one flat grid.
- *
- *  The required group always shows in full, including fields with no column
- *  matched — that list is what disables the load button, and hiding a line of
- *  it hides the very thing to fix. The optional group shows only what was
- *  matched (or touched); the rest drops to the chip row below. */
-function StepMap({
-  spec,
-  sheet,
-  mapping,
-  onMap,
-  revealed,
-  onRevealAll,
-  onChangeFile,
-  motion,
-  motions,
-  onMotion,
-  scope,
-  scopeOptions,
-  picked,
-  onPick,
-  batchExtra,
-  locked,
-}: {
-  spec: ImportSpec
-  sheet: Sheet
-  mapping: ColumnMapping
-  onMap: (key: string, at: number) => void
-  revealed: ReadonlySet<string>
-  onRevealAll: () => void
-  onChangeFile: () => void
-  motion: LeadMotion
-  motions: readonly LeadMotion[]
-  onMotion: (m: LeadMotion) => void
-  scope?: string
-  scopeOptions?: { value: string; label: string }[]
-  picked: string
-  onPick: (value: string) => void
-  batchExtra?: ReactNode
-  locked: boolean
-}) {
-  const columnOptions = [
-    { value: SKIP, label: '— bỏ qua cột này —' },
-    ...sheet.headers.map((h, i) => ({
-      value: String(i),
-      /* Tiêu đề rỗng vẫn phải chọn được: tệp thật hay có cột không tên mà lại
-         chứa đúng dữ liệu cần. In vị trí cột để người dùng tìm được nó. */
-      label: h === '' ? `(cột ${i + 1}, không tên)` : h,
-    })),
-  ]
-
-  const isMapped = (f: ImportField) => (mapping[f.key] ?? -1) >= 0
-  const required = spec.fields.filter((f) => f.required)
-  const extra = spec.fields.filter((f) => !f.required && (isMapped(f) || revealed.has(f.key)))
-  const skipped = spec.fields.filter((f) => !f.required && !isMapped(f) && !revealed.has(f.key))
-
-  const shown = spec.fields.filter(isMapped)
-  const preview = sheet.rows.slice(0, PREVIEW)
-  const hit = [...required, ...extra].filter(isMapped).length
-  const mojibake = detectMojibakeColumn(sheet.headers, sheet.rows)
-
-  /** Anything to assign batch-wide at all — a motion, or a source. */
-  const assigns =
-    motions.length > 0 ||
-    scope !== undefined ||
-    scopeOptions !== undefined ||
-    batchExtra !== undefined
-
-  return (
-    <section className={cn('flex flex-col gap-4', locked && 'pointer-events-none opacity-55')}>
-      <FileStrip sheet={sheet} onChangeFile={onChangeFile} />
-
-      {mojibake && <MojibakeNote column={mojibake.column} sample={mojibake.sample} />}
-
-      <SectionTitle
-        size="lg"
-        hint={`Đã tự khớp ${hit}/${spec.fields.length} trường. Sai thì đổi cột.`}
-      >
-        Khớp cột
-      </SectionTitle>
-
-      <FieldGrid
-        title="Bắt buộc"
-        fields={required}
-        mapping={mapping}
-        columnOptions={columnOptions}
-        onMap={onMap}
-      />
-
-      {extra.length > 0 && (
-        <FieldGrid
-          title="Thông tin thêm"
-          fields={extra}
-          mapping={mapping}
-          columnOptions={columnOptions}
-          onMap={onMap}
-        />
-      )}
-
-      {skipped.length > 0 && <SkippedFields fields={skipped} onRevealAll={onRevealAll} />}
-
-      {assigns && (
-        <BatchAssign
-          count={sheet.rows.length}
-          noun={spec.rowNoun ?? 'dòng'}
-          motion={motion}
-          motions={motions}
-          onMotion={onMotion}
-          scope={scope}
-          scopeOptions={scopeOptions}
-          picked={picked}
-          onPick={onPick}
-          sourceHint={sourceNote(spec, sheet, mapping)}
-          extra={batchExtra}
-        />
-      )}
-
-      {/* Bảng xem trước nằm trên `.glass-b` — luật 8. */}
-      <GlassCard variant="b" className="flex flex-col gap-3 p-4">
-        <Kicker>
-          Xem trước {preview.length}/{sheet.rows.length} dòng, sau khi khớp
-        </Kicker>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] text-left text-[11.5px]">
-            <thead>
-              <tr className="text-muted-foreground">
-                {shown.map((f) => (
-                  <th key={f.key} className="whitespace-nowrap px-3 py-2 font-semibold">
-                    {f.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="text-glass-foreground">
-              {preview.map((row, i) => (
-                <tr key={i} className="bg-surface-ink/[3%]">
-                  {shown.map((f) => (
-                    <td key={f.key} className="max-w-[220px] truncate px-3 py-2">
-                      {row[mapping[f.key] ?? -1] ?? ''}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </GlassCard>
-    </section>
   )
 }

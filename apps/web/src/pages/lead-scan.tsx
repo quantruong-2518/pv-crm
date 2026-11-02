@@ -17,13 +17,14 @@ import {
 } from '@pv/ui'
 import { isApiError, userMessage } from '@/app/api'
 import { useAppChrome } from '@/app/chrome'
+import { message, useI18n } from '@/app/i18n'
 import { toastFail, toastOf } from '@/app/toast'
 import { useCancelScan, useCommitScan, useScanBatch } from '@/data/lead-scan'
 import {
   ACCEPT_ATTR,
   ACCEPT_LABEL,
   CAPTURE_ACCEPT_ATTR,
-  LIMITS_LABEL,
+  limitsLabel,
   screenPicked,
 } from '@/data/lead-scan-prep'
 import { inFlight, useBeginScan, useScanRun } from '@/data/lead-scan-run'
@@ -55,7 +56,16 @@ const NARROW = 'max-w-[880px]'
 const toastWarn = toastOf('warning')
 
 export function LeadScanPage() {
-  const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
+  const { t } = useI18n()
+  const chrome = useAppChrome({
+    searchPlaceholder: t(
+      message(
+        'Tìm khách hàng, cơ hội, báo giá, hồ sơ…',
+        'Search customers, opportunities, quotations, records…',
+        '고객, 기회, 견적서, 기록 검색…',
+      ),
+    ),
+  })
   const navigate = useNavigate()
   const { code = '' } = useParams()
   const run = useScanRun((s) => s.run)
@@ -86,7 +96,10 @@ export function LeadScanPage() {
   const onCommit = () =>
     commit.mutate(undefined, {
       onError: (error) =>
-        toastFail('Không tạo được lead', isApiError(error) ? userMessage(error) : undefined),
+        toastFail(
+          t(message('Không tạo được lead', 'Could not create leads', '리드를 생성하지 못했습니다')),
+          isApiError(error) ? userMessage(error) : undefined,
+        ),
     })
   /* No code yet means nothing on the server to cancel; the local run is
      dropped too, so its remaining uploads and its `start` stand down. */
@@ -101,7 +114,16 @@ export function LeadScanPage() {
                 if (useScanRun.getState().run?.code === code) useScanRun.setState({ run: null })
               },
               onError: (error) =>
-                toastFail('Không huỷ được lô', isApiError(error) ? userMessage(error) : undefined),
+                toastFail(
+                  t(
+                    message(
+                      'Không huỷ được lô',
+                      'Could not cancel the batch',
+                      '묶음을 취소하지 못했습니다',
+                    ),
+                  ),
+                  isApiError(error) ? userMessage(error) : undefined,
+                ),
             }),
         }
 
@@ -120,7 +142,13 @@ export function LeadScanPage() {
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout className={cn('mx-auto', view === 'drop' || view === 'result' ? NARROW : WIDE)}>
-        {step !== undefined && <Stepper steps={SCAN_STEPS} current={step} reached={step} />}
+        {step !== undefined && (
+          <Stepper
+            steps={SCAN_STEPS.map((s) => ({ ...s, label: t(s.label) }))}
+            current={step}
+            reached={step}
+          />
+        )}
         {view === 'drop' && <DropStep />}
         {view === 'reading' && (
           <ReadingStep batch={batch.data} run={local} onRestart={restart} cancel={cancel} />
@@ -135,7 +163,16 @@ export function LeadScanPage() {
         {view === 'failed' && (
           <Dead
             icon={TriangleAlert}
-            message={batch.data?.error ?? 'Lô này dừng lại, không đọc tiếp được.'}
+            text={
+              batch.data?.error ??
+              t(
+                message(
+                  'Lô này dừng lại, không đọc tiếp được.',
+                  'This batch stopped and cannot continue reading.',
+                  '이 묶음이 중단되어 더 읽을 수 없습니다.',
+                ),
+              )
+            }
             rail={batch.data && scanRail(batch.data, navigate)}
             onRestart={restart}
           />
@@ -143,10 +180,16 @@ export function LeadScanPage() {
         {view === 'missing' && (
           <Dead
             icon={Inbox}
-            message={
+            text={
               isApiError(batch.error) && batch.error.kind !== 'not-found'
                 ? userMessage(batch.error)
-                : `Không tìm thấy lô ${code}.`
+                : t(
+                    message(
+                      `Không tìm thấy lô ${code}.`,
+                      `Batch ${code} not found.`,
+                      `묶음 ${code}을(를) 찾을 수 없습니다.`,
+                    ),
+                  )
             }
             onRestart={restart}
           />
@@ -161,6 +204,7 @@ export default LeadScanPage
 /** A refused batch comes back here with its files `held`: a new drop joins
  *  them rather than silently discarding what the user already picked. */
 function DropStep() {
+  const { t, lang } = useI18n()
   const begin = useBeginScan()
   const held = useScanRun((s) => s.held)
   const heldNames = held?.picked.map((p) => p.file.name).join(' · ')
@@ -171,29 +215,63 @@ function DropStep() {
       ...(held?.picked.map((p) => p.file) ?? []),
       ...files,
     ])
-    if (rejected.length > 0) toastWarn('Có tệp không nhận', rejected.join(' · '))
+    if (rejected.length > 0) {
+      const title = message(
+        'Có tệp không nhận',
+        'Some files were not accepted',
+        '일부 파일은 받을 수 없습니다',
+      )
+      toastWarn(t(title), rejected.join(' · '))
+    }
     if (accepted.length > 0) begin(accepted, campaign)
   }
 
   return (
     <>
       <ScanHeader
-        title="Nạp lead từ ảnh & hồ sơ"
-        description="AI đọc tệp và gom theo công ty. Bạn xem trước rồi mới tạo."
+        title={t(
+          message(
+            'Nạp lead từ ảnh & hồ sơ',
+            'Import leads from images & files',
+            '이미지·파일에서 리드 가져오기',
+          ),
+        )}
+        description={t(
+          message(
+            'AI đọc tệp và gom theo công ty. Bạn xem trước rồi mới tạo.',
+            'AI reads the files and groups them by company. You preview before anything is created.',
+            'AI가 파일을 읽어 회사별로 묶습니다. 미리 확인한 뒤 생성합니다.',
+          ),
+        )}
       />
       <GlassCard className="flex flex-col gap-5 p-5">
         <div className="flex flex-wrap items-end gap-4">
           <div className="min-w-[280px] flex-1">
-            <CampaignPicker label="Chiến dịch" value={campaign} onChange={setCampaign} />
+            <CampaignPicker
+              label={t(message('Chiến dịch', 'Campaign', '캠페인'))}
+              value={campaign}
+              onChange={setCampaign}
+            />
           </div>
           <p className="text-muted-foreground pb-3 text-[12.5px]">
-            Người phụ trách: <span className="text-foreground font-semibold">bạn</span>
+            {t(message('Người phụ trách', 'Owner', '담당자'))}:{' '}
+            <span className="text-foreground font-semibold">
+              {t(message('bạn', 'you', '본인'))}
+            </span>
           </p>
         </div>
         {held && (
           <div className="flex flex-col gap-3">
             <p className="tnum line-clamp-2 text-[12.5px]" title={heldNames}>
-              <span className="font-semibold">Đang giữ {held.picked.length} tệp đã chọn: </span>
+              <span className="font-semibold">
+                {t(
+                  message(
+                    `Đang giữ ${held.picked.length} tệp đã chọn: `,
+                    `Holding ${held.picked.length} selected ${held.picked.length === 1 ? 'file' : 'files'}: `,
+                    `선택한 파일 ${held.picked.length}개 보관 중: `,
+                  ),
+                )}
+              </span>
               <span className="text-muted-foreground">{heldNames}</span>
             </p>
             <FailureLine
@@ -205,7 +283,7 @@ function DropStep() {
                     className="pointer-coarse:h-12"
                     onClick={() => begin(held.picked, campaign)}
                   >
-                    Thử lại
+                    {t(message('Thử lại', 'Retry', '다시 시도'))}
                   </Button>
                   <Button
                     size="md"
@@ -213,7 +291,7 @@ function DropStep() {
                     className="pointer-coarse:h-12"
                     onClick={() => useScanRun.setState({ held: null })}
                   >
-                    Bỏ các tệp này
+                    {t(message('Bỏ các tệp này', 'Discard these files', '이 파일 버리기'))}
                   </Button>
                 </>
               }
@@ -225,7 +303,7 @@ function DropStep() {
         <ScanDropZone
           accept={ACCEPT_ATTR}
           captureAccept={CAPTURE_ACCEPT_ATTR}
-          footnote={`${ACCEPT_LABEL} · ${LIMITS_LABEL}`}
+          footnote={`${ACCEPT_LABEL} · ${limitsLabel(lang)}`}
           onFiles={onFiles}
         />
       </GlassCard>
@@ -236,23 +314,27 @@ function DropStep() {
 /** Law 10: a batch that exists keeps its rail even here, so its code stays one click away. */
 function Dead({
   icon,
-  message,
+  text,
   rail,
   onRestart,
 }: {
   icon: IconGlyph
-  message: string
+  text: string
   rail?: RailObject[]
   onRestart: () => void
 }) {
   const navigate = useNavigate()
+  const { t } = useI18n()
   return (
     <GlassCard className="flex flex-col items-center gap-4 p-5 py-12">
       <EmptyState
         tone="danger"
         icon={icon}
-        message={message}
-        action={{ label: 'Nạp lô mới', onClick: onRestart }}
+        message={text}
+        action={{
+          label: t(message('Nạp lô mới', 'Import a new batch', '새 묶음 가져오기')),
+          onClick: onRestart,
+        }}
       />
       {rail && <ContextRail objects={rail} className="justify-center" />}
       <Button
@@ -261,7 +343,7 @@ function Dead({
         className="pointer-coarse:h-12"
         onClick={() => navigate(BOOK_PATH)}
       >
-        Về sổ lead
+        {t(message('Về sổ lead', 'Back to leads', '리드 목록으로'))}
       </Button>
     </GlassCard>
   )

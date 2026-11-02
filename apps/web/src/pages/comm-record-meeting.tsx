@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Button, CalendarClock, Check, GlassCard, Icon, Link, SectionTitle, Skeleton } from '@pv/ui'
-import { MEETING_CANCEL_CAUSE_LABEL, type DebriefView, type MeetingRow } from '@pv/contracts'
+import type { DebriefView, MeetingRow } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { message, useI18n } from '@/app/i18n'
 import { isApiError, userMessage } from '@/app/api'
@@ -11,7 +11,12 @@ import { CommRecordFrame } from '@/components/comm-record-frame'
 import { MeetingHeldForm } from '@/components/meeting-held-form'
 import { MeetingScheduleDrawer } from '@/components/meeting-schedule-drawer'
 import { subjectKindLabel } from '@/data/comm-record-detail'
-import { MEETING_MODE_LABEL, meetingRowLabel, meetingSlotOf } from '@/data/meeting-labels'
+import {
+  MEETING_MODE_LABEL,
+  meetingCancelCauseLabel,
+  meetingRowLabel,
+  meetingSlotOf,
+} from '@/data/meeting-labels'
 import { meetingSubjectOf, meetingsQuery } from '@/data/meetings'
 import { useMinuteClock } from '@/data/minute-clock'
 
@@ -24,7 +29,7 @@ import { useMinuteClock } from '@/data/minute-clock'
 const HELD_REASON_ID = 'meeting-held-reason'
 
 export function ScheduledMeeting({ record }: { record: DebriefView }) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const subject = meetingSubjectOf(record.subject.code)
   const deal = subject?.kind === 'opportunity'
   const canRead = useCan(deal ? 'opportunity.view' : 'lead.view')
@@ -80,7 +85,10 @@ export function ScheduledMeeting({ record }: { record: DebriefView }) {
   )
   const note = cancelled
     ? meeting?.cancelCause
-      ? `Huỷ vì ${MEETING_CANCEL_CAUSE_LABEL[meeting.cancelCause].toLowerCase()}.`
+      ? (() => {
+          const cause = meetingCancelCauseLabel(meeting.cancelCause, lang).toLowerCase()
+          return t(message(`Huỷ vì ${cause}.`, `Cancelled: ${cause}.`, `취소 사유: ${cause}.`))
+        })()
       : null
     : !record.closableByMe
       ? t(

@@ -12,13 +12,13 @@ import {
   SectionTitle,
   cn,
 } from '@pv/ui'
-import { isTieredPeriod } from '@pv/contracts'
+import { isTieredPeriod, type KpiPeopleResponse } from '@pv/contracts'
 import { useCan, useSession } from '@/app/auth'
-import { message, useI18n } from '@/app/i18n'
+import { message, useI18n, type Message } from '@/app/i18n'
 import { useAppChrome } from '@/app/chrome'
 import { kpiCompanyQuery, kpiPeopleQuery, kpiTargetsQuery } from '@/data/kpi'
 import { kpiAllocationsQuery, kpiCountersQuery } from '@/data/kpi-allocation'
-import { kpiCatalogQuery, withCatalog } from '@/data/kpi-catalog'
+import { kpiCatalogQuery, withCatalog, type BlockQuery, type KpiCatalog } from '@/data/kpi-catalog'
 import { waitingReasonsQuery } from '@/data/kpi-close'
 import { kpiForecastQuery } from '@/data/kpi-forecast'
 import { kpiTeamRosterQuery } from '@/data/kpi-team-roster'
@@ -50,6 +50,29 @@ import { NOTHING_WAITING } from './kpi-targets-queue'
  *  No ContextRail (law 10 debt, as on the overview): a scorecard is a sum over
  *  many records and opens no single object a chain could be anchored on. */
 
+const COPY = {
+  title: message('KPI công ty', 'Company KPIs', '회사 KPI'),
+  strip: message('Chỉ số phòng Kinh doanh', 'Sales department metrics', '영업 부서 지표'),
+  forecast: message('Dự báo cuối tháng', 'Month-end forecast', '월말 예상'),
+  forecastWhat: message('dự báo cuối tháng', 'month-end forecast', '월말 예상'),
+  roles: message('Theo vai trò', 'By role', '역할별'),
+  rolesWhat: message('KPI theo vai trò', 'KPIs by role', '역할별 KPI'),
+  behind: message('Đang hụt chỉ tiêu', 'Behind target', '목표 미달'),
+  behindWhat: message(
+    'danh sách đang hụt chỉ tiêu',
+    'the list of people behind target',
+    '목표 미달 인원 목록',
+  ),
+  people: message('Chi tiết từng người', 'Details by person', '개인별 상세'),
+  peopleWhat: message('KPI từng người', 'KPIs by person', '개인별 KPI'),
+  assignStatus: message('Mở Tình trạng giao', 'Open assignment status', '배정 현황 열기'),
+  hiddenLead: message(
+    'Bạn không có quyền xem',
+    'You do not have access to',
+    '열람 권한이 없는 항목',
+  ),
+}
+
 /** The door to the targets desk. Its count is `waitingOf` over the desk's own
  *  reads, so it is the length of the desk's waiting list; no count until
  *  they land, and none for a reader with nothing to decide there. */
@@ -73,13 +96,7 @@ function TargetsDoor({ period, waiting }: { period: string; waiting: number | un
                     `처리할 항목 ${num(waiting)}개.`,
                   ),
                 )
-              : t(
-                  message(
-                    NOTHING_WAITING,
-                    'Nothing needs your attention.',
-                    '처리할 항목이 없습니다.',
-                  ),
-                )}
+              : t(NOTHING_WAITING)}
           </p>
         )}
       </div>
@@ -95,7 +112,40 @@ function TargetsDoor({ period, waiting }: { period: string; waiting: number | un
   )
 }
 
+/** One quiet people block under the roles table: a title over the same read, drawn by `View`. */
+function PeopleSection({
+  title,
+  what,
+  query,
+  teamOf,
+  View,
+}: {
+  title: Message
+  what: Message
+  query: BlockQuery<[KpiPeopleResponse, KpiCatalog]>
+  teamOf: TeamOf
+  View: typeof AttentionBlock
+}) {
+  const { t } = useI18n()
+  return (
+    <section className="flex flex-col gap-3">
+      <SectionTitle size="lg">{t(title)}</SectionTitle>
+      <QueryBlock query={query} what={what} variant="b" quiet>
+        {([data, defs]) => (
+          <View
+            catalog={defs}
+            people={roomPeople(data.people)}
+            period={data.period}
+            teamOf={teamOf}
+          />
+        )}
+      </QueryBlock>
+    </section>
+  )
+}
+
 export function KpiCompanyPage() {
+  const { t } = useI18n()
   const chrome = useAppChrome()
   const canTargets = useCan('kpi.view')
   const canAll = useCan('kpi.view-all')
@@ -153,13 +203,18 @@ export function KpiCompanyPage() {
 
   const hidden = canAll
     ? []
-    : ['dự báo cuối tháng', 'KPI theo vai trò', 'người đang hụt chỉ tiêu', 'chi tiết từng người']
+    : [
+        t(COPY.forecastWhat),
+        t(COPY.rolesWhat),
+        t(message('người đang hụt chỉ tiêu', 'people behind target', '목표 미달 인원')),
+        t(message('chi tiết từng người', 'details by person', '개인별 상세')),
+      ]
 
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <ScreenHeader
-          title="KPI công ty"
+          title={t(COPY.title)}
           description={day && <span className="tnum font-num">{day}</span>}
           actions={<MonthPicker pick={pick} onPick={setPick} />}
         />
@@ -170,8 +225,11 @@ export function KpiCompanyPage() {
         )}
 
         <section className="flex flex-col gap-3">
-          <SectionTitle size="lg">Chỉ số phòng Kinh doanh</SectionTitle>
-          <QueryBlock query={withCatalog(company, catalog)} what="chỉ số phòng Kinh doanh">
+          <SectionTitle size="lg">{t(COPY.strip)}</SectionTitle>
+          <QueryBlock
+            query={withCatalog(company, catalog)}
+            what={message('chỉ số phòng Kinh doanh', 'Sales department metrics', '영업 부서 지표')}
+          >
             {([data, defs]) => (
               <CompanyStrip
                 catalog={defs}
@@ -185,10 +243,10 @@ export function KpiCompanyPage() {
         {canAll && (
           <>
             <section className="flex flex-col gap-3">
-              <SectionTitle size="lg">Dự báo cuối tháng</SectionTitle>
+              <SectionTitle size="lg">{t(COPY.forecast)}</SectionTitle>
               <QueryBlock
                 query={withCatalog(forecast, catalog)}
-                what="dự báo cuối tháng"
+                what={COPY.forecastWhat}
                 variant="b"
               >
                 {([data, defs]) => <KpiForecastBlock catalog={defs} data={data} />}
@@ -196,8 +254,8 @@ export function KpiCompanyPage() {
             </section>
 
             <section className="flex flex-col gap-3">
-              <SectionTitle size="lg">Theo vai trò</SectionTitle>
-              <QueryBlock query={withCatalog(people, catalog)} what="KPI theo vai trò" variant="b">
+              <SectionTitle size="lg">{t(COPY.roles)}</SectionTitle>
+              <QueryBlock query={withCatalog(people, catalog)} what={COPY.rolesWhat} variant="b">
                 {([data, defs]) => (
                   <RolesBlock catalog={defs} people={data.people} room={company.data?.scorecard} />
                 )}
@@ -205,55 +263,37 @@ export function KpiCompanyPage() {
             </section>
 
             {!nobody && (
-              <section className="flex flex-col gap-3">
-                <SectionTitle size="lg">Đang hụt chỉ tiêu</SectionTitle>
-                <QueryBlock
-                  query={withCatalog(people, catalog)}
-                  what="danh sách đang hụt chỉ tiêu"
-                  variant="b"
-                  quiet
-                >
-                  {([data, defs]) => (
-                    <AttentionBlock
-                      catalog={defs}
-                      people={roomPeople(data.people)}
-                      period={data.period}
-                      teamOf={teamOf}
-                    />
-                  )}
-                </QueryBlock>
-              </section>
+              <PeopleSection
+                title={COPY.behind}
+                what={COPY.behindWhat}
+                query={withCatalog(people, catalog)}
+                teamOf={teamOf}
+                View={AttentionBlock}
+              />
             )}
 
             {!nobody && (
-              <section className="flex flex-col gap-3">
-                <SectionTitle size="lg">Chi tiết từng người</SectionTitle>
-                <QueryBlock
-                  query={withCatalog(people, catalog)}
-                  what="KPI từng người"
-                  variant="b"
-                  quiet
-                >
-                  {([data, defs]) => (
-                    <RankedHeatmap
-                      catalog={defs}
-                      people={roomPeople(data.people)}
-                      period={data.period}
-                      teamOf={teamOf}
-                    />
-                  )}
-                </QueryBlock>
-              </section>
+              <PeopleSection
+                title={COPY.people}
+                what={COPY.peopleWhat}
+                query={withCatalog(people, catalog)}
+                teamOf={teamOf}
+                View={RankedHeatmap}
+              />
             )}
 
             {isTieredPeriod(period) && (
-              <TieredNote to={statusHref(period)} label="Mở Tình trạng giao" />
+              <TieredNote to={statusHref(period)} label={t(COPY.assignStatus)} />
             )}
             <TargetsDoor period={period} waiting={waiting} />
           </>
         )}
 
-        {hidden.length > 0 && <p className={NOTE}>Bạn không có quyền xem: {hidden.join(' · ')}.</p>}
+        {hidden.length > 0 && (
+          <p className={NOTE}>
+            {t(COPY.hiddenLead)}: {hidden.join(' · ')}.
+          </p>
+        )}
       </ScreenLayout>
     </AppShell>
   )

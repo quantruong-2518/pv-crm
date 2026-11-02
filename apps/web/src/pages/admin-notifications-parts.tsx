@@ -1,7 +1,7 @@
 import { Checkbox, DataTable } from '@pv/ui'
 import { type NotificationKind, type RoleId } from '@pv/contracts'
 import { dmhm } from '@/lib/date'
-import { ROLE_LABEL } from '@/data/users'
+import { kpiRoleText } from '@/data/kpi-i18n'
 import { ROLE_COLUMN_LABEL, ROLE_IDS } from '@/data/roles'
 import { notificationGroupLabel, notificationKindLabel } from '@/data/notification-i18n'
 import { message, useI18n } from '@/app/i18n'
@@ -156,7 +156,7 @@ export function PolicyGrid({ draft, index, onHears, onImportant, saving }: Polic
                     checked={hears}
                     label={cellLabel(
                       hears ? t(message('Nhận', 'On', '받기')) : t(message('Tắt', 'Off', '끄기')),
-                      `${name} — ${ROLE_LABEL[id]}`,
+                      `${name} — ${kpiRoleText(id, lang)}`,
                     )}
                     disabled={saving}
                     onChange={(on) => onHears(kind, id, on)}

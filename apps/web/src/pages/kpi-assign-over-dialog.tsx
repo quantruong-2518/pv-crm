@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button, Icon, Modal, Send } from '@pv/ui'
 import {
-  KPI_METRIC_LABEL,
   type KpiAssignmentPageResponse,
   type KpiAssignmentSum,
   type KpiMetricDef,
 } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
+import { kpiMetricText } from '@/data/kpi-i18n'
 import { overTitle, sumFigures, sumWord } from './kpi-assign-model'
 
 /** The send button and the question it may ask first (ADR 0120 §4): a sum flagged `over`
@@ -26,6 +27,7 @@ export function SendDown({
   disabled: boolean
   onSend: () => void
 }) {
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
   /* Stable: Modal pulls focus back to the panel whenever `onClose` changes. */
   const close = useCallback(() => setOpen(false), [])
@@ -48,7 +50,7 @@ export function SendDown({
         onClick={() => (over.length > 0 ? setOpen(true) : onSend())}
       >
         <Icon icon={Send} size={16} />
-        Gửi xuống
+        {t(message('Gửi xuống', 'Send down', '하위로 발송'))}
       </Button>
       <Modal
         open={open}
@@ -58,7 +60,7 @@ export function SendDown({
         footer={
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button size="lg" variant="secondary" type="button" onClick={close}>
-              Sửa lại
+              {t(message('Sửa lại', 'Edit again', '다시 수정'))}
             </Button>
             <Button
               size="lg"
@@ -70,7 +72,7 @@ export function SendDown({
                 onSend()
               }}
             >
-              Vẫn gửi xuống
+              {t(message('Vẫn gửi xuống', 'Send anyway', '그래도 발송'))}
             </Button>
           </div>
         }
@@ -78,7 +80,7 @@ export function SendDown({
         <ul className="tnum font-num flex flex-col gap-2 text-[13px] leading-5">
           {over.map(({ def, sum }) => (
             <li key={def.key}>
-              {KPI_METRIC_LABEL[def.key]} · {sumFigures(def, sum)} · {sumWord(page, def, sum).text}
+              {kpiMetricText(def.key)} · {sumFigures(def, sum)} · {sumWord(page, def, sum).text}
             </li>
           ))}
         </ul>

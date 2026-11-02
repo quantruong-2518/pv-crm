@@ -1,6 +1,7 @@
 import { CalendarClock } from '@pv/ui'
 import type { WorkstreamBookQuery } from '@pv/contracts'
 import { NARROWING_CLEARED } from '@/data/workstreams'
+import { message, useI18n } from '@/app/i18n'
 import { BookQueueButton } from '@/components/book-queue-button'
 
 /** The overdue toggle, kept off the page body so that stays under the
@@ -20,12 +21,15 @@ export function OverdueToggle({
   /** The whole-book count; undefined until the scorecard answers. */
   count: number | undefined
 }) {
+  const { t } = useI18n()
   const active = query.overdue === true
   return (
     <BookQueueButton
-      ariaLabel="Lọc hành trình quá hạn"
+      ariaLabel={t(
+        message('Lọc hành trình quá hạn', 'Filter overdue workstreams', '기한 초과 영업 건 필터'),
+      )}
       icon={CalendarClock}
-      label="Quá hạn"
+      label={t(message('Quá hạn', 'Overdue', '기한 초과'))}
       count={count}
       active={active}
       onPress={() =>

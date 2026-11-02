@@ -4,6 +4,7 @@ import { Button, Icon, MetaPill, Plus, Select, Skeleton } from '@pv/ui'
 import type { OrgPerson, OrgTreeResponse, OrgUnit } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { orgTreeQuery } from '@/data/org-tree'
 import { keyOf } from './home-model'
 import { monthPick, monthText } from './kpi-model'
@@ -59,6 +60,7 @@ function TreeBody({
   onSelect: (id: string) => void
   onDialog: (d: Dialog) => void
 }) {
+  const { t } = useI18n()
   const me = useSession((s) => s.actor?.id)
   const rows = treeRows(tree.units)
   const names = new Map(tree.people.map((p) => [p.actorId, p.name]))
@@ -66,7 +68,17 @@ function TreeBody({
   const showUnplaced = unplaced > 0
   /* Without view-all, someone placed nowhere is sent the company alone, bare. */
   if (!seeAll && !tree.units.some((u) => me !== undefined && u.memberIds.includes(me)))
-    return <p className="text-muted-foreground m-0 text-[11.5px]">Bạn chưa thuộc đơn vị nào.</p>
+    return (
+      <p className="text-muted-foreground m-0 text-[11.5px]">
+        {t(
+          message(
+            'Bạn chưa thuộc đơn vị nào.',
+            'You are not in any unit yet.',
+            '소속된 조직이 아직 없습니다.',
+          ),
+        )}
+      </p>
+    )
   const selected =
     selectedId === UNPLACED && showUnplaced
       ? UNPLACED
@@ -76,7 +88,11 @@ function TreeBody({
           : tree.units.find((u) => me !== undefined && u.memberIds.includes(me))) ??
         rows[0]?.unit)
   if (!selected)
-    return <p className="text-muted-foreground m-0 text-[11.5px]">Chưa có đơn vị nào.</p>
+    return (
+      <p className="text-muted-foreground m-0 text-[11.5px]">
+        {t(message('Chưa có đơn vị nào.', 'No units yet.', '등록된 조직이 없습니다.'))}
+      </p>
+    )
 
   return (
     <>
@@ -112,6 +128,7 @@ function TreeBody({
 }
 
 export function OrgSection() {
+  const { t } = useI18n()
   const seeAll = useCan('kpi.view-all')
   const canEdit = useCan('kpi.set-target') && seeAll
   const running = keyOf(monthPick())
@@ -137,12 +154,13 @@ export function OrgSection() {
         <div className="flex flex-wrap items-end gap-3">
           {canEdit && !legacy && (
             <MetaPill tone="accent" className="tnum font-num self-center max-sm:hidden">
-              Áp dụng từ tháng {monthText(from)}
+              {t(message('Áp dụng từ tháng', 'Effective from month', '적용 시작 월'))}{' '}
+              {monthText(from)}
             </MetaPill>
           )}
           <div className="flex-1" />
           <Select
-            label="Xem tháng"
+            label={t(message('Xem tháng', 'View month', '월 보기'))}
             size="md"
             className="pointer-coarse:[&>button]:h-12"
             value={period}
@@ -156,7 +174,7 @@ export function OrgSection() {
               onClick={() => setDialog({ kind: 'add' })}
             >
               <Icon icon={Plus} size={16} />
-              Thêm đơn vị
+              {t(message('Thêm đơn vị', 'Add unit', '조직 추가'))}
             </Button>
           )}
         </div>
@@ -166,7 +184,14 @@ export function OrgSection() {
         error ? (
           <div className="flex flex-wrap items-center gap-3">
             <p role="alert" className={ALERT}>
-              Không tải được phòng ban và nhóm. {isApiError(error) ? userMessage(error) : ''}
+              {t(
+                message(
+                  'Không tải được phòng ban và nhóm.',
+                  'Could not load departments and teams.',
+                  '부서와 팀을 불러오지 못했습니다.',
+                ),
+              )}{' '}
+              {isApiError(error) ? userMessage(error) : ''}
             </p>
             <Button
               variant="ghost"
@@ -174,7 +199,7 @@ export function OrgSection() {
               className="pointer-coarse:h-12"
               onClick={() => void Promise.all([first.refetch(), shown.refetch()])}
             >
-              Thử lại
+              {t(message('Thử lại', 'Try again', '다시 시도'))}
             </Button>
           </div>
         ) : (

@@ -3,6 +3,7 @@ import type { Actor } from '@pv/engines'
 import { Check, Lock, TriangleAlert, Users, X } from '@pv/ui'
 import { Avatar, GlassCard, Icon, Select } from '@pv/ui'
 import { SALES_INBOX } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 import type { ToCell } from './letter-model'
 
 /** The recipients card of the one-screen composer (G-Compose, G7). To is the
@@ -23,13 +24,14 @@ export function RecipientsCard({
   onAddCc: (id: string) => void
   onDropCc: (id: string) => void
 }) {
+  const { t } = useI18n()
   const addable = colleagues.filter((person) => !cc.some((c) => c.id === person.id))
 
   return (
     <GlassCard variant="b" className="flex min-w-0 flex-col gap-3 p-4">
       <span className="flex items-center gap-2 text-[13px] font-semibold leading-5">
         <Icon icon={Users} size={16} />
-        Người nhận
+        {t(message('Người nhận', 'Recipients', '받는 사람'))}
       </span>
 
       <Row label="To">
@@ -47,28 +49,45 @@ export function RecipientsCard({
           >
             <Avatar name={person.name} size="sm" />
             <span className="truncate text-[13px] font-medium">{person.name}</span>
-            <DropButton label={`Bỏ ${person.name}`} onClick={() => onDropCc(person.id)} />
+            <DropButton
+              label={t(
+                message(`Bỏ ${person.name}`, `Remove ${person.name}`, `${person.name} 제거`),
+              )}
+              onClick={() => onDropCc(person.id)}
+            />
           </span>
         ))}
         <span
-          title="Luôn CC, không bỏ được"
+          title={t(
+            message(
+              'Luôn CC, không bỏ được',
+              'Always CC’d, cannot be removed',
+              '항상 참조되며 제거할 수 없습니다',
+            ),
+          )}
           className="bg-surface-ink/9 flex h-12 items-center gap-2 rounded-md pl-2 pr-3"
         >
-          <span role="img" aria-label="Khoá" className="text-muted-foreground flex">
+          <span
+            role="img"
+            aria-label={t(message('Khoá', 'Locked', '잠금'))}
+            className="text-muted-foreground flex"
+          >
             <Icon icon={Lock} size={14} />
           </span>
           <span className="whitespace-nowrap font-mono text-[12px]">{SALES_INBOX}</span>
         </span>
         {addable.length > 0 && (
           <Select
-            label="Thêm đồng nghiệp vào CC"
+            label={t(
+              message('Thêm đồng nghiệp vào CC', 'Add a colleague to CC', '동료를 참조에 추가'),
+            )}
             hideLabel
             size="lg"
             className="w-[240px]"
             value=""
             onChange={(id) => id && onAddCc(id)}
             options={[
-              { value: '', label: 'Thêm đồng nghiệp' },
+              { value: '', label: t(message('Thêm đồng nghiệp', 'Add a colleague', '동료 추가')) },
               ...addable.map((person) => ({ value: person.id, label: person.name })),
             ]}
           />
@@ -88,6 +107,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function ToChip({ cell }: { cell: ToCell }) {
+  const { t } = useI18n()
   return (
     <span
       title={cell.line}
@@ -97,12 +117,20 @@ function ToChip({ cell }: { cell: ToCell }) {
       <span className="truncate text-[13px] font-medium">{cell.name}</span>
       {cell.flag && <span className="text-warning whitespace-nowrap text-[12px]">{cell.flag}</span>}
       {cell.ok && (
-        <span role="img" aria-label="Sẽ nhận" className="text-success flex">
+        <span
+          role="img"
+          aria-label={t(message('Sẽ nhận', 'Will receive', '수신 예정'))}
+          className="text-success flex"
+        >
           <Icon icon={Check} size={14} />
         </span>
       )}
       {cell.flag && (
-        <span role="img" aria-label="Không nhận" className="text-warning flex">
+        <span
+          role="img"
+          aria-label={t(message('Không nhận', 'Will not receive', '수신 안 됨'))}
+          className="text-warning flex"
+        >
           <Icon icon={TriangleAlert} size={14} />
         </span>
       )}

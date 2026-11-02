@@ -25,7 +25,7 @@ const leadStateName = (key: string, fallback: string) => {
     assigned: ['Đã phân công', 'Assigned', '담당 배정'],
     working: ['Đang làm việc', 'In progress', '진행 중'],
     nurturing: ['Tạm gác', 'Nurturing', '육성'],
-    converted: ['Đã chuyển thành cơ hội', 'Converted', '영업 기회 전환'],
+    converted: ['Đã chuyển thành cơ hội', 'Converted', '기회 전환'],
   }
   const [vi, en, ko] = labels[key] ?? [fallback, fallback, fallback]
   return tr(vi, en, ko)
@@ -175,15 +175,15 @@ function FullestDeals() {
       title={tr(
         'Giai đoạn có nhiều cơ hội nhất',
         'Opportunity stage with the most deals',
-        '영업 기회가 가장 많은 단계',
+        '기회가 가장 많은 단계',
       )}
       tint="from-primary/20 to-primary/5 text-on-tint-primary"
-      unit={tr('cơ hội', 'opportunities', '영업 기회')}
-      whole={tr('số cơ hội đang mở', 'of open opportunities', '진행 중인 영업 기회 중')}
+      unit={tr('cơ hội', 'opportunities', '기회')}
+      whole={tr('số cơ hội đang mở', 'of open opportunities', '진행 중인 기회 중')}
       empty={tr(
         'Chưa có cơ hội đang mở.',
         'There are no open opportunities.',
-        '진행 중인 영업 기회가 없습니다.',
+        '진행 중인 기회가 없습니다.',
       )}
       top={top}
       failed={read.isError}
@@ -205,7 +205,7 @@ export function FullestTile({ className }: { className?: string }) {
         {tr(
           'Lead và cơ hội đang tập trung ở đâu',
           'Where leads and opportunities are concentrated',
-          '리드와 영업 기회가 집중된 단계',
+          '리드와 기회가 집중된 단계',
         )}
       </h3>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(240px,100%),1fr))] gap-3">

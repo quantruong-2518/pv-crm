@@ -1,3 +1,4 @@
+import { APPROVAL_STATE_LABEL, type ApprovalState } from '@pv/contracts'
 import { message, translate } from '@/app/i18n'
 import type { AreaKey, SectionId } from './sales-config-model'
 
@@ -6,7 +7,7 @@ const AREAS: Record<AreaKey, [string, string, string]> = {
   intake: ['Tiếp nhận lead', 'Lead intake', '리드 접수'],
   assign: ['Phân công', 'Assignment', '담당 배정'],
   care: ['Chăm sóc và liên hệ', 'Follow-up and contact', '후속 관리 및 접점'],
-  deal: ['Cơ hội', 'Opportunities', '영업 기회'],
+  deal: ['Cơ hội', 'Opportunities', '기회'],
   kpi: ['KPI', 'KPIs', 'KPI'],
 }
 
@@ -26,7 +27,7 @@ const SECTIONS: Record<SectionId, [string, string, string]> = {
     '구매 고객 후속 관리 주기',
   ],
   freshness: ['Hoạt động cuối', 'Last activity', '최근 활동'],
-  'care-reasons': ['Lý do dừng cơ hội', 'Opportunity stop reasons', '영업 기회 중단 사유'],
+  'care-reasons': ['Lý do dừng cơ hội', 'Opportunity stop reasons', '기회 중단 사유'],
   'quote-reasons': ['Lý do báo giá lại', 'Quote revision reasons', '견적 수정 사유'],
   products: ['Sản phẩm/dịch vụ', 'Products and services', '제품 및 서비스'],
   'contract-kinds': ['Loại hợp đồng', 'Contract types', '계약 유형'],
@@ -43,3 +44,12 @@ export const sectionCopy = (id: SectionId) => message(...SECTIONS[id])
 export const SENT = 'Đã gửi đề nghị · chờ duyệt.'
 export const sentCopy = () =>
   translate(message(SENT, 'Proposal sent · awaiting approval.', '제안 전송 완료 · 승인 대기 중'))
+
+const APPROVAL_STATE: Record<ApprovalState, [string, string]> = {
+  waiting: ['Awaiting approval', '승인 대기'],
+  approved: ['Approved', '승인됨'],
+  rejected: ['Rejected', '거절됨'],
+}
+
+export const approvalStateCopy = (state: ApprovalState) =>
+  message(APPROVAL_STATE_LABEL[state], ...APPROVAL_STATE[state])

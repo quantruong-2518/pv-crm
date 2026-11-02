@@ -1,6 +1,7 @@
 import { Badge, Button, Checkbox, DataTable, Kicker } from '@pv/ui'
 import type { Permission, RoleId } from '@pv/contracts'
-import { ROLE_LABEL } from '@/data/users'
+import { message, useI18n } from '@/app/i18n'
+import { kpiRoleText } from '@/data/kpi-i18n'
 import {
   PERMISSION_GROUPS,
   ROLE_COLUMN_LABEL,
@@ -39,13 +40,14 @@ import {
  *  screen against a route's `@Need(...)` reads the key, and one who is deciding
  *  whether marketing should have it reads the sentence. */
 export function PermissionName({ permission }: { permission: Permission }) {
+  const { t } = useI18n()
   return (
     <span className="flex min-w-0 flex-col gap-1">
       <span className="flex min-w-0 items-center gap-2">
         <span className="truncate">{PERMISSION_LABEL[permission]}</span>
         {isSelfGranting(permission) && (
-          <Badge tone="warning" className="shrink-0" title={SELF_GRANTING_WHY}>
-            {SELF_GRANTING_TAG}
+          <Badge tone="warning" className="shrink-0" title={t(SELF_GRANTING_WHY)}>
+            {t(SELF_GRANTING_TAG)}
           </Badge>
         )}
       </span>
@@ -71,18 +73,22 @@ export type MatrixProps = {
 /** Desktop · the grid. Rows are permissions grouped by resource, columns are
  *  the seven roles, cells are checkboxes. */
 export function RoleMatrix({ grants, onToggle, meRoleIds, saving = false }: MatrixProps) {
+  const { t, lang } = useI18n()
   return (
     <DataTable
       className="min-w-[1180px]"
       columns={[
-        { header: 'Quyền truy cập', width: 'minmax(260px,1.7fr)' },
+        {
+          header: t(message('Quyền truy cập', 'Access permission', '접근 권한')),
+          width: 'minmax(260px,1.7fr)',
+        },
         /* `ROLE_COLUMN_LABEL`, not `ROLE_LABEL`: a column is 104px and
            `DataTable` renders headers at the inherited 16px, so the longest
            role name wraps to three lines and shoves every row down. The full
            name still shows on the picker, where there is room for it. */
         ...ROLE_IDS.map((id) => ({
           header: meRoleIds?.includes(id)
-            ? `${ROLE_COLUMN_LABEL[id]} · bạn`
+            ? `${ROLE_COLUMN_LABEL[id]} · ${t(message('bạn', 'you', '나'))}`
             : ROLE_COLUMN_LABEL[id],
           width: 'minmax(104px,1fr)',
         })),
@@ -109,7 +115,7 @@ export function RoleMatrix({ grants, onToggle, meRoleIds, saving = false }: Matr
                    inside a `role="cell"`. So the checkbox carries both, out of
                    sight — without it the grid announces 189 unnamed boxes. */
                 label={
-                  <span className="sr-only">{`${PERMISSION_LABEL[permission]} — ${ROLE_LABEL[id]}`}</span>
+                  <span className="sr-only">{`${PERMISSION_LABEL[permission]} — ${kpiRoleText(id, lang)}`}</span>
                 }
                 disabled={saving}
                 onChange={(on) => onToggle(id, permission, on)}
@@ -146,12 +152,13 @@ export function RoleSheet({
   meRoleIds,
   saving = false,
 }: SheetProps) {
+  const { t, lang } = useI18n()
   const row = grants[roleId]
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3">
-        <Kicker>Chọn vai trò</Kicker>
+        <Kicker>{t(message('Chọn vai trò', 'Choose a role', '역할 선택'))}</Kicker>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {ROLE_IDS.map((id) => (
             <Button
@@ -164,7 +171,9 @@ export function RoleSheet({
               onClick={() => onPick(id)}
             >
               <span className="min-w-0 truncate">
-                {meRoleIds?.includes(id) ? `${ROLE_LABEL[id]} · bạn` : ROLE_LABEL[id]}
+                {meRoleIds?.includes(id)
+                  ? `${kpiRoleText(id, lang)} · ${t(message('bạn', 'you', '나'))}`
+                  : kpiRoleText(id, lang)}
               </span>
               {/* Plain text in the button's own foreground, NOT a warning
                   pill. The selected button is solid `--primary`, and amber on
@@ -174,7 +183,9 @@ export function RoleSheet({
                   variants, and the header still carries the full list in
                   warning tone. */}
               {dirty.includes(id) && (
-                <span className="shrink-0 text-[11px] font-medium opacity-90">chưa lưu</span>
+                <span className="shrink-0 text-[11px] font-medium opacity-90">
+                  {t(message('chưa lưu', 'unsaved', '저장 안 됨'))}
+                </span>
               )}
             </Button>
           ))}
@@ -196,8 +207,8 @@ export function RoleSheet({
               hint={<span className="font-mono">{permission}</span>}
               trailing={
                 isSelfGranting(permission) ? (
-                  <Badge tone="warning" title={SELF_GRANTING_WHY}>
-                    {SELF_GRANTING_TAG}
+                  <Badge tone="warning" title={t(SELF_GRANTING_WHY)}>
+                    {t(SELF_GRANTING_TAG)}
                   </Badge>
                 ) : undefined
               }

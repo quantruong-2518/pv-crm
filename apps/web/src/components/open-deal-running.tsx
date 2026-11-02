@@ -32,7 +32,7 @@ export function RunningDealsBlock({
           message(
             'Lead này có cơ hội đang chạy',
             'This lead has open opportunities',
-            '이 리드에 진행 중인 영업 기회가 있습니다',
+            '이 리드에 진행 중인 기회가 있습니다',
           ),
         )}
       </span>
@@ -63,7 +63,7 @@ export function RunningDealsBlock({
           message(
             'Đây là nhu cầu khác, vẫn mở cơ hội mới',
             'This is a different need; create another opportunity',
-            '다른 요구 사항입니다. 새 영업 기회를 만듭니다',
+            '다른 요구 사항입니다. 새 기회를 만듭니다',
           ),
         )}
       />

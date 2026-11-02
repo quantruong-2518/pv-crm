@@ -20,6 +20,7 @@ import {
 } from '@pv/contracts'
 import { api, isApiError, userMessage, type ApiError } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { message, translate } from '@/app/i18n'
 import { cacheTier } from '@/app/query-client'
 import { contractKindsQuery } from '@/data/quotations-write'
 
@@ -97,7 +98,7 @@ export function stopReasonLabel(
   key: string | undefined,
 ): string | undefined {
   if (key === undefined) return undefined
-  if (key === LEAD_STOP_REASON_OTHER) return 'Khác'
+  if (key === LEAD_STOP_REASON_OTHER) return translate(message('Khác', 'Other', '기타'))
   return (rows ?? []).find((r) => r.id === key)?.name ?? key
 }
 
@@ -168,7 +169,8 @@ export function useCareReasons(stage: StageKey | null) {
 export function useCareReasonLabel(reasonKey: string | undefined) {
   const { data } = useQuery(salesCatalogQuery)
   if (reasonKey === undefined) return undefined
-  if (reasonKey === OPPORTUNITY_STOP_REASON_OTHER) return 'Khác'
+  if (reasonKey === OPPORTUNITY_STOP_REASON_OTHER)
+    return translate(message('Khác', 'Other', '기타'))
   return (data?.LOSS_REASON ?? []).find((r) => r.id === reasonKey)?.name ?? reasonKey
 }
 
@@ -354,7 +356,15 @@ export function useProposeConfigEdits() {
         } catch (error) {
           out.push({
             what: edit.what,
-            failure: isApiError(error) ? userMessage(error) : 'Không gửi được đề nghị này.',
+            failure: isApiError(error)
+              ? userMessage(error)
+              : translate(
+                  message(
+                    'Không gửi được đề nghị này.',
+                    'This proposal could not be sent.',
+                    '이 제안을 보내지 못했습니다.',
+                  ),
+                ),
           })
         }
       }

@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Link, type LinkProps } from 'react-router-dom'
 import { Avatar, Chip, cn, initialsOf } from '@pv/ui'
+import { message, useI18n } from '@/app/i18n'
 import { CARD_LINK } from './book-cards'
 
 /** The one anatomy every card book shares, so five books read the same way:
@@ -163,23 +164,24 @@ export function CardNote({ children }: { children?: string }) {
 /** Who holds the record. */
 export function CardPerson({
   name,
-  label = 'Phụ trách',
-  empty = 'Chưa có người phụ trách',
+  label,
+  empty,
 }: {
   name?: string
   label?: string
   empty?: string
 }) {
+  const { t } = useI18n()
   return (
     <span className="text-muted-foreground flex min-w-0 items-center gap-2 text-[12px]">
       {name ? (
         <>
-          {label}
+          {label ?? t(message('Phụ trách', 'Owner', '담당'))}
           <Avatar name={name} card={false} size="sm" />
           <span className="text-foreground truncate">{name}</span>
         </>
       ) : (
-        empty
+        (empty ?? t(message('Chưa có người phụ trách', 'No owner yet', '담당자 없음')))
       )}
     </span>
   )

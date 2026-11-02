@@ -198,20 +198,33 @@ export function CommFillWorkspace({ record }: { record: DebriefView }) {
 
 /** Kind and direction, time then date, and what is left of the confirm window. */
 function FillMeta({ record }: { record: DebriefView }) {
+  const { t, lang } = useI18n()
   const anchor = useAnchorTurn(record)
   const hours = confirmHoursLeft(record.createdAt, useMinuteClock())
+  const kind = commKindLine(record.channel, anchor?.direction ?? null, lang)
   return (
     <>
       <span className="tnum">
-        {commKindLine(record.channel, anchor?.direction ?? null)} lúc {hm(record.createdAt)},{' '}
-        {dmy(record.createdAt)}
+        {t(
+          message(
+            `${kind} lúc ${hm(record.createdAt)}, ${dmy(record.createdAt)}`,
+            `${kind} at ${hm(record.createdAt)}, ${dmy(record.createdAt)}`,
+            `${kind} · ${dmy(record.createdAt)} ${hm(record.createdAt)}`,
+          ),
+        )}
       </span>
       {record.late || hours === null ? (
         <CommLateMark late />
       ) : (
         <span className="text-warning tnum inline-flex items-center gap-2 font-medium">
           <Icon icon={Timer} size={16} />
-          Còn {hours} giờ để xác nhận
+          {t(
+            message(
+              `Còn ${hours} giờ để xác nhận`,
+              `${hours} hr left to confirm`,
+              `확인까지 ${hours}시간 남음`,
+            ),
+          )}
         </span>
       )}
     </>

@@ -13,6 +13,7 @@ import {
   type OpportunityProfileResponse,
 } from '@pv/contracts'
 import { api, userMessage, type ApiError, type ApiNeed } from '@/app/api'
+import { message, translate } from '@/app/i18n'
 import { toastDone, toastFail } from '@/app/toast'
 import { bookQueryParams, keepPageUnderSameFilters } from '@/app/book-query'
 
@@ -163,7 +164,16 @@ function restoreLeadList(client: Client, snap: Snapshot | undefined, error: ApiE
   if (snap?.leadCode !== undefined) {
     client.setQueryData(leadContactsQuery(snap.leadCode).queryKey, snap.before)
   }
-  toastFail('Chưa lưu được, đã trả lại như cũ', userMessage(error))
+  toastFail(
+    translate(
+      message(
+        'Chưa lưu được, đã trả lại như cũ',
+        'Could not save; restored as before',
+        '저장하지 못해 이전 상태로 되돌렸습니다',
+      ),
+    ),
+    userMessage(error),
+  )
 }
 
 /** The same person printed from other reads — their own profile and every deal
@@ -192,7 +202,9 @@ export function useEditContact(code: ObjectCode, leadCode?: string) {
         rows.map((r) => (r.code === code ? { ...r, ...body } : r)),
       )
       rewriteElsewhere(client, code, body)
-      toastDone('Đã cập nhật người liên hệ')
+      toastDone(
+        translate(message('Đã cập nhật người liên hệ', 'Contact updated', '연락처를 수정했습니다')),
+      )
       return snap
     },
     onError: (error, _body, snap) => restoreLeadList(client, snap, error),
@@ -214,7 +226,9 @@ export function useDropContact(code: ObjectCode, leadCode?: string) {
       const snap = await rewriteLeadList(client, leadCode, (rows) =>
         rows.filter((r) => r.code !== code),
       )
-      toastDone('Đã xoá người liên hệ')
+      toastDone(
+        translate(message('Đã xoá người liên hệ', 'Contact deleted', '연락처를 삭제했습니다')),
+      )
       return snap
     },
     onError: (error, _input, snap) => restoreLeadList(client, snap, error),
@@ -239,7 +253,15 @@ export function useSetPrimaryContact(code: ObjectCode, leadCode?: string) {
       const snap = await rewriteLeadList(client, leadCode, (rows) =>
         rows.map((r) => ({ ...r, isPrimary: r.code === code })),
       )
-      toastDone('Đã đổi người liên hệ chính')
+      toastDone(
+        translate(
+          message(
+            'Đã đổi người liên hệ chính',
+            'Primary contact changed',
+            '주요 연락처를 변경했습니다',
+          ),
+        ),
+      )
       return snap
     },
     onError: (error, _input, snap) => restoreLeadList(client, snap, error),

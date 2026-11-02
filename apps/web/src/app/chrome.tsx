@@ -121,9 +121,9 @@ type NavEntry = {
  *  `/notifications`; a press opens the dropdown (`header.notificationsMenu`),
  *  whose "Xem tất cả" is what goes to that page. */
 const ONE_CORE: NavEntry[] = [
-  { icon: House, label: 'Trang chủ', path: '/', slot: 'home' },
-  { icon: SquareCheckBig, label: 'Phê duyệt', path: '/approvals', slot: 'approvals' },
-  { icon: Bell, label: 'Thông báo', path: NOTIFICATIONS_PATH, slot: 'notifications' },
+  { icon: House, label: 'Trang chủ', path: '/', slot: 'home' }, // i18n-ignore
+  { icon: SquareCheckBig, label: 'Phê duyệt', path: '/approvals', slot: 'approvals' }, // i18n-ignore
+  { icon: Bell, label: 'Thông báo', path: NOTIFICATIONS_PATH, slot: 'notifications' }, // i18n-ignore
 ]
 
 export const SETTINGS_PATH = '/settings'
@@ -136,9 +136,9 @@ export type SettingsGroup = 'mine' | 'admin' | 'sales'
 
 /** The settings nav's groups; key order is the order they are drawn in. */
 export const SETTINGS_GROUP_LABEL: Record<SettingsGroup, string> = {
-  mine: 'Của tôi',
-  admin: 'Quản trị',
-  sales: 'Bán hàng',
+  mine: 'Của tôi', // i18n-ignore
+  admin: 'Quản trị', // i18n-ignore
+  sales: 'Bán hàng', // i18n-ignore
 }
 
 const SETTINGS_GROUP_COPY: Record<SettingsGroup, Message> = {
@@ -165,8 +165,8 @@ export type SettingsEntry = {
 /** Every role has this one, so the settings nav is never empty. */
 const ACCOUNT_ENTRY: SettingsEntry = {
   icon: Contact,
-  label: 'Tài khoản của tôi',
-  description: 'Thông tin cá nhân, mật khẩu, Google và yêu cầu đã gửi',
+  label: 'Tài khoản của tôi', // i18n-ignore
+  description: 'Thông tin cá nhân, mật khẩu, Google và yêu cầu đã gửi', // i18n-ignore
   path: ACCOUNT_PATH,
   group: 'mine',
 }
@@ -175,32 +175,32 @@ const ACCOUNT_ENTRY: SettingsEntry = {
 const ADMIN_ENTRIES: SettingsEntry[] = [
   {
     icon: ShieldCheck,
-    label: 'Người dùng',
-    description: 'Mở tài khoản và gán vai trò cho từng người',
+    label: 'Người dùng', // i18n-ignore
+    description: 'Mở tài khoản và gán vai trò cho từng người', // i18n-ignore
     path: '/admin/users',
     permission: 'user.manage',
     group: 'admin',
   },
   {
     icon: ListChecks,
-    label: 'Vai trò',
-    description: 'Mỗi vai trò được làm những việc gì',
+    label: 'Vai trò', // i18n-ignore
+    description: 'Mỗi vai trò được làm những việc gì', // i18n-ignore
     path: '/admin/roles',
     permission: 'role.manage',
     group: 'admin',
   },
   {
     icon: Bell,
-    label: 'Thông báo theo vai trò',
-    description: 'Vai trò nào nhận loại thông báo nào, loại nào hiện lên ngay',
+    label: 'Thông báo theo vai trò', // i18n-ignore
+    description: 'Vai trò nào nhận loại thông báo nào, loại nào hiện lên ngay', // i18n-ignore
     path: '/admin/notifications',
     permission: 'setting.manage',
     group: 'admin',
   },
   {
     icon: Coins,
-    label: 'Chi phí',
-    description: 'Chi phí dùng AI theo tháng và bảng giá',
+    label: 'Chi phí', // i18n-ignore
+    description: 'Chi phí dùng AI theo tháng và bảng giá', // i18n-ignore
     path: '/admin/costs',
     permission: 'cost.view',
     group: 'admin',
@@ -211,8 +211,8 @@ const ADMIN_ENTRIES: SettingsEntry[] = [
 const SALES_SETUP_ENTRIES: SettingsEntry[] = [
   {
     icon: Route,
-    label: 'Nguồn lead',
-    description: 'Danh mục nguồn lead và chính sách theo hình thức bán',
+    label: 'Nguồn lead', // i18n-ignore
+    description: 'Danh mục nguồn lead và chính sách theo hình thức bán', // i18n-ignore
     path: '/admin/lead-origins',
     permission: 'lead-origin.manage',
     branch: 'Sales',
@@ -220,7 +220,7 @@ const SALES_SETUP_ENTRIES: SettingsEntry[] = [
   },
   {
     icon: Mail,
-    label: 'Mẫu thư',
+    label: 'Mẫu thư', // i18n-ignore
     path: '/sales/config/mail-templates',
     permission: 'campaign.view',
     branch: 'Sales',
@@ -299,7 +299,7 @@ export const SALES_MODULES: SalesModule[] = [
     label: 'Lead',
     path: '/sales/leads',
     permission: 'lead.view',
-    question: 'Thu nhận, phân loại và phân công khách tiềm năng',
+    question: 'Thu nhận, phân loại và phân công khách tiềm năng', // i18n-ignore
     group: 'primary',
   },
   {
@@ -317,10 +317,10 @@ export const SALES_MODULES: SalesModule[] = [
      *  customer dropdown, and a child named like its parent reads as a mistake. */
     no: 0,
     icon: Building,
-    label: 'Công ty',
+    label: 'Công ty', // i18n-ignore
     path: '/sales/accounts',
     permission: 'account.view',
-    question: 'Mỗi công ty một dòng: đã hỏi và mua mấy lần',
+    question: 'Mỗi công ty một dòng: đã hỏi và mua mấy lần', // i18n-ignore
     group: 'customer',
   },
   {
@@ -337,40 +337,40 @@ export const SALES_MODULES: SalesModule[] = [
      *  what should happen. */
     no: 0,
     icon: Contact,
-    label: 'Người liên hệ',
+    label: 'Người liên hệ', // i18n-ignore
     path: '/sales/contacts',
     permission: 'lead.view',
-    question: 'Đã gặp người này bao giờ chưa, và gọi họ thế nào',
+    question: 'Đã gặp người này bao giờ chưa, và gọi họ thế nào', // i18n-ignore
     group: 'customer',
   },
   {
     /* Partners are people we know: beside contacts in the customer menu. */
     no: 0,
     icon: Handshake,
-    label: 'Đối tác',
+    label: 'Đối tác', // i18n-ignore
     path: '/admin/partners',
     permission: 'lead-origin.manage',
-    question: 'Ai giới thiệu lead cho công ty, và được bao nhiêu',
+    question: 'Ai giới thiệu lead cho công ty, và được bao nhiêu', // i18n-ignore
     group: 'customer',
   },
   {
     /* Bought customers are customers: beside companies and contacts (ADR 0121). */
     no: 0,
     icon: CircleCheckBig,
-    label: 'Khách đã mua',
+    label: 'Khách đã mua', // i18n-ignore
     path: '/sales/after-sale',
     permission: 'contract.view',
-    question: 'Khách đã trả đủ tiền hợp đồng, hẹn ngày chăm sóc lại',
+    question: 'Khách đã trả đủ tiền hợp đồng, hẹn ngày chăm sóc lại', // i18n-ignore
     group: 'customer',
   },
   {
     /* Its pair: stopped leads waiting to be contacted again, plus the stop log (ADR 0125). */
     no: 0,
     icon: Timer,
-    label: 'Khách đã dừng',
+    label: 'Khách đã dừng', // i18n-ignore
     path: '/sales/nurturing',
     permission: 'lead.view',
-    question: 'Lead chờ liên hệ lại và nhật ký từng lần dừng',
+    question: 'Lead chờ liên hệ lại và nhật ký từng lần dừng', // i18n-ignore
     group: 'customer',
   },
   {
@@ -379,10 +379,10 @@ export const SALES_MODULES: SalesModule[] = [
      *  mảnh bảng (`components/table-bits.tsx`). */
     no: 3,
     icon: BriefcaseDollar,
-    label: 'Cơ hội',
+    label: 'Cơ hội', // i18n-ignore
     path: '/sales/opportunities',
     permission: 'opportunity.view',
-    question: 'Theo dõi cơ hội từ tiếp cận đến ký kết',
+    question: 'Theo dõi cơ hội từ tiếp cận đến ký kết', // i18n-ignore
     group: 'primary',
   },
   {
@@ -390,10 +390,10 @@ export const SALES_MODULES: SalesModule[] = [
      the Lead entry: a waiting list, not daily work (ADR 0125). */
     no: 0,
     icon: CalendarClock,
-    label: 'Tạm hoãn',
+    label: 'Tạm hoãn', // i18n-ignore
     path: '/sales/holds',
     permission: 'lead.view',
-    question: 'Lead và cơ hội đang tạm hoãn, hẹn ngày gặp lại',
+    question: 'Lead và cơ hội đang tạm hoãn, hẹn ngày gặp lại', // i18n-ignore
     group: 'lead',
   },
   {
@@ -403,10 +403,10 @@ export const SALES_MODULES: SalesModule[] = [
        numbers. */
     no: 4,
     icon: FileCheck,
-    label: 'Hợp đồng',
+    label: 'Hợp đồng', // i18n-ignore
     path: '/sales/contracts',
     permission: 'contract.view',
-    question: 'Theo dõi tiền về và nghĩa vụ hai bên sau khi ký',
+    question: 'Theo dõi tiền về và nghĩa vụ hai bên sau khi ký', // i18n-ignore
     group: 'primary',
   },
   {
@@ -414,64 +414,64 @@ export const SALES_MODULES: SalesModule[] = [
        seller lives in all day, so it closes the direct-work sequence. */
     no: 1,
     icon: Megaphone,
-    label: 'Chiến dịch',
+    label: 'Chiến dịch', // i18n-ignore
     path: '/sales/campaigns',
     permission: 'campaign.view',
-    question: 'Tạo và đo lường các chiến dịch thu hút khách hàng',
+    question: 'Tạo và đo lường các chiến dịch thu hút khách hàng', // i18n-ignore
     group: 'primary',
   },
   {
     no: 0,
     icon: CircleCheck,
-    label: 'KPI của tôi',
+    label: 'KPI của tôi', // i18n-ignore
     path: '/sales/kpi/me',
     permission: 'kpi.view',
-    question: 'Tôi đang thiếu gì so với chỉ tiêu tháng này',
+    question: 'Tôi đang thiếu gì so với chỉ tiêu tháng này', // i18n-ignore
     group: 'manage',
   },
   {
     no: 0,
     icon: ChartColumn,
-    label: 'KPI công ty',
+    label: 'KPI công ty', // i18n-ignore
     path: '/sales/kpi/company',
     permission: 'performance.view',
-    question: 'Phòng đang đạt bao nhiêu, ai đang chậm',
+    question: 'Phòng đang đạt bao nhiêu, ai đang chậm', // i18n-ignore
     group: 'manage',
   },
   {
     no: 0,
     icon: ClipboardList,
-    label: 'Chỉ tiêu tháng',
+    label: 'Chỉ tiêu tháng', // i18n-ignore
     path: '/sales/kpi/targets',
     permission: 'kpi.view-all',
-    question: 'Việc nào về chỉ tiêu đang chờ tôi',
+    question: 'Việc nào về chỉ tiêu đang chờ tôi', // i18n-ignore
     group: 'manage',
   },
   {
     no: 0,
     icon: ListChecks,
-    label: 'Tình trạng giao',
+    label: 'Tình trạng giao', // i18n-ignore
     path: '/sales/kpi/assign/status',
     permission: 'kpi.view-all',
-    question: 'Cấp nào đã giao chỉ tiêu, ai chưa xác nhận',
+    question: 'Cấp nào đã giao chỉ tiêu, ai chưa xác nhận', // i18n-ignore
     group: 'manage',
   },
   {
     no: 0,
     icon: Factory,
-    label: 'Báo cáo theo ngành',
+    label: 'Báo cáo theo ngành', // i18n-ignore
     path: '/sales/reports/industries',
     permission: 'campaign.view',
-    question: 'Lead, cơ hội và hợp đồng của từng ngành',
+    question: 'Lead, cơ hội và hợp đồng của từng ngành', // i18n-ignore
     group: 'manage',
   },
   {
     no: 6,
     icon: Target,
-    label: 'Kế hoạch',
+    label: 'Kế hoạch', // i18n-ignore
     path: '/sales/plan',
     permission: 'plan.view',
-    question: 'Lập mục tiêu và kế hoạch cho kỳ tiếp theo',
+    question: 'Lập mục tiêu và kế hoạch cho kỳ tiếp theo', // i18n-ignore
     group: 'manage',
   },
   {
@@ -479,10 +479,10 @@ export const SALES_MODULES: SalesModule[] = [
      *  định hình cái vòng. Vì thế nó đứng cuối nav dù được dựng sớm. */
     no: 7,
     icon: SlidersHorizontal,
-    label: 'Thiết lập bán hàng',
+    label: 'Thiết lập bán hàng', // i18n-ignore
     path: '/sales/config',
     permission: 'config.view',
-    question: 'Quản lý danh mục và quy tắc bán hàng',
+    question: 'Quản lý danh mục và quy tắc bán hàng', // i18n-ignore
     group: 'setup',
   },
 ]
@@ -528,10 +528,31 @@ function shellCopyOf(lang: Lang): NonNullable<AppShellProps['copy']> {
   }
 }
 
+/** Entries `chrome-i18n.ts` has no row for, so they still follow the language. */
+const EXTRA_ENTRY_COPY: Record<string, { label: Message; description?: Message }> = {
+  '/sales/kpi/assign/status': {
+    label: message('Tình trạng giao', 'Assignment status', '배정 현황'),
+    description: message(
+      'Cấp nào đã giao chỉ tiêu, ai chưa xác nhận',
+      'Which level has assigned targets and who has not confirmed',
+      '목표를 배정한 단위와 아직 확인하지 않은 사람',
+    ),
+  },
+  '/sales/reports/industries': {
+    label: message('Báo cáo theo ngành', 'Industry report', '업종별 보고서'),
+    description: message(
+      'Lead, cơ hội và hợp đồng của từng ngành',
+      'Leads, opportunities and contracts by industry',
+      '업종별 리드, 기회, 계약',
+    ),
+  },
+}
+
 /** Label and description lookups for one language, kept out of the hook body. */
 function entryTextsOf(lang: Lang) {
   const said = (copy: Message) => translate(copy, lang)
-  const entryCopy = (path?: string) => (path ? CHROME_ENTRY_COPY[path] : undefined)
+  const entryCopy = (path?: string) =>
+    path ? (CHROME_ENTRY_COPY[path] ?? EXTRA_ENTRY_COPY[path]) : undefined
   const entryLabel = (entry: { path?: string; label: string }) => {
     const copy = entryCopy(entry.path)
     return copy ? said(copy.label) : entry.label
@@ -704,7 +725,7 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
       ...(settings.length > 1
         ? [
             {
-              ...plain({ icon: SlidersHorizontal, label: 'Cài đặt', path: SETTINGS_PATH }),
+              ...plain({ icon: SlidersHorizontal, label: 'Cài đặt', path: SETTINGS_PATH }), // i18n-ignore
               active: inSettings && pathname !== ACCOUNT_PATH,
             },
           ]

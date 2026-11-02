@@ -124,7 +124,7 @@ export function NotificationToolbar({
             message(
               'Tìm công ty, cơ hội hoặc lô gửi…',
               'Search companies, opportunities or mail runs…',
-              '회사, 영업 기회 또는 발송 목록 검색…',
+              '회사, 기회 또는 발송 건 검색…',
             ),
           )}
           value={book.text}

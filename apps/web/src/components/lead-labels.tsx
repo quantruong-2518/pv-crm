@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Button, Checkbox, Icon, MetaPill, PenLine, cn } from '@pv/ui'
 import type { LeadLabel, LeadProfile } from '@pv/contracts'
 import { userMessage } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 import { toastDone, toastFail } from '@/app/toast'
 import { leadLabelOptionsQuery, sameLabels, useSetLeadLabels } from '@/data/lead-labels'
 import { RecordCard } from '@/components/record/record-card'
@@ -54,15 +55,30 @@ export function LabelPicker({
   onChange: (next: string[]) => void
   disabled?: boolean
 }) {
+  const { t } = useI18n()
   const { data, isPending } = useQuery(leadLabelOptionsQuery)
   const rows = (data?.rows ?? []).filter((r) => r.active || value.includes(r.id))
 
-  if (isPending) return <span className="text-muted-foreground text-[12px]">Đang tải nhãn…</span>
+  if (isPending) {
+    return (
+      <span className="text-muted-foreground text-[12px]">
+        {t(message('Đang tải nhãn…', 'Loading labels…', '라벨 불러오는 중…'))}
+      </span>
+    )
+  }
   if (rows.length === 0) {
-    return <span className="text-muted-foreground text-[12px]">Chưa có nhãn nào.</span>
+    return (
+      <span className="text-muted-foreground text-[12px]">
+        {t(message('Chưa có nhãn nào.', 'No labels yet.', '라벨이 없습니다.'))}
+      </span>
+    )
   }
   return (
-    <div role="group" aria-label="Nhãn nhóm chờ" className="flex flex-col gap-1">
+    <div
+      role="group"
+      aria-label={t(message('Nhãn nhóm chờ', 'Waiting-group labels', '대기 그룹 라벨'))}
+      className="flex flex-col gap-1"
+    >
       {rows.map((r) => (
         <Checkbox
           key={r.id}
@@ -82,6 +98,7 @@ export function LabelPicker({
  *  Labels sort the waiting group, so an unlabelled lead outside it gets no
  *  card; one that still carries labels keeps it, to take them off. */
 export function LeadLabelsCard({ lead, canEdit }: { lead: LeadProfile; canEdit: boolean }) {
+  const { t } = useI18n()
   const [draft, setDraft] = useState<string[] | null>(null)
   const save = useSetLeadLabels(lead.code)
   const current = lead.labels.map((l) => l.id)
@@ -96,17 +113,22 @@ export function LeadLabelsCard({ lead, canEdit }: { lead: LeadProfile; canEdit: 
       onClick={() => setDraft(current)}
     >
       <Icon icon={PenLine} size={16} />
-      Sửa nhãn
+      {t(message('Sửa nhãn', 'Edit labels', '라벨 수정'))}
     </Button>
   )
 
   return (
-    <RecordCard title="Nhãn nhóm chờ" actions={edit}>
+    <RecordCard
+      title={t(message('Nhãn nhóm chờ', 'Waiting-group labels', '대기 그룹 라벨'))}
+      actions={edit}
+    >
       {draft === null ? (
         lead.labels.length > 0 ? (
           <LabelChips labels={lead.labels} />
         ) : (
-          <span className="text-muted-foreground text-[12px]">Chưa gắn nhãn nào.</span>
+          <span className="text-muted-foreground text-[12px]">
+            {t(message('Chưa gắn nhãn nào.', 'No labels attached.', '연결된 라벨이 없습니다.'))}
+          </span>
         )
       ) : (
         <div className="flex flex-col gap-4">
@@ -118,7 +140,7 @@ export function LeadLabelsCard({ lead, canEdit }: { lead: LeadProfile; canEdit: 
               className="pointer-coarse:h-12"
               onClick={() => setDraft(null)}
             >
-              Huỷ
+              {t(message('Huỷ', 'Cancel', '취소'))}
             </Button>
             <Button
               size="md"
@@ -129,15 +151,33 @@ export function LeadLabelsCard({ lead, canEdit }: { lead: LeadProfile; canEdit: 
                   { labelIds: draft },
                   {
                     onSuccess: () => {
-                      toastDone(`Đã lưu nhãn của ${lead.code}.`)
+                      toastDone(
+                        t(
+                          message(
+                            `Đã lưu nhãn của ${lead.code}.`,
+                            `Saved labels for ${lead.code}.`,
+                            `${lead.code}의 라벨을 저장했습니다.`,
+                          ),
+                        ),
+                      )
                       setDraft(null)
                     },
-                    onError: (e) => toastFail('Không lưu được nhãn.', userMessage(e)),
+                    onError: (e) =>
+                      toastFail(
+                        t(
+                          message(
+                            'Không lưu được nhãn.',
+                            'Could not save labels.',
+                            '라벨을 저장하지 못했습니다.',
+                          ),
+                        ),
+                        userMessage(e),
+                      ),
                   },
                 )
               }
             >
-              Lưu nhãn
+              {t(message('Lưu nhãn', 'Save labels', '라벨 저장'))}
             </Button>
           </div>
         </div>

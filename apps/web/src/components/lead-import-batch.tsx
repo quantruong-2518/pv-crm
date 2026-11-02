@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { MOTION_ASKS_MISSING } from '@pv/contracts'
 import type { LeadMotion } from '@pv/engines'
+import { message, useI18n } from '@/app/i18n'
+import { leadAsksMissing } from '@/data/lead-copy'
 import type { LeadImportInput } from '@/data/lead-import'
 import { wireMotionOf } from '@/data/lead-import'
 import { useMotionAsks } from '@/data/sales-motions'
@@ -27,6 +28,7 @@ const PICKED_NOT_FILED = ['origin', 'source']
 const CAMPAIGN_ONLY = ['source']
 
 export function useLeadImportBatch() {
+  const { t } = useI18n()
   const asksOf = useMotionAsks()
   const [campaign, setCampaign] = useState<CampaignChoice | null>(null)
   const [partner, setPartner] = useState<PartnerChoice | null>(null)
@@ -42,7 +44,13 @@ export function useLeadImportBatch() {
     if (asked === undefined) {
       return {
         node: null,
-        missing: 'Phương án tiếp cận đang tải hoặc đã tắt.',
+        missing: t(
+          message(
+            'Phương án tiếp cận đang tải hoặc đã tắt.',
+            'The approach is still loading or turned off.',
+            '접근 방식을 불러오는 중이거나 꺼져 있습니다.',
+          ),
+        ),
         hideFields: PICKED_NOT_FILED,
       }
     }
@@ -50,13 +58,15 @@ export function useLeadImportBatch() {
       return {
         node: (
           <CampaignPicker
-            label="Chiến dịch cho cả lô"
+            label={t(
+              message('Chiến dịch cho cả lô', 'Campaign for the whole batch', '전체 묶음의 캠페인'),
+            )}
             required
             value={campaign}
             onChange={setCampaign}
           />
         ),
-        missing: campaign ? undefined : MOTION_ASKS_MISSING.CAMPAIGN,
+        missing: campaign ? undefined : leadAsksMissing('CAMPAIGN'),
         hideFields: PICKED_NOT_FILED,
       }
     }
@@ -65,7 +75,13 @@ export function useLeadImportBatch() {
         node: (
           <div className="flex flex-col gap-2">
             <PartnerPicker
-              label="Mã giới thiệu cho cả lô"
+              label={t(
+                message(
+                  'Mã giới thiệu cho cả lô',
+                  'Referral code for the whole batch',
+                  '전체 묶음의 소개 코드',
+                ),
+              )}
               required
               value={partner}
               onChange={setPartner}
@@ -73,12 +89,18 @@ export function useLeadImportBatch() {
             />
             {partner?.originName && (
               <p className="text-glass-foreground text-[11.5px] leading-[1.7]">
-                Nguồn lấy theo mã giới thiệu: {partner.originName}.
+                {t(
+                  message(
+                    `Nguồn lấy theo mã giới thiệu: ${partner.originName}.`,
+                    `Source taken from the referral code: ${partner.originName}.`,
+                    `소개 코드 기준 유입 경로: ${partner.originName}.`,
+                  ),
+                )}
               </p>
             )}
           </div>
         ),
-        missing: partner ? undefined : MOTION_ASKS_MISSING.REFERRER,
+        missing: partner ? undefined : leadAsksMissing('REFERRER'),
         hideFields: PICKED_NOT_FILED,
       }
     }
@@ -86,7 +108,13 @@ export function useLeadImportBatch() {
     return {
       node: (
         <p className="text-glass-foreground text-[11.5px] leading-[1.7]">
-          Nguồn chi tiết lấy từ cột Nguồn trong tệp.
+          {t(
+            message(
+              'Nguồn chi tiết lấy từ cột Nguồn trong tệp.',
+              'The source detail comes from the Source column in the file.',
+              '세부 유입 경로는 파일의 유입 경로 열에서 가져옵니다.',
+            ),
+          )}
         </p>
       ),
       hideFields: CAMPAIGN_ONLY,

@@ -8,6 +8,7 @@ import {
   type CurrencyCode,
   type OpportunityDraft,
 } from '@pv/engines/fixtures/das-vina'
+import { message, useI18n } from '@/app/i18n'
 import type { SetDraft } from '@/data/deal-draft'
 import { useSalesPeople } from '@/data/directory'
 import { useProductCatalog } from '@/data/sales-config'
@@ -56,6 +57,7 @@ export function AmountField({
    *  a dead end — money moves the contract once a deal is signed. */
   lockNote?: string | null
 }) {
+  const { t, number } = useI18n()
   const amount = draft.amount
   const currency = draft.currency
   const symbol = CURRENCIES.find((c) => c.code === currency)?.symbol ?? ''
@@ -64,7 +66,7 @@ export function AmountField({
     <Field
       label={
         <>
-          Giá trị đơn
+          {t(message('Giá trị đơn', 'Deal value', '딜 금액'))}
           {tag}
         </>
       }
@@ -77,7 +79,7 @@ export function AmountField({
           ? undefined
           : currency === 'VND'
             ? billions(amount)
-            : `${billions(toMoneyVnd(amount, currency))} quy ra đồng`)
+            : `${billions(toMoneyVnd(amount, currency))} ${t(message('quy ra đồng', 'converted to VND', 'VND 환산'))}`)
       }
     >
       {/* `suffix` of `Input` (A-04) rather than a shell built here: the focus
@@ -86,7 +88,7 @@ export function AmountField({
       <div className="flex min-w-0 items-stretch">
         <Input
           inputMode="numeric"
-          aria-label="Giá trị đơn"
+          aria-label={t(message('Giá trị đơn', 'Deal value', '딜 금액'))}
           aria-required
           disabled={Boolean(lockNote)}
           invalid={Boolean(errors?.length)}
@@ -95,7 +97,7 @@ export function AmountField({
             'tnum text-right font-mono',
             onCurrency && 'pointer-coarse:h-12 rounded-r-none',
           )}
-          value={amount === null ? '' : amount.toLocaleString('vi-VN')}
+          value={amount === null ? '' : number(amount)}
           onChange={(e) => {
             const digits = e.target.value.replace(/\D/g, '')
             if (digits === '') {
@@ -112,7 +114,7 @@ export function AmountField({
         />
         {onCurrency && (
           <Select
-            label="Đồng tiền"
+            label={t(message('Đồng tiền', 'Currency', '통화'))}
             hideLabel
             value={currency}
             neutralValue={currency}
@@ -153,6 +155,7 @@ export function PersonPickField({
   errors?: string[]
   onToggle: (id: string) => void
 }) {
+  const { t } = useI18n()
   const people = useSalesPeople()
 
   return (
@@ -160,7 +163,7 @@ export function PersonPickField({
       <PersonTokenField
         variant="inline"
         label={label}
-        placeholder="Gõ tên để tìm…"
+        placeholder={t(message('Gõ tên để tìm…', 'Type a name to search…', '이름을 입력해 검색…'))}
         tokens={picked.map((id) => {
           const person = people.find((a) => a.id === id)
           /* An id with nobody behind it prints as itself: the person may have
@@ -173,7 +176,21 @@ export function PersonPickField({
         onPick={onToggle}
         onRemove={onToggle}
         emptyNote={
-          sellersOnly ? 'Không còn Sale nào để thêm.' : 'Cả phòng đã có trong danh sách này.'
+          sellersOnly
+            ? t(
+                message(
+                  'Không còn Sale nào để thêm.',
+                  'No more salespeople to add.',
+                  '추가할 영업 담당자가 없습니다.',
+                ),
+              )
+            : t(
+                message(
+                  'Cả phòng đã có trong danh sách này.',
+                  'The whole team is already on this list.',
+                  '팀 전체가 이 목록에 있습니다.',
+                ),
+              )
         }
       />
     </Field>
@@ -196,6 +213,7 @@ export function ProductTagsField({
   errors?: string[]
   onToggle: (id: string) => void
 }) {
+  const { t } = useI18n()
   const products = useProductCatalog()
   const shown = products.filter((p) => p.active || picked.includes(p.id))
   const free = shown.filter((p) => !picked.includes(p.id))
@@ -206,11 +224,34 @@ export function ProductTagsField({
      pointed below itself, where only the button stood. */
   const hint =
     shown.length === 0
-      ? 'Danh mục Sản phẩm/dịch vụ chưa có mục nào. Nhập ở Thiết lập.'
-      : `Đã chọn ${picked.length} / ${shown.length} thẻ.`
+      ? t(
+          message(
+            'Danh mục Sản phẩm/dịch vụ chưa có mục nào. Nhập ở Thiết lập.',
+            'The product/service catalog is empty. Add items in Settings.',
+            '제품/서비스 목록이 비어 있습니다. 설정에서 추가하세요.',
+          ),
+        )
+      : t(
+          message(
+            `Đã chọn ${picked.length} / ${shown.length} thẻ.`,
+            `Selected ${picked.length} of ${shown.length} tags.`,
+            `태그 ${shown.length}개 중 ${picked.length}개 선택됨.`,
+          ),
+        )
 
   return (
-    <Field label="Sản phẩm / dịch vụ quan tâm" plain errors={errors} hint={hint}>
+    <Field
+      label={t(
+        message(
+          'Sản phẩm / dịch vụ quan tâm',
+          'Products / services of interest',
+          '관심 제품 / 서비스',
+        ),
+      )}
+      plain
+      errors={errors}
+      hint={hint}
+    >
       <div className="flex min-w-0 flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
           {picked.map((id) => {
@@ -223,7 +264,9 @@ export function ProductTagsField({
                 {name}
                 <button
                   type="button"
-                  aria-label={`Bỏ thẻ ${name}`}
+                  aria-label={t(
+                    message(`Bỏ thẻ ${name}`, `Remove tag ${name}`, `태그 ${name} 제거`),
+                  )}
                   onClick={() => onToggle(id)}
                   className="motion-std hover:bg-surface-ink/16 pointer-coarse:size-12 flex size-6 shrink-0 items-center justify-center rounded-sm"
                 >
@@ -243,26 +286,44 @@ export function ProductTagsField({
             onClick={() => setBrowsing((open) => !open)}
           >
             <Icon icon={Plus} size={16} />
-            Thêm thẻ
+            {t(message('Thêm thẻ', 'Add tag', '태그 추가'))}
           </Button>
         </div>
 
         {browsing &&
           (free.length === 0 ? (
             <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-              Đã chọn hết danh mục.
+              {t(
+                message(
+                  'Đã chọn hết danh mục.',
+                  'The whole catalog is selected.',
+                  '목록의 모든 항목을 선택했습니다.',
+                ),
+              )}
             </p>
           ) : (
             <div
               role="group"
-              aria-label="Danh mục sản phẩm/dịch vụ"
+              aria-label={t(
+                message('Danh mục sản phẩm/dịch vụ', 'Product/service catalog', '제품/서비스 목록'),
+              )}
               className="bg-surface-ink/5 flex flex-wrap gap-2 rounded-md p-3"
             >
               {free.map((p) => (
                 <button
                   key={p.id}
                   type="button"
-                  title={p.active ? undefined : 'Mục đã tắt, đơn này vẫn đang chọn.'}
+                  title={
+                    p.active
+                      ? undefined
+                      : t(
+                          message(
+                            'Mục đã tắt, đơn này vẫn đang chọn.',
+                            'This item is turned off; the deal still has it selected.',
+                            '꺼진 항목이지만 이 딜에는 아직 선택되어 있습니다.',
+                          ),
+                        )
+                  }
                   onClick={() => onToggle(p.id)}
                   className={cn(
                     'motion-std bg-surface-ink/9 hover:bg-surface-ink/16 pointer-coarse:h-12 flex h-10 items-center rounded-md px-3 text-[12px]',
@@ -301,6 +362,7 @@ export function AttachmentsDropField({
    *  textarea whose bottom edge it has to meet. */
   compact?: boolean
 }) {
+  const { t, number } = useI18n()
   const fileRef = useRef<HTMLInputElement>(null)
   const [over, setOver] = useState(false)
   const room = OPPORTUNITY_FILES_MAX - draft.attachments.length
@@ -316,7 +378,12 @@ export function AttachmentsDropField({
   }
 
   return (
-    <Field label="Tệp đính kèm" plain grow={!compact} errors={errors}>
+    <Field
+      label={t(message('Tệp đính kèm', 'Attachments', '첨부 파일'))}
+      plain
+      grow={!compact}
+      errors={errors}
+    >
       <div className={cn('flex min-h-0 min-w-0 flex-col gap-2', !compact && 'flex-1')}>
         <div
           onDragOver={(e) => {
@@ -346,11 +413,25 @@ export function AttachmentsDropField({
               compact ? 'items-baseline gap-2' : 'flex-col gap-1',
             )}
           >
-            <span className="shrink-0 text-[12.5px] font-semibold">Kéo tệp vào đây</span>
+            <span className="shrink-0 text-[12.5px] font-semibold">
+              {t(message('Kéo tệp vào đây', 'Drag files here', '파일을 여기로 끌어다 놓으세요'))}
+            </span>
             <span className="text-muted-foreground truncate text-[11px] leading-[1.5]">
               {draft.attachments.length === 0
-                ? `Chưa có tệp nào · tối đa ${OPPORTUNITY_FILES_MAX} tệp`
-                : `${draft.attachments.length} tệp · tối đa ${OPPORTUNITY_FILES_MAX} tệp`}
+                ? t(
+                    message(
+                      `Chưa có tệp nào · tối đa ${OPPORTUNITY_FILES_MAX} tệp`,
+                      `No files yet · up to ${OPPORTUNITY_FILES_MAX} files`,
+                      `파일 없음 · 최대 ${OPPORTUNITY_FILES_MAX}개`,
+                    ),
+                  )
+                : t(
+                    message(
+                      `${draft.attachments.length} tệp · tối đa ${OPPORTUNITY_FILES_MAX} tệp`,
+                      `${draft.attachments.length} ${draft.attachments.length === 1 ? 'file' : 'files'} · up to ${OPPORTUNITY_FILES_MAX} files`,
+                      `파일 ${draft.attachments.length}개 · 최대 ${OPPORTUNITY_FILES_MAX}개`,
+                    ),
+                  )}
             </span>
           </span>
           <Button
@@ -361,7 +442,7 @@ export function AttachmentsDropField({
             onClick={() => fileRef.current?.click()}
           >
             <Icon icon={Paperclip} size={16} />
-            Chọn tệp
+            {t(message('Chọn tệp', 'Choose files', '파일 선택'))}
           </Button>
         </div>
 
@@ -370,7 +451,7 @@ export function AttachmentsDropField({
           type="file"
           multiple
           className="hidden"
-          aria-label="Chọn tệp đính kèm"
+          aria-label={t(message('Chọn tệp đính kèm', 'Choose attachments', '첨부 파일 선택'))}
           onChange={(e) => {
             take(e.target.files)
             e.target.value = ''
@@ -387,11 +468,13 @@ export function AttachmentsDropField({
                 <Icon icon={Paperclip} size={16} className="text-muted-foreground shrink-0" />
                 <span className="min-w-0 flex-1 truncate text-[12px]">{f.name}</span>
                 <span className="text-muted-foreground tnum font-mono text-[11px]">
-                  {Math.max(1, Math.round(f.size / 1024)).toLocaleString('vi-VN')} KB
+                  {number(Math.max(1, Math.round(f.size / 1024)))} KB
                 </span>
                 <button
                   type="button"
-                  aria-label={`Bỏ tệp ${f.name}`}
+                  aria-label={t(
+                    message(`Bỏ tệp ${f.name}`, `Remove file ${f.name}`, `파일 ${f.name} 제거`),
+                  )}
                   onClick={() =>
                     onSet(
                       'attachments',

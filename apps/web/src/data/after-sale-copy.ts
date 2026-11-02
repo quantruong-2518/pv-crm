@@ -28,7 +28,7 @@ export const AFTER_SALE_COPY = {
   noStep: message('Chưa có việc tiếp theo', 'No next action', '다음 할 일 없음'),
   noContact: message('Chưa liên hệ', 'No contact yet', '연락 내역 없음'),
   noCompletedDay: message('Chưa ghi ngày hoàn tất', 'No completion date', '완료일 없음'),
-  openDeal: message('Mở cơ hội mới', 'Open a new opportunity', '새 영업 기회 만들기'),
+  openDeal: message('Mở cơ hội mới', 'Open a new opportunity', '새 기회 만들기'),
   customerCount: message('khách', 'customers', '명'),
   loadFailed: message(
     'Không tải được danh sách khách đã mua.',

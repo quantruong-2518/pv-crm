@@ -1,0 +1,27 @@
+#!/usr/bin/env sh
+# Only a push to master is gated: translate the empty en/ko, then require a clean i18n:check.
+# A hook must never commit, so a fill that rewrote files stops the push for review.
+hit=
+while read -r _lref _lsha rref _rsha; do
+  [ "$rref" = "refs/heads/master" ] && hit=1
+done
+[ -z "$hit" ] && exit 0
+
+rc=0
+pnpm i18n:fill || rc=$?
+
+if [ "$rc" = 10 ]; then
+  echo "i18n: đã điền bản dịch en/ko vào file. Xem lại bằng 'git diff', commit, rồi push lại."
+  exit 1
+fi
+if [ "$rc" = 3 ]; then
+  echo "i18n: không có ANTHROPIC_API_KEY nên chưa tự dịch được — chỉ kiểm tra tiếp."
+elif [ "$rc" != 0 ]; then
+  echo "i18n: bước dịch lỗi (mã $rc) nên chưa kiểm tra tiếp được."
+  exit 1
+fi
+
+pnpm i18n:check >/dev/null || {
+  echo "i18n: còn chuỗi chưa dịch. Chạy 'pnpm i18n:check' để xem danh sách rồi sửa."
+  exit 1
+}

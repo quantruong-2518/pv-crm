@@ -34,7 +34,7 @@ function overdueReasonSentence(row: NotificationRow, lang: Lang): string | null 
     message(
       `đợt ${count} của hợp đồng ${code}`,
       `installment ${count} of contract ${code}`,
-      `계약 ${code}의 ${count}차 대금`,
+      `계약 ${code}의 납부 회차 ${count}`,
     ),
     lang,
   )
@@ -143,7 +143,7 @@ function otherSentence(row: NotificationRow, lang: Lang): string | null {
             message(
               '',
               `${n(count(NOTIFICATION_DETAIL_DEALS))} opportunities`,
-              `영업 기회 ${n(count(NOTIFICATION_DETAIL_DEALS))}건`,
+              `기회 ${n(count(NOTIFICATION_DETAIL_DEALS))}건`,
             ),
             lang,
           )

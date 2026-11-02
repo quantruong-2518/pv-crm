@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type { OpportunityProfileResponse } from '@pv/contracts'
 import { type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import type { ApiError, FieldErrors } from '@/app/api'
+import { message, translate } from '@/app/i18n'
 import { missingOf } from '@/data/opportunities'
 import {
   draftErrorsOf,
@@ -141,7 +142,7 @@ export function useDealDraft({ saved, op, part }: UseDealDraftArgs): DealDraft {
     part === 'terms'
       ? missingOf(work)
       : part === 'details' && !work.name.trim()
-        ? ['tên cơ hội']
+        ? [translate(message('tên cơ hội', 'opportunity name', '기회 이름'))]
         : []
   const busy = save.isPending
   const error = save.error

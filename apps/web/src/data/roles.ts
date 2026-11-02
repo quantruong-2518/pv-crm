@@ -2,6 +2,7 @@ import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query
 import { Permission, RoleId } from '@pv/contracts'
 import type { RoleGrants, RoleGrantsPatch, RoleMatrixView } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { message, translate, type Message } from '@/app/i18n'
 import { cacheTier } from '@/app/query-client'
 
 /** One Core · Admin · Roles — the two doors of `platform.role_permission`.
@@ -71,6 +72,15 @@ export function useSaveRoleGrants() {
 // Vocabulary the screen prints
 // ---------------------------------------------------------------------------
 
+/** Getter per key, so a label read at any time follows the language on screen. */
+function liveLabels<K extends string>(copy: Record<K, Message>): Record<K, string> {
+  const out = {} as Record<K, string>
+  for (const key of Object.keys(copy) as K[]) {
+    Object.defineProperty(out, key, { get: () => translate(copy[key]), enumerable: true })
+  }
+  return out
+}
+
 /** The resource half of a permission key, as a type — `campaign.view` yields
  *  `campaign`. Written as a generic so the conditional distributes over the
  *  union; inlining `Permission extends …` would test the whole union at once
@@ -85,28 +95,30 @@ export type Resource = ResourceOf<Permission>
  *  is no second "group → permissions" table anywhere: the groups are derived
  *  from the keys (`permission.split('.')[0]`), so the only thing left to write
  *  by hand is a word per prefix — and forgetting one is a red build. */
-export const RESOURCE_LABEL = {
-  campaign: 'Chiến dịch & sự kiện',
-  lead: 'Sổ lead',
-  workstream: 'Hành trình khách hàng',
-  account: 'Khách hàng công ty',
-  opportunity: 'Cơ hội',
-  contract: 'Hợp đồng & thu tiền',
-  performance: 'Hiệu suất',
-  kpi: 'KPI',
-  plan: 'Số liệu & kế hoạch',
-  config: 'Thiết lập bán hàng',
-  'lead-origin': 'Nguồn lead',
-  comm: 'Sổ giao tiếp',
-  setting: 'Thiết lập chung',
-  cost: 'Chi phí',
-  'audit-log': 'Nhật ký thao tác',
-  'ai-read': 'Nhật ký AI đã đọc',
-  user: 'Tài khoản người dùng',
-  role: 'Vai trò & quyền',
-  approval: 'Phê duyệt',
-  data: 'Xuất dữ liệu',
-} as const satisfies Record<Resource, string>
+const RESOURCE_COPY = {
+  campaign: message('Chiến dịch & sự kiện', 'Campaigns & events', '캠페인 및 행사'),
+  lead: message('Sổ lead', 'Lead book', '리드 목록'),
+  workstream: message('Hành trình khách hàng', 'Customer journey', '고객 여정'),
+  account: message('Khách hàng công ty', 'Company customers', '고객사'),
+  opportunity: message('Cơ hội', 'Opportunities', '기회'),
+  contract: message('Hợp đồng & thu tiền', 'Contracts & collections', '계약 및 수금'),
+  performance: message('Hiệu suất', 'Performance', '성과'),
+  kpi: message('KPI', 'KPI', 'KPI'),
+  plan: message('Số liệu & kế hoạch', 'Figures & plans', '수치 및 계획'),
+  config: message('Thiết lập bán hàng', 'Sales settings', '영업 설정'),
+  'lead-origin': message('Nguồn lead', 'Lead sources', '리드 출처'),
+  comm: message('Sổ giao tiếp', 'Communication log', '소통 기록'),
+  setting: message('Thiết lập chung', 'General settings', '일반 설정'),
+  cost: message('Chi phí', 'Costs', '비용'),
+  'audit-log': message('Nhật ký thao tác', 'Activity log', '작업 기록'),
+  'ai-read': message('Nhật ký AI đã đọc', 'AI read log', 'AI 열람 기록'),
+  user: message('Tài khoản người dùng', 'User accounts', '사용자 계정'),
+  role: message('Vai trò & quyền', 'Roles & permissions', '역할 및 권한'),
+  approval: message('Phê duyệt', 'Approvals', '승인'),
+  data: message('Xuất dữ liệu', 'Data export', '데이터 내보내기'),
+} as const satisfies Record<Resource, Message>
+
+export const RESOURCE_LABEL = liveLabels(RESOURCE_COPY)
 
 /** What each permission lets a person DO, in the words a sales manager uses.
  *
@@ -117,51 +129,173 @@ export const RESOURCE_LABEL = {
  *
  *  `satisfies Record<Permission, string>` — a permission added to the contract
  *  without a label here is a red build, not a blank row in the matrix. */
-export const PERMISSION_LABEL = {
-  'campaign.view': 'Xem chiến dịch và sự kiện',
-  'campaign.edit': 'Tạo và sửa chiến dịch',
-  'campaign.broadcast': 'Gửi chiến dịch cho khách',
-  'lead.view': 'Xem sổ lead',
-  'workstream.view': 'Xem hành trình khách hàng',
-  'lead.edit': 'Sửa hồ sơ lead',
-  'lead.send-email': 'Gửi thư cho lead mình phụ trách',
-  'lead.assign': 'Giao việc trên lead cho người khác',
-  'lead.disqualify': 'Chuyển lead vào Khách đã dừng',
-  'lead.disable': 'Tắt và bật lại lead',
-  'account.view': 'Xem khách hàng công ty',
-  'account.edit': 'Sửa hồ sơ khách hàng công ty',
-  'opportunity.view': 'Xem cơ hội',
-  'opportunity.create': 'Tạo cơ hội mới từ lead',
-  'opportunity.edit': 'Sửa cơ hội và báo giá',
-  'opportunity.accept': 'Nhận phụ trách cơ hội mới',
-  'opportunity.assign': 'Giao hoặc đổi Sale phụ trách cơ hội',
-  'opportunity.close': 'Chốt thắng hoặc dừng một cơ hội',
-  'contract.view': 'Xem hợp đồng',
-  'contract.edit': 'Sửa hợp đồng và đợt thanh toán',
-  'contract.record-payment': 'Ghi nhận khách đã thanh toán',
-  'contract.approve-overdue-reason': 'Duyệt lý do quá hạn',
-  'contract.terminate': 'Chấm dứt hợp đồng đã ký',
-  'performance.view': 'Xem hiệu suất cả phòng',
-  'kpi.view': 'Xem KPI của mình',
-  'kpi.view-all': 'Xem KPI của mọi người',
-  'kpi.set-target': 'Đặt và chốt chỉ tiêu KPI',
-  'plan.view': 'Xem số liệu và kế hoạch',
-  'plan.submit': 'Gửi kế hoạch đi duyệt',
-  'config.view': 'Xem Thiết lập bán hàng',
-  'config.propose': 'Đề nghị thay đổi Thiết lập bán hàng',
-  'lead-origin.manage': 'Quản lý nguồn lead',
-  'audit-log.view': 'Xem nhật ký thao tác',
-  'ai-read.view': 'Xem nhật ký AI đã đọc hồ sơ',
-  'user.manage': 'Tạo và sửa tài khoản, chọn vai trò',
-  'role.manage': 'Sửa quyền của từng vai trò',
-  'approval.decide': 'Duyệt hoặc từ chối đề nghị',
-  'comm.view': 'Xem lịch sử trao đổi với khách',
-  'comm.view-content': 'Đọc nội dung thư, tin nhắn, bản ghi',
-  'comm.capture-manage': 'Gắn email, chat, số điện thoại với đúng người',
-  'setting.manage': 'Chỉnh ngưỡng, thời hạn và thông báo theo vai trò',
-  'cost.view': 'Xem chi phí',
-  'data.export': 'Tải dữ liệu về máy',
-} as const satisfies Record<Permission, string>
+const PERMISSION_COPY = {
+  'campaign.view': message(
+    'Xem chiến dịch và sự kiện',
+    'View campaigns and events',
+    '캠페인과 행사 보기',
+  ),
+  'campaign.edit': message(
+    'Tạo và sửa chiến dịch',
+    'Create and edit campaigns',
+    '캠페인 만들기 및 수정',
+  ),
+  'campaign.broadcast': message(
+    'Gửi chiến dịch cho khách',
+    'Send campaigns to customers',
+    '고객에게 캠페인 발송',
+  ),
+  'lead.view': message('Xem sổ lead', 'View the lead book', '리드 목록 보기'),
+  'workstream.view': message(
+    'Xem hành trình khách hàng',
+    'View customer journeys',
+    '고객 여정 보기',
+  ),
+  'lead.edit': message('Sửa hồ sơ lead', 'Edit lead profiles', '리드 프로필 수정'),
+  'lead.send-email': message(
+    'Gửi thư cho lead mình phụ trách',
+    'Email leads you own',
+    '담당 리드에게 메일 발송',
+  ),
+  'lead.assign': message(
+    'Giao việc trên lead cho người khác',
+    'Assign lead tasks to others',
+    '리드 업무를 다른 사람에게 배정',
+  ),
+  'lead.disqualify': message(
+    'Chuyển lead vào Khách đã dừng',
+    'Move a lead to Stopped customers',
+    '리드를 중단된 고객으로 이동',
+  ),
+  'lead.disable': message(
+    'Tắt và bật lại lead',
+    'Disable and re-enable leads',
+    '리드 비활성화 및 재활성화',
+  ),
+  'account.view': message('Xem khách hàng công ty', 'View company customers', '고객사 보기'),
+  'account.edit': message(
+    'Sửa hồ sơ khách hàng công ty',
+    'Edit company customer profiles',
+    '고객사 프로필 수정',
+  ),
+  'opportunity.view': message('Xem cơ hội', 'View opportunities', '기회 보기'),
+  'opportunity.create': message(
+    'Tạo cơ hội mới từ lead',
+    'Create an opportunity from a lead',
+    '리드에서 새 기회 만들기',
+  ),
+  'opportunity.edit': message(
+    'Sửa cơ hội và báo giá',
+    'Edit opportunities and quotations',
+    '기회와 견적서 수정',
+  ),
+  'opportunity.accept': message(
+    'Nhận phụ trách cơ hội mới',
+    'Take ownership of new opportunities',
+    '새 기회 담당 맡기',
+  ),
+  'opportunity.assign': message(
+    'Giao hoặc đổi Sale phụ trách cơ hội',
+    'Assign or change the salesperson on an opportunity',
+    '기회의 영업 담당자 지정 또는 변경',
+  ),
+  'opportunity.close': message(
+    'Chốt thắng hoặc dừng một cơ hội',
+    'Close an opportunity as won or stop it',
+    '기회 수주 확정 또는 중단',
+  ),
+  'contract.view': message('Xem hợp đồng', 'View contracts', '계약 보기'),
+  'contract.edit': message(
+    'Sửa hợp đồng và đợt thanh toán',
+    'Edit contracts and installments',
+    '계약 및 납부 회차 수정',
+  ),
+  'contract.record-payment': message(
+    'Ghi nhận khách đã thanh toán',
+    'Record customer payments',
+    '고객 결제 기록',
+  ),
+  'contract.approve-overdue-reason': message(
+    'Duyệt lý do quá hạn',
+    'Approve overdue reasons',
+    '연체 사유 승인',
+  ),
+  'contract.terminate': message(
+    'Chấm dứt hợp đồng đã ký',
+    'Terminate a signed contract',
+    '체결된 계약 해지',
+  ),
+  'performance.view': message(
+    'Xem hiệu suất cả phòng',
+    'View whole-department performance',
+    '부서 전체 성과 보기',
+  ),
+  'kpi.view': message('Xem KPI của mình', 'View your own KPIs', '내 KPI 보기'),
+  'kpi.view-all': message('Xem KPI của mọi người', 'View everyone’s KPIs', '모든 사람의 KPI 보기'),
+  'kpi.set-target': message(
+    'Đặt và chốt chỉ tiêu KPI',
+    'Set and lock KPI targets',
+    'KPI 목표 설정 및 확정',
+  ),
+  'plan.view': message('Xem số liệu và kế hoạch', 'View figures and plans', '수치와 계획 보기'),
+  'plan.submit': message('Gửi kế hoạch đi duyệt', 'Submit a plan for approval', '계획 승인 요청'),
+  'config.view': message('Xem Thiết lập bán hàng', 'View sales settings', '영업 설정 보기'),
+  'config.propose': message(
+    'Đề nghị thay đổi Thiết lập bán hàng',
+    'Propose changes to sales settings',
+    '영업 설정 변경 제안',
+  ),
+  'lead-origin.manage': message('Quản lý nguồn lead', 'Manage lead sources', '리드 출처 관리'),
+  'audit-log.view': message('Xem nhật ký thao tác', 'View the activity log', '작업 기록 보기'),
+  'ai-read.view': message(
+    'Xem nhật ký AI đã đọc hồ sơ',
+    'View the log of records the AI read',
+    'AI가 열람한 기록 이력 보기',
+  ),
+  'user.manage': message(
+    'Tạo tài khoản, chọn vai trò, khoá tài khoản',
+    'Create accounts, assign roles, lock accounts',
+    '계정 생성, 역할 지정, 계정 잠금',
+  ),
+  'role.manage': message(
+    'Sửa quyền của từng vai trò',
+    'Edit each role’s permissions',
+    '역할별 권한 수정',
+  ),
+  'approval.decide': message(
+    'Duyệt hoặc từ chối đề nghị',
+    'Approve or reject requests',
+    '요청 승인 또는 거절',
+  ),
+  'comm.view': message(
+    'Xem lịch sử trao đổi với khách',
+    'View communication history with customers',
+    '고객과의 소통 이력 보기',
+  ),
+  'comm.view-content': message(
+    'Đọc nội dung thư, tin nhắn, bản ghi',
+    'Read email, message and recording content',
+    '메일, 메시지, 녹음 내용 읽기',
+  ),
+  'comm.capture-manage': message(
+    'Gắn email, chat, số điện thoại với đúng người',
+    'Link emails, chats and phone numbers to the right person',
+    '메일, 채팅, 전화번호를 해당 인물에 연결',
+  ),
+  'setting.manage': message(
+    'Chỉnh ngưỡng, thời hạn và thông báo theo vai trò',
+    'Adjust thresholds, deadlines and notifications by role',
+    '역할별 기준, 기한, 알림 조정',
+  ),
+  'cost.view': message('Xem chi phí', 'View costs', '비용 보기'),
+  'data.export': message(
+    'Tải dữ liệu về máy',
+    'Download data to your device',
+    '데이터를 기기로 다운로드',
+  ),
+} as const satisfies Record<Permission, Message>
+
+export const PERMISSION_LABEL = liveLabels(PERMISSION_COPY)
 
 /** The seven role keys in the contract's own order — widest reach first, which
  *  is the order both the grid's columns and the sheet's picker read in. */
@@ -183,15 +317,17 @@ export const FIRST_ROLE: RoleId = ROLE_IDS[0] ?? 'director'
  *  and the picker have nothing in common but the word. `satisfies` keeps it
  *  honest — a role added to the contract without a short name is a red build,
  *  not a column headed `undefined`. */
-export const ROLE_COLUMN_LABEL = {
-  director: 'Giám đốc',
-  'head-of-sales': 'TP Kinh doanh',
-  marketing: 'Marketing',
-  bd: 'BD',
-  presales: 'Presales',
-  sale: 'Sale',
-  'account-executive': 'AE',
-} as const satisfies Record<RoleId, string>
+const ROLE_COLUMN_COPY = {
+  director: message('Giám đốc', 'Director', '이사'),
+  'head-of-sales': message('TP Kinh doanh', 'Head of Sales', '영업 부서장'),
+  marketing: message('Marketing', 'Marketing', '마케팅'),
+  bd: message('BD', 'BD', 'BD'),
+  presales: message('Presales', 'Presales', '프리세일즈'),
+  sale: message('Sale', 'Sales', '영업'),
+  'account-executive': message('AE', 'AE', 'AE'),
+} as const satisfies Record<RoleId, Message>
+
+export const ROLE_COLUMN_LABEL = liveLabels(ROLE_COLUMN_COPY)
 
 export type PermissionGroup = {
   resource: Resource
@@ -218,7 +354,9 @@ export const PERMISSION_GROUPS: PermissionGroup[] = (() => {
     else
       byResource.set(resource, {
         resource,
-        label: RESOURCE_LABEL[resource],
+        get label() {
+          return RESOURCE_LABEL[resource]
+        },
         permissions: [permission],
       })
   }
@@ -237,9 +375,13 @@ export const SELF_GRANTING: readonly Permission[] = ['user.manage', 'role.manage
 export const isSelfGranting = (permission: Permission): boolean =>
   SELF_GRANTING.includes(permission)
 
-export const SELF_GRANTING_TAG = 'Tự cấp'
+export const SELF_GRANTING_TAG = message('Tự cấp', 'Self-granting', '자체 부여')
 
-export const SELF_GRANTING_WHY = 'Người có quyền này tự cấp được cho mình mọi quyền khác.'
+export const SELF_GRANTING_WHY = message(
+  'Người có quyền này tự cấp được cho mình mọi quyền khác.',
+  'Anyone with this permission can grant themselves every other permission.',
+  '이 권한이 있으면 다른 모든 권한을 스스로 부여할 수 있습니다.',
+)
 
 // ---------------------------------------------------------------------------
 // The draft the screen edits
@@ -288,5 +430,12 @@ export const dirtyRoles = (server: RoleDraft, draft: RoleDraft): RoleId[] =>
  *  reader is looking at actually is. */
 export const matrixLine = (draft: RoleDraft): string => {
   const granted = ROLE_IDS.reduce((sum, id) => sum + draft[id].length, 0)
-  return `${Permission.options.length} quyền · ${ROLE_IDS.length} vai · ${granted} ô đang bật`
+  const [perms, roles] = [Permission.options.length, ROLE_IDS.length]
+  return translate(
+    message(
+      `${perms} quyền · ${roles} vai · ${granted} ô đang bật`,
+      `${perms} permissions · ${roles} roles · ${granted} cells on`,
+      `권한 ${perms}개 · 역할 ${roles}개 · 켜진 칸 ${granted}개`,
+    ),
+  )
 }

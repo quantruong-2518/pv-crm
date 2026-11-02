@@ -20,14 +20,14 @@ import { MAIL_RUN_STATE_TONE } from '@/data/mail-runs'
 import { WaveRecipients } from '@/components/wave-recipients'
 import { dayTime, shareOf, timeOnly, wavesInOrder } from './campaign-model'
 
-const tr = (vi: string, en: string, ko: string) => translate(message(vi, en, ko))
+const msg = (vi: string, en: string, ko: string) => translate(message(vi, en, ko))
 const runStateLabel = (state: MailRunRow['state']) =>
   ({
-    DRAFT: tr('Nháp', 'Draft', '초안'),
-    SCHEDULED: tr('Đã hẹn giờ', 'Scheduled', '예약됨'),
-    SENDING: tr('Đang gửi', 'Sending', '발송 중'),
-    SENT: tr('Đã gửi', 'Sent', '발송 완료'),
-    CANCELLED: tr('Đã huỷ', 'Cancelled', '취소됨'),
+    DRAFT: msg('Nháp', 'Draft', '초안'),
+    SCHEDULED: msg('Đã hẹn giờ', 'Scheduled', '예약됨'),
+    SENDING: msg('Đang gửi', 'Sending', '발송 중'),
+    SENT: msg('Đã gửi', 'Sent', '발송 완료'),
+    CANCELLED: msg('Đã huỷ', 'Cancelled', '취소됨'),
   })[state]
 
 /** Module 1 · the campaign WAVES — one card per wave already gone, and
@@ -57,26 +57,26 @@ export function StopModal({
     stop.mutate(undefined, {
       onSuccess: (res) => {
         const held = res.cancelled.reduce((n, r) => n + r.held, 0)
-        toast(tr('Đã dừng chiến dịch', 'Campaign stopped', '캠페인이 중지되었습니다'), {
+        toast(msg('Đã dừng chiến dịch', 'Campaign stopped', '캠페인이 중지되었습니다'), {
           tone: 'success',
           detail:
             res.cancelled.length === 0
-              ? tr(
+              ? msg(
                   'Không còn thư chưa gửi.',
                   'There are no unsent emails.',
                   '미발송 이메일이 없습니다.',
                 )
-              : tr(
+              : msg(
                   `Đã huỷ ${res.cancelled.length} đợt, giữ lại ${held} thư chưa gửi.`,
                   `Cancelled ${res.cancelled.length} waves and kept ${held} unsent emails.`,
-                  `${res.cancelled.length}개 차수를 취소하고 미발송 이메일 ${held}개를 보류했습니다.`,
+                  `${res.cancelled.length}개 웨이브를 취소하고 미발송 이메일 ${held}개를 보류했습니다.`,
                 ),
         })
         onClose()
       },
       onError: (err) =>
         toast(
-          tr(
+          msg(
             'Không dừng được chiến dịch',
             'Could not stop campaign',
             '캠페인을 중지할 수 없습니다',
@@ -85,7 +85,7 @@ export function StopModal({
             tone: 'danger',
             detail: isApiError(err)
               ? userMessage(err)
-              : tr('Hãy thử lại.', 'Please try again.', '다시 시도해 주세요.'),
+              : msg('Hãy thử lại.', 'Please try again.', '다시 시도해 주세요.'),
           },
         ),
     })
@@ -94,7 +94,7 @@ export function StopModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={tr(
+      title={msg(
         `Dừng chiến dịch ${campaign.code}`,
         `Stop campaign ${campaign.code}`,
         `캠페인 ${campaign.code} 중지`,
@@ -103,37 +103,37 @@ export function StopModal({
       footer={
         <div className="flex flex-wrap items-center justify-end gap-3">
           <Button size="lg" variant="ghost" onClick={onClose} disabled={stop.isPending}>
-            {tr('Để chạy tiếp', 'Keep campaign running', '캠페인 계속 실행')}
+            {msg('Để chạy tiếp', 'Keep campaign running', '캠페인 계속 실행')}
           </Button>
           <Button size="lg" variant="destructive" onClick={submit} disabled={stop.isPending}>
             <Icon icon={Octagon} size={16} />
             {stop.isPending
-              ? tr('Đang dừng…', 'Stopping…', '중지 중…')
-              : tr('Dừng hẳn chiến dịch', 'Stop campaign', '캠페인 중지')}
+              ? msg('Đang dừng…', 'Stopping…', '중지 중…')
+              : msg('Dừng hẳn chiến dịch', 'Stop campaign', '캠페인 중지')}
           </Button>
         </div>
       }
     >
       <div className="flex max-w-[640px] flex-col gap-4 text-[13px] leading-[1.65]">
         <p>
-          {tr(
+          {msg(
             'Các đợt chưa gửi sẽ bị huỷ; thư chưa gửi được giữ lại. Thư đã gửi không thể thu hồi.',
             'Unsent waves will be cancelled and unsent emails held. Sent emails cannot be recalled.',
-            '미발송 차수는 취소되고 미발송 이메일은 보류됩니다. 이미 발송된 이메일은 회수할 수 없습니다.',
+            '미발송 웨이브는 취소되고 미발송 이메일은 보류됩니다. 이미 발송된 이메일은 회수할 수 없습니다.',
           )}
         </p>
         <p className="text-warning">
-          {tr(
+          {msg(
             'Sau khi dừng, bạn không thể chạy lại chiến dịch này. Hãy tạo chiến dịch mới nếu cần gửi tiếp.',
             'You cannot restart a stopped campaign. Create a new campaign to continue sending.',
             '중지한 캠페인은 다시 시작할 수 없습니다. 계속 발송하려면 새 캠페인을 만드세요.',
           )}
         </p>
         <p className="text-muted-foreground">
-          {tr(
+          {msg(
             `${n(campaign.waveCount)} đợt đã gửi · ${n(campaign.audienceCount)} người nhận.`,
             `${n(campaign.waveCount)} waves sent · ${n(campaign.audienceCount)} recipients.`,
-            `발송 차수 ${n(campaign.waveCount)}개 · 수신자 ${n(campaign.audienceCount)}명.`,
+            `웨이브 ${n(campaign.waveCount)}개 · 수신자 ${n(campaign.audienceCount)}명.`,
           )}
         </p>
       </div>
@@ -169,7 +169,7 @@ export function WaveList({ campaign }: { campaign: CampaignProfile }) {
             disabled={open.size === waves.length}
             onClick={() => setOpen(new Set(waves.map((w) => w.waveNo)))}
           >
-            {tr('Mở rộng tất cả', 'Expand all', '모두 펼치기')}
+            {msg('Mở rộng tất cả', 'Expand all', '모두 펼치기')}
           </Button>
           <Button
             size="sm"
@@ -178,7 +178,7 @@ export function WaveList({ campaign }: { campaign: CampaignProfile }) {
             disabled={open.size === 0}
             onClick={() => setOpen(new Set())}
           >
-            {tr('Thu gọn tất cả', 'Collapse all', '모두 접기')}
+            {msg('Thu gọn tất cả', 'Collapse all', '모두 접기')}
           </Button>
         </div>
       )}
@@ -227,13 +227,13 @@ function waveWhen(run: MailRunRow): string {
     return `${dayTime(run.startedAt)} – ${timeOnly(run.finishedAt)}`
   }
   if (run.startedAt)
-    return tr(
+    return msg(
       `Bắt đầu ${dayTime(run.startedAt)}`,
       `Started ${dayTime(run.startedAt)}`,
       `${dayTime(run.startedAt)} 시작`,
     )
   if (run.scheduledAt)
-    return tr(
+    return msg(
       `Hẹn ${dayTime(run.scheduledAt)}`,
       `Scheduled for ${dayTime(run.scheduledAt)}`,
       `${dayTime(run.scheduledAt)} 예약`,
@@ -262,22 +262,22 @@ function WaveCard({
     <GlassCard
       variant="b"
       role="article"
-      aria-label={tr(`Đợt ${waveNo}`, `Wave ${waveNo}`, `${waveNo}차`)}
+      aria-label={msg(`Đợt ${waveNo}`, `Wave ${waveNo}`, `웨이브 ${waveNo}`)}
       className="flex flex-col gap-4 p-5"
     >
       <div className="flex flex-wrap items-center gap-3">
-        <Chip>{tr(`Đợt ${waveNo}`, `Wave ${waveNo}`, `${waveNo}차`)}</Chip>
+        <Chip>{msg(`Đợt ${waveNo}`, `Wave ${waveNo}`, `웨이브 ${waveNo}`)}</Chip>
         <div className="min-w-[220px] flex-1">
           <h3 className="m-0 truncate text-[14px] font-semibold" title={run.label}>
             {run.label}
           </h3>
           <p className="text-muted-foreground m-0 truncate text-[12px]" title={run.subject}>
-            {tr('Tiêu đề thư:', 'Email subject:', '이메일 제목:')} {run.subject}
+            {msg('Tiêu đề thư:', 'Email subject:', '이메일 제목:')} {run.subject}
           </p>
         </div>
         {!open && (
           <span className="text-muted-foreground tnum text-[12px]">
-            {tr(
+            {msg(
               `Đã gửi ${n(run.sent)} · bấm ${n(run.clicked)} · trả lại ${n(run.bounced)}`,
               `${n(run.sent)} sent · ${n(run.clicked)} clicked · ${n(run.bounced)} bounced`,
               `${n(run.sent)}개 발송 · ${n(run.clicked)}개 클릭 · ${n(run.bounced)}개 반송`,
@@ -292,15 +292,15 @@ function WaveCard({
           className="pointer-coarse:h-12"
           aria-expanded={open}
           aria-controls={bodyId}
-          aria-label={tr(
-            `${open ? 'Thu gọn' : 'Mở rộng'} đợt ${waveNo}`,
+          aria-label={msg(
+            `${open ? 'Thu gọn' : 'Mở rộng'} đợt ${waveNo}`, // i18n-ignore
             `${open ? 'Collapse' : 'Expand'} wave ${waveNo}`,
-            `${waveNo}차 ${open ? '접기' : '펼치기'}`,
+            `웨이브 ${waveNo} ${open ? '접기' : '펼치기'}`,
           )}
           onClick={onToggle}
         >
           <Icon icon={ChevronDown} size={16} className={cn(open && 'rotate-180')} />
-          {open ? tr('Thu gọn', 'Collapse', '접기') : tr('Mở rộng', 'Expand', '펼치기')}
+          {open ? msg('Thu gọn', 'Collapse', '접기') : msg('Mở rộng', 'Expand', '펼치기')}
         </Button>
       </div>
 
@@ -310,14 +310,14 @@ function WaveCard({
             <div className="flex flex-col gap-2">
               <SendProgress
                 run={run}
-                label={tr(
+                label={msg(
                   `Tiến độ gửi đợt ${waveNo}`,
                   `Wave ${waveNo} send progress`,
-                  `${waveNo}차 발송 진행률`,
+                  `웨이브 ${waveNo} 발송 진행률`,
                 )}
               />
               <p className="text-muted-foreground tnum m-0 text-[12px]">
-                {tr(
+                {msg(
                   `Đã gửi ${n(run.sent)} trên ${n(run.audienceCount)} thư, còn ${n(queued)} thư chờ gửi`,
                   `${n(run.sent)} of ${n(run.audienceCount)} emails sent, ${n(queued)} queued`,
                   `이메일 ${n(run.audienceCount)}개 중 ${n(run.sent)}개 발송, ${n(queued)}개 대기 중`,
@@ -336,8 +336,8 @@ function WaveCard({
             >
               <Icon icon={Users} size={16} />
               {recipients
-                ? tr('Ẩn danh sách người nhận', 'Hide recipient list', '수신자 목록 숨기기')
-                : tr('Xem từng người nhận', 'View recipients', '수신자 보기')}
+                ? msg('Ẩn danh sách người nhận', 'Hide recipient list', '수신자 목록 숨기기')
+                : msg('Xem từng người nhận', 'View recipients', '수신자 보기')}
             </Button>
           </div>
           {recipients && <WaveRecipientList runId={run.id} />}
@@ -386,7 +386,7 @@ function WaveRecipientList({ runId }: { runId: string }) {
                 i >= RECIPIENT_TEXT_COLUMNS && 'text-right',
               )}
             >
-              {tr(header, en, ko)}
+              {msg(header, en, ko)}
             </span>
           ))}
         </div>
@@ -405,23 +405,23 @@ function WaveNumbers({ run }: { run: MailRunRow }) {
   /* Opens carry no share: `opened` is a noisy lower bound (proxies trip the
      pixel, blockers hide it), and a percentage would read it as truth. */
   const cells: { key: string; label: string; value: number; note?: string; tone?: string }[] = [
-    { key: 's', label: tr('Đã gửi', 'Sent', '발송'), value: run.sent },
+    { key: 's', label: msg('Đã gửi', 'Sent', '발송'), value: run.sent },
     {
       key: 'd',
-      label: tr('Tới nơi', 'Delivered', '도착'),
+      label: msg('Tới nơi', 'Delivered', '도착'),
       value: run.delivered,
-      note: tr(
+      note: msg(
         `${shareOf(run.delivered, run.sent, 1)} số đã gửi`,
         `${shareOf(run.delivered, run.sent, 1)} of sent`,
         `발송 중 ${shareOf(run.delivered, run.sent, 1)}`,
       ),
     },
-    { key: 'o', label: tr('Có người mở', 'Opened', '열람'), value: run.opened },
+    { key: 'o', label: msg('Có người mở', 'Opened', '열람'), value: run.opened },
     {
       key: 'c',
-      label: tr('Đã bấm liên kết', 'Clicked a link', '링크 클릭'),
+      label: msg('Đã bấm liên kết', 'Clicked a link', '링크 클릭'),
       value: run.clicked,
-      note: tr(
+      note: msg(
         `${shareOf(run.clicked, run.delivered, 1)} số tới nơi`,
         `${shareOf(run.clicked, run.delivered, 1)} of delivered`,
         `도착 이메일 중 ${shareOf(run.clicked, run.delivered, 1)}`,
@@ -430,9 +430,9 @@ function WaveNumbers({ run }: { run: MailRunRow }) {
     },
     {
       key: 'u',
-      label: tr('Huỷ đăng ký', 'Unsubscribed', '수신 거부'),
+      label: msg('Huỷ đăng ký', 'Unsubscribed', '수신 거부'),
       value: run.unsubscribed,
-      note: tr(
+      note: msg(
         `${shareOf(run.unsubscribed, run.delivered, 1)} số tới nơi`,
         `${shareOf(run.unsubscribed, run.delivered, 1)} of delivered`,
         `도착 이메일 중 ${shareOf(run.unsubscribed, run.delivered, 1)}`,
@@ -443,7 +443,7 @@ function WaveNumbers({ run }: { run: MailRunRow }) {
       key: 'b',
       label: 'Bounce',
       value: run.bounced,
-      note: tr(
+      note: msg(
         `${shareOf(run.bounced, run.sent, 1)} số đã gửi`,
         `${shareOf(run.bounced, run.sent, 1)} of sent`,
         `발송 중 ${shareOf(run.bounced, run.sent, 1)}`,

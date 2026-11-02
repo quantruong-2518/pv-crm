@@ -8,14 +8,12 @@ import {
   ChevronRight,
   GlassCard,
   Icon,
-  MetaPill,
   SegmentedControl,
   Skeleton,
   cn,
   type BadgeProps,
 } from '@pv/ui'
 import {
-  STOP_LOG_NOW_LABEL,
   StopLogQuery,
   vnDayOf,
   type StopLogFacetItem,
@@ -26,13 +24,16 @@ import {
 } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { useI18n } from '@/app/i18n'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { stopLogQuery } from '@/data/stop-log'
+import { NURTURING_COPY as COPY, noStopsIn } from '@/data/nurturing-copy'
 import { BookCount, BookPage, type BookTable } from '@/components/book-page'
+import { CodeCell } from '@/components/book-cells'
+import { COL } from '@/components/book-columns'
 import { MomentCell } from '@/components/lead-cells'
 import { TableFooter } from '@/components/table-bits'
 import {
-  PAGE_TITLE,
   logRange,
   monthDays,
   monthOf,
@@ -53,13 +54,7 @@ const SCHEMA = withPageKeys(StopLogQuery)
 const FILTER_KEYS = ['kind', 'from', 'to'] as const
 
 type KindFilter = StopLogQuery['kind']
-
-const KIND_LABEL: Record<KindFilter, string> = {
-  all: 'Tất cả',
-  lead: 'Lead',
-  deal: 'Cơ hội',
-  contract: 'Hợp đồng',
-}
+type Translate = ReturnType<typeof useI18n>['t']
 
 const PATH: Record<StopLogKind, string> = {
   lead: '/sales/leads',
@@ -81,16 +76,17 @@ const SHOWN = 3
 
 /** Top three and one slice for the rest, named apart from the reason "other";
  *  a single leftover keeps its own name. */
-function slicesOf(items: readonly StopLogFacetItem[]): StopLogFacetItem[] {
+function slicesOf(items: readonly StopLogFacetItem[], rest: string): StopLogFacetItem[] {
   if (items.length <= SHOWN + 1) return [...items]
-  const rest = items.slice(SHOWN).reduce((n, i) => n + i.count, 0)
-  return [...items.slice(0, SHOWN), { key: 'rest', label: 'Còn lại', count: rest }]
+  const count = items.slice(SHOWN).reduce((n, i) => n + i.count, 0)
+  return [...items.slice(0, SHOWN), { key: 'rest', label: rest, count }]
 }
 
 /** One stacked bar and its legend. The count is printed for every slice, so
  *  no share is read by colour alone; the bar itself is hidden from readers. */
 function FacetBar({ title, items }: { title: string; items: readonly StopLogFacetItem[] }) {
-  const slices = slicesOf(items)
+  const { t } = useI18n()
+  const slices = slicesOf(items, t(COPY.rest))
   const total = slices.reduce((n, s) => n + s.count, 0)
   if (total === 0) return null
   return (
@@ -121,13 +117,14 @@ function FacetBar({ title, items }: { title: string; items: readonly StopLogFace
 }
 
 function StopFacets({ data, pending }: { data?: StopLogResponse; pending: boolean }) {
+  const { t } = useI18n()
   if (pending) return <Skeleton height={168} />
   if (!data || data.total === 0) return null
   return (
-    <GlassCard variant="b" className="flex flex-col gap-5 p-5" aria-label="Tổng hợp lần dừng">
-      <FacetBar title="Lý do" items={data.byReason} />
-      <FacetBar title="Dừng ở bước" items={data.byStage} />
-      <FacetBar title="Người dừng" items={data.byActor} />
+    <GlassCard variant="b" className="flex flex-col gap-5 p-5" aria-label={t(COPY.summary)}>
+      <FacetBar title={t(COPY.reason)} items={data.byReason} />
+      <FacetBar title={t(COPY.stoppedAtStep)} items={data.byStage} />
+      <FacetBar title={t(COPY.stoppedBy)} items={data.byActor} />
     </GlassCard>
   )
 }
@@ -147,15 +144,16 @@ function MonthStep({
   current: string
   onMonth: (month: string) => void
 }) {
+  const { t } = useI18n()
   const earlier = stepMonth(month, -1, current)
   const later = stepMonth(month, 1, current)
   return (
-    <div role="group" aria-label="Chọn tháng" className="flex items-center gap-1">
+    <div role="group" aria-label={t(COPY.pickMonth)} className="flex items-center gap-1">
       <Button
         variant="ghost"
         size="sm"
         className={STEP}
-        aria-label="Tháng trước"
+        aria-label={t(COPY.prevMonth)}
         disabled={earlier === null}
         onClick={() => earlier && onMonth(earlier)}
       >
@@ -168,7 +166,7 @@ function MonthStep({
         variant="ghost"
         size="sm"
         className={STEP}
-        aria-label="Tháng sau"
+        aria-label={t(COPY.nextMonth)}
         disabled={later === null}
         onClick={() => later && onMonth(later)}
       >
@@ -178,43 +176,48 @@ function MonthStep({
   )
 }
 
-function logTable(rows: readonly StopLogRow[], open: (row: StopLogRow) => void): BookTable {
+function logTable(
+  rows: readonly StopLogRow[],
+  open: (row: StopLogRow) => void,
+  t: Translate,
+): BookTable {
   return {
-    minWidth: 'min-w-[1040px]',
+    pageSize: PAGE_SIZE,
     columns: [
-      { header: 'Ngày', width: 'minmax(0,0.9fr)' },
-      { header: 'Hồ sơ', width: 'minmax(0,2fr)' },
-      { header: 'Dừng ở bước', width: 'minmax(0,1.1fr)' },
-      { header: 'Người dừng', width: 'minmax(0,1.1fr)' },
-      { header: 'Lý do', width: 'minmax(0,2fr)' },
-      { header: 'Tình trạng', width: '152px' },
+      { header: t(COPY.date), width: COL.moment },
+      { header: t(COPY.record), width: COL.name },
+      { header: t(COPY.stoppedAtStep), width: 'minmax(128px,1.1fr)' },
+      { header: t(COPY.stoppedBy), width: COL.person },
+      { header: t(COPY.reason), width: 'minmax(200px,2fr)' },
+      { header: t(COPY.status), width: '152px' },
     ],
     rows: rows.map((r) => ({
       id: `${r.kind}:${r.code}:${r.at}`,
       onOpen: () => open(r),
       cells: [
         <MomentCell key="t" iso={r.at} />,
-        <span key="s" className="flex min-w-0 items-center gap-2">
-          <MetaPill mono className="shrink-0">
-            {r.code}
-          </MetaPill>
+        <span key="s" className="flex min-w-0 flex-col gap-1">
           <span className="truncate text-[13px] font-semibold" title={r.name}>
             {r.name}
           </span>
+          <CodeCell code={r.code} />
         </span>,
         <span
           key="g"
-          className={cn('truncate text-[13px]', r.stage === null && 'text-muted-foreground')}
+          className={cn('block truncate text-[13px]', r.stage === null && 'text-muted-foreground')}
           title={r.stage ?? undefined}
         >
-          {r.stage ?? 'Chưa có'}
+          {r.stage ?? t(COPY.notRecorded)}
         </span>,
         <span
           key="a"
-          className={cn('truncate text-[13px]', r.actorName === null && 'text-muted-foreground')}
+          className={cn(
+            'block truncate text-[13px]',
+            r.actorName === null && 'text-muted-foreground',
+          )}
           title={r.actorName ?? undefined}
         >
-          {r.actorName ?? 'Chưa có'}
+          {r.actorName ?? t(COPY.notRecorded)}
         </span>,
         <span key="r" className="flex min-w-0 flex-col gap-1">
           <span className="truncate text-[13px]" title={r.reasonLabel}>
@@ -227,7 +230,7 @@ function logTable(rows: readonly StopLogRow[], open: (row: StopLogRow) => void):
           )}
         </span>,
         <Badge key="n" tone={NOW_TONE[r.now]}>
-          {STOP_LOG_NOW_LABEL[r.now]}
+          {t(COPY.now[r.now])}
         </Badge>,
       ],
     })),
@@ -235,6 +238,7 @@ function logTable(rows: readonly StopLogRow[], open: (row: StopLogRow) => void):
 }
 
 export function StopLogBook({ nav }: NurtureTabProps) {
+  const { t, lang } = useI18n()
   const navigate = useNavigate()
   const canDeal = useCan('opportunity.view')
   const canContract = useCan('contract.view')
@@ -247,7 +251,7 @@ export function StopLogBook({ nav }: NurtureTabProps) {
   const [today] = useState(() => vnDayOf(new Date()))
   const current = monthOf(today)
   const book = useBookQuery(SCHEMA, { size: PAGE_SIZE, filterKeys: FILTER_KEYS })
-  const range = logRange(book.query.from, book.query.to, current)
+  const range = logRange(book.query.from, book.query.to, current, lang)
   const kind = kinds.includes(book.query.kind) ? book.query.kind : 'all'
   const query: StopLogQuery = {
     ...withoutPageKeys(book.query),
@@ -265,22 +269,22 @@ export function StopLogBook({ nav }: NurtureTabProps) {
 
   const kindSwitch = kinds.length > 2 && (
     <SegmentedControl
-      label="Loại"
+      label={t(COPY.kindLabel)}
       hideLabel
       tone="quiet"
       value={kind}
-      options={kinds.map((k) => ({ value: k, label: KIND_LABEL[k] }))}
+      options={kinds.map((k) => ({ value: k, label: t(COPY.kinds[k]) }))}
       onChange={(value) => book.patch({ kind: value as KindFilter })}
     />
   )
 
   return (
     <BookPage
-      title={PAGE_TITLE}
+      title={t(COPY.title)}
       nav={nav}
       score={<StopFacets data={error ? undefined : data} pending={isPending} />}
       tabs={kindSwitch || undefined}
-      count={data && <BookCount total={data.total} noun="lần dừng" />}
+      count={data && <BookCount total={data.total} noun={t(COPY.stopNoun)} />}
       tools={
         <MonthStep month={range.month} label={range.label} current={current} onMonth={pickMonth} />
       }
@@ -288,7 +292,7 @@ export function StopLogBook({ nav }: NurtureTabProps) {
       failure={
         error
           ? {
-              message: `Không tải được nhật ký dừng. ${isApiError(error) ? userMessage(error) : 'Thử lại.'}`,
+              message: `${t(COPY.logFailed)} ${isApiError(error) ? userMessage(error) : t(COPY.retry)}`,
               onRetry: () => void refetch(),
             }
           : undefined
@@ -296,15 +300,15 @@ export function StopLogBook({ nav }: NurtureTabProps) {
       empty={
         rows.length === 0
           ? {
-              message: `Không có lần dừng nào trong ${range.label.toLowerCase()}.`,
+              message: noStopsIn(range.label, lang),
               action: {
-                label: 'Tháng trước',
+                label: t(COPY.prevMonth),
                 onClick: () => pickMonth(stepMonth(range.month, -1, current) ?? range.month),
               },
             }
           : undefined
       }
-      table={logTable(rows, open)}
+      table={logTable(rows, open, t)}
       footer={
         <TableFooter
           page={pageIndex}

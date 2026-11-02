@@ -201,8 +201,10 @@ export function BookPage({
         {tabs}
         {count}
       </div>
+      {/* `flex-auto`: tools too wide to sit beside the tabs take their own row
+          whole, instead of crushing the search box and wrapping one by one. */}
       {(tools || onClearFilters) && (
-        <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+        <div className="flex min-w-0 flex-auto flex-wrap items-center justify-end gap-2">
           {tools}
           {onClearFilters && (
             <Button
@@ -211,7 +213,7 @@ export function BookPage({
               className="pointer-coarse:h-12"
               onClick={onClearFilters}
             >
-              Bỏ hết bộ lọc
+              {t(message('Bỏ hết bộ lọc', 'Clear filters', '필터 지우기'))}
             </Button>
           )}
         </div>
@@ -366,7 +368,7 @@ export function BookSearch({
       value={value}
       meta={searchHint(value)}
       onChange={onChange}
-      className={cn('pointer-coarse:h-12 min-w-0 flex-1 sm:max-w-[320px]', className)}
+      className={cn('pointer-coarse:h-12 min-w-[200px] flex-1 sm:max-w-[320px]', className)}
     />
   )
 }
@@ -412,7 +414,9 @@ function ActiveFilters({
           size="md"
           className={cn('pointer-coarse:h-12 max-w-full', item.className)}
           title={item.label}
-          aria-label={item.aria ?? `Bỏ lọc ${item.label}`}
+          aria-label={
+            item.aria ?? `${t(message('Bỏ lọc', 'Remove filter', '필터 해제'))} ${item.label}`
+          }
           onClick={() => drop(index, item.onDrop)}
         >
           {item.icon && <Icon icon={item.icon} size={16} />}

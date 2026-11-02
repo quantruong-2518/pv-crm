@@ -1,8 +1,9 @@
 import { Badge, cn } from '@pv/ui'
 import { vnDayOf, type WorkstreamRow } from '@pv/contracts'
 import { dmy } from '@/lib/date'
+import { message, useI18n, type Message } from '@/app/i18n'
 import { chainPath } from '@/data/opportunities'
-import { NO_PIC, STAND_TONE, footprintTotal, inChargePics } from '@/data/workstreams'
+import { STAND_TONE, footprintTotal, inChargePics, noPic } from '@/data/workstreams'
 import { PicCell } from './book-cells'
 import { DueBadge } from './contract-bits'
 import { CloseBadge, ObjectChip, OverdueNote } from './workstream-bits'
@@ -79,6 +80,7 @@ export function CustomerLines({ row, go }: { row: WorkstreamRow; go: Go }) {
  *  `nextStep` is `undefined` on an API one deploy behind, and that must not
  *  read as "no next step": it falls back to the overdue badge alone. */
 export function NextStepCell({ row }: { row: WorkstreamRow }) {
+  const { t } = useI18n()
   if (row.closeReason !== null && row.closedAt !== null) {
     return (
       <span className="flex min-w-0 items-center gap-2">
@@ -93,7 +95,7 @@ export function NextStepCell({ row }: { row: WorkstreamRow }) {
     return (
       <span
         className="flex min-w-0 items-center gap-2"
-        title={`${step.text} · hạn ${dmy(step.due)}`}
+        title={`${step.text} · ${t(message(`hạn ${dmy(step.due)}`, `due ${dmy(step.due)}`, `기한 ${dmy(step.due)}`))}`}
       >
         <span className="min-w-0 flex-1 truncate">{step.text}</span>
         {/* The run's own lateness wins: the toggle counts it, so the row must show it. */}
@@ -108,18 +110,24 @@ export function NextStepCell({ row }: { row: WorkstreamRow }) {
   if (step === undefined || late) {
     return <OverdueNote overdueBy={row.overdueBy} />
   }
-  return <span className="text-muted-foreground truncate">Chưa có việc tiếp theo</span>
+  return (
+    <span className="text-muted-foreground truncate">
+      {t(message('Chưa có việc tiếp theo', 'No next task', '다음 업무 없음'))}
+    </span>
+  )
 }
 
 /** Who answers for the object the run stands on — the table's column and the
  *  board's card print them alike. With nobody, the table keeps a dash; a card
  *  passes `spoken`, because a dash's tooltip never opens under a finger. */
 export function InChargeCell({ row, spoken = false }: { row: WorkstreamRow; spoken?: boolean }) {
+  const { lang } = useI18n()
+  const none = noPic(lang)
   return (
     <PicCell
       people={inChargePics(row)}
-      empty={NO_PIC}
-      action={spoken ? <span className="text-muted-foreground truncate">{NO_PIC}</span> : undefined}
+      empty={none}
+      action={spoken ? <span className="text-muted-foreground truncate">{none}</span> : undefined}
     />
   )
 }
@@ -134,18 +142,44 @@ function daysSince(moment: string, today: string): number {
   return Math.max(0, Math.round((Date.parse(`${today}T00:00:00Z`) - then) / DAY_MS))
 }
 
-const agoWord = (n: number) => (n === 0 ? 'Hôm nay' : n === 1 ? 'Hôm qua' : `${n} ngày trước`)
+const agoWord = (n: number): Message =>
+  n === 0
+    ? message('Hôm nay', 'Today', '오늘')
+    : n === 1
+      ? message('Hôm qua', 'Yesterday', '어제')
+      : message(`${n} ngày trước`, `${n} days ago`, `${n}일 전`)
 
 /** When the last contact was, and how many there have been. `today` is read
  *  once by the screen, so a redraw never changes a label mid-view. */
 export function LastContactCell({ row, today }: { row: WorkstreamRow; today: string }) {
+  const { t } = useI18n()
   const last = row.footprint.lastContactedAt
-  if (last === null) return <span className="text-muted-foreground truncate">Chưa liên hệ</span>
+  if (last === null)
+    return (
+      <span className="text-muted-foreground truncate">
+        {t(message('Chưa liên hệ', 'Not contacted', '연락 이력 없음'))}
+      </span>
+    )
   return (
-    <span className="flex min-w-0 flex-col" title={`Lần liên hệ gần nhất: ${dmy(last)}`}>
-      <span className="truncate">{agoWord(daysSince(last, today))}</span>
+    <span
+      className="flex min-w-0 flex-col"
+      title={t(
+        message(
+          `Lần liên hệ gần nhất: ${dmy(last)}`,
+          `Last contacted: ${dmy(last)}`,
+          `최근 연락: ${dmy(last)}`,
+        ),
+      )}
+    >
+      <span className="truncate">{t(agoWord(daysSince(last, today)))}</span>
       <span className="text-muted-foreground tnum font-num text-[11.5px]">
-        {footprintTotal(row.footprint)} lần
+        {t(
+          message(
+            `${footprintTotal(row.footprint)} lần`,
+            `${footprintTotal(row.footprint)} times`,
+            `${footprintTotal(row.footprint)}회`,
+          ),
+        )}
       </span>
     </span>
   )

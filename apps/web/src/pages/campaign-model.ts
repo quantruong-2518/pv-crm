@@ -8,7 +8,7 @@ import { percent } from '@pv/ui'
 import { dmhm } from '@/lib/date'
 import { formatNumber, getLang, message, translate } from '@/app/i18n'
 
-const tr = (vi: string, en: string, ko: string) => translate(message(vi, en, ko))
+const msg = (vi: string, en: string, ko: string) => translate(message(vi, en, ko))
 
 /** Module 1 · what the campaign screens agree on before any of them draws.
  *
@@ -71,10 +71,10 @@ export function profileFrom(c: CampaignProfile): ProfileDraft {
  *  `MAS_MAX_RECIPIENTS`: that constant bounds a hand-picked REQUEST and never
  *  sees a campaign, while the real limit is `PV_MAS_BATCH_MAX`. */
 export function ceilingNote(count: number, ceiling: number): string {
-  return tr(
+  return msg(
     `Có ${formatNumber(count)} người nhận, vượt giới hạn ${formatNumber(ceiling)} người mỗi đợt. Hãy giảm số người nhận để tiếp tục.`,
     `There are ${formatNumber(count)} recipients, above the limit of ${formatNumber(ceiling)} per wave. Reduce the audience to continue.`,
-    `수신자 ${formatNumber(count)}명이 차수당 한도 ${formatNumber(ceiling)}명을 초과했습니다. 계속하려면 수신자 수를 줄이세요.`,
+    `수신자 ${formatNumber(count)}명이 웨이브당 한도 ${formatNumber(ceiling)}명을 초과했습니다. 계속하려면 수신자 수를 줄이세요.`,
   )
 }
 
@@ -150,13 +150,13 @@ export function waveRisks(c: CampaignProfile): WaveRisk[] {
     risks.push({
       key: 'bounce',
       sign: 'over',
-      tag: tr('Thư bị trả lại · vượt ngưỡng', 'Bounces · over limit', '반송 · 한도 초과'),
-      title: tr(
+      tag: msg('Thư bị trả lại · vượt ngưỡng', 'Bounces · over limit', '반송 · 한도 초과'),
+      title: msg(
         `Đợt ${last.waveNo} vượt ngưỡng ${c.bounceCeilingPercent}%`,
         `Wave ${last.waveNo} exceeded the ${c.bounceCeilingPercent}% limit`,
-        `${last.waveNo}차가 ${c.bounceCeilingPercent}% 한도를 초과함`,
+        `웨이브 ${last.waveNo}이(가) ${c.bounceCeilingPercent}% 한도를 초과함`,
       ),
-      text: tr(
+      text: msg(
         `${shareOf(run.bounced, run.sent, 1)}: ${n(run.bounced)} trên ${n(run.sent)} thư đã gửi bị trả lại`,
         `${shareOf(run.bounced, run.sent, 1)}: ${n(run.bounced)} of ${n(run.sent)} sent emails bounced`,
         `${shareOf(run.bounced, run.sent, 1)}: 발송 ${n(run.sent)}개 중 ${n(run.bounced)}개 반송`,
@@ -176,21 +176,21 @@ export function waveRisks(c: CampaignProfile): WaveRisk[] {
       sign: gap > 0 ? 'ok' : 'watch',
       tag:
         gap > 0
-          ? tr('Thư bị trả lại · trong ngưỡng', 'Bounces · within limit', '반송 · 한도 이내')
-          : tr('Thư bị trả lại · cần theo dõi', 'Bounces · monitor', '반송 · 모니터링 필요'),
+          ? msg('Thư bị trả lại · trong ngưỡng', 'Bounces · within limit', '반송 · 한도 이내')
+          : msg('Thư bị trả lại · cần theo dõi', 'Bounces · monitor', '반송 · 모니터링 필요'),
       title:
         gap > 0
-          ? tr(
+          ? msg(
               `Còn cách ngưỡng ${points} điểm`,
               `${points} points below the limit`,
               `한도까지 ${points}포인트 남음`,
             )
-          : tr(
+          : msg(
               'Tỉ lệ trả lại toàn chiến dịch đã chạm ngưỡng',
               'Campaign bounce rate has reached the limit',
               '캠페인 전체 반송률이 한도에 도달함',
             ),
-      text: tr(
+      text: msg(
         `Toàn chiến dịch ${shareOf(total.bounced, total.sent, 1)}: ${n(total.bounced)} trên ${n(total.sent)} thư đã gửi bị trả lại`,
         `Campaign total ${shareOf(total.bounced, total.sent, 1)}: ${n(total.bounced)} of ${n(total.sent)} sent emails bounced`,
         `캠페인 전체 ${shareOf(total.bounced, total.sent, 1)}: 발송 ${n(total.sent)}개 중 ${n(total.bounced)}개 반송`,
@@ -204,16 +204,16 @@ export function waveRisks(c: CampaignProfile): WaveRisk[] {
     const diff = rate(now) - rate(prev)
     const versus =
       diff > 0
-        ? tr('cao hơn', 'above', '높음')
+        ? msg('cao hơn', 'above', '높음')
         : diff < 0
-          ? tr('thấp hơn', 'below', '낮음')
-          : tr('bằng', 'the same as', '같음')
+          ? msg('thấp hơn', 'below', '낮음')
+          : msg('bằng', 'the same as', '같음')
     const unfinished =
       now.run.state === 'SENDING'
-        ? tr(
+        ? msg(
             ` (đợt ${now.waveNo} mới gửi ${n(now.run.sent)} trên ${n(now.run.audienceCount)} thư)`,
             ` (wave ${now.waveNo}: ${n(now.run.sent)} of ${n(now.run.audienceCount)} sent so far)`,
-            ` (${now.waveNo}차: ${n(now.run.audienceCount)}개 중 ${n(now.run.sent)}개 발송됨)`,
+            ` (웨이브 ${now.waveNo}: ${n(now.run.audienceCount)}개 중 ${n(now.run.sent)}개 발송됨)`,
           )
         : ''
     risks.push({
@@ -221,14 +221,14 @@ export function waveRisks(c: CampaignProfile): WaveRisk[] {
       sign: diff < 0 ? 'watch' : 'ok',
       tag:
         diff < 0
-          ? tr('Tỉ lệ nhấp · cần theo dõi', 'Click rate · monitor', '클릭률 · 모니터링 필요')
-          : tr('Tỉ lệ nhấp · ổn định', 'Click rate · healthy', '클릭률 · 양호'),
-      title: tr(
+          ? msg('Tỉ lệ nhấp · cần theo dõi', 'Click rate · monitor', '클릭률 · 모니터링 필요')
+          : msg('Tỉ lệ nhấp · ổn định', 'Click rate · healthy', '클릭률 · 양호'),
+      title: msg(
         `Đợt ${now.waveNo} ${versus} đợt ${prev.waveNo}`,
         `Wave ${now.waveNo} ${versus} wave ${prev.waveNo}`,
-        `${now.waveNo}차가 ${prev.waveNo}차보다 ${versus}`,
+        `웨이브 ${now.waveNo}이(가) 웨이브 ${prev.waveNo}보다 ${versus}`,
       ),
-      text: tr(
+      text: msg(
         `${percent(rate(now), 1)} so với ${percent(rate(prev), 1)}${unfinished}`,
         `${percent(rate(now), 1)} vs. ${percent(rate(prev), 1)}${unfinished}`,
         `${percent(rate(now), 1)} · 이전 ${percent(rate(prev), 1)}${unfinished}`,
@@ -240,13 +240,13 @@ export function waveRisks(c: CampaignProfile): WaveRisk[] {
     risks.push({
       key: 'unsubscribed',
       sign: 'watch',
-      tag: tr('Huỷ đăng ký · cần theo dõi', 'Unsubscribes · monitor', '수신 거부 · 모니터링 필요'),
-      title: tr(
+      tag: msg('Huỷ đăng ký · cần theo dõi', 'Unsubscribes · monitor', '수신 거부 · 모니터링 필요'),
+      title: msg(
         `${n(total.unsubscribed)} người đã huỷ đăng ký`,
         `${n(total.unsubscribed)} unsubscribed`,
         `${n(total.unsubscribed)}명 수신 거부`,
       ),
-      text: tr(
+      text: msg(
         `${shareOf(total.unsubscribed, total.delivered, 1)} số thư tới nơi`,
         `${shareOf(total.unsubscribed, total.delivered, 1)} of delivered emails`,
         `도착 이메일 중 ${shareOf(total.unsubscribed, total.delivered, 1)}`,
@@ -285,16 +285,16 @@ export function overlapNote(rows: readonly CampaignOverlap[]): string | null {
   const names = [...new Set(rows.map((r) => r.campaignName))]
   const where =
     names.length > 2
-      ? tr(
+      ? msg(
           `${names.slice(0, 2).join(', ')} và ${names.length - 2} chiến dịch khác`,
           `${names.slice(0, 2).join(', ')} and ${names.length - 2} other campaigns`,
           `${names.slice(0, 2).join(', ')} 외 ${names.length - 2}개 캠페인`,
         )
       : names.join(', ')
 
-  return tr(
+  return msg(
     `${formatNumber(people)} người nhận đang nhận thư của ${where}. Đợt này vẫn gửi cho họ.`,
     `${formatNumber(people)} recipients are also receiving emails from ${where}. This wave will still reach them.`,
-    `${formatNumber(people)}명의 수신자가 ${where}에서도 이메일을 받고 있습니다. 이번 차수도 발송됩니다.`,
+    `${formatNumber(people)}명의 수신자가 ${where}에서도 이메일을 받고 있습니다. 이번 웨이브도 발송됩니다.`,
   )
 }

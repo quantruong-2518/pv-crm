@@ -1,8 +1,9 @@
 import { Button, Chip, FileText, Icon } from '@pv/ui'
 import type { OpportunityMoneyNegotiation, QuotationRow } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 import { useContractKindLabel } from '@/data/sales-config'
 import { RunBlock } from '@/components/run/run-block'
-import { QUOTE_LABEL, kindLabel } from './money'
+import { QUOTE_LABEL_COPY, kindLabel } from './money'
 import { roundsOf, type Paper } from './papers'
 import { RoundList } from './rounds'
 
@@ -31,6 +32,7 @@ export function QuotationRail({
   workstreamCode: string | null
   doors: QuotationDoors | undefined
 }) {
+  const { t } = useI18n()
   const resolveKind = useContractKindLabel()
   if (!paper && !doors && closed.length === 0) return null
   const rounds = roundsOf(paper)
@@ -40,7 +42,7 @@ export function QuotationRail({
 
   return (
     <RunBlock
-      title="Báo giá"
+      title={t(message('Báo giá', 'Quotations', '견적서'))}
       aside={
         paper && (
           <Chip>
@@ -54,8 +56,23 @@ export function QuotationRail({
       {paper && (
         <span className="text-muted-foreground tnum text-[12px]">
           {[
-            `${rounds.length} lần`,
-            won ? `chốt ở lần ${won.roundNo}` : negotiation && 'đang chờ khách',
+            t(
+              message(
+                `${rounds.length} lần`,
+                `${rounds.length} ${rounds.length === 1 ? 'round' : 'rounds'}`,
+                `${rounds.length}회`,
+              ),
+            ),
+            won
+              ? t(
+                  message(
+                    `chốt ở lần ${won.roundNo}`,
+                    `won in round ${won.roundNo}`,
+                    `${won.roundNo}회차에서 확정`,
+                  ),
+                )
+              : negotiation &&
+                t(message('đang chờ khách', 'awaiting the customer', '고객 회신 대기')),
           ]
             .filter(Boolean)
             .join(' · ')}
@@ -65,12 +82,20 @@ export function QuotationRail({
         <RoundList rounds={rounds} workstreamCode={workstreamCode} onPatch={doors?.onPatch} />
       )}
       {rounds.length === 0 && closed.length === 0 && (
-        <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">Chưa có báo giá.</p>
+        <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
+          {t(message('Chưa có báo giá.', 'No quotations yet.', '견적서가 없습니다.'))}
+        </p>
       )}
       {closed.length > 0 && (
         <>
           <span className="text-muted-foreground text-[12px] font-medium">
-            Báo giá đã đóng, không chốt
+            {t(
+              message(
+                'Báo giá đã đóng, không chốt',
+                'Closed quotations, not won',
+                '종료된 견적서, 미체결',
+              ),
+            )}
           </span>
           <RoundList rounds={closed} workstreamCode={workstreamCode} />
         </>
@@ -84,7 +109,7 @@ export function QuotationRail({
           onClick={() => doors.onQuote(negotiation?.kind ? negotiation : null)}
         >
           <Icon icon={FileText} size={16} />
-          {QUOTE_LABEL}
+          {t(QUOTE_LABEL_COPY)}
         </Button>
       )}
       {doors && pending && (
@@ -94,7 +119,7 @@ export function QuotationRail({
           className="pointer-coarse:h-12 w-full"
           onClick={() => doors.onClose(pending)}
         >
-          Đóng vòng báo giá
+          {t(message('Đóng vòng báo giá', 'Close the quotation', '견적 종료'))}
         </Button>
       )}
     </RunBlock>

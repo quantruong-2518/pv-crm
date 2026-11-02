@@ -10,6 +10,7 @@ import {
   type SalesGrain,
   type SalesPerformanceResponse,
 } from '@pv/contracts'
+import { message, translate, type Message } from '@/app/i18n'
 
 /** The overview's period picker and how a period and its buckets print. The
  *  arithmetic is `@pv/contracts`' (`sales-period`), shared with the API fence;
@@ -17,11 +18,11 @@ import {
  *  own days, never recomputed, so a placeholder kept across a period change
  *  still prints the days its figures cover. */
 
-export const GRAINS: { value: SalesGrain; label: string }[] = [
-  { value: 'week', label: 'Tuần' },
-  { value: 'month', label: 'Tháng' },
-  { value: 'quarter', label: 'Quý' },
-  { value: 'year', label: 'Năm' },
+export const GRAINS: { value: SalesGrain; label: Message }[] = [
+  { value: 'week', label: message('Tuần', 'Week', '주') },
+  { value: 'month', label: message('Tháng', 'Month', '월') },
+  { value: 'quarter', label: message('Quý', 'Quarter', '분기') },
+  { value: 'year', label: message('Năm', 'Year', '연') },
 ]
 
 /** One remembered key per grain, so switching grain and back returns to the
@@ -50,7 +51,11 @@ export function stepPick(pick: PeriodPick, by: -1 | 1, today = new Date()): Peri
   return { ...pick, [pick.grain]: next }
 }
 
-const dm = (day: string) => `${Number(day.slice(8, 10))}/${Number(day.slice(5, 7))}`
+const dm = (day: string) => {
+  const d = Number(day.slice(8, 10))
+  const m = Number(day.slice(5, 7))
+  return translate(message(`${d}/${m}`, `${m}/${d}`, `${m}/${d}`))
+}
 
 /** '12/10 – 13/10'; the year is added when it is not the year of `home`. */
 export function rangeLabel(range: SalesDayRange, home?: string): string {
@@ -64,14 +69,30 @@ export function rangeLabel(range: SalesDayRange, home?: string): string {
 /** The picker's label: a week by its days, the other grains by number and year. */
 export function periodLabel(key: string): string {
   const grain = salesGrainOf(key)
-  if (grain === 'year') return `Năm ${key}`
-  if (grain === 'quarter') return `Quý ${key.slice(6)} · ${key.slice(0, 4)}`
-  if (grain === 'month') return `Tháng ${Number(key.slice(5))} · ${key.slice(0, 4)}`
+  const year = key.slice(0, 4)
+  if (grain === 'year') return translate(message(`Năm ${key}`, `Year ${key}`, `${key}년`))
+  if (grain === 'quarter') {
+    const q = key.slice(6)
+    return translate(message(`Quý ${q} · ${year}`, `Q${q} · ${year}`, `${year}년 ${q}분기`))
+  }
+  if (grain === 'month') {
+    const m = Number(key.slice(5))
+    return translate(message(`Tháng ${m} · ${year}`, `Month ${m} · ${year}`, `${year}년 ${m}월`))
+  }
   const span = salesPeriodSpan(key)
-  return `Tuần ${rangeLabel({ first: span.from, last: lastDayOf(span) }, vnDayOf(new Date()))}`
+  const range = rangeLabel({ first: span.from, last: lastDayOf(span) }, vnDayOf(new Date()))
+  return translate(message(`Tuần ${range}`, `Week ${range}`, `${range} 주`))
 }
 
-const DAY_NAMES = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
+const DAY_NAMES: Message[] = [
+  message('CN', 'Sun', '일'),
+  message('T2', 'Mon', '월'),
+  message('T3', 'Tue', '화'),
+  message('T4', 'Wed', '수'),
+  message('T5', 'Thu', '목'),
+  message('T6', 'Fri', '금'),
+  message('T7', 'Sat', '토'),
+]
 
 export type BucketState = 'past' | 'now' | 'future'
 
@@ -93,13 +114,16 @@ export function bucketViews(data: SalesPerformanceResponse): BucketView[] {
       const weekday = new Date(`${bucket.first}T00:00:00Z`).getUTCDay()
       return {
         bucket,
-        label: DAY_NAMES[weekday] ?? '',
-        sub: state === 'now' ? 'hôm nay' : dm(bucket.first),
+        label: translate(DAY_NAMES[weekday] ?? message('', '', '')),
+        sub: state === 'now' ? translate(message('hôm nay', 'today', '오늘')) : dm(bucket.first),
         state,
       }
     }
-    const label = grain === 'month' ? rangeLabel(bucket) : `T${Number(bucket.key.slice(5))}`
-    return { bucket, label, sub: state === 'now' ? 'đang chạy' : '', state }
+    const n = Number(bucket.key.slice(5))
+    const label =
+      grain === 'month' ? rangeLabel(bucket) : translate(message(`T${n}`, `M${n}`, `${n}월`))
+    const sub = state === 'now' ? translate(message('đang chạy', 'running', '진행 중')) : ''
+    return { bucket, label, sub, state }
   })
 }
 
@@ -117,5 +141,7 @@ export function progressOf(data: PeriodRead): { ran: number; total: number } {
 }
 
 /** The header's comparison line, read off the span the server compared with. */
-export const compareLabel = (data: PeriodRead): string =>
-  `so với ${rangeLabel(data.compare, data.span.first)}`
+export const compareLabel = (data: PeriodRead): string => {
+  const range = rangeLabel(data.compare, data.span.first)
+  return translate(message(`so với ${range}`, `compared with ${range}`, `${range} 대비`))
+}

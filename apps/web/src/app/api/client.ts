@@ -1,6 +1,7 @@
 import type { Problem, ZodType } from '@pv/contracts'
 import type { AccessNeed } from '@pv/engines'
 import { access, askReauth, renewSession, sessionIsLive, useSession } from '@/app/auth'
+import { message, translate } from '@/app/i18n'
 import { API_BASE_URL } from './base-url'
 import { ApiError, denyReasonOf, failureOf, type ApiFailure } from './errors'
 import { isGatewayDown, reportAnswering, reportUnreachable } from './server-health'
@@ -145,7 +146,13 @@ const requireLiveSession: BeforeSend = (req) => {
   throw new ApiError({
     kind: 'unauthenticated',
     path: req.path,
-    message: 'Hết thời gian đăng nhập.',
+    message: translate(
+      message(
+        'Hết thời gian đăng nhập.',
+        'Your session has expired.',
+        '로그인 시간이 만료되었습니다.',
+      ),
+    ),
   })
 }
 
@@ -165,7 +172,12 @@ const requireAccess: BeforeSend = (req) => {
   throw new ApiError({
     kind: verdict.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden',
     path: req.path,
-    message: verdict.reason === 'unauthenticated' ? 'Bạn chưa đăng nhập.' : verdict.note,
+    message:
+      verdict.reason === 'unauthenticated'
+        ? translate(
+            message('Bạn chưa đăng nhập.', 'You are not signed in.', '로그인하지 않았습니다.'),
+          )
+        : verdict.note,
     status: verdict.reason === 'unauthenticated' ? 401 : 403,
     reason: verdict.reason,
   })
@@ -203,7 +215,7 @@ const logDenied: OnFailure = async (error, req) => {
     access.log({
       actorId: actor.id,
       action: 'view',
-      note: `chặn ${req.method} ${req.path} · ${error.reason}`,
+      note: `chặn ${req.method} ${req.path} · ${error.reason}`, // i18n-ignore
     })
   }
   return 'give-up'
@@ -308,7 +320,12 @@ const PROBLEM_KIND: Record<string, ApiFailure | undefined> = {
 async function toApiError(raw: unknown, req: ApiRequest): Promise<ApiError> {
   if (raw instanceof ApiError) return raw
   if (raw instanceof DOMException && raw.name === 'AbortError') {
-    return new ApiError({ kind: 'aborted', path: req.path, message: 'Đã huỷ.', cause: raw })
+    return new ApiError({
+      kind: 'aborted',
+      path: req.path,
+      message: translate(message('Đã huỷ.', 'Cancelled.', '취소되었습니다.')),
+      cause: raw,
+    })
   }
   if (raw instanceof Response) {
     const problem = await readProblem(raw)
@@ -338,7 +355,12 @@ async function toApiError(raw: unknown, req: ApiRequest): Promise<ApiError> {
   return new ApiError({
     kind: 'network',
     path: req.path,
-    message: raw instanceof Error ? raw.message : 'Gọi dữ liệu hỏng.',
+    message:
+      raw instanceof Error
+        ? raw.message
+        : translate(
+            message('Gọi dữ liệu hỏng.', 'The data request failed.', '데이터 요청에 실패했습니다.'),
+          ),
     traceId: req.headers[TRACE_HEADER],
     cause: raw,
   })
@@ -419,12 +441,22 @@ function parsed<T>(body: unknown, req: ApiRequest, schema?: ZodType<T>): T {
      saying more: two ends a version apart usually disagree in a cluster, and
      the reader only needs one name to go and look. */
   const first = check.error.issues[0]
-  const at = first === undefined || first.path.length === 0 ? 'thân trả về' : first.path.join('.')
+  const at =
+    first === undefined || first.path.length === 0
+      ? translate(message('thân trả về', 'response body', '응답 본문'))
+      : first.path.join('.')
+  const reason = first?.message ?? translate(message('sai hình', 'wrong shape', '형식 오류'))
 
   throw new ApiError({
     kind: 'contract-mismatch',
     path: req.path,
-    message: `Máy chủ trả về không khớp hợp đồng ở \`${at}\`: ${first?.message ?? 'sai hình'}.`,
+    message: translate(
+      message(
+        `Máy chủ trả về không khớp hợp đồng ở \`${at}\`: ${reason}.`,
+        `The server response does not match the contract at \`${at}\`: ${reason}.`,
+        `서버 응답이 \`${at}\`에서 계약과 일치하지 않습니다: ${reason}.`,
+      ),
+    ),
     traceId: req.headers[TRACE_HEADER],
   })
 }

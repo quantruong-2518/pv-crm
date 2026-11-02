@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Button, Icon, Modal, cn, type IconGlyph } from '@pv/ui'
 import { userMessage, type ApiError } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 
 /** The frame every small write dialog of the money screens shares: a title, the
  *  fields, and a footer that says what blocks the press, what the server
@@ -35,6 +36,7 @@ export function FormModal({
   onSubmit: () => void
   children: ReactNode
 }) {
+  const { t } = useI18n()
   return (
     <Modal
       open={open}
@@ -55,7 +57,7 @@ export function FormModal({
           </span>
           <div className="flex shrink-0 gap-3">
             <Button size="lg" variant="ghost" disabled={busy} onClick={onClose}>
-              Quay lại
+              {t(message('Quay lại', 'Back', '이전'))}
             </Button>
             <Button size="lg" disabled={!ready || busy} onClick={onSubmit}>
               <Icon icon={icon} size={16} />

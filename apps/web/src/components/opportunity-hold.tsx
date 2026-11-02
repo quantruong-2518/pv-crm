@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button, CalendarClock, Icon, RotateCcw } from '@pv/ui'
 import type { OpportunityProfileResponse } from '@pv/contracts'
 import { userMessage } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 import { toastDone, toastFail } from '@/app/toast'
 import { useEndOpportunityHold } from '@/data/holds'
 import { HoldDialog } from '@/components/hold-dialog'
@@ -48,6 +49,7 @@ export function OpportunityHoldDialog({
  *  same scoped `opportunity.edit` the hold doors need, and still open while
  *  held, unlike `acts.hold`, which shuts once a hold exists. */
 export function OpportunityHoldStrip({ op }: { op: Profile }) {
+  const { t } = useI18n()
   const [changing, setChanging] = useState(false)
   const end = useEndOpportunityHold(op.code)
 
@@ -55,8 +57,27 @@ export function OpportunityHoldStrip({ op }: { op: Profile }) {
     end.mutate(
       { to: 'resume' },
       {
-        onSuccess: () => toastDone(`Đã bỏ tạm hoãn ${op.code}.`),
-        onError: (e) => toastFail('Không bỏ tạm hoãn được cơ hội.', userMessage(e)),
+        onSuccess: () =>
+          toastDone(
+            t(
+              message(
+                `Đã bỏ tạm hoãn ${op.code}.`,
+                `${op.code} is no longer on hold.`,
+                `${op.code}의 보류를 해제했습니다.`,
+              ),
+            ),
+          ),
+        onError: (e) =>
+          toastFail(
+            t(
+              message(
+                'Không bỏ tạm hoãn được cơ hội.',
+                'Could not take the opportunity off hold.',
+                '기회의 보류를 해제하지 못했습니다.',
+              ),
+            ),
+            userMessage(e),
+          ),
       },
     )
 
@@ -64,7 +85,7 @@ export function OpportunityHoldStrip({ op }: { op: Profile }) {
     <>
       <Button size="md" className="pointer-coarse:h-12" disabled={end.isPending} onClick={resume}>
         <Icon icon={RotateCcw} size={16} />
-        Bỏ tạm hoãn
+        {t(message('Bỏ tạm hoãn', 'Take off hold', '보류 해제'))}
       </Button>
       <Button
         size="md"
@@ -73,7 +94,7 @@ export function OpportunityHoldStrip({ op }: { op: Profile }) {
         onClick={() => setChanging(true)}
       >
         <Icon icon={CalendarClock} size={16} />
-        Đổi ngày hẹn
+        {t(message('Đổi ngày hẹn', 'Change follow-up date', '재연락 날짜 변경'))}
       </Button>
     </>
   )

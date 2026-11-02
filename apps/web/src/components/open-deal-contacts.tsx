@@ -18,7 +18,7 @@ import { SectionHead } from './open-deal-basics'
 
 const NO_ROLE = ''
 /** Also the run rail's line for a deal contact with no role. */
-export const NO_ROLE_LABEL = 'Chưa nêu vai'
+export const NO_ROLE_LABEL = 'Chưa nêu vai' // i18n-ignore
 export function ContactsSection({
   contacts,
   picks,
@@ -44,19 +44,30 @@ export function ContactsSection({
   const bare = picks.length === 0 && contacts.length > 0
 
   return (
-    <section className="flex flex-col gap-3" aria-label="Phía khách">
+    <section
+      className="flex flex-col gap-3"
+      aria-label={t(message('Phía khách', 'Customer side', '고객 측'))}
+    >
       <SectionHead
         note={
           refusal ? (
             <span className="text-destructive-foreground">{refusal}</span>
           ) : bare ? (
-            <span className="text-destructive-foreground">chưa chọn người liên hệ nào</span>
+            <span className="text-destructive-foreground">
+              {t(
+                message(
+                  'chưa chọn người liên hệ nào',
+                  'no contact selected',
+                  '선택한 연락처가 없습니다',
+                ),
+              )}
+            </span>
           ) : (
-            'ít nhất một người liên hệ'
+            t(message('ít nhất một người liên hệ', 'at least one contact', '연락처 한 명 이상'))
           )
         }
       >
-        Phía khách
+        {t(message('Phía khách', 'Customer side', '고객 측'))}
       </SectionHead>
 
       {contacts.length === 0 ? (
@@ -78,7 +89,12 @@ export function ContactsSection({
                   onChange={() => onPicks(toggledPick(picks, contact.code))}
                   label={contact.name}
                   hint={
-                    [contact.title, contact.source === 'account' ? 'từ công ty' : null]
+                    [
+                      contact.title,
+                      contact.source === 'account'
+                        ? t(message('từ công ty', 'from company', '회사 소속'))
+                        : null,
+                    ]
                       .filter(Boolean)
                       .join(' · ') || undefined
                   }
@@ -170,13 +186,20 @@ function PickControls({
 /** Submit stays blocked while this shows. The way out is the lead's own
  *  contact card, one step away — never a second contact form in the drawer. */
 function NoContacts({ onOpenLead }: { onOpenLead: () => void }) {
+  const { t } = useI18n()
   return (
     <div className="bg-surface-ink/9 flex flex-wrap items-center gap-3 rounded-md px-4 py-3">
       <p className="text-muted-foreground m-0 min-w-0 flex-1 text-[12.5px] leading-[1.6]">
-        Lead này chưa có người liên hệ. Thêm người ở thẻ Người liên hệ trong hồ sơ lead.
+        {t(
+          message(
+            'Lead này chưa có người liên hệ. Thêm người ở thẻ Người liên hệ trong hồ sơ lead.',
+            'This lead has no contacts yet. Add one in the Contacts card of the lead profile.',
+            '이 리드에는 아직 연락처가 없습니다. 리드 프로필의 연락처 카드에서 추가하세요.',
+          ),
+        )}
       </p>
       <Button size="sm" variant="ghost" className="pointer-coarse:h-12" onClick={onOpenLead}>
-        Mở hồ sơ lead
+        {t(message('Mở hồ sơ lead', 'Open lead profile', '리드 프로필 열기'))}
       </Button>
     </div>
   )

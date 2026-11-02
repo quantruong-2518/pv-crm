@@ -1,19 +1,21 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { Copy, Lock, Mail, RefreshCw, RotateCcw, Save, X } from '@pv/ui'
-import { Badge, Button, Checkbox, Drawer, Icon, Input, Kicker, MetaPill, cn } from '@pv/ui'
+import { Mail, Save, X } from '@pv/ui'
+import { Button, Checkbox, Drawer, Icon, Input, Kicker, cn } from '@pv/ui'
 import type { Branch, RoleId, UserRow } from '@pv/contracts'
 import { isAdmin } from '@pv/engines'
 import { userMessage, type ApiError, type FieldErrors } from '@/app/api'
 import { useSession } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
-import { dm, dmy } from '@/lib/date'
+import { kpiRoleText } from '@/data/kpi-i18n'
+import { UserStatusCell } from './users-cells'
+import { InviteLink, LockButton, ResetPasswordButton } from './users-bits'
 import {
   BRANCH_OPTIONS,
   CORE_BRANCH,
   DEFAULT_ROLE,
   NOTHING_TO_SAVE,
-  ROLE_LABEL,
-  ROLE_OPTIONS,
+  ROLE_IDS,
   diffUser,
   scopeLabel,
   useCreateUser,
@@ -40,111 +42,6 @@ import { HandoverDrawer } from './users-lock'
 const FORM_ID = 'user-form'
 
 // ---------------------------------------------------------------------------
-// Row cells
-// ---------------------------------------------------------------------------
-
-/** The name column, with a marker on the row that is the person reading it.
- *
- *  The marker is not decoration: two of the panel's controls are dead on this
- *  row (role and lock), and a manager who finds a greyed-out button without
- *  having noticed whose row they opened reads it as a bug in the screen. Saying
- *  "bạn" in the table means the explanation arrives before the surprise. */
-export function UserNameCell({ name, isMe }: { name: string; isMe: boolean }) {
-  return (
-    <span className="flex min-w-0 items-center gap-2">
-      <span className="min-w-0 truncate" title={name}>
-        {name}
-      </span>
-      {isMe && <MetaPill className="shrink-0">bạn</MetaPill>}
-    </span>
-  )
-}
-
-/** The role column — BOTH names, stacked, and that is the whole point.
- *
- *  `role` is a free-text display label somebody typed ("Sale · chip"); `roleIds`
- *  are the keys the permission matrix is read by, one line however many there
- *  are. They are allowed to differ, and when they do it matters: an account
- *  labelled "Sale · chip" whose `roleIds` include `head-of-sales` can approve the whole department, and a table printing only
- *  the label would show nothing at all wrong. Printing only the key would be
- *  the opposite mistake — it would drop the industry the department actually
- *  organises itself by.
- *
- *  `SessionActor.role` already warns never to bind a permission to the label.
- *  This cell is where that warning becomes visible to a person. */
-export function UserRoleCell({ label, roleIds }: { label: string; roleIds: readonly RoleId[] }) {
-  const names = roleIds.map((id) => ROLE_LABEL[id]).join(' · ')
-  return (
-    <span className="flex min-w-0 flex-col">
-      <span className="truncate" title={label}>
-        {label}
-      </span>
-      <span className="text-muted-foreground truncate text-[11px]" title={names}>
-        {names}
-      </span>
-    </span>
-  )
-}
-
-/** The status column — three states, and every row gets one.
- *
- *  Two of them are the states the sketch calls for, and they are the two that
- *  need somebody to do something: an account nobody can sign into yet, and an
- *  account nobody may sign into any more. The third ("Đang dùng") exists so the
- *  column is never a run of empty cells with a chip floating in it — the same
- *  reason `StatusCell` on the lead book always draws a badge. An empty cell
- *  reads as missing data; a green one reads as "nothing to do here".
- *
- *  Locked wins over password-not-set when both are true: locked is the harder
- *  stop, and inviting somebody whose account is shut is work that achieves
- *  nothing.
- *
- *  `disabledAt` is a timestamp rather than a flag precisely so this chip can
- *  answer "since when", which is the question actually asked about a locked
- *  account. The full date is in `title`; the chip has room for day and month. */
-export function UserStatusCell({ user }: { user: UserRow }) {
-  if (user.disabledAt !== null) {
-    return (
-      <Badge
-        tone="danger"
-        /* Luật 6 — một ngày nằm trong cột bảng là "số bảng": chữ số phải đều
-           bề rộng, nếu không cột lệch khi cuộn qua nhiều dòng đang khoá. */
-        className="tnum"
-        title={`Khoá từ ${dmy(user.disabledAt)}.`}
-      >
-        Đang khoá · {dm(user.disabledAt)}
-      </Badge>
-    )
-  }
-
-  /* BEFORE the no-password branch, because an account can be both — an
-     administrator who resets somebody who never followed their invite has a row
-     with a password AND a debt. The debt is the newer fact and the one with a
-     button behind it, so it is the one the chip shows. */
-  if (user.mustChangePasswordAt !== null) {
-    return (
-      <Badge
-        tone="warning"
-        className="tnum"
-        title={`Đặt lại mật khẩu mặc định ${dmy(user.mustChangePasswordAt)}. Người này phải đổi mật khẩu mới dùng được.`}
-      >
-        Chờ đổi mật khẩu · {dm(user.mustChangePasswordAt)}
-      </Badge>
-    )
-  }
-
-  if (!user.passwordSet) {
-    return <Badge tone="warning">Chờ đặt mật khẩu</Badge>
-  }
-
-  return (
-    <Badge tone="success" title={`Mở tài khoản ${dmy(user.createdAt)}`}>
-      Đang dùng
-    </Badge>
-  )
-}
-
-// ---------------------------------------------------------------------------
 // The panel
 // ---------------------------------------------------------------------------
 
@@ -160,6 +57,7 @@ export type UserDrawerProps = {
 }
 
 export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
+  const { t, lang } = useI18n()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [roleLabel, setRoleLabel] = useState('')
@@ -274,7 +172,7 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
 
     const patch = diffUser(user, { name, role: roleLabel, roleIds, branches, ownOnly })
     if (!patch) {
-      setFailure(NOTHING_TO_SAVE)
+      setFailure(t(NOTHING_TO_SAVE))
       return
     }
 
@@ -288,10 +186,24 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
         onSuccess: (row) => {
           setLockedAt(row.disabledAt)
           toastDone(
-            row.disabledAt === null ? 'Đã mở khoá tài khoản' : 'Đã khoá tài khoản',
             row.disabledAt === null
-              ? `${row.name} đăng nhập lại được ngay.`
-              : `${row.name} không đăng nhập được nữa.`,
+              ? t(message('Đã mở khoá tài khoản', 'Account unlocked', '계정 잠금을 해제했습니다'))
+              : t(message('Đã khoá tài khoản', 'Account locked', '계정을 잠갔습니다')),
+            row.disabledAt === null
+              ? t(
+                  message(
+                    `${row.name} đăng nhập lại được ngay.`,
+                    `${row.name} can sign in again right away.`,
+                    `${row.name}님은 바로 다시 로그인할 수 있습니다.`,
+                  ),
+                )
+              : t(
+                  message(
+                    `${row.name} không đăng nhập được nữa.`,
+                    `${row.name} can no longer sign in.`,
+                    `${row.name}님은 더 이상 로그인할 수 없습니다.`,
+                  ),
+                ),
           )
         },
         onError: (error) => setFailure(userMessage(error)),
@@ -317,8 +229,20 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
     resetPassword.mutate(user.id, {
       onSuccess: (row) => {
         toastDone(
-          'Đã đặt lại mật khẩu mặc định',
-          `${row.name} bị đăng xuất và phải đổi mật khẩu khi đăng nhập lại.`,
+          t(
+            message(
+              'Đã đặt lại mật khẩu mặc định',
+              'Password reset to the default',
+              '기본 비밀번호로 초기화했습니다',
+            ),
+          ),
+          t(
+            message(
+              `${row.name} bị đăng xuất và phải đổi mật khẩu khi đăng nhập lại.`,
+              `${row.name} was signed out and must change the password on the next sign-in.`,
+              `${row.name}님은 로그아웃되며 다음 로그인 시 비밀번호를 변경해야 합니다.`,
+            ),
+          ),
         )
       },
       onError: (error) => setFailure(userMessage(error)),
@@ -341,10 +265,33 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
           return
         }
         if (view.sent) {
-          toastDone('Đang gửi thư đặt mật khẩu', `Thư tới ${user.email} sau vài chục giây.`)
+          toastDone(
+            t(
+              message(
+                'Đang gửi thư đặt mật khẩu',
+                'Sending the set-password email',
+                '비밀번호 설정 메일을 보내는 중',
+              ),
+            ),
+            t(
+              message(
+                `Thư tới ${user.email} sau vài chục giây.`,
+                `The email reaches ${user.email} within a few dozen seconds.`,
+                `메일은 수십 초 후 ${user.email}에 도착합니다.`,
+              ),
+            ),
+          )
           return
         }
-        setFailure('Không gửi được thư. Thử lại sau.')
+        setFailure(
+          t(
+            message(
+              'Không gửi được thư. Thử lại sau.',
+              'Could not send the email. Try again later.',
+              '메일을 보내지 못했습니다. 나중에 다시 시도해 주세요.',
+            ),
+          ),
+        )
       },
       onError: (error) => setFailure(userMessage(error)),
     })
@@ -353,13 +300,29 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
   const copyLink = async () => {
     try {
       await navigator.clipboard.writeText(link)
-      toastDone('Đã chép đường dẫn đặt mật khẩu')
+      toastDone(
+        t(
+          message(
+            'Đã chép đường dẫn đặt mật khẩu',
+            'Set-password link copied',
+            '비밀번호 설정 링크를 복사했습니다',
+          ),
+        ),
+      )
     } catch {
       /* `navigator.clipboard` is absent on plain http and blocked outright by
          some policies, so this is a normal path, not an exceptional one. The
          link is still on screen and still selectable — say so instead of
          swallowing the failure. */
-      setFailure('Trình duyệt không cho chép tự động. Bôi đen ô đường dẫn rồi Ctrl+C.')
+      setFailure(
+        t(
+          message(
+            'Trình duyệt không cho chép tự động. Bôi đen ô đường dẫn rồi Ctrl+C.',
+            'The browser blocked automatic copying. Select the link box and press Ctrl+C.',
+            '브라우저에서 자동 복사를 허용하지 않습니다. 링크 칸을 선택하고 Ctrl+C를 누르세요.',
+          ),
+        ),
+      )
     }
   }
 
@@ -369,9 +332,7 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
   const toggleRole = (role: RoleId, on: boolean) => {
     clearError('roleIds')
     setRoleIds((current) => {
-      const next = ROLE_OPTIONS.map((o) => o.value).filter((id) =>
-        id === role ? on : current.includes(id),
-      )
+      const next = ROLE_IDS.filter((id) => (id === role ? on : current.includes(id)))
       return next.length > 0 ? next : current
     })
   }
@@ -392,12 +353,28 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
          kit has never rendered. md is the near side of that choice and holds a
          six-field form without the two-column cramping `lead-form.ts` records. */
       width="md"
-      title={user ? `Sửa ${user.name}` : 'Thêm người'}
+      title={
+        user
+          ? t(message(`Sửa ${user.name}`, `Edit ${user.name}`, `${user.name} 수정`))
+          : t(message('Thêm người', 'Add person', '사용자 추가'))
+      }
       subtitle={
         user
-          ? 'Sửa vai, nhánh và phạm vi. Hòm thư không sửa được.'
+          ? t(
+              message(
+                'Sửa vai, nhánh và phạm vi. Hòm thư không sửa được.',
+                'Edit roles, branches and scope. The mailbox cannot be changed.',
+                '역할, 영역, 범위를 수정할 수 있습니다. 메일 주소는 변경할 수 없습니다.',
+              ),
+            )
           : admin
-            ? 'Sau khi lưu, gửi thư đặt mật khẩu để người này vào được.'
+            ? t(
+                message(
+                  'Sau khi lưu, gửi thư đặt mật khẩu để người này vào được.',
+                  'After saving, send the set-password email so this person can sign in.',
+                  '저장한 뒤 비밀번호 설정 메일을 보내야 로그인할 수 있습니다.',
+                ),
+              )
             : undefined
       }
       /* The badge reads `lockedAt`, not `user.disabledAt`: the lock button can
@@ -430,7 +407,15 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
                     disabled={invite.isPending}
                   >
                     <Icon icon={Mail} size={16} />
-                    {invite.isPending ? 'Đang gửi…' : 'Gửi thư đặt mật khẩu'}
+                    {invite.isPending
+                      ? t(message('Đang gửi…', 'Sending…', '보내는 중…'))
+                      : t(
+                          message(
+                            'Gửi thư đặt mật khẩu',
+                            'Send set-password email',
+                            '비밀번호 설정 메일 보내기',
+                          ),
+                        )}
                   </Button>
                   <ResetPasswordButton
                     isMe={isMe}
@@ -447,14 +432,30 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
               )}
               {user && !admin && !user.passwordSet && (
                 <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                  Nhờ Giám đốc gửi thư đặt mật khẩu.
+                  {t(
+                    message(
+                      'Nhờ Giám đốc gửi thư đặt mật khẩu.',
+                      'Ask a Director to send the set-password email.',
+                      '이사에게 비밀번호 설정 메일 발송을 요청하세요.',
+                    ),
+                  )}
                 </span>
               )}
               {!user && (
                 <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                  {admin
-                    ? 'Lưu xong mới gửi được thư đặt mật khẩu.'
-                    : 'Lưu xong, nhờ Giám đốc gửi thư đặt mật khẩu.'}
+                  {t(
+                    admin
+                      ? message(
+                          'Lưu xong mới gửi được thư đặt mật khẩu.',
+                          'The set-password email can be sent once you save.',
+                          '저장한 뒤에 비밀번호 설정 메일을 보낼 수 있습니다.',
+                        )
+                      : message(
+                          'Lưu xong, nhờ Giám đốc gửi thư đặt mật khẩu.',
+                          'After saving, ask a Director to send the set-password email.',
+                          '저장한 뒤 이사에게 비밀번호 설정 메일 발송을 요청하세요.',
+                        ),
+                  )}
                 </span>
               )}
             </div>
@@ -462,11 +463,13 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
             <div className="flex shrink-0 gap-2">
               <Button size="md" variant="ghost" type="button" onClick={onClose}>
                 <Icon icon={X} size={16} />
-                Huỷ
+                {t(message('Huỷ', 'Cancel', '취소'))}
               </Button>
               <Button size="md" type="submit" form={FORM_ID} disabled={busy}>
                 <Icon icon={Save} size={16} />
-                {busy ? 'Đang ghi…' : 'Lưu'}
+                {busy
+                  ? t(message('Đang ghi…', 'Saving…', '저장 중…'))
+                  : t(message('Lưu', 'Save', '저장'))}
               </Button>
             </div>
           </div>
@@ -475,18 +478,24 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
     >
       <form id={FORM_ID} onSubmit={submit} noValidate className="flex flex-col gap-6">
         <section className="flex flex-col gap-4">
-          <Kicker>Danh tính</Kicker>
+          <Kicker>{t(message('Danh tính', 'Identity', '신원'))}</Kicker>
 
           <FormField
-            label="Họ tên"
+            label={t(message('Họ tên', 'Full name', '이름'))}
             errors={errors.name}
-            hint="Tên hiện ở cột Lead PIC, nhật ký và thư gửi đi."
+            hint={t(
+              message(
+                'Tên hiện ở cột Lead PIC, nhật ký và thư gửi đi.',
+                'The name shows in the Lead owner column, the log and outgoing email.',
+                '이름은 리드 담당자 열, 기록, 발송 메일에 표시됩니다.',
+              ),
+            )}
           >
             <Input
               value={name}
               invalid={Boolean(errors.name)}
-              aria-label="Họ tên"
-              placeholder="Trần Thu Hà"
+              aria-label={t(message('Họ tên', 'Full name', '이름'))}
+              placeholder="Trần Thu Hà" // i18n-ignore: sample person name
               onChange={(event) => {
                 setName(event.target.value)
                 clearError('name')
@@ -500,9 +509,27 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
             hint={
               mailboxFrozen
                 ? admin
-                  ? 'Không sửa được. Muốn đổi hòm thư, hãy khoá tài khoản này rồi mời địa chỉ mới.'
-                  : 'Không sửa được. Muốn đổi hòm thư, nhờ Giám đốc.'
-                : 'Hòm thư công ty. Thư đặt mật khẩu gửi tới đây.'
+                  ? t(
+                      message(
+                        'Không sửa được. Muốn đổi hòm thư, hãy khoá tài khoản này rồi mời địa chỉ mới.',
+                        'Cannot be changed. To change the mailbox, lock this account and invite the new address.',
+                        '변경할 수 없습니다. 메일 주소를 바꾸려면 이 계정을 잠그고 새 주소로 초대하세요.',
+                      ),
+                    )
+                  : t(
+                      message(
+                        'Không sửa được. Muốn đổi hòm thư, nhờ Giám đốc.',
+                        'Cannot be changed. To change the mailbox, ask a Director.',
+                        '변경할 수 없습니다. 메일 주소를 바꾸려면 이사에게 요청하세요.',
+                      ),
+                    )
+                : t(
+                    message(
+                      'Hòm thư công ty. Thư đặt mật khẩu gửi tới đây.',
+                      'Company mailbox. The set-password email goes here.',
+                      '회사 메일 주소입니다. 비밀번호 설정 메일이 이곳으로 발송됩니다.',
+                    ),
+                  )
             }
           >
             <Input
@@ -528,17 +555,23 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
         </section>
 
         <section className="flex flex-col gap-4">
-          <Kicker>Vai</Kicker>
+          <Kicker>{t(message('Vai', 'Roles', '역할'))}</Kicker>
 
           <FormField
-            label="Nhãn vai"
+            label={t(message('Nhãn vai', 'Role label', '역할 표시명'))}
             errors={errors.role}
-            hint="Chữ hiện trên màn, kèm ngành nếu có (“Sale · chip”)."
+            hint={t(
+              message(
+                'Chữ hiện trên màn, kèm ngành nếu có (“Sale · chip”).',
+                'The text shown on screen, with the industry if any (“Sale · chip”).',
+                '화면에 표시되는 이름이며, 업종이 있으면 함께 적습니다 (“Sale · chip”).',
+              ),
+            )}
           >
             <Input
               value={roleLabel}
               invalid={Boolean(errors.role)}
-              aria-label="Nhãn vai"
+              aria-label={t(message('Nhãn vai', 'Role label', '역할 표시명'))}
               placeholder="Sale · chip"
               onChange={(event) => {
                 setRoleLabel(event.target.value)
@@ -549,32 +582,58 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
 
           <FormField
             control="select"
-            label="Vai quyền"
+            label={t(ROLE_PERMISSION)}
             errors={errors.roleIds}
             hint={
               isMe
-                ? 'Không tự đổi vai của chính mình.'
-                : 'Chọn ít nhất một vai. Vai quyết định người này mở được màn nào. Giám đốc và Trưởng phòng Kinh doanh mở được cả màn Quản trị.'
+                ? t(
+                    message(
+                      'Không tự đổi vai của chính mình.',
+                      'You cannot change your own role.',
+                      '자신의 역할은 직접 변경할 수 없습니다.',
+                    ),
+                  )
+                : t(
+                    message(
+                      'Chọn ít nhất một vai. Vai quyết định người này mở được màn nào. Giám đốc và Trưởng phòng Kinh doanh mở được cả màn Quản trị.',
+                      'Choose at least one role. Roles decide which screens this person can open. Directors and Heads of Sales can also open the Admin screens.',
+                      '역할을 하나 이상 선택하세요. 역할에 따라 열 수 있는 화면이 정해집니다. 이사와 영업 부서장은 관리 화면도 열 수 있습니다.',
+                    ),
+                  )
             }
           >
             {isMe ? (
               <Input
-                value={roleIds.map((id) => ROLE_LABEL[id]).join(' · ')}
+                value={roleIds.map((id) => kpiRoleText(id, lang)).join(' · ')}
                 disabled
-                aria-label="Vai quyền"
+                aria-label={t(ROLE_PERMISSION)}
                 className="text-muted-foreground cursor-not-allowed"
               />
             ) : (
-              <div role="group" aria-label="Vai quyền" className="grid gap-2 sm:grid-cols-2">
-                {ROLE_OPTIONS.map(({ value, label }) => {
+              <div
+                role="group"
+                aria-label={t(ROLE_PERMISSION)}
+                className="grid gap-2 sm:grid-cols-2"
+              >
+                {ROLE_IDS.map((value) => {
                   const only = roleIds.length === 1 && roleIds.includes(value)
                   return (
                     <Checkbox
                       key={value}
                       checked={roleIds.includes(value)}
                       disabled={only}
-                      label={label}
-                      hint={only ? 'Cần ít nhất một vai' : undefined}
+                      label={kpiRoleText(value, lang)}
+                      hint={
+                        only
+                          ? t(
+                              message(
+                                'Cần ít nhất một vai',
+                                'At least one role is required',
+                                '역할이 하나 이상 필요합니다',
+                              ),
+                            )
+                          : undefined
+                      }
                       onChange={(on) => toggleRole(value, on)}
                     />
                   )
@@ -585,9 +644,15 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Kicker>Nhánh</Kicker>
+          <Kicker>{t(message('Nhánh', 'Branches', '영역'))}</Kicker>
           <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.5]">
-            Chỉ mở được màn của nhánh đã chọn.
+            {t(
+              message(
+                'Chỉ mở được màn của nhánh đã chọn.',
+                'Only the screens of the chosen branches can be opened.',
+                '선택한 영역의 화면만 열 수 있습니다.',
+              ),
+            )}
           </p>
 
           <div className="grid gap-2 sm:grid-cols-2">
@@ -597,7 +662,9 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
                 checked={branches.includes(branch)}
                 disabled={branch === CORE_BRANCH}
                 label={branch}
-                hint={branch === CORE_BRANCH ? 'Bắt buộc' : undefined}
+                hint={
+                  branch === CORE_BRANCH ? t(message('Bắt buộc', 'Required', '필수')) : undefined
+                }
                 onChange={(on) => toggleBranch(branch, on)}
               />
             ))}
@@ -611,17 +678,29 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
         </section>
 
         <section className="flex flex-col gap-3">
-          <Kicker>Phạm vi</Kicker>
+          <Kicker>{t(message('Phạm vi', 'Scope', '범위'))}</Kicker>
 
           <Checkbox
             checked={ownOnly}
-            label={SCOPE_OWN_LABEL}
+            label={scopeLabel(true, lang)}
             disabled={scopeFrozen}
             wrap
             hint={
               scopeFrozen
-                ? `Cần phạm vi ${scopeLabel(false)} mới bỏ được ô này.`
-                : 'Chỉ thấy lead và cơ hội do người này phụ trách.'
+                ? t(
+                    message(
+                      `Cần phạm vi ${scopeLabel(false, 'vi')} mới bỏ được ô này.`,
+                      `Needs the ${scopeLabel(false, 'en')} scope to untick this box.`,
+                      `이 항목을 해제하려면 ${scopeLabel(false, 'ko')} 범위가 필요합니다.`,
+                    ),
+                  )
+                : t(
+                    message(
+                      'Chỉ thấy lead và cơ hội do người này phụ trách.',
+                      'Sees only the leads and opportunities this person owns.',
+                      '이 사용자가 담당하는 리드와 기회만 볼 수 있습니다.',
+                    ),
+                  )
             }
             onChange={(on) => {
               setOwnOnly(on)
@@ -652,126 +731,12 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
 // Panel bits
 // ---------------------------------------------------------------------------
 
-/** The checkbox says what the table column says, so a manager who ticked it
- *  recognises the value they then read in the row. */
-const SCOPE_OWN_LABEL = scopeLabel(true)
+const ROLE_PERMISSION = message('Vai quyền', 'Permission roles', '권한 역할')
 
 /** `One` is never removable, so a tick that would take it away is ignored
  *  rather than obeyed-then-overruled by the server. Everything else toggles. */
 const withCore = (list: readonly Branch[]): readonly Branch[] =>
   list.includes(CORE_BRANCH) ? list : [CORE_BRANCH, ...list]
-
-/** Lock / unlock, with the one row it refuses to act on.
- *
- *  The button is wrapped in a `<span>` carrying the `title`, and that wrapper is
- *  load-bearing: `Button` sets `disabled:pointer-events-none`, so a `title` on
- *  the button itself never fires a tooltip — the browser gets no hover event to
- *  fire it from. Explaining why a control is dead, on the control that is dead,
- *  is the entire job here; without the wrapper the explanation is written and
- *  never read. */
-function LockButton({
-  locked,
-  isMe,
-  pending,
-  onClick,
-}: {
-  locked: boolean
-  isMe: boolean
-  pending: boolean
-  onClick: () => void
-}) {
-  const why = isMe
-    ? 'Không tự khoá tài khoản của chính mình. Nhờ một Giám đốc khác.'
-    : locked
-      ? 'Mở lại quyền đăng nhập cho tài khoản này.'
-      : 'Chặn đăng nhập và đăng xuất tài khoản này ngay.'
-
-  return (
-    <span title={why}>
-      <Button
-        size="md"
-        variant={locked ? 'ghost' : 'destructive'}
-        type="button"
-        disabled={isMe || pending}
-        onClick={onClick}
-      >
-        <Icon icon={locked ? RotateCcw : Lock} size={16} />
-        {locked ? 'Mở khoá' : 'Khoá tài khoản'}
-      </Button>
-    </span>
-  )
-}
-
-/** Put this person back on the default password.
- *
- *  THE SECOND DOOR, beside the invite-mail button, and the tooltip has to say
- *  which one to reach for: they look interchangeable and are not. The mail
- *  link is the normal path and nobody but the owner ever sees the secret; this
- *  one works when the mailbox does not, and pays for that with a password two
- *  people know. What makes it acceptable is on the other side of the wire: the
- *  account can reach nothing but the change-password screen until its owner
- *  replaces the string.
- *
- *  Disabled on yourself, like the lock button and for a cousin of its reason:
- *  the server answers 409, and pressing it would strand you on the
- *  change-password screen mid-administration for nothing the self-service door
- *  does not already do better. */
-function ResetPasswordButton({
-  isMe,
-  pending,
-  onClick,
-}: {
-  isMe: boolean
-  pending: boolean
-  onClick: () => void
-}) {
-  const why = isMe
-    ? 'Không tự đặt lại mật khẩu của chính mình. Dùng màn đổi mật khẩu.'
-    : 'Đặt lại về mật khẩu mặc định và đăng xuất người này. Người này phải đổi mật khẩu ở lần đăng nhập tới. Dùng khi hòm thư không nhận được thư.'
-
-  return (
-    <span title={why}>
-      <Button size="md" variant="ghost" type="button" disabled={isMe || pending} onClick={onClick}>
-        {/* `RefreshCw` rather than a key glyph: the registry in
-            `packages/ui/src/icons.ts` has none, and adding one for a single
-            button means adding it to the kit page too. `RotateCcw` next door is
-            already the unlock button, so it cannot be borrowed. */}
-        <Icon icon={RefreshCw} size={16} />
-        {pending ? 'Đang đặt lại…' : 'Đặt lại mật khẩu'}
-      </Button>
-    </span>
-  )
-}
-
-/** The raw set-password link, and the sentence that has to travel with it.
- *
- *  This only ever appears when the outbound mail door is shut, so the sentence
- *  says exactly that — otherwise a manager reads a link on screen as the normal
- *  way this works and starts pasting them into group chats. It sets a password:
- *  whoever holds it becomes that person. */
-function InviteLink({ link, onCopy }: { link: string; onCopy: () => void }) {
-  return (
-    <div className="flex flex-col gap-2">
-      <span className="text-destructive-foreground text-[11.5px] leading-[1.6]">
-        Chưa gửi thư được. Chép đường dẫn dưới đây và đưa tận tay người nhận. Ai có đường dẫn này là
-        đặt được mật khẩu của tài khoản.
-      </span>
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <Input
-          readOnly
-          value={link}
-          aria-label="Đường dẫn đặt mật khẩu"
-          className="font-mono sm:flex-1"
-          onFocus={(event) => event.currentTarget.select()}
-        />
-        <Button size="md" variant="ghost" type="button" onClick={onCopy}>
-          <Icon icon={Copy} size={16} />
-          Chép
-        </Button>
-      </div>
-    </div>
-  )
-}
 
 /** Label · control · then EITHER the hint OR what the server disliked about the
  *  box, never both.

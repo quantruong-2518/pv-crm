@@ -4,7 +4,7 @@ import { Badge, Button, GlassCard, Icon, Input, Pencil, Plus } from '@pv/ui'
 import type { ConfigEntry, ConfigList } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
-import { message, useI18n } from '@/app/i18n'
+import { message, useI18n, type Message } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import { BADGE_INK } from '@/data/opportunities'
 import {
@@ -16,25 +16,6 @@ import {
 import { byOrd, entryWaiting } from './sales-config-model'
 import { WaitingAdds, WaitingNote } from './sales-config-section'
 import { sentCopy } from './sales-config-copy'
-
-const unitCopy = (unit: string) =>
-  unit === 'bước'
-    ? message(unit, 'steps', '단계')
-    : unit === 'lần dùng'
-      ? message(unit, 'uses', '사용')
-      : unit === 'lượt trả lời'
-        ? message(unit, 'answers', '응답')
-        : unit === 'lượt chọn'
-          ? message(unit, 'selections', '선택')
-          : unit === 'lượt báo giá'
-            ? message(unit, 'quotes', '견적')
-            : unit === 'cơ hội'
-              ? message(unit, 'opportunities', '기회')
-              : unit === 'lượt'
-                ? message(unit, 'times', '회')
-                : unit === 'lead'
-                  ? message(unit, 'leads', '리드')
-                  : message(unit, 'items', '항목')
 
 /** Config sections for the comm confirm form (ADR 0074): evaluation questions
  *  with their answers, and the flat name lists — next-step kinds and contract
@@ -62,7 +43,7 @@ export function CommCriteriaConfig() {
             entry={c}
             list="COMM_CRITERION"
             usage={catalog?.usage.COMM_CRITERION[c.id] ?? 0}
-            unit="lượt trả lời"
+            unit={message('lượt trả lời', 'answers', '응답')}
           />
           <ul className="flex flex-col gap-2 pl-4">
             {answers
@@ -74,7 +55,7 @@ export function CommCriteriaConfig() {
                     entry={a}
                     list="COMM_ANSWER"
                     usage={catalog?.usage.COMM_ANSWER[a.id] ?? 0}
-                    unit="lượt chọn"
+                    unit={message('lượt chọn', 'selections', '선택')}
                   />
                 </li>
               ))}
@@ -105,8 +86,8 @@ export function FlatListConfig({
   addLabel,
 }: {
   list: 'STEP_KIND' | 'CONTRACT_KIND'
-  unit: string
-  addLabel: string
+  unit: Message
+  addLabel: Message
 }) {
   const { t } = useI18n()
   const { data: catalog } = useQuery(salesCatalogQuery)
@@ -134,16 +115,7 @@ export function FlatListConfig({
           </ul>
         </GlassCard>
       )}
-      <AddEntry
-        list={list}
-        placeholder={t(
-          message(
-            addLabel,
-            list === 'STEP_KIND' ? 'Add a next-step type' : 'Add a contract type',
-            list === 'STEP_KIND' ? '다음 단계 유형 추가' : '계약 유형 추가',
-          ),
-        )}
-      />
+      <AddEntry list={list} placeholder={t(addLabel)} />
     </div>
   )
 }
@@ -159,7 +131,7 @@ export function EntryRow({
   entry: ConfigEntry
   list: ConfigList
   usage: number
-  unit: string
+  unit: Message
   /** One more fact about the row, drawn before the state badge. */
   extra?: ReactNode
 }) {
@@ -212,7 +184,7 @@ export function EntryRow({
             : t(message('Đã tắt', 'Inactive', '사용 안 함'))}
         </Badge>
         <span className="text-muted-foreground tnum font-num text-[11px]">
-          {usage} {t(unitCopy(unit))}
+          {usage} {t(unit)}
         </span>
         {canPropose &&
           (editing ? (

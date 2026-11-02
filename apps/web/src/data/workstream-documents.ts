@@ -8,6 +8,7 @@ import {
   workstreamDocumentCapOf,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { message, translate } from '@/app/i18n'
 import { whileLive } from '@/app/query-client'
 import { fileSizeLabel, sha256Of } from '@/data/comm-record-detail'
 import { putOnceMore } from '@/data/lead-scan-run'
@@ -22,6 +23,8 @@ const NEED: ApiNeed = { branch: 'Sales', permission: 'workstream.view', scoped: 
  *  dropped, not shown again. */
 const URL_SAFE_MS = 2 * 60_000
 const REFRESH_MS = 5 * 60_000
+
+const msg = (vi: string, en: string, ko: string) => translate(message(vi, en, ko))
 
 const keyOf = (code: string) => ['sales', 'workstream-documents', code] as const
 const baseOf = (code: string) => `/sales/workstreams/${encodeURIComponent(code)}/documents`
@@ -91,16 +94,34 @@ export function checkFiles(picked: File[], room = MAX_PER_DROP) {
   const problems: string[] =
     picked.length > files.length
       ? [
-          `Mỗi lần tối đa ${MAX_PER_DROP} tệp, ${picked.length - files.length} tệp còn lại chưa tải.`,
+          msg(
+            `Mỗi lần tối đa ${MAX_PER_DROP} tệp, ${picked.length - files.length} tệp còn lại chưa tải.`,
+            `Up to ${MAX_PER_DROP} files at a time; ${picked.length - files.length} remaining file(s) were not uploaded.`,
+            `한 번에 최대 ${MAX_PER_DROP}개까지 가능하며, 나머지 ${picked.length - files.length}개는 업로드되지 않았습니다.`,
+          ),
         ]
       : []
   const ok: File[] = []
   for (const file of files) {
     const mime = documentMimeOf(file)
-    if (!mime) problems.push(`“${file.name}”: loại tệp không nhận.`)
+    if (!mime)
+      problems.push(
+        msg(
+          `“${file.name}”: loại tệp không nhận.`,
+          `“${file.name}”: file type not accepted.`,
+          `“${file.name}”: 지원하지 않는 파일 형식입니다.`,
+        ),
+      )
     else if (file.size > workstreamDocumentCapOf(mime)) {
       const cap = fileSizeLabel(workstreamDocumentCapOf(mime))
-      problems.push(`“${file.name}” nặng ${fileSizeLabel(file.size)}, vượt ${cap}.`)
+      const size = fileSizeLabel(file.size)
+      problems.push(
+        msg(
+          `“${file.name}” nặng ${size}, vượt ${cap}.`,
+          `“${file.name}” is ${size}, over the ${cap} limit.`,
+          `“${file.name}” 크기가 ${size}로 한도 ${cap}를 초과합니다.`,
+        ),
+      )
     } else ok.push(file)
   }
   return { ok, problems }
@@ -124,7 +145,14 @@ export function useUploadDocument(code: string) {
   return useMutation<void, ApiError, DocumentUpload>({
     mutationFn: async ({ file, step }) => {
       const mime = documentMimeOf(file)
-      if (!mime) throw new Error('Không nhận loại tệp này.')
+      if (!mime)
+        throw new Error(
+          msg(
+            'Không nhận loại tệp này.',
+            'This file type is not accepted.',
+            '지원하지 않는 파일 형식입니다.',
+          ),
+        )
       const declared = await api.write(baseOf(code), {
         body: {
           name: file.name,

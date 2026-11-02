@@ -31,7 +31,7 @@ export function CommRecordPage() {
       message(
         'Tìm khách hàng, cơ hội, báo giá, hồ sơ…',
         'Search accounts, opportunities, quotes, and profiles…',
-        '고객사, 영업 기회, 견적 및 프로필 검색…',
+        '고객사, 기회, 견적 및 프로필 검색…',
       ),
     ),
   })

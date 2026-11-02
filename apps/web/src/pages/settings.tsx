@@ -20,7 +20,7 @@ import {
   type SettingsEntry,
   type SettingsGroup,
 } from '@/app/chrome'
-import { ROLE_LABEL } from '@/data/users'
+import { kpiRoleText } from '@/data/kpi-i18n'
 import { LanguagePicker } from '@/components/auth-card'
 
 /** The parent list a phone picks a settings screen from.
@@ -110,7 +110,7 @@ export function SettingsPage() {
                   {actor.name}
                 </span>
                 <span className="text-muted-foreground truncate text-[12px]">
-                  {actor.roleIds.map((id) => ROLE_LABEL[id]).join(' · ')} · {account.label}
+                  {actor.roleIds.map((id) => kpiRoleText(id, lang)).join(' · ')} · {account.label}
                 </span>
               </span>
               <Chevron />

@@ -5,10 +5,12 @@ import { Badge, Modal, Skeleton, cn } from '@pv/ui'
 import type { OpportunityMoneyContract, OpportunityMoneyInstallment } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useSession } from '@/app/auth'
+import { message, useI18n, type Message } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import { dm } from '@/lib/date'
 import { contractDetailQuery, viewInstallment } from '@/data/contracts'
 import { useDoneCondition } from '@/data/contracts-write'
+import { MARKED_DONE } from '@/data/installment-copy'
 import { BADGE_INK } from '@/data/opportunities'
 import { useContractKindLabel } from '@/data/sales-config'
 import { CollectBody, ConditionDialog, installmentDoorsOf } from '@/components/deal-pay'
@@ -48,6 +50,7 @@ export function InstallmentModal({
   open: boolean
   onClose: () => void
 }) {
+  const { t, lang } = useI18n()
   const me = useSession((st) => st.actor?.id)
   const resolveKind = useContractKindLabel()
   const detail = useQuery({ ...contractDetailQuery(contract.code), enabled: open })
@@ -75,27 +78,17 @@ export function InstallmentModal({
   const busy = done.isPending
 
   const tick = (id: string) =>
-    done.mutate({ no: i.no, id }, { onSuccess: () => toastDone('Đã đánh dấu xong.') })
+    done.mutate({ no: i.no, id }, { onSuccess: () => toastDone(t(MARKED_DONE)) })
   const openInstallment = () => {
     onClose()
     navigate(`/sales/contracts/${encodeURIComponent(contract.code)}/installments/${i.no}`)
   }
 
-  const hint = failure
-    ? userMessage(failure)
-    : !full
-      ? ''
-      : full.paidAt !== undefined
-        ? ''
-        : blocking
-          ? `Bước tiếp theo: ${blocking.what}.`
-          : hasOpen
-            ? 'Bước tiếp theo: nghiệm thu.'
-            : collecting
-              ? 'Bước tiếp theo: thu tiền.'
-              : collects
-                ? 'Ghi thu ở trang đợt.'
-                : ''
+  const next =
+    full && full.paidAt === undefined
+      ? nextStep(blocking?.what, hasOpen, collecting, collects)
+      : null
+  const hint = failure ? userMessage(failure) : next ? t(next) : ''
 
   return (
     <Modal
@@ -106,7 +99,8 @@ export function InstallmentModal({
       subtitle={
         <>
           <span className="font-mono">{contract.code}</span> ·{' '}
-          {kindLabel(contract.kind, resolveKind)} · hạn {dm(i.due)} · {i.share}%
+          {kindLabel(contract.kind, resolveKind, lang)} ·{' '}
+          {t(message(`hạn ${dm(i.due)}`, `due ${dm(i.due)}`, `기한 ${dm(i.due)}`))} · {i.share}%
         </>
       }
       meta={
@@ -114,7 +108,7 @@ export function InstallmentModal({
           tone={INSTALLMENT_TONE[i.status]}
           className={cn('mt-1 shrink-0', i.status === 'upcoming' && BADGE_INK)}
         >
-          {installmentStatusLine(i)}
+          {installmentStatusLine(i, lang)}
         </Badge>
       }
       footer={
@@ -141,7 +135,7 @@ export function InstallmentModal({
             onAdd={doors.condition ? () => setAdding(true) : undefined}
           />
           {detail.data && (collecting || (collect && paid)) && (
-            <Section title="Thu tiền">
+            <Section title={t(message('Thu tiền', 'Collection', '수금'))}>
               <CollectBody
                 contract={detail.data}
                 installment={full}
@@ -154,7 +148,9 @@ export function InstallmentModal({
             </Section>
           )}
           <ReminderSection code={contract.code} installment={full} canRemind={doors.remind} />
-          <Section title="Chứng từ của đợt">
+          <Section
+            title={t(message('Chứng từ của đợt', 'Installment documents', '납부 회차 증빙 서류'))}
+          >
             <StepDocuments
               workstreamCode={workstreamCode}
               step={{ kind: 'installment', contractCode: contract.code, installmentNo: i.no }}
@@ -166,7 +162,7 @@ export function InstallmentModal({
         <Skeleton className="h-48 w-full" />
       ) : (
         <p className="text-destructive-foreground m-0 text-[12.5px] leading-[1.6]">
-          {refusalText(detail.error)}
+          {refusalText(detail.error, t)}
         </p>
       )}
       {detail.data && full && (
@@ -185,7 +181,48 @@ export function InstallmentModal({
 
 /** A contract outside the reader's scope answers 404, not 403: the door does
  *  not confirm that it exists. Both mean "not yours to read". */
-const refusalText = (error: unknown) =>
+/** The one line under the modal: what comes next for an unpaid payment. */
+function nextStep(
+  blocking: string | undefined,
+  hasOpen: boolean,
+  collecting: boolean,
+  collects: boolean,
+): Message | null {
+  if (blocking !== undefined) {
+    return message(
+      `Bước tiếp theo: ${blocking}.`,
+      `Next step: ${blocking}.`,
+      `다음 단계: ${blocking}.`,
+    )
+  }
+  if (hasOpen) {
+    return message('Bước tiếp theo: nghiệm thu.', 'Next step: acceptance.', '다음 단계: 검수.')
+  }
+  if (collecting) {
+    return message('Bước tiếp theo: thu tiền.', 'Next step: collect payment.', '다음 단계: 수금.')
+  }
+  return collects
+    ? message(
+        'Ghi thu ở trang đợt.',
+        'Record the collection on the installment page.',
+        '납부 회차 페이지에서 수금을 기록하세요.',
+      )
+    : null
+}
+
+const refusalText = (error: unknown, t: (copy: Message) => string) =>
   isApiError(error) && (error.kind === 'forbidden' || error.kind === 'not-found')
-    ? 'Bạn không xem được điều kiện và các lần nhắc của đợt này.'
-    : `Không tải được chi tiết đợt. ${isApiError(error) ? userMessage(error) : 'Thử lại.'}`
+    ? t(
+        message(
+          'Bạn không xem được điều kiện và các lần nhắc của đợt này.',
+          'You cannot view the conditions and reminders of this installment.',
+          '이 납부 회차의 조건과 알림을 볼 수 없습니다.',
+        ),
+      )
+    : `${t(
+        message(
+          'Không tải được chi tiết đợt.',
+          'Could not load the installment details.',
+          '납부 회차 상세를 불러오지 못했습니다.',
+        ),
+      )} ${isApiError(error) ? userMessage(error) : t(message('Thử lại.', 'Try again.', '다시 시도해 주세요.'))}`

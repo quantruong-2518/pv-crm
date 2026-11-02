@@ -355,14 +355,21 @@ export function NextAction({ action }: { action: NonNullable<JourneyDeal['nextAc
 
 /** The fail log's headline; the deal's profile carries its note and who concluded. */
 function StopLine({ deal }: { deal: JourneyDeal }) {
+  const { t, lang } = useI18n()
   if (!deal.stop) return null
   const at = stoppedRungLabel(deal)
   return (
     <span className="text-muted-foreground flex flex-wrap items-center gap-2 text-[12px]">
       <span className="min-w-0 break-words">
-        {[at && `${STOPPED_AT} ${at}`, deal.stop.reason].filter(Boolean).join(' · ')}
+        {[at && `${t(STOPPED_AT)} ${salesLabel(at, lang)}`, deal.stop.reason]
+          .filter(Boolean)
+          .join(' · ')}
       </span>
-      {deal.stop.doNotContact && <Badge tone="warning">{LOSS_REASON_DO_NOT_CONTACT_LABEL}</Badge>}
+      {deal.stop.doNotContact && (
+        <Badge tone="warning">
+          {t(message(LOSS_REASON_DO_NOT_CONTACT_LABEL, 'Do not contact', '연락 금지'))}
+        </Badge>
+      )}
     </span>
   )
 }
@@ -500,7 +507,7 @@ export function ContractCard({
       </div>
       <div className="flex items-center gap-2">
         <div className="flex min-w-0 grow flex-wrap items-center gap-2">
-          <CodePill kind="HĐ" code={contract.code} {...track} />
+          <CodePill kind="HĐ" /* i18n-ignore */ code={contract.code} {...track} />
           <StatusPill status={contractStatus(contract)} />
         </div>
         {hasInside(contract) && (
@@ -540,14 +547,14 @@ type DoorProps = Track & { box: Box }
 /* Recovered from the retired journey drawer. ADR 0068: a parked lead loops back
    on itself; flow C4: a do-not-contact lead is never mailed. */
 const DOOR_TEXT = {
-  arose: 'Phát sinh từ',
-  growthTitle: 'Cơ hội mới',
-  opener: 'phụ trách',
-  temperature: 'Nhiệt độ lúc mở',
-  wakeAny: 'Bấm "Nhận lead" hoặc khách trả lời chiến dịch thì lead này quay lại chăm sóc.',
+  arose: 'Phát sinh từ', // i18n-ignore
+  growthTitle: 'Cơ hội mới', // i18n-ignore
+  opener: 'phụ trách', // i18n-ignore
+  temperature: 'Nhiệt độ lúc mở', // i18n-ignore
+  wakeAny: 'Bấm "Nhận lead" hoặc khách trả lời chiến dịch thì lead này quay lại chăm sóc.', // i18n-ignore
   wakeManual:
-    'Chỉ bấm "Nhận lead" mới quay lại chăm sóc. Lead này không được đưa vào chiến dịch và không nhận mail.',
-  wakeUnknown: 'Chưa biết khách có đồng ý liên hệ lại không.',
+    'Chỉ bấm "Nhận lead" mới quay lại chăm sóc. Lead này không được đưa vào chiến dịch và không nhận mail.', // i18n-ignore
+  wakeUnknown: 'Chưa biết khách có đồng ý liên hệ lại không.', // i18n-ignore
 } as const
 
 /** The anchor's code, then its rung's label when the ladder knows it. */
@@ -613,7 +620,7 @@ function GrowthDoor({
   return (
     <DoorShell
       door={door}
-      title={t(message(DOOR_TEXT.growthTitle, 'New opportunity', '새 영업 기회'))}
+      title={t(message(DOOR_TEXT.growthTitle, 'New opportunity', '새 기회'))}
       {...props}
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -644,7 +651,11 @@ function WaitingDoor({
     <DoorShell door={door} title={leadStateLabel('nurturing', lang)} {...props}>
       <div className="flex flex-wrap items-center gap-2">
         <CodePill kind="LD" code={door.leadCode} {...props} />
-        {door.doNotContact && <Badge tone="warning">{LOSS_REASON_DO_NOT_CONTACT_LABEL}</Badge>}
+        {door.doNotContact && (
+          <Badge tone="warning">
+            {t(message(LOSS_REASON_DO_NOT_CONTACT_LABEL, 'Do not contact', '연락 금지'))}
+          </Badge>
+        )}
       </div>
       <span className="flex flex-wrap items-center gap-2 text-[12px]">
         {fromLabel !== undefined && (

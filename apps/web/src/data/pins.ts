@@ -10,6 +10,7 @@ import {
 import { api, isApiError, userMessage, type ApiError, type ApiNeed } from '@/app/api'
 import { useSession } from '@/app/auth'
 import { dropLegacyPins, legacyPinsOf } from '@/app/desk'
+import { message, translate } from '@/app/i18n'
 import { toastFail } from '@/app/toast'
 import { OPPORTUNITY_BOOK_KEY } from './opportunities'
 
@@ -31,7 +32,10 @@ const BOOK_PAGE_KEY: Record<PinSubject, readonly string[]> = {
   opportunity: [...OPPORTUNITY_BOOK_KEY, 'page'],
 }
 
-const SUBJECT_NOUN: Record<PinSubject, string> = { lead: 'lead', opportunity: 'cơ hội' }
+const SUBJECT_NOUN: Record<PinSubject, ReturnType<typeof message>> = {
+  lead: message('lead', 'lead', '리드'),
+  opportunity: message('cơ hội', 'opportunity', '기회'),
+}
 
 const NO_CODES: readonly string[] = []
 
@@ -99,11 +103,24 @@ export function usePinToggle(subject: PinSubject, code: string) {
           client.setQueryData<PinListResponse>(pinsQuery(subject).queryKey, (list) => ({
             codes: (list?.codes ?? []).filter((c) => c !== code),
           }))
-          toastFail(`Không ghim được ${SUBJECT_NOUN[subject]} này.`)
+          const noun = SUBJECT_NOUN[subject]
+          toastFail(
+            translate(
+              message(
+                `Không ghim được ${noun.vi} này.`,
+                `Could not pin this ${noun.en}.`,
+                `이 ${noun.ko}을(를) 고정할 수 없습니다.`,
+              ),
+            ),
+          )
         },
         onError: (error) =>
           toastFail(
-            `Không ${pinned ? 'bỏ ghim' : 'ghim'} được.`,
+            translate(
+              pinned
+                ? message('Không bỏ ghim được.', 'Could not unpin.', '고정을 해제할 수 없습니다.')
+                : message('Không ghim được.', 'Could not pin.', '고정할 수 없습니다.'),
+            ),
             isApiError(error) ? userMessage(error) : undefined,
           ),
       },

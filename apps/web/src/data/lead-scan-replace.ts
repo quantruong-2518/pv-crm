@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { message, translate } from '@/app/i18n'
 import { toastOf } from '@/app/toast'
 import { addScanFiles, scanBatchKey, startScanBatch } from './lead-scan'
 import { prepareFile, releasePrepWorker, type Picked } from './lead-scan-prep'
@@ -39,14 +40,31 @@ async function replaceOne(code: string, id: string, picked: Picked) {
   const { files } = await addScanFiles(code, { files: [prepared.declared], replaces: id })
   const slot = files[0]
   if (!slot || 'duplicateOf' in slot) {
-    return toastWarn('Tệp này đã có trong lô', 'Chọn một ảnh khác để thay.')
+    return toastWarn(
+      translate(
+        message(
+          'Tệp này đã có trong lô',
+          'This file is already in the batch',
+          '이 파일은 이미 묶음에 있습니다',
+        ),
+      ),
+      translate(
+        message(
+          'Chọn một ảnh khác để thay.',
+          'Pick a different image to replace it.',
+          '교체할 다른 이미지를 선택하세요.',
+        ),
+      ),
+    )
   }
 
   setJob(id, { phase: 'uploading', progress: 0 })
   await putOnceMore(slot.putUrl, prepared.upload, prepared.declared.mime, (progress) =>
     setJob(id, { phase: 'uploading', progress }),
   ).catch(() => {
-    throw new Error('Không tải lên được')
+    throw new Error(
+      translate(message('Không tải lên được', 'Upload failed', '업로드하지 못했습니다')),
+    )
   })
   /* A missing thumbnail costs a grey tile later, not the file. */
   if (slot.thumbPutUrl && prepared.thumb) {
@@ -61,8 +79,13 @@ async function runReplace(code: string, id: string, picked: Picked, client: Quer
   try {
     await replaceOne(code, id, picked)
   } catch (error) {
-    /* `prepareFile` and the PUT throw ready-made Vietnamese; the API throws `ApiError`. */
-    toastFail(`Chưa thay được ${picked.file.name}`, failureOf(error, (error as Error).message))
+    /* `prepareFile` and the PUT throw ready-made text; the API throws `ApiError`. */
+    const title = message(
+      `Chưa thay được ${picked.file.name}`,
+      `Could not replace ${picked.file.name}`,
+      `${picked.file.name}을(를) 교체하지 못했습니다`,
+    )
+    toastFail(translate(title), failureOf(error, (error as Error).message))
   } finally {
     await client.invalidateQueries({ queryKey: scanBatchKey(code) })
     setJob(id, null)

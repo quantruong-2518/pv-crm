@@ -29,8 +29,8 @@ import { LEAD_COPY, leadGroupText } from '@/data/lead-copy'
  *  about this customer — and a card holding one textarea is a card too many. */
 const NOTE_TAB = {
   key: 'note',
-  label: 'Ghi chú',
-  purpose: 'Điều cần nhớ khi liên hệ khách này.',
+  label: 'Ghi chú', // i18n-ignore
+  purpose: 'Điều cần nhớ khi liên hệ khách này.', // i18n-ignore
 } as const
 
 const TABS = [...PROFILE_GROUPS, NOTE_TAB]

@@ -6,9 +6,11 @@ import type { UserRow } from '@pv/contracts'
 import { SettingsShell } from '@/components/settings-shell'
 import { useSession } from '@/app/auth'
 import { isApiError, userMessage } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 import { scopeLabel, tallyLine, userTally, usersQuery } from '@/data/users'
 import { BookPage } from '@/components/book-page'
-import { UserDrawer, UserNameCell, UserRoleCell, UserStatusCell } from './users-parts'
+import { UserNameCell, UserRoleCell, UserStatusCell } from './users-cells'
+import { UserDrawer } from './users-parts'
 
 /** One Core · Quản trị · Người dùng — where accounts are opened, roles are
  *  handed out, and people are locked out.
@@ -75,6 +77,7 @@ const TABLE_MIN_WIDTH = 'min-w-[960px]'
 const NO_USERS: UserRow[] = []
 
 export function UsersPage() {
+  const { t, lang } = useI18n()
   const me = useSession((s) => s.actor)
 
   /* `error` is read, not dropped. Without it a dead server renders as "Chưa có
@@ -107,20 +110,32 @@ export function UsersPage() {
   /* Three different sentences for three different situations, and none of them
      is a count. Printing `tallyLine` while the book is still in flight would
      say "0 tài khoản" about a company that has seven. */
+  const loadFailed = message(
+    'Không tải được danh sách người dùng.',
+    'Could not load the user list.',
+    '사용자 목록을 불러오지 못했습니다.',
+  )
+  const addUser = t(message('Thêm người dùng', 'Add user', '사용자 추가'))
   const summary = isPending
-    ? 'Đang tải danh sách người dùng…'
+    ? t(
+        message(
+          'Đang tải danh sách người dùng…',
+          'Loading the user list…',
+          '사용자 목록을 불러오는 중…',
+        ),
+      )
     : error
-      ? 'Không tải được danh sách người dùng.'
-      : tallyLine(tally)
+      ? t(loadFailed)
+      : tallyLine(tally, lang)
 
   return (
     <SettingsShell>
       <BookPage
-        title="Người dùng"
+        title={t(message('Người dùng', 'Users', '사용자'))}
         actions={
           <Button size="md" onClick={openCreate} className="pointer-coarse:h-12 max-sm:flex-1">
             <Icon icon={UserPlus} size={16} />
-            Thêm người dùng
+            {addUser}
           </Button>
         }
         /* `tnum` vì cả ba con số đổi mỗi lần mời hoặc khoá một người, và chữ
@@ -144,8 +159,10 @@ export function UsersPage() {
                      the user more than no button at all. `userMessage` prints the
                      server's own sentence when it wrote one, so "mất mạng" and
                      "phiên hết hạn" read differently. */
-                message: `Không tải được danh sách người dùng. ${
-                  isApiError(error) ? userMessage(error) : 'Thử lại.'
+                message: `${t(loadFailed)} ${
+                  isApiError(error)
+                    ? userMessage(error)
+                    : t(message('Thử lại.', 'Try again.', '다시 시도해 주세요.'))
                 }`,
                 onRetry: () => void refetch(),
               }
@@ -154,20 +171,22 @@ export function UsersPage() {
         empty={
           rows.length === 0
             ? {
-                message: 'Chưa có người dùng nào.',
-                action: { label: 'Thêm người dùng', onClick: openCreate },
+                message: t(
+                  message('Chưa có người dùng nào.', 'No users yet.', '등록된 사용자가 없습니다.'),
+                ),
+                action: { label: addUser, onClick: openCreate },
               }
             : undefined
         }
         table={{
           minWidth: TABLE_MIN_WIDTH,
           columns: [
-            { header: 'Họ và tên', width: '1.4fr' },
+            { header: t(message('Họ và tên', 'Full name', '이름')), width: '1.4fr' },
             { header: 'Email', width: '1.7fr' },
-            { header: 'Vai trò', width: '1.5fr' },
-            { header: 'Nhánh sản phẩm', width: '1.2fr' },
-            { header: 'Phạm vi dữ liệu', width: '124px' },
-            { header: 'Trạng thái', width: '168px' },
+            { header: t(message('Vai trò', 'Role', '역할')), width: '1.5fr' },
+            { header: t(message('Nhánh sản phẩm', 'Product branch', '제품 영역')), width: '1.2fr' },
+            { header: t(message('Phạm vi dữ liệu', 'Data scope', '데이터 범위')), width: '124px' },
+            { header: t(message('Trạng thái', 'Status', '상태')), width: '168px' },
           ],
           rows: rows.map((user) => ({
             id: user.id,
@@ -194,7 +213,7 @@ export function UsersPage() {
                 {user.branches.join(' · ')}
               </span>,
               <span key="s" className="block truncate">
-                {scopeLabel(user.ownOnly)}
+                {scopeLabel(user.ownOnly, lang)}
               </span>,
               <UserStatusCell key="t" user={user} />,
             ],

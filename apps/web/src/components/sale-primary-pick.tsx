@@ -1,5 +1,6 @@
 import { Select } from '@pv/ui'
-import { SALE_LANE, SALE_PRIMARY_LABEL } from '@/data/opportunities'
+import { message, useI18n } from '@/app/i18n'
+import { SALE_LANE, SALE_PRIMARY_COPY } from '@/data/opportunities'
 
 /** Which person of the SALE lane is its primary (ADR 0086) — shared by the
  *  open-deal form and the seller modal. Draws nothing for a lane of one: there
@@ -19,18 +20,23 @@ export function SalePrimaryPick({
   errors?: string[] | undefined
   onChange: (id: string) => void
 }) {
+  const { t } = useI18n()
   if (!SALE_LANE.primary || people.length < 2) return null
 
   return (
     <div className="flex min-w-0 flex-col items-start gap-2">
       <Select
-        label={SALE_PRIMARY_LABEL}
+        label={t(SALE_PRIMARY_COPY)}
         value={value ?? ''}
         /* Not a filter: no choice here is "the active one", so none lights up. */
         neutralValue={value ?? ''}
         valueContent={
           value === undefined ? (
-            <span className="text-muted-foreground">Chọn Sale chính</span>
+            <span className="text-muted-foreground">
+              {t(
+                message('Chọn Sale chính', 'Choose the primary salesperson', '주 영업 담당자 선택'),
+              )}
+            </span>
           ) : undefined
         }
         options={people.map((p) => ({ value: p.id, label: p.name }))}
@@ -43,7 +49,13 @@ export function SalePrimaryPick({
         </p>
       ) : (
         <p className="text-muted-foreground m-0 text-[11px] leading-[1.5]">
-          Người chịu trách nhiệm chính của cơ hội.
+          {t(
+            message(
+              'Người chịu trách nhiệm chính của cơ hội.',
+              'The person mainly responsible for the opportunity.',
+              '기회를 주로 책임지는 담당자입니다.',
+            ),
+          )}
         </p>
       )}
     </div>

@@ -3,9 +3,10 @@ import { useQuery } from '@tanstack/react-query'
 import { Inbox, TriangleAlert } from '@pv/ui'
 import { Badge, Chip, EmptyState, SearchField, Skeleton } from '@pv/ui'
 import type { LeadRow, LeadTier } from '@pv/contracts'
-import { LEAD_TIERS } from '@pv/engines/fixtures/das-vina'
 import { isApiError, userMessage } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 import { DEFAULT_LEAD_BOOK_QUERY } from '@/app/url'
+import { leadTierText } from '@/data/lead-copy'
 import { leadBookQuery } from '@/data/leads'
 import { opportunitiesOfLeadQuery } from '@/data/opportunities'
 import { searchableText } from '@/lib/search-box'
@@ -35,7 +36,6 @@ const SEARCH_DELAY_MS = 300
  *  something the person typed. */
 const SEARCH_MAX = 120
 
-const TIER_LABEL = new Map(LEAD_TIERS.map((t) => [t.key, t.label]))
 const TIER_TONE: Record<LeadTier, 'draft' | 'running' | 'success'> = {
   prospect: 'draft',
   mql: 'running',
@@ -55,6 +55,7 @@ export function LeadPickList({
   /** Where "there is nothing here" leads. */
   onGiveUp: () => void
 }) {
+  const { t } = useI18n()
   const [text, setText] = useState('')
   const [q, setQ] = useState<string | undefined>(undefined)
 
@@ -79,7 +80,13 @@ export function LeadPickList({
     <div className="flex flex-col gap-4">
       <SearchField
         size="page"
-        placeholder="Tìm theo tên công ty hoặc mã lead…"
+        placeholder={t(
+          message(
+            'Tìm theo tên công ty hoặc mã lead…',
+            'Search by company name or lead code…',
+            '회사 이름 또는 리드 코드로 검색…',
+          ),
+        )}
         value={text}
         onChange={setText}
         className="w-full"
@@ -89,8 +96,11 @@ export function LeadPickList({
         <EmptyState
           tone="danger"
           icon={TriangleAlert}
-          message={`Không lấy được sổ lead. ${isApiError(error) ? userMessage(error) : 'Thử lại.'}`}
-          action={{ label: 'Thử lại', onClick: () => void refetch() }}
+          message={`${t(message('Không lấy được sổ lead.', 'Could not load the lead list.', '리드 목록을 불러오지 못했습니다.'))} ${isApiError(error) ? userMessage(error) : t(message('Thử lại.', 'Try again.', '다시 시도하세요.'))}`}
+          action={{
+            label: t(message('Thử lại', 'Retry', '다시 시도')),
+            onClick: () => void refetch(),
+          }}
           className="py-12"
         />
       ) : isPending ? (
@@ -103,12 +113,29 @@ export function LeadPickList({
         <EmptyState
           icon={Inbox}
           message={
-            q === undefined ? 'Chưa có lead nào mở được cơ hội.' : `Không có lead nào khớp "${q}".`
+            q === undefined
+              ? t(
+                  message(
+                    'Chưa có lead nào mở được cơ hội.',
+                    'No lead can open an opportunity yet.',
+                    '기회를 열 수 있는 리드가 아직 없습니다.',
+                  ),
+                )
+              : t(
+                  message(
+                    `Không có lead nào khớp "${q}".`,
+                    `No lead matches "${q}".`,
+                    `"${q}"와(과) 일치하는 리드가 없습니다.`,
+                  ),
+                )
           }
           action={
             q === undefined
-              ? { label: 'Đóng', onClick: onGiveUp }
-              : { label: 'Xoá ô tìm', onClick: () => setText('') }
+              ? { label: t(message('Đóng', 'Close', '닫기')), onClick: onGiveUp }
+              : {
+                  label: t(message('Xoá ô tìm', 'Clear search', '검색어 지우기')),
+                  onClick: () => setText(''),
+                }
           }
           className="py-12"
         />
@@ -123,8 +150,16 @@ export function LeadPickList({
               as the whole book, and somebody who cannot see their customer
               stops looking instead of narrowing the search. */}
           <p className="text-muted-foreground text-[11px] leading-[1.5]">
-            Hiện <span className="tnum font-num">{rows.length}</span> trên{' '}
-            <span className="tnum font-num">{total}</span> lead mở được cơ hội.
+            {t(message('Hiện', 'Showing', '표시'))}{' '}
+            <span className="tnum font-num">{rows.length}</span> {t(message('trên', 'of', '/'))}{' '}
+            <span className="tnum font-num">{total}</span>{' '}
+            {t(
+              message(
+                'lead mở được cơ hội.',
+                'leads that can open an opportunity.',
+                '기회를 열 수 있는 리드.',
+              ),
+            )}
           </p>
         </>
       )}
@@ -135,6 +170,7 @@ export function LeadPickList({
 /** One line of the picker — and, when the lead already holds one or more open
  *  deals, information about how many. */
 function LeadPickRow({ lead, onPick }: { lead: LeadRow; onPick: () => void }) {
+  const { t, lang } = useI18n()
   const { data: live } = useQuery(opportunitiesOfLeadQuery(lead.code))
   const openCount = (live?.codes.length ?? 0) + (live?.hidden ?? 0)
 
@@ -148,11 +184,17 @@ function LeadPickRow({ lead, onPick }: { lead: LeadRow; onPick: () => void }) {
       <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">{lead.company}</span>
       {openCount > 0 ? (
         <Badge tone="warning" className="text-on-tint-warning-strong">
-          Đang mở · {openCount} cơ hội
+          {t(
+            message(
+              `Đang mở · ${openCount} cơ hội`,
+              `Open · ${openCount} ${openCount === 1 ? 'opportunity' : 'opportunities'}`,
+              `진행 중 · 기회 ${openCount}개`,
+            ),
+          )}
         </Badge>
       ) : (
         lead.tier !== undefined && (
-          <Badge tone={TIER_TONE[lead.tier]}>{TIER_LABEL.get(lead.tier)}</Badge>
+          <Badge tone={TIER_TONE[lead.tier]}>{leadTierText(lead.tier, lang)}</Badge>
         )
       )}
     </button>

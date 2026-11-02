@@ -3,6 +3,7 @@ import { Button, Icon, Modal, Plug, SegmentedControl } from '@pv/ui'
 import type { MailTransport } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { toast } from '@/app/toast'
+import { message, useI18n } from '@/app/i18n'
 import { useConnectGoogle } from '@/data/google'
 import type { useLetterSender } from './letter-form-state'
 import { allowanceLeft } from './letter-model'
@@ -19,6 +20,7 @@ import { allowanceLeft } from './letter-model'
  *  Connecting is a full navigation to Google that comes back to the home
  *  screen, so the letter is lost: it is always confirmed first. */
 export function LetterSenderLine({ line }: { line: ReturnType<typeof useLetterSender>['line'] }) {
+  const { t, lang } = useI18n()
   const connect = useConnectGoogle()
   const [asking, setAsking] = useState(false)
 
@@ -29,7 +31,15 @@ export function LetterSenderLine({ line }: { line: ReturnType<typeof useLetterSe
     connect.mutate(undefined, {
       onError: (error) =>
         toast(
-          isApiError(error) ? userMessage(error) : 'Không mở được trang kết nối tài khoản Google.',
+          isApiError(error)
+            ? userMessage(error)
+            : t(
+                message(
+                  'Không mở được trang kết nối tài khoản Google.',
+                  'Could not open the Google account connection page.',
+                  'Google 계정 연결 페이지를 열지 못했습니다.',
+                ),
+              ),
           { tone: 'danger' },
         ),
     })
@@ -37,17 +47,17 @@ export function LetterSenderLine({ line }: { line: ReturnType<typeof useLetterSe
   return (
     <div className="pointer-coarse:min-h-14 flex min-h-10 min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
       <SegmentedControl
-        label="Gửi từ"
+        label={t(message('Gửi từ', 'Send from', '보내는 메일함'))}
         value={line.value}
         onChange={(value) => line.pick(value as MailTransport)}
         options={[
-          { value: 'resend', label: 'Hộp thư chung' },
-          { value: 'gmail', label: 'Hộp thư của tôi' },
+          { value: 'resend', label: t(message('Hộp thư chung', 'Shared mailbox', '공용 메일함')) },
+          { value: 'gmail', label: t(message('Hộp thư của tôi', 'My mailbox', '내 메일함')) },
         ]}
       />
       {line.remaining !== null && (
         <p className="text-muted-foreground tnum m-0 min-w-0 flex-1 basis-64 text-[12px] leading-5">
-          {allowanceLeft(line.remaining)}
+          {allowanceLeft(line.remaining, lang)}
         </p>
       )}
       {line.action && (
@@ -71,16 +81,28 @@ export function LetterSenderLine({ line }: { line: ReturnType<typeof useLetterSe
         footer={
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button size="lg" variant="ghost" type="button" onClick={() => setAsking(false)}>
-              Tiếp tục soạn thư
+              {t(message('Tiếp tục soạn thư', 'Keep writing', '계속 작성'))}
             </Button>
             <Button size="lg" type="button" disabled={connect.isPending} onClick={go}>
-              Kết nối, bỏ thư đang soạn
+              {t(
+                message(
+                  'Kết nối, bỏ thư đang soạn',
+                  'Connect and discard the draft',
+                  '연결하고 작성 중인 메일 버리기',
+                ),
+              )}
             </Button>
           </div>
         }
       >
         <p className="text-muted-foreground m-0 text-[13px] leading-[1.6]">
-          Kết nối xong bạn về trang chủ và mất thư đang soạn.
+          {t(
+            message(
+              'Kết nối xong bạn về trang chủ và mất thư đang soạn.',
+              'After connecting you return to the home page and lose the letter you are writing.',
+              '연결이 끝나면 홈 화면으로 이동하며 작성 중인 메일이 사라집니다.',
+            ),
+          )}
         </p>
       </Modal>
     </div>

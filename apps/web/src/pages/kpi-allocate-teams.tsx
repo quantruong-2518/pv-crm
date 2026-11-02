@@ -1,5 +1,6 @@
 import { Badge, Input, cn } from '@pv/ui'
 import type { KpiAllocation, KpiMetricDef, KpiUnit } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 import { NOTE } from './home-tiles'
 import { teamStatusOf, typedOf, type TeamRow } from './kpi-allocate-model'
 import { DASH, UNIT_WORD, parseTyped, printShortMinus, printValue } from './kpi-model'
@@ -28,7 +29,7 @@ export function ValueCell({
   text,
   saved,
   last,
-  lastLabel = 'Tháng trước',
+  lastLabel,
   onChange,
 }: {
   def: KpiMetricDef
@@ -44,7 +45,9 @@ export function ValueCell({
   lastLabel?: string
   onChange: (text: string) => void
 }) {
+  const { t } = useI18n()
   const unit = UNIT_WORD[def.unit]
+  const when = lastLabel ?? t(message('Tháng trước', 'Last month', '지난달'))
   return (
     <span className="flex min-w-0 flex-col items-end gap-1">
       {editable ? (
@@ -71,7 +74,13 @@ export function ValueCell({
       )}
       {last !== null && (
         <span className={NOTE_NUM}>
-          {lastLabel} đạt {printShortMinus(def.unit, last)}
+          {t(
+            message(
+              `${when} đạt ${printShortMinus(def.unit, last)}`,
+              `${when}: ${printShortMinus(def.unit, last)}`,
+              `${when} 달성 ${printShortMinus(def.unit, last)}`,
+            ),
+          )}
         </span>
       )}
     </span>
@@ -81,11 +90,18 @@ export function ValueCell({
 /** First cell of a team row: its name and headcount, and under it where the
  *  team's own package stands. */
 export function TeamNameCell({ team, pkg }: { team: TeamRow; pkg: KpiAllocation | undefined }) {
+  const { t } = useI18n()
   const status = teamStatusOf(pkg)
   return (
     <span className="flex min-w-0 flex-col items-start gap-1">
       <span className="truncate font-semibold">
-        Nhóm {team.name} · {team.memberCount} thành viên
+        {t(
+          message(
+            `Nhóm ${team.name} · ${team.memberCount} thành viên`,
+            `Team ${team.name} · ${team.memberCount} members`,
+            `${team.name} 팀 · 팀원 ${team.memberCount}명`,
+          ),
+        )}
       </span>
       <Badge tone={status.tone} className="whitespace-normal">
         {status.text}

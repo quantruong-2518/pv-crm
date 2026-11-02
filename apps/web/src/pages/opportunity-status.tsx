@@ -1,4 +1,5 @@
 import type { OpportunityProfileResponse } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 import { dealStepSubject } from '@/data/deal-next-step'
 import { NextStepCard } from '@/components/run/next-step'
 import { TodoCard } from '@/components/record/todo-card'
@@ -11,10 +12,11 @@ import { statusStepsOf } from './opportunity-model'
  *  ADR 0069 §10) and a stopped one has none either: its fail log follows. */
 
 export function DealTodo({ op }: { op: OpportunityProfileResponse }) {
+  const { t } = useI18n()
   return (
     <TodoCard
       rungs={statusStepsOf(op)}
-      rungsLabel="Giai đoạn cơ hội"
+      rungsLabel={t(message('Giai đoạn cơ hội', 'Opportunity stages', '기회 단계'))}
       next={
         op.state === 'open' ? (
           <NextStepCard

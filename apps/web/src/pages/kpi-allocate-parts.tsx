@@ -2,10 +2,17 @@ import { Badge, Check, GlassCard, Icon, Stepper, cn } from '@pv/ui'
 import type { KpiAllocation, KpiAllocationLine } from '@pv/contracts'
 import type { ApiError } from '@/app/api'
 import { num } from './home-model'
-import { message, useI18n } from '@/app/i18n'
+import { message, translate, useI18n, type Message } from '@/app/i18n'
 import { kpiAckText, kpiPackageText } from '@/data/kpi-i18n'
 import { NOTE } from './home-tiles'
-import { ACK_LABEL, PACKAGE_LABEL, ackCounts, actedAt, failText } from './kpi-allocate-model'
+import {
+  ACK_LABEL,
+  PACKAGE_LABEL,
+  ackCounts,
+  actedAt,
+  decidedVerb,
+  failText,
+} from './kpi-allocate-model'
 
 /** Small blocks the KPI screens share: a package's status pill, its lines'
  *  answers, its four-step bar, and a refused write said in place. */
@@ -38,10 +45,12 @@ export function FailLine({
 }: {
   error: ApiError | null
   /** Added after a 409's own sentence, where a 409 means the figures moved. */
-  conflict?: string
+  conflict?: string | Message
 }) {
+  const { t } = useI18n()
   if (!error) return null
-  const after = conflict && error.kind === 'conflict' ? ` ${conflict}` : ''
+  const said = typeof conflict === 'object' ? t(conflict) : conflict
+  const after = said && error.kind === 'conflict' ? ` ${said}` : ''
   return (
     <p role="alert" className="text-destructive-foreground text-[12px] leading-5">
       {failText(error)}
@@ -72,10 +81,14 @@ function stepOf(pkg: KpiAllocation | undefined, hasTotal: boolean): number {
 function stampOf(pkg: KpiAllocation | undefined): string | null {
   if (!pkg) return null
   if (pkg.decidedAt) {
-    return actedAt(pkg.decidedBy, pkg.status === 'returned' ? 'trả lại' : 'duyệt', pkg.decidedAt)
+    return actedAt(pkg.decidedBy, decidedVerb(pkg.status), pkg.decidedAt)
   }
   if (!pkg.submittedAt) return null
-  const verb = pkg.status === 'draft' ? 'đặt số sau cùng' : 'gửi'
+  const verb = translate(
+    pkg.status === 'draft'
+      ? message('đặt số sau cùng', 'set the final figures', '최종 수치 입력')
+      : message('gửi', 'submitted', '제출'),
+  )
   return actedAt(pkg.submittedBy, verb, pkg.submittedAt)
 }
 

@@ -1,12 +1,14 @@
 import { useRef, useState } from 'react'
 import { UserPlus } from '@pv/ui'
 import { Button, Icon } from '@pv/ui'
-import { OPPORTUNITY_STAGE_LABEL, type OpportunityOwner } from '@pv/contracts'
+import type { OpportunityOwner } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import { focusSoon } from '@/lib/focus'
 import { useDirectory } from '@/data/directory'
 import { SALE_LANE, primaryFit, salePrimaryIn } from '@/data/opportunities'
 import { useAcceptDeal } from '@/data/opportunities-write'
+import { opportunityStageLabel } from '@/data/sales-labels-i18n'
 import { SellerModal } from './seller-modal'
 
 /** Module 3 · the accept act — a head of sales takes a `new` deal off the queue
@@ -51,6 +53,7 @@ export function AcceptDealButton({
   /** Runs once the accept landed, before focus moves (the drawer re-picks). */
   onAccepted?: () => void
 }) {
+  const { t } = useI18n()
   const trigger = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
   const [sellers, setSellers] = useState<string[]>([])
@@ -72,6 +75,15 @@ export function AcceptDealButton({
     accept.reset()
   }
 
+  const takeLabel = t(message('Nhận PIC', 'Take ownership', '담당 맡기'))
+  const [subtitleHead, subtitleTail] = t(
+    message(
+      `Chuyển {code} sang cột ${opportunityStageLabel('assigned', 'vi')} và ghi bạn là người nhận.`,
+      `Move {code} to ${opportunityStageLabel('assigned', 'en')} and record you as the owner.`,
+      `{code}을(를) ${opportunityStageLabel('assigned', 'ko')} 단계로 옮기고 본인을 담당자로 기록합니다.`,
+    ),
+  ).split('{code}')
+
   const submit = () => {
     const body = {
       ...(sellers.length > 0 && { saleOwners: sellers }),
@@ -79,7 +91,15 @@ export function AcceptDealButton({
     }
     accept.mutate(body, {
       onSuccess: () => {
-        toastDone(`Đã nhận PIC ${code}.`)
+        toastDone(
+          t(
+            message(
+              `Đã nhận PIC ${code}.`,
+              `${code}: ownership taken.`,
+              `${code} 담당을 맡았습니다.`,
+            ),
+          ),
+        )
         close()
         onAccepted?.()
         /* About four seconds of frames: the book re-reads over the network. */
@@ -96,44 +116,59 @@ export function AcceptDealButton({
           size={size}
           variant={variant}
           className={className}
-          aria-label={iconOnly ? 'Nhận PIC' : undefined}
-          title={iconOnly ? 'Nhận PIC' : undefined}
+          aria-label={iconOnly ? takeLabel : undefined}
+          title={iconOnly ? takeLabel : undefined}
           onClick={() => setOpen(true)}
         >
           <Icon icon={UserPlus} size={16} />
-          {!iconOnly && 'Nhận PIC'}
+          {!iconOnly && takeLabel}
         </Button>
       )}
 
       <SellerModal
         open={open}
         onClose={close}
-        title="Nhận PIC cơ hội"
+        title={t(message('Nhận PIC cơ hội', 'Take ownership of opportunity', '기회 담당 맡기'))}
         subtitle={
           <>
-            Chuyển <span className="font-mono">{code}</span> sang cột{' '}
-            {OPPORTUNITY_STAGE_LABEL.assigned} và ghi bạn là người nhận.
+            {subtitleHead}
+            <span className="font-mono">{code}</span>
+            {subtitleTail}
           </>
         }
-        fieldLabel="Giao thêm Sale đứng đơn"
-        fieldHint="Không bắt buộc."
+        fieldLabel={t(
+          message('Giao thêm Sale đứng đơn', 'Add salespeople to the deal', '영업 담당자 추가'),
+        )}
+        fieldHint={t(message('Không bắt buộc.', 'Optional.', '선택 사항입니다.'))}
         sellers={sellers}
         onChange={setSellers}
         names={new Map(standing.map((o) => [o.id, o.name]))}
         primary={{ lane: fit, value: primary, onChange: setPrimaryPick }}
         note={
           needsPrimary
-            ? 'Chọn Sale chính.'
+            ? t(
+                message(
+                  'Chọn Sale chính.',
+                  'Choose the primary salesperson.',
+                  '주 영업 담당자를 선택하세요.',
+                ),
+              )
             : sellers.length === 0
-              ? 'Giao Sale sau cũng được. Cần có Sale trước khi Chốt thắng.'
+              ? t(
+                  message(
+                    'Giao Sale sau cũng được. Cần có Sale trước khi Chốt thắng.',
+                    'You can add a salesperson later, but one is needed before closing as won.',
+                    '영업 담당자는 나중에 지정해도 되지만, 수주 확정 전에는 반드시 있어야 합니다.',
+                  ),
+                )
               : ''
         }
         error={accept.error}
         busy={accept.isPending}
         submitDisabled={needsPrimary}
         icon={UserPlus}
-        submitLabel="Nhận PIC"
-        busyLabel="Đang nhận…"
+        submitLabel={takeLabel}
+        busyLabel={t(message('Đang nhận…', 'Taking…', '맡는 중…'))}
         onSubmit={submit}
       />
     </>

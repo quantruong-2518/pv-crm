@@ -24,6 +24,7 @@ import {
   type Permission,
 } from '@pv/contracts'
 import { api, isApiError, userMessage, type ApiError, type ApiNeed } from '@/app/api'
+import { message, translate } from '@/app/i18n'
 import { toast } from '@/app/toast'
 import { bookQueryParams } from '@/app/book-query'
 import { access, sessionIsLive, useSession } from '@/app/auth'
@@ -216,9 +217,18 @@ export function useMarkNotificationsRead() {
       }),
     onSuccess: () => (streamIsLive() ? undefined : client.invalidateQueries({ queryKey: KEY })),
     onError: (error) =>
-      toast(isApiError(error) ? userMessage(error) : 'Chưa đánh dấu được. Vui lòng thử lại.', {
-        tone: 'danger',
-      }),
+      toast(
+        isApiError(error)
+          ? userMessage(error)
+          : translate(
+              message(
+                'Chưa đánh dấu được. Vui lòng thử lại.',
+                'Could not mark as read. Please try again.',
+                '읽음 처리하지 못했습니다. 다시 시도해 주세요.',
+              ),
+            ),
+        { tone: 'danger' },
+      ),
   })
 }
 

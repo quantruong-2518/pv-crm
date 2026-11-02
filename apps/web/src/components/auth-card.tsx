@@ -8,6 +8,7 @@ import {
   GlassCard,
   Icon,
   Input,
+  SegmentedControl,
   Separator,
   wordmarkLight,
   type InputProps,
@@ -91,40 +92,20 @@ export function AuthCard({
 }
 
 /** A direct choice shared by auth and the signed-in account screen. */
-const LANGS: Lang[] = ['vi', 'ko', 'en']
+const LANGS: Lang[] = ['vi', 'en', 'ko']
 
 export function LanguagePicker() {
   const lang = useLang()
   return (
-    <div
-      role="group"
-      aria-label={t(lang, langSwitchText.label)}
-      className="flex items-center gap-2 font-mono text-[11.5px] font-semibold"
-    >
-      {LANGS.map((code, i) => {
-        const active = code === lang
-        return (
-          <span key={code} className="flex items-center gap-2">
-            {i > 0 && (
-              <span aria-hidden="true" className="text-muted-foreground/35">
-                ·
-              </span>
-            )}
-            <button
-              type="button"
-              aria-pressed={active}
-              onClick={() => setLang(code)}
-              className={cn(
-                'motion-std focus-visible:outline-ring rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2',
-                active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {LANG_LABEL[code]}
-            </button>
-          </span>
-        )
-      })}
-    </div>
+    <SegmentedControl
+      label={t(lang, langSwitchText.label)}
+      hideLabel
+      tone="quiet"
+      size="md"
+      value={lang}
+      options={LANGS.map((code) => ({ value: code, label: LANG_LABEL[code] }))}
+      onChange={(code) => setLang(code as Lang)}
+    />
   )
 }
 

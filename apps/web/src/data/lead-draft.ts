@@ -5,6 +5,7 @@ import {
   type MotionAsks,
 } from '@pv/contracts'
 import { userMessage, type ApiError, type FieldErrors } from '@/app/api'
+import { message, translate } from '@/app/i18n'
 import { useLeadAdmission, type AdmissionAction, type AdmissionPanel } from '@/data/lead-admission'
 import { buildLeadCreate, emptyDraft, ROOT_FIELD } from '@/data/lead-create'
 import { buildLeadPatch, useUpdateLeadProfile, type SaveState } from '@/data/lead-patch'
@@ -89,6 +90,12 @@ export type UseLeadDraftArgs =
 
 /** Contract name of a box. Both contracts spell every shared name the same. */
 const wireOf = (key: FieldKey): string => PROFILE_TO_WIRE[key] ?? key
+
+const NO_APPROACH = message(
+  'Chưa chọn phương án tiếp cận.',
+  'Choose an approach.',
+  '접근 방식을 선택하세요.',
+)
 
 /** A refusal, worded for the one line in the header meta row. Names the box
  *  where it can, because that line is read far from the box it is about. */
@@ -277,7 +284,7 @@ export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
     if (args.mode !== 'create' || admission.pending) return
     const asks = asksOf(live.current.motion)
     if (!asks) {
-      refuse({ motion: ['Chưa chọn phương án tiếp cận.'] })
+      refuse({ motion: [translate(NO_APPROACH)] })
       return
     }
     const built = buildLeadCreate(live.current, asks)

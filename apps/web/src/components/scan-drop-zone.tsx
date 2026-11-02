@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { Button, FileUp, Icon, Smartphone, cn } from '@pv/ui'
+import { message, useI18n } from '@/app/i18n'
 
 /** The multi-file drop zone of the scan door, and the one-file picker a
  *  failed row uses to replace its file.
@@ -32,6 +33,7 @@ export function ScanDropZone({
 }) {
   const picker = useRef<HTMLInputElement>(null)
   const camera = useRef<HTMLInputElement>(null)
+  const { t } = useI18n()
   const [over, setOver] = useState(false)
   /* Counted, not toggled: crossing a child fires the parent's `dragleave`. */
   const depth = useRef(0)
@@ -74,15 +76,29 @@ export function ScanDropZone({
       />
       <div className="flex flex-col gap-2">
         <p className="text-[15px] font-semibold">
-          {over ? 'Thả để tải lên' : 'Kéo thả tệp vào đây'}
+          {over
+            ? t(message('Thả để tải lên', 'Drop to upload', '놓아서 업로드'))
+            : t(
+                message(
+                  'Kéo thả tệp vào đây',
+                  'Drag and drop files here',
+                  '파일을 여기로 끌어다 놓으세요',
+                ),
+              )}
         </p>
         <p className="text-muted-foreground text-[12.5px]">
-          Danh thiếp, ảnh chụp, PDF hồ sơ. Thả được nhiều tệp một lần.
+          {t(
+            message(
+              'Danh thiếp, ảnh chụp, PDF hồ sơ. Thả được nhiều tệp một lần.',
+              'Business cards, photos, PDF profiles. You can drop several files at once.',
+              '명함, 사진, PDF 자료. 여러 파일을 한 번에 놓을 수 있습니다.',
+            ),
+          )}
         </p>
       </div>
       <div className="flex flex-wrap justify-center gap-3">
         <Button size="md" className="pointer-coarse:h-12" onClick={() => open(picker.current)}>
-          Chọn tệp
+          {t(message('Chọn tệp', 'Choose files', '파일 선택'))}
         </Button>
         <Button
           size="md"
@@ -91,7 +107,7 @@ export function ScanDropZone({
           onClick={() => open(camera.current)}
         >
           <Icon icon={Smartphone} size={16} />
-          Chụp bằng điện thoại
+          {t(message('Chụp bằng điện thoại', 'Take a photo with your phone', '휴대폰으로 촬영'))}
         </Button>
       </div>
       <p className="text-muted-foreground text-[11.5px]">{footnote}</p>
@@ -129,6 +145,7 @@ export function ScanReplacePicker({
   name: string
   onFile: (file: File) => void
 }) {
+  const { t } = useI18n()
   const picker = useRef<HTMLInputElement>(null)
   const camera = useRef<HTMLInputElement>(null)
   const take = (list: FileList | null) => {
@@ -142,16 +159,22 @@ export function ScanReplacePicker({
         size="sm"
         variant="ghost"
         className="pointer-coarse:h-12"
-        aria-label={`Thay ${name}`}
+        aria-label={t(message(`Thay ${name}`, `Replace ${name}`, `${name} 교체`))}
         onClick={() => open(picker.current)}
       >
-        Thay tệp
+        {t(message('Thay tệp', 'Replace file', '파일 교체'))}
       </Button>
       <Button
         size="sm"
         variant="ghost"
-        aria-label={`Chụp ảnh thay cho ${name}`}
-        title="Chụp ảnh thay"
+        aria-label={t(
+          message(
+            `Chụp ảnh thay cho ${name}`,
+            `Take a photo to replace ${name}`,
+            `${name} 대신 사진 촬영`,
+          ),
+        )}
+        title={t(message('Chụp ảnh thay', 'Take a replacement photo', '교체할 사진 촬영'))}
         className="pointer-coarse:size-12 size-8 px-0"
         onClick={() => open(camera.current)}
       >

@@ -139,8 +139,14 @@ export function ReadMeta({ record }: { record: DebriefView }) {
   const seconds = anchor?.durationSec ?? 0
   return (
     <span className="tnum">
-      {commKindLine(record.channel, anchor?.direction ?? null)} · {dmy(record.createdAt)}{' '}
-      {t(message('lúc', 'at', ''))} {hm(record.createdAt)}
+      {commKindLine(record.channel, anchor?.direction ?? null)} ·{' '}
+      {t(
+        message(
+          `${dmy(record.createdAt)} lúc ${hm(record.createdAt)}`,
+          `${dmy(record.createdAt)} at ${hm(record.createdAt)}`,
+          `${dmy(record.createdAt)} ${hm(record.createdAt)}`,
+        ),
+      )}
       {seconds > 0 &&
         t(
           message(

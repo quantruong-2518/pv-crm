@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight, Icon, cn, type IconGlyph } from '@pv/ui'
+import { message, useI18n } from '@/app/i18n'
 import {
   GRAINS,
   compareLabel,
@@ -49,10 +50,11 @@ export function PeriodPicker({
   pick: PeriodPick
   onPick: (next: PeriodPick) => void
 }) {
+  const { t } = useI18n()
   return (
     <div
       role="group"
-      aria-label="Chọn kỳ"
+      aria-label={t(message('Chọn kỳ', 'Choose period', '기간 선택'))}
       className={cn('bg-card/80 flex flex-wrap items-center gap-1 rounded-full p-1', SOFT_SHADOW)}
     >
       {GRAINS.map((g) => {
@@ -72,19 +74,29 @@ export function PeriodPicker({
                 : 'text-muted-foreground hover:bg-surface-ink/8',
             )}
           >
-            {g.label}
+            {t(g.label)}
           </button>
         )
       })}
       <span aria-hidden className="bg-surface-ink/12 mx-1 block h-5 w-px" />
-      <StepButton icon={ChevronLeft} label="Kỳ trước" target={stepPick(pick, -1)} onPick={onPick} />
+      <StepButton
+        icon={ChevronLeft}
+        label={t(message('Kỳ trước', 'Previous period', '이전 기간'))}
+        target={stepPick(pick, -1)}
+        onPick={onPick}
+      />
       <span
         aria-live="polite"
         className="tnum min-w-28 text-center text-[13px] font-semibold leading-5"
       >
         {periodLabel(keyOf(pick))}
       </span>
-      <StepButton icon={ChevronRight} label="Kỳ sau" target={stepPick(pick, 1)} onPick={onPick} />
+      <StepButton
+        icon={ChevronRight}
+        label={t(message('Kỳ sau', 'Next period', '다음 기간'))}
+        target={stepPick(pick, 1)}
+        onPick={onPick}
+      />
     </div>
   )
 }
@@ -92,6 +104,7 @@ export function PeriodPicker({
 /** Names the data's own period, not the picker's, so a kept placeholder stays
  *  truthful. A finished period has no days left to count, so it gets no bar. */
 export function PeriodProgress({ data }: { data: PeriodRead }) {
+  const { t } = useI18n()
   const { ran, total } = progressOf(data)
   const compare = compareLabel(data)
   if (ran === total) {
@@ -114,7 +127,13 @@ export function PeriodProgress({ data }: { data: PeriodRead }) {
         />
       </span>
       <span className="tnum font-num">
-        Đã qua {ran}/{total} ngày · {compare}
+        {t(
+          message(
+            `Đã qua ${ran}/${total} ngày · ${compare}`,
+            `${ran}/${total} days elapsed · ${compare}`,
+            `${ran}/${total}일 경과 · ${compare}`,
+          ),
+        )}
       </span>
     </span>
   )

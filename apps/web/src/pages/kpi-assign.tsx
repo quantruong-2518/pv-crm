@@ -20,6 +20,7 @@ import {
 } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { useAppChrome } from '@/app/chrome'
 import { toastDone } from '@/app/toast'
 import {
@@ -28,7 +29,7 @@ import {
   useSendKpiAssignment,
 } from '@/data/kpi-assignment'
 import { kpiCatalogQuery, type BlockQuery, type KpiCatalog } from '@/data/kpi-catalog'
-import { ROLE_LABEL } from '@/data/users'
+import { kpiRoleText } from '@/data/kpi-i18n'
 import { keyOf, type PeriodPick } from './home-model'
 import { NOTE, TILE } from './home-tiles'
 import {
@@ -85,9 +86,10 @@ function Head({
   meta?: ReactNode
   actions?: ReactNode
 }) {
+  const { t } = useI18n()
   return (
     <ScreenHeader
-      title="Giao chỉ tiêu"
+      title={t(message('Giao chỉ tiêu', 'Assign targets', '목표 배정'))}
       meta={meta}
       actions={
         <>
@@ -96,6 +98,49 @@ function Head({
         </>
       }
     />
+  )
+}
+
+function RoleMeta({
+  page,
+  chip,
+  closed,
+}: {
+  page: KpiAssignmentPageResponse
+  chip: Label | null
+  closed: boolean
+}) {
+  const { t } = useI18n()
+  return (
+    <>
+      <MetaPill tone="accent">{page.unit.name}</MetaPill>
+      {chip && <MetaPill tone={PILL_TONE[chip.tone]}>{chip.text}</MetaPill>}
+      {page.actingFor && (
+        <MetaPill>
+          {t(
+            message(
+              `Làm thay ${page.actingFor.name}`,
+              `Acting for ${page.actingFor.name}`,
+              `${page.actingFor.name} 대리`,
+            ),
+          )}
+        </MetaPill>
+      )}
+      {page.resendLocked && (
+        <MetaPill>
+          {t(
+            message(
+              'Cấp dưới đã giao, không sửa được',
+              'The level below has assigned; it cannot be edited',
+              '하위 단위가 이미 배정하여 수정할 수 없습니다',
+            ),
+          )}
+        </MetaPill>
+      )}
+      {closed && (
+        <MetaPill>{t(message('Tháng đã kết thúc', 'Month has ended', '종료된 달'))}</MetaPill>
+      )}
+    </>
   )
 }
 
@@ -119,6 +164,7 @@ function RoleDesk({
   pick: PeriodPick
   onPick: (p: PeriodPick) => void
 }) {
+  const { t } = useI18n()
   const navigate = useNavigate()
   const seesAll = useCan('kpi.view-all')
   const { period, role } = page
@@ -152,7 +198,7 @@ function RoleDesk({
     draft.mutate(body, {
       onSuccess: () => {
         setEdits({})
-        toastDone('Đã lưu nháp')
+        toastDone(t(message('Đã lưu nháp', 'Draft saved', '임시 저장했습니다')))
       },
     })
   const go = () => {
@@ -162,7 +208,10 @@ function RoleDesk({
       {
         onSuccess: ({ warnings }) => {
           setRefused([])
-          toastDone('Đã gửi xuống', lateOver(page, warnings, sums))
+          toastDone(
+            t(message('Đã gửi xuống', 'Sent down', '하위로 발송했습니다')),
+            lateOver(page, warnings, sums),
+          )
         },
         /* A race: the saved draft moved under the press; mark what the screen now reads short. */
         onError: (e) =>
@@ -182,15 +231,7 @@ function RoleDesk({
       : go()
 
   const chip = setChip(page, closed)
-  const meta = (
-    <>
-      <MetaPill tone="accent">{page.unit.name}</MetaPill>
-      {chip && <MetaPill tone={PILL_TONE[chip.tone]}>{chip.text}</MetaPill>}
-      {page.actingFor && <MetaPill>Làm thay {page.actingFor.name}</MetaPill>}
-      {page.resendLocked && <MetaPill>Cấp dưới đã giao, không sửa được</MetaPill>}
-      {closed && <MetaPill>Tháng đã kết thúc</MetaPill>}
-    </>
-  )
+  const meta = <RoleMeta page={page} chip={chip} closed={closed} />
   const actions = (
     <>
       {company && (page.canAct || seesAll) && (
@@ -199,7 +240,7 @@ function RoleDesk({
           className="pointer-coarse:h-12"
           onClick={() => navigate(statusHref(period, role))}
         >
-          Tình trạng giao
+          {t(message('Tình trạng giao', 'Assignment status', '배정 현황'))}
         </Button>
       )}
       {editable && (
@@ -210,7 +251,7 @@ function RoleDesk({
             disabled={!saveable}
             onClick={save}
           >
-            Lưu nháp
+            {t(message('Lưu nháp', 'Save draft', '임시 저장'))}
           </Button>
           <SendDown page={page} defs={defs} sums={sums} disabled={!sendable} onSend={sendNow} />
         </>
@@ -288,6 +329,7 @@ function Desk({
   pick: PeriodPick
   onPick: (p: PeriodPick) => void
 }) {
+  const { t } = useI18n()
   const [params, setParams] = useSearchParams()
   const [edits, setEdits] = useState<Partial<Record<RoleId, Edits>>>({})
   const catalog = useQuery(kpiCatalogQuery)
@@ -310,7 +352,13 @@ function Desk({
         <GlassCard className={TILE}>
           <p className="text-[12.5px] leading-5">
             {error.kind === 'not-found' && !unitParam
-              ? 'Bạn chưa phụ trách đơn vị nào.'
+              ? t(
+                  message(
+                    'Bạn chưa phụ trách đơn vị nào.',
+                    'You are not in charge of any unit yet.',
+                    '담당하는 단위가 아직 없습니다.',
+                  ),
+                )
               : userMessage(error)}
           </p>
         </GlassCard>
@@ -321,7 +369,11 @@ function Desk({
   return (
     <>
       {!all.data && <Head pick={pick} onPick={onPick} />}
-      <QueryBlock query={all} what="chỉ tiêu cần giao" variant="b">
+      <QueryBlock
+        query={all}
+        what={message('chỉ tiêu cần giao', 'targets to assign', '배정할 목표')}
+        variant="b"
+      >
         {([defs, entries]) => {
           const shown = entries.filter((e) => handsDown(defs, e))
           const entry = shown.find((e) => e.role === params.get(ROLE_PARAM)) ?? shown[0]
@@ -329,7 +381,15 @@ function Desk({
             return (
               <>
                 <Head pick={pick} onPick={onPick} />
-                <p className={NOTE}>Đơn vị này không có vai trò nào cần giao chỉ tiêu.</p>
+                <p className={NOTE}>
+                  {t(
+                    message(
+                      'Đơn vị này không có vai trò nào cần giao chỉ tiêu.',
+                      'No role in this unit needs targets assigned.',
+                      '이 단위에는 목표를 배정할 역할이 없습니다.',
+                    ),
+                  )}
+                </p>
               </>
             )
           }
@@ -344,11 +404,11 @@ function Desk({
             )
           const tabs = (
             <SegmentedControl
-              label="Vai trò"
+              label={t(message('Vai trò', 'Role', '역할'))}
               hideLabel
               tone="quiet"
               value={entry.role}
-              options={shown.map((e) => ({ value: e.role, label: ROLE_LABEL[e.role] }))}
+              options={shown.map((e) => ({ value: e.role, label: kpiRoleText(e.role) }))}
               onChange={pickRole}
               className="self-start"
             />
@@ -373,6 +433,7 @@ function Desk({
 }
 
 export function KpiAssignPage() {
+  const { t } = useI18n()
   const chrome = useAppChrome()
   const [pick, setPick] = useMonthParam()
   const [params] = useSearchParams()
@@ -393,7 +454,7 @@ export function KpiAssignPage() {
         ) : (
           <>
             <Head pick={pick} onPick={setPick} />
-            <p className={NOTE}>{TIERED_SENTENCE}</p>
+            <p className={NOTE}>{t(TIERED_SENTENCE)}</p>
           </>
         )}
       </ScreenLayout>

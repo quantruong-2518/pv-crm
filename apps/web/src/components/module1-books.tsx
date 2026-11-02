@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { SegmentedControl } from '@pv/ui'
+import { message, useI18n } from '@/app/i18n'
 
 /** BA SỔ CỦA MODULE 1, VÀ CÁCH ĐI GIỮA CHÚNG.
  *
@@ -25,9 +26,9 @@ import { SegmentedControl } from '@pv/ui'
  *  ngóm khi người dùng đang đứng trên nó — hoặc là phải đẻ module thứ 7 cho
  *  một sổ vốn thuộc module 1. Đường dẫn dài hơn vài ký tự rẻ hơn cả hai. */
 const BOOKS = [
-  { value: '/sales/campaigns', label: 'Chiến dịch' },
-  { value: '/sales/campaigns/sources', label: 'Nguồn dẫn' },
-  { value: '/sales/campaigns/mail-runs', label: 'Lô gửi' },
+  { value: '/sales/campaigns', label: message('Chiến dịch', 'Campaigns', '캠페인') },
+  { value: '/sales/campaigns/sources', label: message('Nguồn dẫn', 'Sources', '유입 경로') },
+  { value: '/sales/campaigns/mail-runs', label: message('Lô gửi', 'Mail runs', '발송 건 목록') },
 ] as const
 
 /** Sổ nào đang mở, tính theo đường dẫn ĐẦY ĐỦ chứ không theo tiền tố.
@@ -48,14 +49,15 @@ function currentBook(pathname: string): string {
  *  đọc từ đường dẫn, nên không có cách nào để một màn khai sai chỗ nó đang
  *  đứng. */
 export function Module1Books() {
+  const { t } = useI18n()
   const navigate = useNavigate()
   const { pathname } = useLocation()
 
   return (
     <SegmentedControl
-      label="Sổ"
+      label={t(message('Sổ', 'Books', '목록'))}
       hideLabel
-      options={BOOKS.map((b) => ({ value: b.value, label: b.label }))}
+      options={BOOKS.map((b) => ({ value: b.value, label: t(b.label) }))}
       value={currentBook(pathname)}
       onChange={(value) => navigate(value)}
     />

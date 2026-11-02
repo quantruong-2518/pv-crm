@@ -346,7 +346,7 @@ export async function confirmPassword(password: string): Promise<AuthError | nul
     const legacyWrong =
       problem?.code === undefined &&
       typeof problem?.title === 'string' &&
-      problem.title.includes('Mật khẩu')
+      problem.title.includes('Mật khẩu') // i18n-ignore
     return problem?.code === 'wrong-password' || legacyWrong
       ? { field: 'password', key: 'wrongCurrentPassword' }
       : { field: 'form', key: 'sessionExpired' }

@@ -363,7 +363,7 @@ export function CampaignCreateModal({
                 message(
                   'Chiến dịch đang ở trạng thái nháp. Thêm người nhận để gửi đợt đầu.',
                   'The campaign is a draft. Add recipients to send the first wave.',
-                  '캠페인이 초안 상태입니다. 수신자를 추가해 첫 발송 차수를 보내세요.',
+                  '캠페인이 초안 상태입니다. 수신자를 추가해 첫 웨이브를 보내세요.',
                 ),
               ),
             },
@@ -399,7 +399,7 @@ export function CampaignCreateModal({
         message(
           'Chiến dịch được tạo ở trạng thái nháp. Bạn có thể thêm người nhận và chuẩn bị đợt gửi sau.',
           'The campaign will be created as a draft. Add recipients and prepare a wave afterward.',
-          '캠페인은 초안으로 생성됩니다. 수신자를 추가하고 발송 차수를 준비할 수 있습니다.',
+          '캠페인은 초안으로 생성됩니다. 수신자를 추가하고 웨이브를 준비할 수 있습니다.',
         ),
       )}
       footer={

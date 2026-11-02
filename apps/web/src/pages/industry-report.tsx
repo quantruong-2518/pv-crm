@@ -22,6 +22,7 @@ import {
 } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useAppChrome } from '@/app/chrome'
+import { message, useI18n, type Message } from '@/app/i18n'
 import { industryReportQuery } from '@/data/industries'
 import { dm, dmy } from '@/lib/date'
 import { grouped } from './source-model'
@@ -36,10 +37,10 @@ import { grouped } from './source-model'
  *  No ContextRail (law 10 debt, as on the other report screens): a row sums
  *  many leads and opens no single object. Law 8: the table sits on `.glass-b`. */
 
-const PERIODS: { value: IndustryReportPeriod; label: string }[] = [
-  { value: 'month', label: 'Tháng này' },
-  { value: 'quarter', label: 'Quý này' },
-  { value: 'year', label: 'Năm nay' },
+const PERIODS: { value: IndustryReportPeriod; label: Message }[] = [
+  { value: 'month', label: message('Tháng này', 'This month', '이번 달') },
+  { value: 'quarter', label: message('Quý này', 'This quarter', '이번 분기') },
+  { value: 'year', label: message('Năm nay', 'This year', '올해') },
 ]
 
 /** Matches `h-14`, the row height of the source report. */
@@ -47,11 +48,11 @@ const ROW_PX = 56
 
 type Counts = Omit<IndustryReportIndustry, 'id' | 'name'>
 
-const NUMBERS: { header: string; key: 'open' | 'fresh' | 'deals' | 'won' }[] = [
-  { header: 'Lead đang mở', key: 'open' },
-  { header: 'Lead mới', key: 'fresh' },
-  { header: 'Cơ hội', key: 'deals' },
-  { header: 'Hợp đồng', key: 'won' },
+const NUMBERS: { header: Message; key: 'open' | 'fresh' | 'deals' | 'won' }[] = [
+  { header: message('Lead đang mở', 'Open leads', '진행 중인 리드'), key: 'open' },
+  { header: message('Lead mới', 'New leads', '신규 리드'), key: 'fresh' },
+  { header: message('Cơ hội', 'Opportunities', '기회'), key: 'deals' },
+  { header: message('Hợp đồng', 'Contracts', '계약'), key: 'won' },
 ]
 
 function Rate({ value }: { value: number | null }) {
@@ -79,14 +80,18 @@ const cells = (label: ReactNode, c: Counts) => [
   <Rate key="rate" value={c.conversion} />,
 ]
 
-function rowsOf(data: IndustryReportResponse, open: (param: string) => void): TableRowModel[] {
+function rowsOf(
+  data: IndustryReportResponse,
+  open: (param: string) => void,
+  unnamed: string,
+): TableRowModel[] {
   return data.rows.flatMap((g: IndustryReportCategory) => [
     {
       id: `c/${g.id ?? '-'}`,
       onOpen: g.id ? () => open(`categoryId=${g.id}`) : undefined,
       cells: cells(
         <span key="n" className="truncate font-semibold">
-          {g.name ?? 'Chưa xếp nhóm'}
+          {g.name ?? unnamed}
         </span>,
         g,
       ),
@@ -112,6 +117,7 @@ function spanOf({ from, to }: IndustryReportResponse): string {
 }
 
 export default function IndustryReportPage() {
+  const { t } = useI18n()
   const chrome = useAppChrome()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
@@ -121,24 +127,36 @@ export default function IndustryReportPage() {
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
-        <ScreenHeader kicker="Báo cáo" title="Theo ngành" />
+        <ScreenHeader
+          kicker={t(message('Báo cáo', 'Report', '보고서'))}
+          title={t(message('Theo ngành', 'By industry', '업종별'))}
+        />
         <div className="flex flex-wrap items-center gap-3">
           <SegmentedControl
-            label="Kỳ"
+            label={t(message('Kỳ', 'Period', '기간'))}
             hideLabel
             tone="quiet"
             value={period}
-            options={PERIODS}
+            options={PERIODS.map((p) => ({ value: p.value, label: t(p.label) }))}
             onChange={(v) => setParams({ period: v }, { replace: true })}
           />
           {data && (
             <span className="text-muted-foreground tnum font-num text-[12px]">
-              {grouped(data.totals.open)} lead đang mở · {spanOf(data)} · một lead nhiều ngành thì
-              được đếm ở mỗi ngành
+              {t(
+                message(
+                  `${grouped(data.totals.open)} lead đang mở · ${spanOf(data)} · một lead nhiều ngành thì được đếm ở mỗi ngành`,
+                  `${grouped(data.totals.open)} open leads · ${spanOf(data)} · a lead with several industries is counted in each`,
+                  `진행 중인 리드 ${grouped(data.totals.open)}개 · ${spanOf(data)} · 업종이 여러 개인 리드는 각 업종마다 집계됩니다`,
+                ),
+              )}
             </span>
           )}
         </div>
-        <GlassCard variant="b" aria-label="Bảng theo ngành" className="overflow-x-auto">
+        <GlassCard
+          variant="b"
+          aria-label={t(message('Bảng theo ngành', 'Table by industry', '업종별 표'))}
+          className="overflow-x-auto"
+        >
           {isPending ? (
             <div className="flex flex-col gap-3 p-5">
               <Skeleton height={ROW_PX} />
@@ -148,32 +166,68 @@ export default function IndustryReportPage() {
             <EmptyState
               tone="danger"
               icon={TriangleAlert}
-              message={`Không tải được số liệu theo ngành. ${isApiError(error) ? userMessage(error) : 'Thử lại.'}`}
-              action={{ label: 'Thử lại', onClick: () => void refetch() }}
+              message={`${t(
+                message(
+                  'Không tải được số liệu theo ngành.',
+                  'Could not load the industry figures.',
+                  '업종별 수치를 불러오지 못했습니다.',
+                ),
+              )} ${isApiError(error) ? userMessage(error) : t(message('Thử lại.', 'Try again.', '다시 시도하세요.'))}`}
+              action={{
+                label: t(message('Thử lại', 'Retry', '다시 시도')),
+                onClick: () => void refetch(),
+              }}
               className="py-12"
             />
           ) : data.rows.length === 0 ? (
-            <p className="text-muted-foreground m-0 p-5 text-[12px]">Kỳ này chưa có lead nào.</p>
+            <p className="text-muted-foreground m-0 p-5 text-[12px]">
+              {t(
+                message(
+                  'Kỳ này chưa có lead nào.',
+                  'No leads in this period yet.',
+                  '이 기간에는 리드가 없습니다.',
+                ),
+              )}
+            </p>
           ) : (
             <DataTable
               flush
               rowHeight="h-14"
               className="min-w-[880px]"
               columns={[
-                { header: 'Nhóm ngành · ngành', width: 'minmax(200px,2.4fr)' },
+                {
+                  header: t(
+                    message('Nhóm ngành · ngành', 'Industry group · industry', '산업 분야 · 업종'),
+                  ),
+                  width: 'minmax(200px,2.4fr)',
+                },
                 ...NUMBERS.map((n) => ({
-                  header: n.header,
+                  header: t(n.header),
                   width: '0.8fr',
                   align: 'right' as const,
                 })),
-                { header: 'Lead → cơ hội', width: '1fr', align: 'right' },
+                {
+                  header: t(message('Lead → cơ hội', 'Lead → opportunity', '리드 → 기회')),
+                  width: '1fr',
+                  align: 'right',
+                },
               ]}
-              rows={rowsOf(data, (param) => navigate(`/sales/leads?${param}`))}
+              rows={rowsOf(
+                data,
+                (param) => navigate(`/sales/leads?${param}`),
+                t(message('Chưa xếp nhóm', 'Ungrouped', '분야 미지정')),
+              )}
             />
           )}
         </GlassCard>
         <p className="text-muted-foreground m-0 text-[12px]">
-          Bấm một dòng để mở sổ lead đã lọc theo dòng đó.
+          {t(
+            message(
+              'Bấm một dòng để mở sổ lead đã lọc theo dòng đó.',
+              'Press a row to open the lead list filtered by it.',
+              '행을 누르면 해당 조건으로 필터링된 리드 목록이 열립니다.',
+            ),
+          )}
         </p>
       </ScreenLayout>
     </AppShell>

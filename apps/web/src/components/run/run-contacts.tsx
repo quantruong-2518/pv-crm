@@ -4,7 +4,7 @@ import { ArrowLeftRight, Drawer, Skeleton, cn } from '@pv/ui'
 import { type ContactRow, type OpportunityProfileResponse } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
-import { useI18n } from '@/app/i18n'
+import { message, useI18n, type Message } from '@/app/i18n'
 import { ContactEditDrawer, ContactsCard } from '@/components/contacts-card'
 import { LeadAiMark } from '@/components/lead-ai-mark'
 import { accountProfileQuery } from '@/data/accounts'
@@ -50,6 +50,9 @@ type Person = {
 const NOTE = 'text-muted-foreground m-0 text-[12.5px] leading-[1.6]'
 
 /** A scope or permission cut says so; it is no failure (403 and 404 alike). */
+const CONTACTS = message('Người liên hệ', 'Contacts', '연락처')
+const SIGNER = message('người ký hợp đồng', 'contract signer', '계약 서명자')
+
 const isCut = (error: unknown) =>
   isApiError(error) && (error.kind === 'forbidden' || error.kind === 'not-found')
 
@@ -65,10 +68,15 @@ export function RunContacts({
   return null
 }
 
-const reachOf = (c: { email?: string | null; phone?: string | null }) =>
-  [c.email, c.phone].filter(Boolean).join(' · ') || 'Chưa có kênh liên lạc nào'
+const reachOf = (
+  c: { email?: string | null; phone?: string | null },
+  t: (copy: Message) => string,
+) =>
+  [c.email, c.phone].filter(Boolean).join(' · ') ||
+  t(message('Chưa có kênh liên lạc nào', 'No contact channel yet', '연락 수단 없음'))
 
 function LeadContacts({ code }: { code: string }) {
+  const { t } = useI18n()
   const canView = useCan('lead.view')
   const { data, isLoading, error } = useQuery({ ...leadContactsQuery(code), enabled: canView })
   const { data: lead } = useQuery({ ...leadProfileQuery(code), enabled: canView })
@@ -80,7 +88,7 @@ function LeadContacts({ code }: { code: string }) {
     name: c.name,
     primary: c.isPrimary,
     line: c.title ?? null,
-    reach: reachOf(c),
+    reach: reachOf(c, t),
     /* The fill writes the lead's own title and phone, which the primary shows. */
     marks: c.isPrimary
       ? {
@@ -91,9 +99,17 @@ function LeadContacts({ code }: { code: string }) {
   }))
 
   return (
-    <RunBlock title="Người liên hệ">
+    <RunBlock title={t(CONTACTS)}>
       {!canView || isCut(error) ? (
-        <p className={NOTE}>Vai của bạn không xem được người liên hệ của lead này.</p>
+        <p className={NOTE}>
+          {t(
+            message(
+              'Vai của bạn không xem được người liên hệ của lead này.',
+              "Your role cannot view this lead's contacts.",
+              '현재 권한으로는 이 리드의 연락처를 볼 수 없습니다.',
+            ),
+          )}
+        </p>
       ) : (
         <PeopleBody
           people={people && canEdit ? pencil(people) : people}
@@ -102,7 +118,7 @@ function LeadContacts({ code }: { code: string }) {
           onChange={canEdit ? () => setEditing(true) : undefined}
         />
       )}
-      <Drawer open={editing} onClose={() => setEditing(false)} width="md" title="Người liên hệ">
+      <Drawer open={editing} onClose={() => setEditing(false)} width="md" title={t(CONTACTS)}>
         <div className="p-4 sm:p-5">
           <ContactsCard code={code} canEdit embedded hideCommActions />
         </div>
@@ -117,6 +133,7 @@ function LeadContacts({ code }: { code: string }) {
 const dealPeople = (
   op: OpportunityProfileResponse,
   lang: ReturnType<typeof useI18n>['lang'],
+  t: (copy: Message) => string,
 ): Person[] =>
   op.contacts.map((c) => ({
     code: c.code,
@@ -125,21 +142,21 @@ const dealPeople = (
     line:
       [c.role && opportunityContactRoleLabel(c.role, lang), c.title].filter(Boolean).join(' · ') ||
       opportunityContactRoleUnknown(lang),
-    reach: c.email === null ? 'chưa có email' : null,
+    reach: c.email === null ? t(message('chưa có email', 'no email yet', '이메일 없음')) : null,
   }))
 
 /** `editing.session` remounts the editor per opening, so it seeds from the server's copy. */
 function DealContacts({ code }: { code: string }) {
-  const { lang } = useI18n()
+  const { t, lang } = useI18n()
   const { data: op, isPending, error } = useQuery(opportunityProfileQuery(code))
   const [editing, setEditing] = useState({ open: false, session: 0 })
   const open = () => setEditing((prev) => ({ open: true, session: prev.session + 1 }))
   const { pencil, drawer } = useContactEdit(op?.leadCode ?? '')
 
   return (
-    <RunBlock title="Người liên hệ">
+    <RunBlock title={t(CONTACTS)}>
       <PeopleBody
-        people={op && pencil(dealPeople(op, lang))}
+        people={op && pencil(dealPeople(op, lang, t))}
         loading={isPending}
         error={error}
         required
@@ -186,7 +203,7 @@ function useContactEdit(leadCode: string) {
  *  floating bar reaches, so rail and bar answer one question. A signer who is
  *  one of them is said on their row, not twice. No deal read: the signer alone. */
 function ContractContacts({ code }: { code: string }) {
-  const { lang } = useI18n()
+  const { t, lang } = useI18n()
   const canView = useCan('contract.view')
   const canViewDeal = useCan('opportunity.view')
   const contract = useQuery({ ...contractDetailQuery(code), enabled: canView })
@@ -199,8 +216,16 @@ function ContractContacts({ code }: { code: string }) {
 
   if (!canView) {
     return (
-      <RunBlock title="Người liên hệ">
-        <p className={NOTE}>Vai của bạn không có quyền xem hợp đồng này.</p>
+      <RunBlock title={t(CONTACTS)}>
+        <p className={NOTE}>
+          {t(
+            message(
+              'Vai của bạn không có quyền xem hợp đồng này.',
+              'Your role cannot view this contract.',
+              '현재 권한으로는 이 계약을 볼 수 없습니다.',
+            ),
+          )}
+        </p>
       </RunBlock>
     )
   }
@@ -208,17 +233,17 @@ function ContractContacts({ code }: { code: string }) {
     code,
     name: contract.data.contact,
     primary: false,
-    line: `${contract.data.contactRole} · ${SIGNER}`,
+    line: `${contract.data.contactRole} · ${t(SIGNER)}`,
   }
-  const others = deal.data ? pencil(dealPeople(deal.data, lang)) : []
+  const others = deal.data ? pencil(dealPeople(deal.data, lang, t)) : []
   const people =
     signer &&
     (others.some((p) => p.name === signer.name)
-      ? others.map((p) => (p.name === signer.name ? { ...p, line: `${p.line} · ${SIGNER}` } : p))
+      ? others.map((p) => (p.name === signer.name ? { ...p, line: `${p.line} · ${t(SIGNER)}` } : p))
       : [signer, ...others])
 
   return (
-    <RunBlock title="Người liên hệ">
+    <RunBlock title={t(CONTACTS)}>
       <PeopleBody
         people={people}
         loading={contract.isLoading || deal.isLoading}
@@ -229,35 +254,48 @@ function ContractContacts({ code }: { code: string }) {
   )
 }
 
-const SIGNER = 'người ký hợp đồng'
-
 /** Read-only: a contact hangs under a lead (see `contact.schema.ts`), so each
  *  name opens the lead holding them, where they are edited. The page has
  *  already read the profile; this shares its cache. */
 function AccountContacts({ code }: { code: string }) {
+  const { t } = useI18n()
   const { data, isPending, error } = useQuery(accountProfileQuery(code))
   const people = data?.contactRows.map((c) => ({
     code: c.code,
     name: c.name,
     primary: c.isPrimary,
     line: c.title ?? null,
-    reach: reachOf(c),
+    reach: reachOf(c, t),
     to: `/sales/leads/${encodeURIComponent(c.leadCode)}`,
   }))
 
   return (
     <RunBlock
-      title="Người liên hệ"
+      title={t(CONTACTS)}
       aside={
         people && <span className="text-muted-foreground tnum text-[12px]">{people.length}</span>
       }
     >
-      <p className={NOTE}>Gộp từ mọi lead của công ty này.</p>
+      <p className={NOTE}>
+        {t(
+          message(
+            'Gộp từ mọi lead của công ty này.',
+            'Merged from every lead of this company.',
+            '이 회사의 모든 리드에서 가져온 연락처입니다.',
+          ),
+        )}
+      </p>
       <PeopleBody
         people={people}
         loading={isPending}
         error={error}
-        empty="Công ty này chưa có người liên hệ. Thêm ở hồ sơ lead."
+        empty={t(
+          message(
+            'Công ty này chưa có người liên hệ. Thêm ở hồ sơ lead.',
+            'This company has no contacts yet. Add them on the lead record.',
+            '이 회사에는 아직 연락처가 없습니다. 리드 상세에서 추가하세요.',
+          ),
+        )}
       />
     </RunBlock>
   )
@@ -271,7 +309,7 @@ function PeopleBody({
   error,
   required = false,
   onChange,
-  empty = 'Chưa có người liên hệ.',
+  empty,
 }: {
   people: Person[] | undefined
   loading: boolean
@@ -280,16 +318,31 @@ function PeopleBody({
   onChange?: (() => void) | undefined
   empty?: string
 }) {
+  const { t } = useI18n()
   if (loading) return <Skeleton className="h-20 w-full" />
   if (error || !people) {
     return (
       <p className={cn(NOTE, 'text-destructive-foreground')}>
-        Không đọc được người liên hệ. {isApiError(error) ? userMessage(error) : 'Thử lại.'}
+        {t(
+          message(
+            'Không đọc được người liên hệ.',
+            'Could not read the contacts.',
+            '연락처를 불러오지 못했습니다.',
+          ),
+        )}{' '}
+        {isApiError(error)
+          ? userMessage(error)
+          : t(message('Thử lại.', 'Try again.', '다시 시도해 주세요.'))}
       </p>
     )
   }
   if (people.length === 0) {
-    return <p className={cn(NOTE, required && 'text-warning')}>{empty}</p>
+    return (
+      <p className={cn(NOTE, required && 'text-warning')}>
+        {empty ??
+          t(message('Chưa có người liên hệ.', 'No contacts yet.', '아직 연락처가 없습니다.'))}
+      </p>
+    )
   }
   return (
     <PersonList>
@@ -298,12 +351,21 @@ function PeopleBody({
           key={p.code}
           name={p.name}
           to={p.to}
-          edit={p.edit && { label: `Sửa ${p.name}`, onClick: p.edit }}
-          tag={p.primary && 'Chính'}
+          edit={
+            p.edit && {
+              label: t(message(`Sửa ${p.name}`, `Edit ${p.name}`, `${p.name} 수정`)),
+              onClick: p.edit,
+            }
+          }
+          tag={p.primary && t(message('Chính', 'Primary', '주요'))}
           lines={[p.line, p.marks?.line, p.reach, p.marks?.reach]}
           door={
             i === 0 && onChange
-              ? { label: 'Đổi người liên hệ', icon: ArrowLeftRight, onClick: onChange }
+              ? {
+                  label: t(message('Đổi người liên hệ', 'Change contacts', '연락처 변경')),
+                  icon: ArrowLeftRight,
+                  onClick: onChange,
+                }
               : undefined
           }
         />

@@ -1,6 +1,7 @@
 import { Pencil } from '@pv/ui'
 import { Button, Icon } from '@pv/ui'
 import type { OpportunityProfileResponse } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 import { RecordCard } from '@/components/record/record-card'
 
 /** Module 3 · what the deal is about — the body's reference card (ADR 0077 §6,
@@ -13,9 +14,10 @@ export function DescriptionPanel({
   op: OpportunityProfileResponse
   onEdit: () => void
 }) {
+  const { t } = useI18n()
   return (
     <RecordCard
-      title="Mô tả"
+      title={t(message('Mô tả', 'Description', '설명'))}
       tone="reference"
       actions={
         op.acts.editDetails.ok && (
@@ -23,11 +25,17 @@ export function DescriptionPanel({
             size="sm"
             variant="ghost"
             className="pointer-coarse:h-12"
-            aria-label="Sửa tên, mô tả và tệp"
+            aria-label={t(
+              message(
+                'Sửa tên, mô tả và tệp',
+                'Edit name, description and files',
+                '이름, 설명, 파일 수정',
+              ),
+            )}
             onClick={onEdit}
           >
             <Icon icon={Pencil} size={16} />
-            Sửa
+            {t(message('Sửa', 'Edit', '수정'))}
           </Button>
         )
       }
@@ -36,7 +44,9 @@ export function DescriptionPanel({
         {op.description?.trim() ? (
           op.description
         ) : (
-          <span className="text-muted-foreground">Chưa có mô tả.</span>
+          <span className="text-muted-foreground">
+            {t(message('Chưa có mô tả.', 'No description yet.', '설명이 없습니다.'))}
+          </span>
         )}
       </p>
     </RecordCard>

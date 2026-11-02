@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button, Check, Icon, Input, RotateCcw, SegmentedControl } from '@pv/ui'
 import type { ContractDetailRow, InstallmentRow } from '@pv/contracts'
 import { userMessage, type ApiError } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 import { toastDone, toastFail } from '@/app/toast'
 import { dm } from '@/lib/date'
 import { momentOfDay, useRecordPaid } from '@/data/contracts-write'
@@ -27,9 +28,10 @@ type CollectProps = {
  *  already stands on the screen, so this one steps down to secondary. `late`
  *  = overdue, so collecting asks for the reason first. */
 export function CollectCard(props: CollectProps) {
+  const { t } = useI18n()
   if (props.installment.paidAt === undefined && !props.canPay) return null
   return (
-    <RecordCard title="Thu tiền">
+    <RecordCard title={t(message('Thu tiền', 'Collection', '수금'))}>
       <CollectBody {...props} />
     </RecordCard>
   )
@@ -45,21 +47,45 @@ export function CollectBody({
   late,
   onPaid,
 }: CollectProps) {
+  const { t } = useI18n()
   const pay = usePayDay(true, contract.signedAt)
   const record = useRecordPaid(contract.code)
   const [undoing, setUndoing] = useState(false)
   const paid = installment.paidAt !== undefined
   const reason = useLateReason(contract.code, installment.no, late && canPay && !paid)
   const blocker = pay.blocker || reason.blocker
-  const failed = (e: ApiError) => toastFail('Không ghi thu được.', userMessage(e))
+  const failed = (e: ApiError) =>
+    toastFail(
+      t(
+        message(
+          'Không ghi thu được.',
+          'Could not record the collection.',
+          '수금을 기록하지 못했습니다.',
+        ),
+      ),
+      userMessage(e),
+    )
 
   return (
     <>
       {paid ? (
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-success tnum m-0 min-w-0 flex-1 text-[13px]">
-            Đã thu {dm(installment.paidAt ?? '')}
-            {installment.paidBy && ` · ${installment.paidBy.name} ghi nhận`}
+            {t(
+              message(
+                `Đã thu ${dm(installment.paidAt ?? '')}`,
+                `Collected ${dm(installment.paidAt ?? '')}`,
+                `${dm(installment.paidAt ?? '')} 수금`,
+              ),
+            )}
+            {installment.paidBy &&
+              t(
+                message(
+                  ` · ${installment.paidBy.name} ghi nhận`,
+                  ` · recorded by ${installment.paidBy.name}`,
+                  ` · ${installment.paidBy.name}님이 기록`,
+                ),
+              )}
           </p>
           {canUndo && (
             <Button
@@ -69,27 +95,29 @@ export function CollectBody({
               onClick={() => setUndoing(true)}
             >
               <Icon icon={RotateCcw} size={16} />
-              Hoàn tác đã thu
+              {t(message('Hoàn tác đã thu', 'Undo collection', '수금 취소'))}
             </Button>
           )}
         </div>
       ) : (
         <div className="flex flex-col items-start gap-4">
           <SegmentedControl
-            label="Ngày nhận tiền"
+            label={t(message('Ngày nhận tiền', 'Date received', '입금일'))}
             tone="quiet"
             value={pay.pick}
             onChange={(v) => pay.setPick(v as DayPick)}
             options={[
-              { value: 'today', label: 'Hôm nay' },
-              ...(pay.yesterdayOk ? [{ value: 'yesterday', label: 'Hôm qua' }] : []),
-              { value: 'other', label: 'Chọn ngày…' },
+              { value: 'today', label: t(message('Hôm nay', 'Today', '오늘')) },
+              ...(pay.yesterdayOk
+                ? [{ value: 'yesterday', label: t(message('Hôm qua', 'Yesterday', '어제')) }]
+                : []),
+              { value: 'other', label: t(message('Chọn ngày…', 'Pick a date…', '날짜 선택…')) },
             ]}
           />
           {pay.pick === 'other' && (
             <Input
               type="date"
-              aria-label="Ngày nhận tiền"
+              aria-label={t(message('Ngày nhận tiền', 'Date received', '입금일'))}
               className="pointer-coarse:h-12 max-w-[200px]"
               value={pay.other}
               min={pay.min}
@@ -114,7 +142,15 @@ export function CollectBody({
                     { no: installment.no, body: { paidAt: momentOfDay(pay.day) } },
                     {
                       onSuccess: () => {
-                        toastDone(`Đã ghi thu ${installment.label}.`)
+                        toastDone(
+                          t(
+                            message(
+                              `Đã ghi thu ${installment.label}.`,
+                              `Collection of ${installment.label} recorded.`,
+                              `${installment.label} 수금을 기록했습니다.`,
+                            ),
+                          ),
+                        )
                         onPaid?.()
                       },
                       onError: failed,
@@ -125,7 +161,7 @@ export function CollectBody({
             }
           >
             <Icon icon={Check} size={16} />
-            Ghi đã thu
+            {t(message('Ghi đã thu', 'Record as collected', '수금 기록'))}
           </Button>
         </div>
       )}

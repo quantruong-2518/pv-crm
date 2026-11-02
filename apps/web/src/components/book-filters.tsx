@@ -1,5 +1,6 @@
 import { ColumnFilter, ColumnFilterList, ColumnFilterNumberRange, ColumnFilterRange } from '@pv/ui'
-import { AMOUNT_SCALE, AMOUNT_UNIT, csvOf, toCsv, type FilterOption } from './book-columns'
+import { useI18n } from '@/app/i18n'
+import { AMOUNT_SCALE, AMOUNT_UNIT_COPY, csvOf, toCsv, type FilterOption } from './book-columns'
 
 /** The three header filters a book column can carry, wired to the address.
  *  Each goes in a column's `filter:` slot, icon-only beside a plain header text,
@@ -72,6 +73,7 @@ export function AmountRangeFilter({
   onChange: (range: { min?: number; max?: number }) => void
   iconOnly?: boolean
 }) {
+  const { t } = useI18n()
   return (
     <ColumnFilter label={label} active={min !== undefined || max !== undefined} iconOnly={iconOnly}>
       {(close) => (
@@ -79,7 +81,7 @@ export function AmountRangeFilter({
           min={min}
           max={max}
           close={close}
-          unit={AMOUNT_UNIT}
+          unit={t(AMOUNT_UNIT_COPY)}
           scale={AMOUNT_SCALE}
           onApply={onChange}
         />

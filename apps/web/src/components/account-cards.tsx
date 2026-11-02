@@ -1,5 +1,6 @@
 import { MapPin, MetaPill, cn } from '@pv/ui'
 import type { AccountRow } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 import { accountProfileQuery } from '@/data/accounts'
 import { useRowIntent } from './row-intent'
 import { BOOK_CARD } from './book-cards'
@@ -25,7 +26,11 @@ import {
 
 export function AccountCard({ account: a }: { account: AccountRow }) {
   const intent = useRowIntent(accountProfileQuery, () => import('@/pages/account-detail'))
-  const facts = [a.category?.name, a.taxCode && `MST ${a.taxCode}`].filter(Boolean)
+  const { t, number } = useI18n()
+  const facts = [
+    a.category?.name,
+    a.taxCode && t(message(`MST ${a.taxCode}`, `Tax ID ${a.taxCode}`, `세금번호 ${a.taxCode}`)),
+  ].filter(Boolean)
   return (
     <article className={cn(BOOK_CARD, CARD_FRAME)}>
       {a.logoUrl && <LogoWatermark src={a.logoUrl} />}
@@ -49,16 +54,21 @@ export function AccountCard({ account: a }: { account: AccountRow }) {
       {a.signedAmountVnd > 0 && (
         <span className="flex items-baseline gap-1">
           <span className="tnum font-num text-[15px] font-semibold">
-            {a.signedAmountVnd.toLocaleString('vi-VN')} ₫
+            {number(a.signedAmountVnd)} ₫
           </span>
-          <span className="text-muted-foreground text-[12px]">đã ký</span>
+          <span className="text-muted-foreground text-[12px]">
+            {t(message('đã ký', 'signed', '계약 완료'))}
+          </span>
         </span>
       )}
       <CardFoot>
         <span className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1">
-          <CardStat label="lead" value={a.leads} />
-          <CardStat label="cơ hội mở" value={a.openDeals} />
-          <CardStat label="hợp đồng" value={a.signedDeals} />
+          <CardStat label={t(message('lead', 'leads', '리드'))} value={a.leads} />
+          <CardStat
+            label={t(message('cơ hội mở', 'open opportunities', '진행 중 기회'))}
+            value={a.openDeals}
+          />
+          <CardStat label={t(message('hợp đồng', 'contracts', '계약'))} value={a.signedDeals} />
         </span>
         {a.province && (
           <MetaPill icon={MapPin} className="shrink-0">

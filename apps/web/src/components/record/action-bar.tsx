@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { BrandMark, Button, Contact, Ellipsis, Icon, cn } from '@pv/ui'
 import type { CommActionChannel } from '@pv/contracts'
 import { useCan } from '@/app/auth'
+import { message, useI18n, type Message } from '@/app/i18n'
 import { phoneText } from '@/lib/phone'
 import { COMMS_CHANNEL_ICON } from '@/data/comms'
 import { commTargetQuery } from '@/data/comm-record-detail'
@@ -31,12 +32,21 @@ import { MenuButton, type MenuChoice } from './menu-button'
  *  adds a first row (meetings). */
 
 /* No call button: a call is placed from the phone itself, not from this bar. */
-const CHANNELS: { channel: CommActionChannel; label: string }[] = [
-  { channel: 'zalo-oa', label: 'Zalo' },
-  { channel: 'telegram', label: 'Telegram' },
-  { channel: 'whatsapp', label: 'WhatsApp' },
-  { channel: 'email', label: 'Gửi mail' },
+const CHANNELS: { channel: CommActionChannel; label: Message }[] = [
+  { channel: 'zalo-oa', label: message('Zalo', 'Zalo', 'Zalo') },
+  { channel: 'telegram', label: message('Telegram', 'Telegram', 'Telegram') },
+  { channel: 'whatsapp', label: message('WhatsApp', 'WhatsApp', 'WhatsApp') },
+  { channel: 'email', label: message('Gửi mail', 'Send email', '메일 보내기') },
 ]
+
+const CHOOSE_CONTACT = message(
+  'Chọn cách và người liên hệ',
+  'Choose how and whom to contact',
+  '연락 방법과 대상 선택',
+)
+const NO_PHONE = message('chưa có số điện thoại', 'no phone number', '전화번호 없음')
+const PICK_CONTACT = message('chọn người liên hệ', 'choose a contact', '연락처 선택')
+const MORE_ACTIONS = message('Thao tác khác', 'More actions', '더 보기')
 
 /** The three chat apps show their real logo and no words: the logo is the
  *  label, and the button keeps the name in `aria-label` and `title`. */
@@ -87,6 +97,7 @@ export function ActionBar({
   /** A full-width row above the buttons — the meeting row of a lead or a deal. */
   top?: ReactNode
 } & Reach) {
+  const { t } = useI18n()
   const [asking, setAsking] = useState<Asking | null>(null)
   const people = subject ? (contacts ?? null) : null
   const choicesOf = useContactChoices(subject, people ?? [], mailBlocked, (channel, contact) =>
@@ -123,20 +134,20 @@ export function ActionBar({
                 up
                 size="md"
                 className="pointer-coarse:h-12"
-                label="Liên hệ"
+                label={t(message('Liên hệ', 'Contact', '연락'))}
                 icon={Contact}
-                ariaLabel="Chọn cách và người liên hệ"
+                ariaLabel={t(CHOOSE_CONTACT)}
                 choices={
                   people.length === 0
                     ? choicesOf('zalo-oa')
-                    : CHANNELS.flatMap(({ channel, label: verb }) =>
+                    : CHANNELS.flatMap(({ channel, label }) =>
                         choicesOf(channel).map((c) => ({
                           ...c,
                           key: `${channel}-${c.key}`,
                           label: (
                             <span className="flex items-center gap-2">
                               {BRAND[channel] && <BrandMark brand={BRAND[channel]} size={20} />}
-                              {verb} · {c.label}
+                              {t(label)} · {c.label}
                             </span>
                           ),
                         })),
@@ -145,8 +156,10 @@ export function ActionBar({
               />
             </div>
             <div className="hidden sm:contents">
-              {CHANNELS.map(({ channel, label: verb }) => {
+              {CHANNELS.map(({ channel, label }) => {
+                const verb = t(label)
                 const brand = BRAND[channel]
+                const noPhone = t(NO_PHONE)
                 /* A chat app is reached by phone number: with nobody holding
                    one, the button is shut rather than opening a list of refusals. */
                 const shut = channel !== 'email' && !people.some((c) => c.phone)
@@ -157,7 +170,7 @@ export function ActionBar({
                     size="md"
                     className={ICON_ONLY}
                     label={null}
-                    title={shut ? `${verb}: chưa có số điện thoại` : verb}
+                    title={shut ? `${verb}: ${noPhone}` : verb}
                     mark={
                       brand ? (
                         <BrandMark brand={brand} size={24} />
@@ -165,9 +178,7 @@ export function ActionBar({
                         <Icon icon={COMMS_CHANNEL_ICON[channel]} size={20} />
                       )
                     }
-                    ariaLabel={
-                      shut ? `${verb}: chưa có số điện thoại` : `${verb}: chọn người liên hệ`
-                    }
+                    ariaLabel={shut ? `${verb}: ${noPhone}` : `${verb}: ${t(PICK_CONTACT)}`}
                     disabled={shut}
                     choices={choicesOf(channel)}
                   />
@@ -206,8 +217,8 @@ export function ActionBar({
               className={ICON_ONLY}
               label={null}
               mark={<Icon icon={Ellipsis} size={20} />}
-              title="Thao tác khác"
-              ariaLabel="Thao tác khác"
+              title={t(MORE_ACTIONS)}
+              ariaLabel={t(MORE_ACTIONS)}
               choices={rare}
             />
           </>
@@ -241,6 +252,7 @@ function useContactChoices(
   mailBlocked: string | undefined,
   ask: (channel: CommActionChannel, contact: BarContact) => void,
 ) {
+  const { t } = useI18n()
   const canRecord = useCan('comm.view')
   /* Cache only: the confirm dialog fetches it on open, then every row knows. */
   const { data: known } = useQuery({ ...commTargetQuery(subject?.code ?? ''), enabled: false })
@@ -249,10 +261,24 @@ function useContactChoices(
   /* The screen's mail reason shuts every mail row, ahead of a missing address. */
   const blocked = (channel: CommActionChannel, c: BarContact): string | undefined => {
     /* A mail records no comm, so it needs neither the comm role nor a confirmable record. */
-    if (channel === 'email') return mailBlocked ?? (c.email ? undefined : 'Chưa có email.')
-    if (!canRecord) return 'Vai của bạn không tạo được lượt liên hệ.'
+    if (channel === 'email')
+      return (
+        mailBlocked ??
+        (c.email ? undefined : t(message('Chưa có email.', 'No email yet.', '이메일이 없습니다.')))
+      )
+    if (!canRecord) {
+      return t(
+        message(
+          'Vai của bạn không tạo được lượt liên hệ.',
+          'Your role cannot create contacts.',
+          '내 역할로는 연락 기록을 만들 수 없습니다.',
+        ),
+      )
+    }
     if (known && !known.confirmable && subject) return notConfirmableReason(subject.kind)
-    return c.phone ? undefined : 'Chưa có số điện thoại.'
+    return c.phone
+      ? undefined
+      : t(message('Chưa có số điện thoại.', 'No phone number yet.', '전화번호가 없습니다.'))
   }
 
   return (channel: CommActionChannel): MenuChoice[] =>
@@ -260,14 +286,20 @@ function useContactChoices(
       ? [
           {
             key: 'none',
-            label: 'Chưa có người liên hệ',
-            blocked: 'Thêm ở thẻ Người liên hệ.',
+            label: t(message('Chưa có người liên hệ', 'No contacts yet', '연락처 없음')),
+            blocked: t(
+              message(
+                'Thêm ở thẻ Người liên hệ.',
+                'Add one in the Contacts card.',
+                '연락처 카드에서 추가하세요.',
+              ),
+            ),
             onSelect: () => {},
           },
         ]
       : people.map((c, i) => ({
           key: c.code ?? `contact-${i}`,
-          label: c.primary ? `${c.name} · Chính` : c.name,
+          label: c.primary ? `${c.name} · ${t(message('Chính', 'Primary', '주 담당'))}` : c.name,
           hint: [c.role, channel === 'email' ? c.email : phoneText(c.phone)]
             .filter(Boolean)
             .join(' · '),

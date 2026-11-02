@@ -2,6 +2,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { AppShell, Button, ChevronLeft, GlassCard, Icon } from '@pv/ui'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
+import { message, useI18n } from '@/app/i18n'
 import { WorkstreamComms } from '@/components/comms-card'
 import { RecordHeader } from '@/components/record/record-header'
 import { RecordShell } from '@/components/record/record-shell'
@@ -16,6 +17,7 @@ import { RunStrip } from '@/components/record/run-strip'
  *  strip names the run and the customer (law 10). No rail: the read view
  *  needs the full width the axis already takes. */
 export function WorkstreamCommsPage() {
+  const { t } = useI18n()
   const chrome = useAppChrome()
   const { code = '' } = useParams()
   const canRun = useCan('workstream.view')
@@ -25,7 +27,7 @@ export function WorkstreamCommsPage() {
     <AppShell {...chrome.shell}>
       <RecordShell
         strip={<RunStrip workstreamCode={code} current={{ kind: 'workstream', code }} />}
-        header={<RecordHeader title="Luồng liên hệ" />}
+        header={<RecordHeader title={t(message('Luồng liên hệ', 'Contact thread', '연락 흐름'))} />}
         main={
           <>
             {canRun && (
@@ -36,11 +38,15 @@ export function WorkstreamCommsPage() {
                 onClick={() => navigate(`/sales/workstreams/${encodeURIComponent(code)}`)}
               >
                 <Icon icon={ChevronLeft} size={16} />
-                Về hành trình
+                {t(message('Về hành trình', 'Back to journey', '여정으로 돌아가기'))}
               </Button>
             )}
             {/* Law 8 · a long list sits on glass-b. */}
-            <GlassCard variant="b" className="p-4 sm:p-5" aria-label="Các lượt liên hệ">
+            <GlassCard
+              variant="b"
+              className="p-4 sm:p-5"
+              aria-label={t(message('Các lượt liên hệ', 'Contacts', '연락 기록'))}
+            >
               <WorkstreamComms workstreamCode={code} />
             </GlassCard>
           </>

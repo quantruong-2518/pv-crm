@@ -1,4 +1,5 @@
 import { ArrowRight, Button, Check, Icon, cn } from '@pv/ui'
+import { message, useI18n } from '@/app/i18n'
 
 /** The installment modal's footer: what the step is (or what went wrong) on
  *  the left, then the close button, the way to the installment's own screen
@@ -25,6 +26,7 @@ export function InstallmentFooter({
   onOpen: () => void
   onTick: () => void
 }) {
+  const { t } = useI18n()
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
       <span
@@ -38,7 +40,7 @@ export function InstallmentFooter({
       </span>
       <div className="ml-auto flex flex-wrap justify-end gap-2">
         <Button size="lg" variant="ghost" onClick={onClose}>
-          Đóng
+          {t(message('Đóng', 'Close', '닫기'))}
         </Button>
         <Button
           size="lg"
@@ -46,12 +48,12 @@ export function InstallmentFooter({
           onClick={onOpen}
         >
           <Icon icon={ArrowRight} size={16} />
-          Mở đợt
+          {t(message('Mở đợt', 'Open installment', '납부 회차 열기'))}
         </Button>
         {canTick && (
           <Button size="lg" disabled={busy} onClick={onTick}>
             <Icon icon={Check} size={16} />
-            Đánh dấu xong
+            {t(message('Đánh dấu xong', 'Mark as done', '완료로 표시'))}
           </Button>
         )}
       </div>

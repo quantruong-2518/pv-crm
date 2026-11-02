@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { message, useI18n } from '@/app/i18n'
 import type { Contract } from '@/data/contracts'
 import { ChangeCollectorDrawer } from './contract-collector-change'
 import { collectorDoorKey } from './run/owner-doors'
@@ -13,6 +14,7 @@ export function ContractOwners({
   contract: Contract
   workstreamCode: string | null
 }) {
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const canChange = contract.canChangeCollector === true && !contract.termination
 
@@ -25,7 +27,9 @@ export function ContractOwners({
           canChange
             ? {
                 [collectorDoorKey(contract.code)]: {
-                  label: 'Đổi người thu tiền',
+                  label: t(
+                    message('Đổi người thu tiền', 'Change payment collector', '수금 담당자 변경'),
+                  ),
                   onClick: () => setOpen(true),
                   bare: true,
                 },

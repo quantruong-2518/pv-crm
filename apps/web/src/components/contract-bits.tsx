@@ -2,7 +2,7 @@ import { ArrowLeft, ArrowRight, Badge, Icon, cn } from '@pv/ui'
 import { type ContractPenalty } from '@pv/contracts'
 import type { DueLevel } from '@pv/engines'
 import type { ConditionSide, ContractBookRow, InstallmentView } from '@/data/contracts'
-import { COLLECTED_LABEL, COLLECTING_LABEL, OVERDUE_LABEL, standingOf } from '@/data/contracts'
+import { standingOf } from '@/data/contracts'
 import { useI18n } from '@/app/i18n'
 import {
   CONTRACT_COPY as COPY,
@@ -11,6 +11,7 @@ import {
   penaltyDirectionText,
   penaltyStatusText,
 } from '@/data/contract-copy'
+import { standingText } from '@/data/installment-copy'
 import { MoneyCell } from '@/components/money-cell'
 import { BADGE_INK } from '@/data/opportunities'
 
@@ -36,8 +37,8 @@ export function ContractStanding({
   views: InstallmentView[]
   className?: string
 }) {
-  const { t } = useI18n()
-  const { tone, label } = standingOf(
+  const { lang } = useI18n()
+  const { tone } = standingOf(
     views.map((v) => ({
       overdue: v.level === 'overdue' || v.level === 'long-overdue',
       paid: Boolean(v.installment.paidAt),
@@ -45,13 +46,7 @@ export function ContractStanding({
   )
   return (
     <Badge tone={tone} className={className}>
-      {label === OVERDUE_LABEL
-        ? t(COPY.overdue)
-        : label === COLLECTED_LABEL
-          ? t(COPY.collected)
-          : label === COLLECTING_LABEL
-            ? t(COPY.collecting)
-            : label}
+      {standingText(tone, lang)}
     </Badge>
   )
 }

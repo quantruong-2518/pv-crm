@@ -37,6 +37,8 @@ import { CHANNEL_LABEL } from '@/data/sales-config'
  *  profile has, which of the ten slots each carries); this file owns what it
  *  LOOKS like (label, order, select options). Scenario 2 · DAS Vina. */
 
+/* Vietnamese here is the source text; en/ko come from `localizeLeadField` in lead-copy.ts. */
+
 // ---------------------------------------------------------------------------
 // The three field groups — one tab each
 // ---------------------------------------------------------------------------
@@ -51,18 +53,18 @@ import { CHANNEL_LABEL } from '@/data/sales-config'
 export const PROFILE_GROUPS = [
   {
     key: 'company',
-    label: 'Doanh nghiệp',
-    purpose: 'Thông tin pháp lý, ngành và quy mô hoạt động.',
+    label: 'Doanh nghiệp', // i18n-ignore
+    purpose: 'Thông tin pháp lý, ngành và quy mô hoạt động.', // i18n-ignore
   },
   {
     key: 'person',
-    label: 'Người liên hệ',
-    purpose: 'Thông tin để gọi và trao đổi với khách.',
+    label: 'Người liên hệ', // i18n-ignore
+    purpose: 'Thông tin để gọi và trao đổi với khách.', // i18n-ignore
   },
   {
     key: 'need',
-    label: 'Nhu cầu',
-    purpose: 'Vấn đề, ngân sách, người duyệt và thời hạn.',
+    label: 'Nhu cầu', // i18n-ignore
+    purpose: 'Vấn đề, ngân sách, người duyệt và thời hạn.', // i18n-ignore
   },
 ] as const
 
@@ -153,23 +155,23 @@ export type FormValues = ProfileValues & {
 }
 
 /** The categories themselves are config, appended at draw time (`FieldRow`). */
-const NO_CATEGORY = [{ value: '', label: 'Chưa chọn nhóm ngành' }]
+const NO_CATEGORY = [{ value: '', label: 'Chưa chọn nhóm ngành' }] // i18n-ignore
 /** One list for the lead form and the company form. */
 export const SIZE_OPTIONS = [
-  { value: '', label: 'Chưa có' },
+  { value: '', label: 'Chưa có' }, // i18n-ignore
   ...LEAD_SIZE_BANDS.map((value) => ({ value, label: LEAD_SIZE_BAND_LABEL[value] })),
 ]
 const TIER_OPTIONS = LEAD_TIERS.map((t) => ({ value: t.key, label: t.label }))
 const CURRENCY_OPTIONS = CURRENCIES.map((c) => ({ value: c.code, label: c.label }))
 
 const CHANNEL_OPTIONS = [
-  { value: '', label: 'Chưa có kênh liên hệ' },
+  { value: '', label: 'Chưa có kênh liên hệ' }, // i18n-ignore
   ...Object.entries(CHANNEL_LABEL).map(([value, label]) => ({ value, label })),
 ]
 
 /** What the URL box is called when no channel is picked yet — and the static
  *  label in the field table, which the hand-typing drawer uses as it stands. */
-const CHANNEL_URL_LABEL = 'URL kênh liên hệ'
+const CHANNEL_URL_LABEL = 'URL kênh liên hệ' // i18n-ignore
 
 /** The URL box's label, naming the channel currently picked: "URL LinkedIn".
  *
@@ -186,8 +188,8 @@ export function channelUrlLabel(channel: string): string {
 }
 
 const STAGE_OPTIONS = [
-  { value: '', label: 'Chưa vào sổ cơ hội' },
-  ...PIPELINE_STAGES.map((s) => ({ value: s.key, label: `${s.label} · hạn ${s.limitDays} ngày` })),
+  { value: '', label: 'Chưa vào sổ cơ hội' }, // i18n-ignore
+  ...PIPELINE_STAGES.map((s) => ({ value: s.key, label: `${s.label} · hạn ${s.limitDays} ngày` })), // i18n-ignore
 ]
 
 /** BẢN VẼ. Thứ tự dòng ở đây là thứ tự trên màn.
@@ -199,48 +201,48 @@ export const PROFILE_FIELDS: ProfileField[] = [
   // ── 1 · Khách là ai ──────────────────────────────────────────────────────
   {
     key: 'company',
-    label: 'Tên gọi trong sổ',
+    label: 'Tên gọi trong sổ', // i18n-ignore
     kind: 'text',
     group: 'company',
   },
   {
     key: 'legalName',
-    label: 'Tên pháp nhân',
+    label: 'Tên pháp nhân', // i18n-ignore
     kind: 'text',
     group: 'company',
     slot: 'legal-entity',
-    hint: 'Hợp đồng ký theo tên này.',
+    hint: 'Hợp đồng ký theo tên này.', // i18n-ignore
   },
   {
     key: 'taxCode',
-    label: 'Mã số thuế',
+    label: 'Mã số thuế', // i18n-ignore
     kind: 'text',
     group: 'company',
     slot: 'legal-entity',
     mono: true,
-    placeholder: '10 chữ số',
+    placeholder: '10 chữ số', // i18n-ignore
   },
   { key: 'website', label: 'Website', kind: 'text', group: 'company', placeholder: 'abc.com.vn' },
   {
     key: 'address',
-    label: 'Địa chỉ nhà máy',
+    label: 'Địa chỉ nhà máy', // i18n-ignore
     kind: 'text',
     group: 'company',
     slot: 'legal-entity',
   },
-  { key: 'province', label: 'Tỉnh', kind: 'text', group: 'company' },
+  { key: 'province', label: 'Tỉnh', kind: 'text', group: 'company' }, // i18n-ignore
   {
     key: 'category',
-    label: 'Nhóm ngành',
+    label: 'Nhóm ngành', // i18n-ignore
     kind: 'select',
     group: 'company',
     slot: 'industry',
     options: NO_CATEGORY,
-    hint: 'Đổi nhóm ngành sẽ bỏ các ngành của nhóm cũ.',
+    hint: 'Đổi nhóm ngành sẽ bỏ các ngành của nhóm cũ.', // i18n-ignore
   },
   {
     key: 'industries',
-    label: `Ngành · tối đa ${LEAD_NUM.industriesMax}`,
+    label: `Ngành · tối đa ${LEAD_NUM.industriesMax}`, // i18n-ignore
     kind: 'tags',
     group: 'company',
     /* No `slot`: read by no gate and no routing — `category` above is what
@@ -249,39 +251,39 @@ export const PROFILE_FIELDS: ProfileField[] = [
   },
   {
     key: 'mainProduct',
-    label: 'Sản phẩm chính',
+    label: 'Sản phẩm chính', // i18n-ignore
     kind: 'text',
     group: 'company',
     slot: 'industry',
   },
   {
     key: 'sizeBand',
-    label: 'Quy mô',
+    label: 'Quy mô', // i18n-ignore
     kind: 'select',
     group: 'company',
     slot: 'scale',
     options: SIZE_OPTIONS,
   },
-  { key: 'tier', label: 'Bậc', kind: 'select', group: 'company', options: TIER_OPTIONS },
+  { key: 'tier', label: 'Bậc', kind: 'select', group: 'company', options: TIER_OPTIONS }, // i18n-ignore
 
   // ── 2 · Nói chuyện với ai ────────────────────────────────────────────────
   {
     key: 'contactName',
-    label: 'Người liên hệ',
+    label: 'Người liên hệ', // i18n-ignore
     kind: 'text',
     group: 'person',
     slot: 'contact',
   },
   {
     key: 'contactTitle',
-    label: 'Chức danh',
+    label: 'Chức danh', // i18n-ignore
     kind: 'text',
     group: 'person',
     slot: 'contact',
   },
   {
     key: 'phone',
-    label: 'Điện thoại',
+    label: 'Điện thoại', // i18n-ignore
     kind: 'text',
     group: 'person',
     slot: 'channel',
@@ -290,12 +292,12 @@ export const PROFILE_FIELDS: ProfileField[] = [
   { key: 'email', label: 'Email', kind: 'text', group: 'person', slot: 'channel' },
   {
     key: 'channel',
-    label: 'Kênh gọi lại được',
+    label: 'Kênh gọi lại được', // i18n-ignore
     kind: 'select',
     group: 'person',
     slot: 'channel',
     options: CHANNEL_OPTIONS,
-    hint: 'Kênh khách dùng để phản hồi.',
+    hint: 'Kênh khách dùng để phản hồi.', // i18n-ignore
   },
   {
     key: 'channelUrl',
@@ -315,84 +317,84 @@ export const PROFILE_FIELDS: ProfileField[] = [
   // ── 3 · Việc khách muốn giải ─────────────────────────────────────────────
   {
     key: 'pain',
-    label: 'Vấn đề cần giải quyết',
+    label: 'Vấn đề cần giải quyết', // i18n-ignore
     kind: 'long',
     group: 'need',
     slot: 'pain',
-    placeholder: 'Kể lại bằng lời của khách…',
+    placeholder: 'Kể lại bằng lời của khách…', // i18n-ignore
   },
   {
     key: 'currentStack',
-    label: 'Giải pháp đang sử dụng',
+    label: 'Giải pháp đang sử dụng', // i18n-ignore
     kind: 'long',
     group: 'need',
     slot: 'current-stack',
   },
   {
     key: 'decisionMaker',
-    label: 'Người ký cuối',
+    label: 'Người ký cuối', // i18n-ignore
     kind: 'text',
     group: 'need',
     slot: 'signer',
   },
   {
     key: 'approver',
-    label: 'Người duyệt ngân sách',
+    label: 'Người duyệt ngân sách', // i18n-ignore
     kind: 'text',
     group: 'need',
     slot: 'signer',
   },
   {
     key: 'budget',
-    label: 'Ngân sách dự kiến',
+    label: 'Ngân sách dự kiến', // i18n-ignore
     kind: 'money',
     group: 'need',
     slot: 'budget',
-    hint: 'Ngân sách khách đã cho biết.',
+    hint: 'Ngân sách khách đã cho biết.', // i18n-ignore
   },
   {
     key: 'currency',
-    label: 'Đồng tiền',
+    label: 'Đồng tiền', // i18n-ignore
     kind: 'select',
     group: 'need',
     slot: 'budget',
     options: CURRENCY_OPTIONS,
   },
-  { key: 'deadline', label: 'Thời hạn mong muốn', kind: 'date', group: 'need', slot: 'deadline' },
+  { key: 'deadline', label: 'Thời hạn mong muốn', kind: 'date', group: 'need', slot: 'deadline' }, // i18n-ignore
 
   // ── 4 · Sổ sách — no tab of its own, see `GroupKey` ──────────────────────
-  { key: 'code', label: 'Mã lead', kind: 'read', group: 'system', mono: true },
+  { key: 'code', label: 'Mã lead', kind: 'read', group: 'system', mono: true }, // i18n-ignore
   {
     key: 'stage',
-    label: 'Cột trong sổ cơ hội',
+    label: 'Cột trong sổ cơ hội', // i18n-ignore
     kind: 'select',
     group: 'system',
     options: STAGE_OPTIONS,
   },
   {
     key: 'owner',
-    label: 'Người phụ trách',
+    label: 'Người phụ trách', // i18n-ignore
     kind: 'select',
     group: 'system',
-    people: 'Còn ở kho chung, chưa ai nhận',
-    hint: 'Đổi người phụ trách có thể đổi cách chia hoa hồng.',
+    people: 'Còn ở kho chung, chưa ai nhận', // i18n-ignore
+    hint: 'Đổi người phụ trách có thể đổi cách chia hoa hồng.', // i18n-ignore
   },
   {
     key: 'bdOwner',
-    label: 'BD đã liên hệ',
+    label: 'BD đã liên hệ', // i18n-ignore
     kind: 'select',
     group: 'system',
-    people: 'Chưa BD nào chạm',
+    people: 'Chưa BD nào chạm', // i18n-ignore
   },
   {
     key: 'marketingOwner',
-    label: 'Marketing phụ trách',
+    label: 'Marketing phụ trách', // i18n-ignore
     kind: 'select',
     group: 'system',
-    people: 'Không qua Marketing',
+    people: 'Không qua Marketing', // i18n-ignore
   },
-  { key: 'source', label: 'Nguồn lead', kind: 'read', group: 'system', mono: true },
-  { key: 'createdAt', label: 'Ngày tạo', kind: 'read', group: 'system' },
+  { key: 'source', label: 'Nguồn lead', kind: 'read', group: 'system', mono: true }, // i18n-ignore
+  { key: 'createdAt', label: 'Ngày tạo', kind: 'read', group: 'system' }, // i18n-ignore
   /* `dealCode` và `contractCode` KHÔNG còn được vẽ. Lead → cơ hội nay là 1-n,
      nên không cột nào gọi tên được "cái" cơ hội hay "cái" hợp đồng, và
      `GET /sales/leads/:code` không chở trường nào cho chúng — thứ sống sót là
@@ -401,7 +403,7 @@ export const PROFILE_FIELDS: ProfileField[] = [
      fixture cho một hợp đồng cơ sở dữ liệu chưa từng nghe tên. Hai trường vẫn
      còn trong kiểu `LeadProfile` của fixture (`profileForm` để trống chúng);
      chúng biến mất hẳn ngày form bỏ được hình đóng băng. */
-  { key: 'exitReason', label: 'Lý do vào nhóm chờ', kind: 'read', group: 'system' },
+  { key: 'exitReason', label: 'Lý do vào nhóm chờ', kind: 'read', group: 'system' }, // i18n-ignore
 ]
 
 // ---------------------------------------------------------------------------
@@ -595,26 +597,26 @@ export const isRequired = (field: FormField, mode: FormMode): boolean =>
  *  policy-ordered list with policy labels (`data/sales-motions.ts`). */
 const MOTION_FIELD: FormField = {
   key: 'motion',
-  label: 'Phương án tiếp cận',
+  label: 'Phương án tiếp cận', // i18n-ignore
   kind: 'select',
   group: 'system',
-  hint: 'Ai chủ động trước.',
+  hint: 'Ai chủ động trước.', // i18n-ignore
 }
 
 /** Level 2 of the origin. Drawn by `OwnerSourceCard` through a Combobox, but
  *  declared here so the star, `fieldOfWire` and the refusal line all find it. */
-const ORIGIN_FIELD: FormField = { key: 'origin', label: 'Nguồn', kind: 'select', group: 'system' }
+const ORIGIN_FIELD: FormField = { key: 'origin', label: 'Nguồn', kind: 'select', group: 'system' } // i18n-ignore
 
 const CAMPAIGN_FIELD: FormField = {
   key: 'campaignCode',
-  label: 'Chiến dịch',
+  label: 'Chiến dịch', // i18n-ignore
   kind: 'select',
   group: 'system',
 }
 
 const REFERRER_FIELD: FormField = {
   key: 'refCode',
-  label: 'Mã giới thiệu',
+  label: 'Mã giới thiệu', // i18n-ignore
   kind: 'select',
   group: 'system',
 }
@@ -637,7 +639,7 @@ export function originPickOf(raw: string | undefined): LeadCreate['origin'] | un
  *  chosen" entry. On a lead that exists, industry and currency are always set,
  *  so the blueprint carries none; on a blank form a select without an empty row
  *  silently posts its first option — an industry nobody chose. */
-const EMPTY_OPTION = { value: '', label: '— chưa có —' }
+const EMPTY_OPTION = { value: '', label: '— chưa có —' } // i18n-ignore
 
 function createOptions(field: ProfileField): ProfileField['options'] {
   if (field.kind !== 'select') return field.options

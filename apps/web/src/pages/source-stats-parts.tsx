@@ -16,6 +16,7 @@ import {
   type TableRowModel,
 } from '@pv/ui'
 import { isApiError, userMessage } from '@/app/api'
+import { message, useI18n, type Message } from '@/app/i18n'
 import { TIME_WINDOWS, dayAfterToday, type TimeWindowKey } from '@/data/campaigns'
 import { leadSourceStatsQuery } from '@/data/lead-origins'
 import { useMotionLabel } from '@/data/sales-motions'
@@ -43,12 +44,15 @@ const INDENT = ['', 'pl-4', 'pl-8', 'pl-12']
 /** Matches `h-14`, the row height every book draws (`components/book-page.tsx`). */
 const ROW_PX = 56
 
-const NUMBER_COLUMNS: { header: string; key: keyof Funnel }[] = [
-  { header: 'Tổng lead', key: 'leads' },
-  { header: 'Marketing duyệt (MQL)', key: 'mql' },
-  { header: 'Sales duyệt (SQL)', key: 'sql' },
-  { header: 'Cơ hội', key: 'deals' },
-  { header: 'Hợp đồng', key: 'won' },
+const NUMBER_COLUMNS: { header: Message; key: keyof Funnel }[] = [
+  { header: message('Tổng lead', 'Total leads', '전체 리드'), key: 'leads' },
+  {
+    header: message('Marketing duyệt (MQL)', 'Marketing approved (MQL)', '마케팅 승인 (MQL)'),
+    key: 'mql',
+  },
+  { header: message('Sales duyệt (SQL)', 'Sales approved (SQL)', '영업 승인 (SQL)'), key: 'sql' },
+  { header: message('Cơ hội', 'Opportunities', '기회'), key: 'deals' },
+  { header: message('Hợp đồng', 'Contracts', '계약'), key: 'won' },
 ]
 
 function numberCells(funnel: Funnel) {
@@ -79,13 +83,17 @@ function NodeLabel({ node, open }: { node: StatsNode; open: boolean }) {
 }
 
 export function SourceStatsBlock() {
+  const { t, lang } = useI18n()
   const [span, setSpan] = useState<TimeWindowKey>('all')
   const days = TIME_WINDOWS.find((w) => w.key === span)?.days ?? null
   const from = days === null ? undefined : dayAfterToday(-days)
   const { data, isPending, error, refetch } = useQuery(leadSourceStatsQuery({ from }))
 
   const motionLabel = useMotionLabel()
-  const tree = useMemo(() => statsTree(data?.rows ?? [], motionLabel), [data, motionLabel])
+  const tree = useMemo(
+    () => statsTree(data?.rows ?? [], motionLabel, lang),
+    [data, motionLabel, lang],
+  )
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set())
   const toggle = (id: string) =>
     setOpen((cur) => {
@@ -100,7 +108,7 @@ export function SourceStatsBlock() {
       id: 'total',
       cells: [
         <span key="n" className="pl-6 font-semibold">
-          Tổng
+          {t(message('Tổng', 'Total', '합계'))}
         </span>,
         ...numberCells(totalOf(tree)),
       ],
@@ -116,18 +124,37 @@ export function SourceStatsBlock() {
   ]
 
   return (
-    <GlassCard variant="b" aria-label="Hiệu quả theo nguồn lead">
+    <GlassCard
+      variant="b"
+      aria-label={t(
+        message('Hiệu quả theo nguồn lead', 'Performance by lead source', '리드 유입 경로별 성과'),
+      )}
+    >
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-        <SectionTitle hint="Chọn một dòng để xem chi tiết. Tỷ lệ = Hợp đồng / Tổng lead.">
-          Hiệu quả theo nguồn lead
+        <SectionTitle
+          hint={t(
+            message(
+              'Chọn một dòng để xem chi tiết. Tỷ lệ = Hợp đồng / Tổng lead.',
+              'Select a row for details. Rate = Contracts / Total leads.',
+              '행을 선택하면 상세 내용을 볼 수 있습니다. 비율 = 계약 / 전체 리드.',
+            ),
+          )}
+        >
+          {t(
+            message(
+              'Hiệu quả theo nguồn lead',
+              'Performance by lead source',
+              '리드 유입 경로별 성과',
+            ),
+          )}
         </SectionTitle>
         <Select
-          label="Khoảng thời gian"
+          label={t(message('Khoảng thời gian', 'Time range', '기간'))}
           size="lg"
           value={span}
           neutralValue="all"
           onChange={(v) => setSpan(v as TimeWindowKey)}
-          options={TIME_WINDOWS.map((w) => ({ value: w.key, label: w.label }))}
+          options={TIME_WINDOWS.map((w) => ({ value: w.key, label: t(w.label) }))}
         />
       </div>
       <div className="overflow-x-auto">
@@ -140,10 +167,21 @@ export function SourceStatsBlock() {
           <EmptyState
             tone="danger"
             icon={TriangleAlert}
-            message={`Không tải được số liệu hiệu quả theo nguồn lead. ${
-              isApiError(error) ? userMessage(error) : 'Thử lại.'
+            message={`${t(
+              message(
+                'Không tải được số liệu hiệu quả theo nguồn lead.',
+                'Could not load performance figures by lead source.',
+                '리드 유입 경로별 성과 수치를 불러오지 못했습니다.',
+              ),
+            )} ${
+              isApiError(error)
+                ? userMessage(error)
+                : t(message('Thử lại.', 'Try again.', '다시 시도해 주세요.'))
             }`}
-            action={{ label: 'Thử lại', onClick: () => void refetch() }}
+            action={{
+              label: t(message('Thử lại', 'Try again', '다시 시도')),
+              onClick: () => void refetch(),
+            }}
             className="py-12"
           />
         ) : (
@@ -152,13 +190,22 @@ export function SourceStatsBlock() {
             rowHeight="h-14"
             className="min-w-[1120px]"
             columns={[
-              { header: 'Phân nhóm nguồn', width: 'minmax(0,2.6fr)' },
+              {
+                header: t(message('Phân nhóm nguồn', 'Source grouping', '유입 경로 분류')),
+                width: 'minmax(0,2.6fr)',
+              },
               ...NUMBER_COLUMNS.map((c) => ({
-                header: c.header,
+                header: t(c.header),
                 width: '0.7fr',
                 align: 'right' as const,
               })),
-              { header: 'Tỷ lệ thành hợp đồng', width: '1fr', align: 'right' },
+              {
+                header: t(
+                  message('Tỷ lệ thành hợp đồng', 'Contract conversion rate', '계약 전환율'),
+                ),
+                width: '1fr',
+                align: 'right',
+              },
             ]}
             rows={rows}
           />

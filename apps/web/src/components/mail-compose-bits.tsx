@@ -2,6 +2,7 @@ import { Fragment, useEffect, useRef, useState } from 'react'
 import { Info, Mail, TriangleAlert } from '@pv/ui'
 import { Button, GlassCard, Icon, Select, Separator, Skeleton, cn } from '@pv/ui'
 import type { MasPreviewResponse } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 import type { MailHint } from '@/data/mail-hints'
 
 /** What every compose box in this app shows beside the letter: what could be
@@ -27,6 +28,7 @@ export function MailFloatingAids({
   hints: readonly MailHint[] | null
   onGuide: () => void
 }) {
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const count = hints?.length ?? 0
   const shown = open && count > 0
@@ -36,10 +38,18 @@ export function MailFloatingAids({
       {shown && (
         <div
           role="dialog"
-          aria-label="Nên xem lại trước khi gửi"
+          aria-label={t(
+            message(
+              'Nên xem lại trước khi gửi',
+              'Worth reviewing before sending',
+              '발송 전에 확인해 볼 항목',
+            ),
+          )}
           className="glass-overlay flex w-[360px] max-w-[calc(100vw-48px)] flex-col gap-2 rounded-lg p-4"
         >
-          <span className="text-[13px] font-semibold leading-5">Nên xem lại</span>
+          <span className="text-[13px] font-semibold leading-5">
+            {t(message('Nên xem lại', 'Worth reviewing', '확인해 볼 항목'))}
+          </span>
           <ul className="m-0 flex max-h-[360px] list-none flex-col gap-2 overflow-y-auto p-0">
             {hints?.map((hint) => (
               <li
@@ -64,7 +74,7 @@ export function MailFloatingAids({
       )}
       <button
         type="button"
-        aria-label="Hướng dẫn gửi email"
+        aria-label={t(message('Hướng dẫn gửi email', 'Email sending guide', '이메일 발송 안내'))}
         onClick={onGuide}
         className="glass-overlay text-muted-foreground motion-std hover:text-foreground flex size-12 items-center justify-center rounded-md"
       >
@@ -73,7 +83,13 @@ export function MailFloatingAids({
       {count > 0 && (
         <button
           type="button"
-          aria-label={`${count} điều nên xem lại`}
+          aria-label={t(
+            message(
+              `${count} điều nên xem lại`,
+              `${count} items worth reviewing`,
+              `확인해 볼 항목 ${count}개`,
+            ),
+          )}
           aria-expanded={shown}
           onClick={() => setOpen((value) => !value)}
           className="glass-overlay text-on-tint-warning tnum flex size-12 items-center justify-center rounded-md bg-[color-mix(in_srgb,var(--warning)_20%,var(--popover))] text-[15px] font-semibold"
@@ -95,16 +111,37 @@ export function OldBookingLink({
   onDrop,
 }: {
   /** Whose link it is, as the sentence names it. */
-  owner: 'Thư' | 'Mẫu'
+  owner: 'letter' | 'template'
   url: string
   dropped: boolean
   onDrop: (drop: boolean) => void
 }) {
+  const { t } = useI18n()
+  const own =
+    owner === 'letter'
+      ? message(
+          'Thư còn link đặt lịch cũ',
+          'This letter still has an old booking link',
+          '이 메일에 예전 예약 링크가 남아 있습니다',
+        )
+      : message(
+          'Mẫu còn link đặt lịch cũ',
+          'This template still has an old booking link',
+          '이 템플릿에 예전 예약 링크가 남아 있습니다',
+        )
   return (
     <GlassCard variant="b" className="flex min-w-0 flex-wrap items-center gap-3 p-4">
       <span className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="text-[12.5px] font-semibold">
-          {dropped ? 'Link đặt lịch cũ sẽ bị bỏ khi lưu' : `${owner} còn link đặt lịch cũ`}
+          {dropped
+            ? t(
+                message(
+                  'Link đặt lịch cũ sẽ bị bỏ khi lưu',
+                  'The old booking link will be removed on save',
+                  '저장하면 예전 예약 링크가 삭제됩니다',
+                ),
+              )
+            : t(own)}
         </span>
         <span className="text-muted-foreground truncate font-mono text-[11px]" title={url}>
           {url}
@@ -117,7 +154,9 @@ export function OldBookingLink({
         className="pointer-coarse:h-12"
         onClick={() => onDrop(!dropped)}
       >
-        {dropped ? 'Giữ lại' : 'Bỏ link đặt lịch cũ'}
+        {dropped
+          ? t(message('Giữ lại', 'Keep it', '유지'))
+          : t(message('Bỏ link đặt lịch cũ', 'Remove old booking link', '예전 예약 링크 삭제'))}
       </Button>
     </GlassCard>
   )
@@ -166,16 +205,19 @@ export function MailPreviewCard({
   envelope,
   caption,
 }: MailPreviewCardProps) {
+  const { t } = useI18n()
   return (
     <GlassCard variant="b" className="flex min-w-0 flex-col gap-4 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="flex items-center gap-2 text-[13px] font-semibold leading-5">
           <Icon icon={Mail} size={16} />
-          Thư sẽ gửi đi
+          {t(message('Thư sẽ gửi đi', 'The letter to be sent', '발송될 메일'))}
         </span>
         {recipients && recipients.length > 1 && onRecipient && (
           <Select
-            label="Xem trước theo người nhận"
+            label={t(
+              message('Xem trước theo người nhận', 'Preview by recipient', '수신자별 미리보기'),
+            )}
             hideLabel
             size="sm"
             value={recipientCode ?? ''}
@@ -221,8 +263,20 @@ export function MailPreviewCard({
       <p className="text-muted-foreground m-0 text-[11px] leading-[1.5]">
         {caption ??
           (recipients && recipients.length > 0
-            ? 'Bản xem trước. Tên thay theo từng người nhận.'
-            : 'Chưa chọn người nhận nên tên và công ty là dữ liệu mẫu.')}
+            ? t(
+                message(
+                  'Bản xem trước. Tên thay theo từng người nhận.',
+                  'Preview. The name changes for each recipient.',
+                  '미리보기입니다. 이름은 수신자마다 바뀝니다.',
+                ),
+              )
+            : t(
+                message(
+                  'Chưa chọn người nhận nên tên và công ty là dữ liệu mẫu.',
+                  'No recipient is picked yet, so the name and company are sample data.',
+                  '수신자를 아직 고르지 않아 이름과 회사는 예시 데이터입니다.',
+                ),
+              ))}
       </p>
     </GlassCard>
   )
@@ -247,6 +301,7 @@ export function MailPreviewCard({
  *  `scrollHeight` and size the frame to the letter instead of guessing. Adding
  *  `allow-scripts` alongside it would undo the sandbox entirely; do not. */
 function LetterFrame({ html, stale }: { html: string; stale: boolean }) {
+  const { t } = useI18n()
   const frame = useRef<HTMLIFrameElement>(null)
   const [height, setHeight] = useState(FRAME_MAX)
 
@@ -275,7 +330,7 @@ function LetterFrame({ html, stale }: { html: string; stale: boolean }) {
     >
       <iframe
         ref={frame}
-        title="Bản xem trước thư"
+        title={t(message('Bản xem trước thư', 'Letter preview', '메일 미리보기'))}
         srcDoc={html}
         sandbox="allow-same-origin"
         className="block bg-transparent"

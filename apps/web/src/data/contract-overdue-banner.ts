@@ -99,8 +99,8 @@ export function useOverdueBanners(): {
     title: t(
       message(
         `Đợt ${row.no} hợp đồng ${row.code} đã quá hạn thu`,
-        `Payment ${row.no} for contract ${row.code} is overdue`,
-        `계약 ${row.code}의 ${row.no}회차 결제가 연체되었습니다`,
+        `Installment ${row.no} for contract ${row.code} is overdue`,
+        `계약 ${row.code}의 납부 회차 ${row.no}이(가) 연체되었습니다`,
       ),
     ),
     detail:
@@ -114,7 +114,7 @@ export function useOverdueBanners(): {
         .filter(Boolean)
         .join(' · ') || undefined,
     action: {
-      label: t(message('Xem đợt thanh toán', 'View payment', '결제 보기')),
+      label: t(message('Xem đợt thanh toán', 'View installment', '납부 회차 보기')),
       onClick: () => {
         markRead({ ids: [row.id] })
         navigate(row.path)

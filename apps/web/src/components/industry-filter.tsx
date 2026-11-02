@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Button, ColumnFilter, cn } from '@pv/ui'
+import { message, useI18n } from '@/app/i18n'
 import { leadIndustryOptionsQuery } from '@/data/industries'
 
 /** The lead book's industry header filter: one pick, either a whole category
@@ -45,6 +46,7 @@ export function IndustryFilter({
   value: IndustryPick
   onChange: (next: IndustryPick) => void
 }) {
+  const { t } = useI18n()
   const { data } = useQuery(leadIndustryOptionsQuery)
   const categories = (data?.categories ?? []).filter((c) => c.active)
   const industries = (data?.industries ?? []).filter((i) => i.active)
@@ -52,7 +54,7 @@ export function IndustryFilter({
   const active = Boolean(value.categoryId || value.industryId)
 
   return (
-    <ColumnFilter label="Ngành" iconOnly active={active}>
+    <ColumnFilter label={t(message('Ngành', 'Industry', '업종'))} iconOnly active={active}>
       {(close) => {
         const pick = (next: IndustryPick) => {
           onChange({ categoryId: next.categoryId, industryId: next.industryId })
@@ -85,7 +87,9 @@ export function IndustryFilter({
                 </Fragment>
               ))}
               {loose.length > 0 && (
-                <span className="text-muted-foreground px-3 pt-2 text-[11px]">Chưa xếp nhóm</span>
+                <span className="text-muted-foreground px-3 pt-2 text-[11px]">
+                  {t(message('Chưa xếp nhóm', 'Ungrouped', '분야 미지정'))}
+                </span>
               )}
               {loose.map((i) => industry(i.id, i.name))}
             </div>
@@ -96,7 +100,7 @@ export function IndustryFilter({
                 className="pointer-coarse:h-12 self-start"
                 onClick={() => pick({})}
               >
-                Bỏ lọc
+                {t(message('Bỏ lọc', 'Clear filter', '필터 해제'))}
               </Button>
             )}
           </>

@@ -378,7 +378,7 @@ export const useSession = create<SessionState>()(
       signIn: (actor, opts) => {
         const remember = opts.remember ?? get().remember
         ;(remember ? sessionStorage : localStorage).removeItem(KEY)
-        access.log({ actorId: actor.id, action: 'view', note: 'đăng nhập' })
+        access.log({ actorId: actor.id, action: 'view', note: 'đăng nhập' }) // i18n-ignore
         set({
           status: 'signed-in',
           actor,
@@ -412,7 +412,7 @@ export const useSession = create<SessionState>()(
         const { status, actor } = get()
         if (status !== 'signed-in' && status !== 'signing-in') return
         if (actor) {
-          access.log({ actorId: actor.id, action: 'view', note: `phiên hết hạn · ${reason}` })
+          access.log({ actorId: actor.id, action: 'view', note: `phiên hết hạn · ${reason}` }) // i18n-ignore
         }
         /* `expiredBy` sống tiếp sau khi vé chết, và đó là toàn bộ việc của nó:
            `RequireAccess` chuyển nó sang màn đăng nhập để màn ấy nói đúng vì sao

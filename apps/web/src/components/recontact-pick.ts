@@ -1,15 +1,16 @@
 import { vnDayOf } from '@pv/contracts'
+import { message } from '@/app/i18n'
 
 /** The re-contact choice and the day it becomes (ADR 0125 D5), apart from the
  *  field so the drawers can judge readiness and build the body. The months turn
  *  into a day on the Vietnam calendar; the door judges "after today" itself. */
 
 export const RECONTACT_CHOICES = [
-  { value: '1', label: '1 tháng' },
-  { value: '3', label: '3 tháng' },
-  { value: '6', label: '6 tháng' },
-  { value: 'pick', label: 'Chọn ngày' },
-  { value: 'none', label: 'Không hẹn' },
+  { value: '1', label: message('1 tháng', '1 month', '1개월') },
+  { value: '3', label: message('3 tháng', '3 months', '3개월') },
+  { value: '6', label: message('6 tháng', '6 months', '6개월') },
+  { value: 'pick', label: message('Chọn ngày', 'Pick a date', '날짜 선택') },
+  { value: 'none', label: message('Không hẹn', 'No follow-up', '예정 없음') },
 ] as const
 
 export type RecontactChoice = (typeof RECONTACT_CHOICES)[number]['value']

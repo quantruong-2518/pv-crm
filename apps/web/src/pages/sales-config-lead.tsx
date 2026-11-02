@@ -56,7 +56,10 @@ export function CareArea({ catalog }: AreaProps) {
     <>
       {/* 5.4 — counts STOPS, not leads (ADR 0070): one `sales.touch` row per
           stop. Switched-off rows stay listed: off is the only delete there is. */}
-      <Section at="stop-reasons" summary={<EntryCount rows={stops} noun="lý do" />}>
+      <Section
+        at="stop-reasons"
+        summary={<EntryCount rows={stops} noun="lý do" />} // i18n-ignore
+      >
         <GlassCard variant="b" className="p-4">
           <ul className="flex flex-col gap-2">
             {stops.map((r) => (
@@ -65,13 +68,12 @@ export function CareArea({ catalog }: AreaProps) {
                   entry={r}
                   list="EXIT_REASON"
                   usage={catalog?.usage.EXIT_REASON[r.id] ?? 0}
-                  unit="lượt"
+                  unit={message('lượt', 'times', '회')}
                 />
               </li>
             ))}
           </ul>
         </GlassCard>
-
         <AddStopReason />
       </Section>
 
@@ -85,7 +87,7 @@ export function CareArea({ catalog }: AreaProps) {
             '중단된 리드에 라벨을 지정해 필터링하고 캠페인에 추가할 수 있습니다.',
           ),
         )}
-        summary={<EntryCount rows={labels} noun="nhãn" />}
+        summary={<EntryCount rows={labels} noun="nhãn" />} // i18n-ignore
       >
         {labels.length === 0 ? (
           <p className="text-muted-foreground text-[11.5px]">
@@ -100,7 +102,7 @@ export function CareArea({ catalog }: AreaProps) {
                     entry={r}
                     list="WAITING_LABEL"
                     usage={catalog?.usage.WAITING_LABEL[r.id] ?? 0}
-                    unit="lead"
+                    unit={message('lead', 'leads', '리드')}
                   />
                 </li>
               ))}
@@ -117,13 +119,24 @@ export function CareArea({ catalog }: AreaProps) {
 
       <Section
         at="comm-criteria"
-        summary={<EntryCount rows={catalog?.COMM_CRITERION ?? []} noun="câu" />}
+        summary={<EntryCount rows={catalog?.COMM_CRITERION ?? []} noun="câu" />} // i18n-ignore
       >
         <CommCriteriaConfig />
       </Section>
 
-      <Section at="step-kinds" summary={<EntryCount rows={catalog?.STEP_KIND ?? []} noun="loại" />}>
-        <FlatListConfig list="STEP_KIND" unit="bước" addLabel="Thêm loại bước tiếp theo" />
+      <Section
+        at="step-kinds"
+        summary={<EntryCount rows={catalog?.STEP_KIND ?? []} noun="loại" />} // i18n-ignore
+      >
+        <FlatListConfig
+          list="STEP_KIND"
+          unit={message('bước', 'steps', '단계')}
+          addLabel={message(
+            'Thêm loại bước tiếp theo',
+            'Add a next-step type',
+            '다음 단계 유형 추가',
+          )}
+        />
       </Section>
 
       <Section

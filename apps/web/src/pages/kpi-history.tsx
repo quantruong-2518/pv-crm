@@ -13,7 +13,7 @@ import { NOTE } from './home-tiles'
 import { actedAt } from './kpi-allocate-model'
 import { printValue } from './kpi-model'
 import { QueryBlock } from './kpi-parts'
-import { message, useI18n } from '@/app/i18n'
+import { message, translate, useI18n } from '@/app/i18n'
 import { kpiMetricText, kpiRoleText } from '@/data/kpi-i18n'
 
 /** The target history panel — a target's versions in one month, read-only (ADR 0099
@@ -75,19 +75,17 @@ function itemOf(
   return {
     id: `${i}/${entry.at}/${entry.event}`,
     state: EVENT_DOT[entry.event] ?? 'next',
-    marker:
-      lang === 'vi'
-        ? `Lần ${entry.version}`
-        : lang === 'en'
-          ? `Version ${entry.version}`
-          : `${entry.version}차`,
+    marker: translate(
+      message(`Lần ${entry.version}`, `Version ${entry.version}`, `${entry.version}차`),
+      lang,
+    ),
     title: (
       <span className="tnum font-num">
         {actedAt(replaced ? null : entry.actor, what, entry.at)}
       </span>
     ),
     children: entry.note
-      ? `${lang === 'vi' ? 'Lý do' : lang === 'en' ? 'Reason' : '사유'}: ${entry.note}`
+      ? `${translate(message('Lý do', 'Reason', '사유'), lang)}: ${entry.note}`
       : undefined,
   }
 }

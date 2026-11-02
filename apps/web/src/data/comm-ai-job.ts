@@ -10,6 +10,7 @@ import {
 } from '@pv/contracts'
 import { api, type ApiError } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { message } from '@/app/i18n'
 import { whileLive } from '@/app/query-client'
 import { COMM_RECORDS_KEY } from '@/data/comm-record-detail'
 import { COMM_VIEW_NEED } from '@/data/comms'
@@ -29,7 +30,11 @@ const ACTIVE: ReadonlySet<CommAiJobState> = new Set(COMM_AI_JOB_ACTIVE)
 export const isCommJobActive = (job: { state: CommAiJobState }) => ACTIVE.has(job.state)
 
 /** The form and the tray say the same thing about a job that gave no reason. */
-export const COMM_AI_JOB_FAILED = 'Chưa tạo được tóm tắt và biên bản. Thử lại sau ít phút.'
+export const COMM_AI_JOB_FAILED = message(
+  'Chưa tạo được tóm tắt và biên bản. Thử lại sau ít phút.',
+  'Could not create the summary and minutes. Try again in a few minutes.',
+  '요약과 회의록을 생성하지 못했습니다. 잠시 후 다시 시도하세요.',
+)
 
 export const COMM_AI_JOBS_KEY = [...COMM_RECORDS_KEY, 'ai-jobs'] as const
 

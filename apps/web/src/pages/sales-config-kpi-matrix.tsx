@@ -1,17 +1,11 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Badge, Button, GlassCard, Select, Skeleton, cn, type BadgeProps } from '@pv/ui'
-import {
-  APPROVAL_STATE_LABEL,
-  KPI_LAYER_LABEL,
-  KPI_METRIC_LABEL,
-  ROLE_LABEL,
-  type ApprovalState,
-  type KpiMetricKey,
-  type RoleId,
-} from '@pv/contracts'
+import type { ApprovalState, KpiMetricKey, RoleId } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { message, translate, useI18n, type Lang } from '@/app/i18n'
+import { kpiLayerText, kpiMetricText, kpiRoleText } from '@/data/kpi-i18n'
 import { toastDone } from '@/app/toast'
 import { kpiRoleMetricsQuery, useProposeKpiRoleMetrics } from '@/data/kpi-config'
 import {
@@ -24,7 +18,7 @@ import {
   type RoleDraft,
   type RoleEntry,
 } from './sales-config-kpi-model'
-import { sentCopy } from './sales-config-copy'
+import { approvalStateCopy, sentCopy } from './sales-config-copy'
 
 /** 5.16 — which metrics count for each role, and which one leads its card
  *  (ADR 0099 §1). A metric outside a role's catalog has no formula for that
@@ -57,8 +51,10 @@ const SENT_TONE: Record<ApprovalState, NonNullable<BadgeProps['tone']>> = {
 type Sent = { state: ApprovalState; changes: string[] }
 
 /** What the column changes, worded for the line under it once sent. */
-const changesOf = (check: RoleCheck) =>
-  [...check.changed].map((k) => `${KPI_METRIC_LABEL[k]}: ${CELL_LABEL[check.cells.get(k) ?? 'on']}`)
+const changesOf = (check: RoleCheck, lang: Lang) =>
+  [...check.changed].map(
+    (k) => `${kpiMetricText(k, lang)}: ${translate(CELL_LABEL[check.cells.get(k) ?? 'on'], lang)}`,
+  )
 
 function Cell({
   metric,
@@ -72,12 +68,21 @@ function Cell({
   /** Absent: read-only (no `config.propose`, or the column is sent). */
   onPress?: (now: CellState) => void
 }) {
+  const { t, lang } = useI18n()
   const state = check?.cells.get(metric)
   if (!check || !state) {
     return (
       <span className={cn(CELL, 'text-muted-foreground')}>
         <span aria-hidden>—</span>
-        <span className="sr-only">Chỉ số này không thuộc vai trò</span>
+        <span className="sr-only">
+          {t(
+            message(
+              'Chỉ số này không thuộc vai trò',
+              'This metric does not apply to the role',
+              '이 지표는 해당 역할에 적용되지 않습니다',
+            ),
+          )}
+        </span>
       </span>
     )
   }
@@ -85,21 +90,27 @@ function Cell({
   const changed = check.changed.has(metric)
   const face = (
     <>
-      {CELL_LABEL[state]}
+      {t(CELL_LABEL[state])}
       {clash ? (
-        <span className={SMALL}>Trùng chỉ số chính</span>
+        <span className={SMALL}>
+          {t(message('Trùng chỉ số chính', 'Duplicate primary', '핵심 지표 중복'))}
+        </span>
       ) : (
-        changed && <span className={SMALL}>Đã đổi</span>
+        changed && <span className={SMALL}>{t(message('Đã đổi', 'Changed', '변경됨'))}</span>
       )}
     </>
   )
   const look = cn(CELL, 'text-[12px] leading-4', clash ? CLASH : TONE[state])
   if (!onPress) return <span className={look}>{face}</span>
-  const note = clash ? ', trùng chỉ số chính' : changed ? ', đã đổi' : ''
+  const note = clash
+    ? t(message(', trùng chỉ số chính', ', duplicate primary', ', 핵심 지표 중복'))
+    : changed
+      ? t(message(', đã đổi', ', changed', ', 변경됨'))
+      : ''
   return (
     <button
       type="button"
-      aria-label={`${KPI_METRIC_LABEL[metric]}, ${ROLE_LABEL[role]}: ${CELL_LABEL[state]}${note}`}
+      aria-label={`${kpiMetricText(metric, lang)}, ${kpiRoleText(role, lang)}: ${t(CELL_LABEL[state])}${note}`}
       onClick={() => onPress(state)}
       className={cn(look, 'motion-std hover:shadow-control')}
     >
@@ -120,14 +131,15 @@ function RoleSend({
   sent: Sent | undefined
   onSent: (state: ApprovalState) => void
 }) {
+  const { t } = useI18n()
   const propose = useProposeKpiRoleMetrics()
   const body = check.body
   if (sent) {
     return (
       <div className="flex flex-col items-start gap-2">
-        <Badge tone={SENT_TONE[sent.state]}>{APPROVAL_STATE_LABEL[sent.state]}</Badge>
+        <Badge tone={SENT_TONE[sent.state]}>{t(approvalStateCopy(sent.state))}</Badge>
         <p className="text-muted-foreground m-0 text-[11.5px] leading-4">
-          Đã gửi: {sent.changes.join('; ')}.
+          {t(message('Đã gửi', 'Submitted', '제출됨'))}: {sent.changes.join('; ')}.
         </p>
       </div>
     )
@@ -144,7 +156,13 @@ function RoleSend({
           variant="secondary"
           size="sm"
           className="pointer-coarse:h-12 w-full"
-          aria-label={`Gửi đề nghị cho ${ROLE_LABEL[role]}`}
+          aria-label={t(
+            message(
+              `Gửi đề nghị cho ${kpiRoleText(role, 'vi')}`,
+              `Submit proposal for ${kpiRoleText(role, 'en')}`,
+              `${kpiRoleText(role, 'ko')} 변경 제안`,
+            ),
+          )}
           disabled={!body || propose.isPending}
           onClick={() =>
             body &&
@@ -156,7 +174,7 @@ function RoleSend({
             })
           }
         >
-          Gửi đề nghị
+          {t(message('Gửi đề nghị', 'Submit proposal', '변경 제안'))}
         </Button>
       )}
       {propose.error && (
@@ -179,6 +197,7 @@ type ViewProps = {
 
 /** `lg` and up: every role side by side, the metric names pinned to the left edge. */
 function TableView({ roles, checks, sent, canPropose, pressOf, onSent }: ViewProps) {
+  const { t, lang } = useI18n()
   const pin = 'bg-card sticky left-0 z-[1]'
   return (
     <div className="overflow-x-auto">
@@ -186,11 +205,11 @@ function TableView({ roles, checks, sent, canPropose, pressOf, onSent }: ViewPro
         <thead>
           <tr className="text-muted-foreground text-[11.5px]">
             <th scope="col" className={cn(pin, 'w-48 px-2 py-2 font-medium')}>
-              Chỉ số
+              {t(message('Chỉ số', 'Metric', '지표'))}
             </th>
             {roles.map((r) => (
               <th key={r.role} scope="col" className="px-1 py-2 text-center font-semibold">
-                {ROLE_LABEL[r.role]}
+                {kpiRoleText(r.role, lang)}
               </th>
             ))}
           </tr>
@@ -203,13 +222,13 @@ function TableView({ roles, checks, sent, canPropose, pressOf, onSent }: ViewPro
                 colSpan={roles.length + 1}
                 className="text-muted-foreground px-2 pb-1 pt-4 text-[11.5px] font-medium"
               >
-                {KPI_LAYER_LABEL[layer]}
+                {kpiLayerText(layer, lang)}
               </th>
             </tr>
             {keys.map((key) => (
               <tr key={key}>
                 <th scope="row" className={cn(pin, 'px-2 py-1 font-medium leading-5')}>
-                  {KPI_METRIC_LABEL[key]}
+                  {kpiMetricText(key, lang)}
                 </th>
                 {roles.map(({ role }) => {
                   const press = pressOf(role)
@@ -257,6 +276,7 @@ function TableView({ roles, checks, sent, canPropose, pressOf, onSent }: ViewPro
 
 /** Below `lg`: one role's metrics as a list, the role picked above it. */
 function OneRoleView({ roles, checks, sent, canPropose, pressOf, onSent }: ViewProps) {
+  const { t, lang } = useI18n()
   const [picked, setPicked] = useState<RoleId | undefined>(roles[0]?.role)
   const entry = roles.find((r) => r.role === picked) ?? roles[0]
   const check = entry && checks.get(entry.role)
@@ -265,22 +285,24 @@ function OneRoleView({ roles, checks, sent, canPropose, pressOf, onSent }: ViewP
   return (
     <div className="flex flex-col gap-4">
       <Select
-        label="Vai trò"
+        label={t(message('Vai trò', 'Role', '역할'))}
         size="lg"
         className="w-full"
         value={entry.role}
-        options={roles.map((r) => ({ value: r.role, label: ROLE_LABEL[r.role] }))}
+        options={roles.map((r) => ({ value: r.role, label: kpiRoleText(r.role, lang) }))}
         onChange={(role) => setPicked(role as RoleId)}
       />
       {rowsOf([entry]).map(({ layer, keys }) => (
         <section key={layer} className="flex flex-col gap-2">
           <h3 className="text-muted-foreground m-0 text-[11.5px] font-medium">
-            {KPI_LAYER_LABEL[layer]}
+            {kpiLayerText(layer, lang)}
           </h3>
           <ul className="m-0 flex flex-col gap-2 p-0">
             {keys.map((key) => (
               <li key={key} className="grid grid-cols-[minmax(0,1fr)_144px] items-center gap-3">
-                <span className="text-[12.5px] font-medium leading-5">{KPI_METRIC_LABEL[key]}</span>
+                <span className="text-[12.5px] font-medium leading-5">
+                  {kpiMetricText(key, lang)}
+                </span>
                 <Cell
                   metric={key}
                   role={entry.role}
@@ -305,6 +327,7 @@ function OneRoleView({ roles, checks, sent, canPropose, pressOf, onSent }: ViewP
 }
 
 function Matrix({ roles }: { roles: readonly RoleEntry[] }) {
+  const { t, lang } = useI18n()
   const canPropose = useCan('config.propose')
   const [drafts, setDrafts] = useState<Partial<Record<RoleId, RoleDraft>>>({})
   const [sent, setSent] = useState<Partial<Record<RoleId, Sent>>>({})
@@ -318,7 +341,10 @@ function Matrix({ roles }: { roles: readonly RoleEntry[] }) {
   /* The draft is kept: the column goes on showing what was sent. */
   const onSent = (role: RoleId, state: ApprovalState) => {
     const check = checks.get(role)
-    setSent((prev) => ({ ...prev, [role]: { state, changes: check ? changesOf(check) : [] } }))
+    setSent((prev) => ({
+      ...prev,
+      [role]: { state, changes: check ? changesOf(check, lang) : [] },
+    }))
   }
   const view = { roles, checks, sent, canPropose, pressOf, onSent }
 
@@ -331,21 +357,42 @@ function Matrix({ roles }: { roles: readonly RoleEntry[] }) {
         <TableView {...view} />
       </div>
       <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.5]">
-        {canPropose && 'Bấm vào ô để đổi: Có tính → Không tính → Chỉ số chính. '}
-        Dấu — là chỉ số này không thuộc vai trò.
+        {canPropose &&
+          `${t(
+            message(
+              'Bấm vào ô để đổi: Có tính → Không tính → Chỉ số chính.',
+              'Press a cell to change it: Counted → Not counted → Primary metric.',
+              '셀을 눌러 변경합니다: 반영 → 미반영 → 핵심 지표.',
+            ),
+          )} `}
+        {t(
+          message(
+            'Dấu — là chỉ số này không thuộc vai trò.',
+            'A dash means the metric does not apply to the role.',
+            '— 표시는 해당 역할에 적용되지 않는 지표입니다.',
+          ),
+        )}
       </p>
     </GlassCard>
   )
 }
 
 export function KpiMetricMatrix() {
+  const { t } = useI18n()
   const { data, error, refetch } = useQuery(kpiRoleMetricsQuery)
   if (data) return <Matrix roles={data.roles} />
   if (error) {
     return (
       <div className="flex flex-wrap items-center gap-3">
         <p role="alert" className={ALERT}>
-          Không tải được chỉ số theo vai trò. {isApiError(error) ? userMessage(error) : ''}
+          {t(
+            message(
+              'Không tải được chỉ số theo vai trò.',
+              'Could not load metrics by role.',
+              '역할별 지표를 불러오지 못했습니다.',
+            ),
+          )}{' '}
+          {isApiError(error) ? userMessage(error) : ''}
         </p>
         <Button
           variant="ghost"
@@ -353,7 +400,7 @@ export function KpiMetricMatrix() {
           className="pointer-coarse:h-12"
           onClick={() => void refetch()}
         >
-          Thử lại
+          {t(message('Thử lại', 'Try again', '다시 시도'))}
         </Button>
       </div>
     )

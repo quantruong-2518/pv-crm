@@ -1,6 +1,5 @@
 import {
   LEAD_LANE_BACKBONE,
-  LEAD_STATE_LABEL,
   type JourneyLeadRung,
   type JourneyRungState,
   type LeadProfile,
@@ -9,7 +8,9 @@ import {
   type TouchKind,
 } from '@pv/contracts'
 import { Pin, UserSwitch } from '@pv/ui'
+import { formatDate, getLang, message, translate } from '@/app/i18n'
 import { dm, dmy } from '@/lib/date'
+import { leadStateLabel } from '@/data/sales-labels-i18n'
 import { leadContactOf } from '@/data/comm-records'
 import { stopReasonLabel } from '@/data/sales-config'
 import type { StepSubject } from '@/data/next-step'
@@ -38,6 +39,15 @@ const MARK: Record<JourneyRungState, RungMark> = {
   stopped: 'stopped',
 }
 
+const sinceCaption = (day: string, days: number) =>
+  translate(
+    message(
+      `từ ${day} · ${days} ngày`,
+      `since ${day} · ${days} ${days === 1 ? 'day' : 'days'}`,
+      `${day}부터 · ${days}일`,
+    ),
+  )
+
 export function leadRungsOf(
   lead: LeadProfile,
   /** The run journey's rungs; `undefined` = not readable, derive them. */
@@ -53,16 +63,16 @@ export function leadRungsOf(
     derivedSteps(lead, touches, firstHeld)
   return steps.map(({ key, state, day }) => ({
     key,
-    label: LEAD_STATE_LABEL[key],
+    label: leadStateLabel(key, getLang()),
     mark: state === 'stopped' && lead.state === 'nurturing' ? 'waiting' : MARK[state],
     late: false,
     caption:
       state === 'stopped'
         ? stopCaption(lead, reasons)
         : state === 'current'
-          ? `từ ${dm(lead.stateSince)} · ${lead.daysHere} ngày`
+          ? sinceCaption(dm(lead.stateSince), lead.daysHere)
           : state === 'skipped'
-            ? 'bỏ qua'
+            ? translate(message('bỏ qua', 'skipped', '건너뜀'))
             : day,
   }))
 }
@@ -107,7 +117,7 @@ function derivedSteps(
 /** "<state> · <reason> · <day>", read off the row's own park reason and moment. */
 function stopCaption(lead: LeadProfile, reasons: Reasons) {
   return [
-    LEAD_STATE_LABEL[lead.state],
+    leadStateLabel(lead.state, getLang()),
     stopReasonLabel(reasons, lead.exitReason),
     dm(lead.exitedAt ?? lead.stateSince),
   ]
@@ -122,23 +132,31 @@ export function leadStepSubject(lead: LeadProfile, canAssign: boolean): StepSubj
     code: lead.code,
     holder: lead.ownerId ? { id: lead.ownerId, name: lead.ownerName ?? lead.ownerId } : null,
     canAssign,
-    holderHint: 'Người giữ lead.',
-    noHolder: 'Chưa ai giữ lead, cần giao lead trước.',
+    holderHint: translate(message('Người giữ lead.', 'Lead holder.', '리드 담당자.')),
+    noHolder: translate(
+      message(
+        'Chưa ai giữ lead, cần giao lead trước.',
+        'No one holds this lead. Assign it first.',
+        '담당자가 없습니다. 먼저 리드를 배정하세요.',
+      ),
+    ),
   }
 }
 
-const HOUR = new Intl.DateTimeFormat('vi-VN', {
+const HOUR_FORMAT: Intl.DateTimeFormatOptions = {
   hour: '2-digit',
   minute: '2-digit',
-  hour12: false,
-})
+  hourCycle: 'h23',
+}
 
 /** Hour first, then the day with its year — a moment said inside a sentence.
  *  The reader's own zone, like every other date on the profile (`lib/date`). */
 export function momentText(iso: string): string {
   const at = new Date(iso)
   if (Number.isNaN(at.getTime())) return iso
-  return `${HOUR.format(at)} ngày ${dmy(iso)}`
+  const hour = formatDate(at, getLang(), HOUR_FORMAT)
+  const day = dmy(iso)
+  return translate(message(`${hour} ngày ${day}`, `${day} at ${hour}`, `${day} ${hour}`))
 }
 
 /** The floating bar's people: the lead's contacts, or its own contact line
@@ -154,7 +172,15 @@ export function barPeopleOf(
 
 /** Why the bar's mail row is shut, or `undefined` when it is open. */
 export function mailBlockedOf(canSendEmail: boolean): string | undefined {
-  return canSendEmail ? undefined : 'Cần quyền gửi email cho lead.'
+  return canSendEmail
+    ? undefined
+    : translate(
+        message(
+          'Cần quyền gửi email cho lead.',
+          'You need permission to email this lead.',
+          '이 리드에 이메일을 보낼 권한이 필요합니다.',
+        ),
+      )
 }
 
 /** States a lead can be parked from, held-or-not aside (ADR 0109). */
@@ -193,17 +219,31 @@ export function leadMoreChoices(
   const choices: MenuChoice[] = []
 
   if (can.claim && lead.state === 'nurturing') {
-    choices.push({ key: 'claim', label: 'Nhận lead', onSelect: doors.onClaim })
+    choices.push({
+      key: 'claim',
+      label: translate(message('Nhận lead', 'Claim lead', '리드 받기')),
+      onSelect: doors.onClaim,
+    })
   }
   if (can.disqualify && lead.hold === null && parkable) {
     choices.push({
       key: 'nurture',
-      label: `Chuyển vào ${LEAD_STATE_LABEL.nurturing}`,
+      label: translate(
+        message(
+          `Chuyển vào ${leadStateLabel('nurturing', 'vi')}`,
+          `Move to ${leadStateLabel('nurturing', 'en')}`,
+          `${leadStateLabel('nurturing', 'ko')}(으)로 이동`,
+        ),
+      ),
       onSelect: doors.onNurture,
     })
   }
   if (free && lead.ownerId && WORKED.has(lead.state)) {
-    choices.push({ key: 'hold', label: 'Tạm hoãn', onSelect: doors.onHold })
+    choices.push({
+      key: 'hold',
+      label: translate(message('Tạm hoãn', 'Put on hold', '보류')),
+      onSelect: doors.onHold,
+    })
   }
   if (!assign.shut) {
     choices.push({
@@ -216,7 +256,11 @@ export function leadMoreChoices(
   if (lead.disabledAt === undefined && !dealReach) {
     choices.push({
       key: 'pin',
-      label: pinned ? 'Bỏ ghim' : 'Ghim lead',
+      label: translate(
+        pinned
+          ? message('Bỏ ghim', 'Unpin', '고정 해제')
+          : message('Ghim lead', 'Pin lead', '리드 고정'),
+      ),
       icon: Pin,
       active: pinned,
       onSelect: doors.onPin,
@@ -225,7 +269,7 @@ export function leadMoreChoices(
   if (can.disable) {
     choices.push({
       key: 'disable',
-      label: 'Vô hiệu hoá lead',
+      label: translate(message('Vô hiệu hoá lead', 'Disable lead', '리드 비활성화')),
       tone: 'danger',
       onSelect: doors.onDisable,
     })

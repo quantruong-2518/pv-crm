@@ -26,6 +26,7 @@ import {
 } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { dmy } from '@/lib/date'
+import { message, useI18n } from '@/app/i18n'
 import { useSalesPeople } from '@/data/directory'
 import {
   dueOnPick,
@@ -53,11 +54,45 @@ import { EmptyFrameNote, PickedStepLine, TemplateChips } from './step-templates'
  *  draws the step as the row under a record's stepper (`TodoCard`), with no
  *  primary button of its own: a record's primary moves sit in its header. */
 
+const NEXT_TASK = message('Việc tiếp theo', 'Next task', '다음 업무')
+const RETRY = message('Thử lại', 'Try again', '다시 시도')
+const CANCEL = message('Huỷ', 'Cancel', '취소')
+const EDIT = message('Sửa', 'Edit', '수정')
+const DONE = message('Xong', 'Done', '완료')
+const TASK = message('Việc cần làm', 'Task to do', '할 일')
+const DOER = message('Người làm', 'Assignee', '담당자')
+const EXAMPLE_TASK = message(
+  'Ví dụ: Gọi lại để chốt lịch khảo sát.',
+  'Example: Call back to confirm the survey schedule.',
+  '예: 다시 전화해 현장 조사 일정을 확정하기.',
+)
+const SAVE_AND_FINISH = message(
+  'Xong và lưu việc mới',
+  'Done and save new task',
+  '완료하고 새 업무 저장',
+)
+const SAVE_TASK = message('Lưu việc', 'Save task', '업무 저장')
+const finishedNote = (text: string) =>
+  message(
+    `Đã xong “${text}”. Việc tiếp theo là gì? Chưa có thì chọn “Xong, không đặt việc mới”.`,
+    `“${text}” is done. What is the next task? If there is none, choose “Done, no new task”.`,
+    `“${text}”을(를) 완료했습니다. 다음 업무는 무엇인가요? 없으면 “완료, 새 업무 없음”을 선택하세요.`,
+  )
+
 /** The create door's stand-in: named, and saying it opens once the lead exists. */
 export function NextActionCard() {
+  const { t } = useI18n()
   return (
     <StepShell>
-      <p className="text-muted-foreground text-[12.5px] leading-[1.6]">Có sau khi tạo lead.</p>
+      <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
+        {t(
+          message(
+            'Có sau khi tạo lead.',
+            'Available once the lead is created.',
+            '리드를 만든 후에 사용할 수 있습니다.',
+          ),
+        )}
+      </p>
     </StepShell>
   )
 }
@@ -75,10 +110,11 @@ export function NextStepCard({
   closedNote?: string
   embedded?: boolean
 }) {
+  const { t } = useI18n()
   if (embedded) {
     return (
-      <div aria-label="Việc tiếp theo" role="group" className="flex min-w-0 flex-col gap-1">
-        <p className="text-muted-foreground m-0 text-[12px] font-semibold">Việc tiếp theo</p>
+      <div aria-label={t(NEXT_TASK)} role="group" className="flex min-w-0 flex-col gap-1">
+        <p className="text-muted-foreground m-0 text-[12px] font-semibold">{t(NEXT_TASK)}</p>
         <StepBody subject={subject} canEdit={canEdit} embedded />
       </div>
     )
@@ -95,9 +131,10 @@ export function NextStepCard({
 }
 
 function StepShell({ children }: { children: ReactNode }) {
+  const { t } = useI18n()
   return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-4 sm:p-5" aria-label="Việc tiếp theo">
-      <SectionTitle size="detail">Việc tiếp theo</SectionTitle>
+    <GlassCard variant="b" className="flex flex-col gap-4 p-4 sm:p-5" aria-label={t(NEXT_TASK)}>
+      <SectionTitle size="detail">{t(NEXT_TASK)}</SectionTitle>
       {children}
     </GlassCard>
   )
@@ -115,6 +152,7 @@ function StepBody({
   canEdit: boolean
   embedded?: boolean
 }) {
+  const { t } = useI18n()
   const { data, isPending, error } = useQuery(nextStepQuery(subject.kind, subject.code))
   const [mode, setMode] = useState<Mode>('view')
 
@@ -122,7 +160,13 @@ function StepBody({
   if (!data) {
     return (
       <p className="text-destructive-foreground text-[12.5px] leading-[1.6]">
-        Không đọc được việc tiếp theo. {isApiError(error) ? userMessage(error) : 'Thử lại.'}
+        {t(
+          message(
+            `Không đọc được việc tiếp theo. ${isApiError(error) ? userMessage(error) : 'Thử lại.'}`,
+            `Could not load the next task. ${isApiError(error) ? userMessage(error) : 'Try again.'}`,
+            `다음 업무를 불러오지 못했습니다. ${isApiError(error) ? userMessage(error) : '다시 시도하세요.'}`,
+          ),
+        )}
       </p>
     )
   }
@@ -142,7 +186,13 @@ function StepBody({
     return (
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
-          Chưa đặt việc tiếp theo.
+          {t(
+            message(
+              'Chưa đặt việc tiếp theo.',
+              'No next task set.',
+              '다음 업무가 설정되지 않았습니다.',
+            ),
+          )}
         </p>
         {canEdit && (
           <Button
@@ -152,7 +202,7 @@ function StepBody({
             onClick={() => setMode('edit')}
           >
             <Icon icon={Plus} size={16} />
-            Đặt việc tiếp theo
+            {t(message('Đặt việc tiếp theo', 'Set next task', '다음 업무 설정'))}
           </Button>
         )}
       </div>
@@ -174,6 +224,7 @@ type ViewProps = { step: NextStep; canEdit: boolean; onEdit: () => void; onFinis
 /** The embedded step as the row under the stepper shows it: kind pill and step on one
  *  line, due and doer under it; a quiet change and a secondary done beside. */
 function StepRow({ step, canEdit, onEdit, onFinish }: ViewProps) {
+  const { t } = useI18n()
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <div className="flex min-w-0 flex-1 basis-64 flex-col">
@@ -184,7 +235,7 @@ function StepRow({ step, canEdit, onEdit, onFinish }: ViewProps) {
           </span>
         </span>
         <span className="text-muted-foreground flex flex-wrap items-center gap-2 text-[11px] tabular-nums leading-[1.5]">
-          Hạn {dmy(step.due)}
+          {t(message(`Hạn ${dmy(step.due)}`, `Due ${dmy(step.due)}`, `기한 ${dmy(step.due)}`))}
           <DueBadge level={step.dueLevel} />
           <span className="min-w-0 break-words">· {step.doer.name}</span>
         </span>
@@ -193,11 +244,11 @@ function StepRow({ step, canEdit, onEdit, onFinish }: ViewProps) {
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="ghost" className="pointer-coarse:h-12" onClick={onEdit}>
             <Icon icon={Pencil} size={16} />
-            Sửa
+            {t(EDIT)}
           </Button>
           <Button size="sm" variant="secondary" className="pointer-coarse:h-12" onClick={onFinish}>
             <Icon icon={Check} size={16} />
-            Xong
+            {t(DONE)}
           </Button>
         </div>
       )}
@@ -206,6 +257,7 @@ function StepRow({ step, canEdit, onEdit, onFinish }: ViewProps) {
 }
 
 function StepView({ step, canEdit, onEdit, onFinish }: ViewProps) {
+  const { t } = useI18n()
   return (
     <>
       <p className="text-foreground break-words text-[13px] leading-[1.6]">{step.text}</p>
@@ -227,11 +279,11 @@ function StepView({ step, canEdit, onEdit, onFinish }: ViewProps) {
         <div className="flex flex-wrap justify-end gap-2">
           <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={onEdit}>
             <Icon icon={Pencil} size={16} />
-            Sửa
+            {t(EDIT)}
           </Button>
           <Button size="md" className="pointer-coarse:h-12" onClick={onFinish}>
             <Icon icon={Check} size={16} />
-            Xong
+            {t(DONE)}
           </Button>
         </div>
       )}
@@ -252,18 +304,24 @@ type FormProps = {
  *  Waits for the state's frame (ADR 0080): drawing the free box first would
  *  offer a step the server may refuse. */
 export function NextStepForm(props: FormProps) {
+  const { t } = useI18n()
   const options = useQuery(stepOptionsQuery(props.subject.kind, props.subject.code))
   if (options.data) return <StepForm {...props} options={options.data} />
   if (options.isPending) return <Skeleton className="h-16 w-full" />
   return (
     <div className="flex flex-col gap-3">
       <p role="alert" className="text-destructive-foreground m-0 text-[12.5px] leading-[1.6]">
-        Không đọc được danh sách bước tiếp theo.{' '}
-        {isApiError(options.error) ? userMessage(options.error) : 'Thử lại.'}
+        {t(
+          message(
+            `Không đọc được danh sách bước tiếp theo. ${isApiError(options.error) ? userMessage(options.error) : 'Thử lại.'}`,
+            `Could not load the list of next steps. ${isApiError(options.error) ? userMessage(options.error) : 'Try again.'}`,
+            `다음 단계 목록을 불러오지 못했습니다. ${isApiError(options.error) ? userMessage(options.error) : '다시 시도하세요.'}`,
+          ),
+        )}
       </p>
       <div className="flex flex-wrap justify-end gap-2">
         <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={props.onClose}>
-          Huỷ
+          {t(CANCEL)}
         </Button>
         <Button
           size="md"
@@ -271,7 +329,7 @@ export function NextStepForm(props: FormProps) {
           className="pointer-coarse:h-12"
           onClick={() => void options.refetch()}
         >
-          Thử lại
+          {t(RETRY)}
         </Button>
       </div>
     </div>
@@ -285,6 +343,7 @@ function StepForm({
   onClose,
   options,
 }: FormProps & { options: StepOptionsResponse }) {
+  const { t } = useI18n()
   const seed = finishing ? null : step
   const [text, setText] = useState(seed?.text ?? '')
   /* Empty rather than today: a pre-filled day is a deadline nobody chose. */
@@ -344,7 +403,7 @@ function StepForm({
     <div className="flex flex-col gap-4">
       {finishing && step && (
         <p className="text-muted-foreground break-words text-[12.5px] leading-[1.6]">
-          Đã xong “{step.text}”. Việc tiếp theo là gì? Chưa có thì chọn “Xong, không đặt việc mới”.
+          {t(finishedNote(step.text))}
         </p>
       )}
 
@@ -355,19 +414,19 @@ function StepForm({
           {offering && <TemplateChips options={options} pickedId={linked?.id} onPick={pick} />}
 
           {locked ? (
-            <Field label="Việc cần làm">
+            <Field label={t(TASK)}>
               <PickedStepLine picked={linked} />
             </Field>
           ) : (
-            <Field label="Việc cần làm" note={`${text.length}/${NEXT_STEP_TEXT_MAX}`}>
+            <Field label={t(TASK)} note={`${text.length}/${NEXT_STEP_TEXT_MAX}`}>
               <Textarea
                 ref={box}
                 value={text}
                 rows={2}
                 autoGrow
                 maxLength={NEXT_STEP_TEXT_MAX}
-                placeholder="Ví dụ: Gọi lại để chốt lịch khảo sát."
-                aria-label="Việc cần làm"
+                placeholder={t(EXAMPLE_TASK)}
+                aria-label={t(TASK)}
                 onChange={(e) => type(e.target.value)}
                 onKeyDown={(e) => {
                   if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && ready) save()
@@ -410,7 +469,7 @@ function StepForm({
             onClick={() => clear.mutate(undefined, done)}
           >
             <Icon icon={Trash2} size={16} />
-            Xoá
+            {t(message('Xoá', 'Delete', '삭제'))}
           </Button>
         )}
         <div className="ml-auto flex flex-wrap gap-2">
@@ -421,7 +480,7 @@ function StepForm({
             disabled={busy}
             onClick={onClose}
           >
-            Huỷ
+            {t(CANCEL)}
           </Button>
           {finishing && (
             <Button
@@ -431,13 +490,13 @@ function StepForm({
               disabled={busy}
               onClick={() => closing && finish.mutate({ closing }, done)}
             >
-              Xong, không đặt việc mới
+              {t(message('Xong, không đặt việc mới', 'Done, no new task', '완료, 새 업무 없음'))}
             </Button>
           )}
           {!empty && (
             <Button size="md" className="pointer-coarse:h-12" disabled={!ready} onClick={save}>
               <Icon icon={Check} size={16} />
-              {finishing ? 'Xong và lưu việc mới' : 'Lưu việc'}
+              {t(finishing ? SAVE_AND_FINISH : SAVE_TASK)}
             </Button>
           )}
         </div>
@@ -447,12 +506,15 @@ function StepForm({
 }
 
 function DueField({ value, onChange }: { value: string; onChange: (day: string) => void }) {
+  const { t } = useI18n()
   return (
-    <Field label="Hạn">
+    <Field label={t(message('Hạn', 'Due', '기한'))}>
       <Input
         type="date"
         value={value}
-        aria-label="Hạn của việc tiếp theo"
+        aria-label={t(
+          message('Hạn của việc tiếp theo', 'Due date of the next task', '다음 업무의 기한'),
+        )}
         className="h-12"
         onChange={(e) => onChange(e.target.value)}
       />
@@ -474,8 +536,9 @@ function linkedTemplate(
 }
 
 function HolderLine({ subject: { holder, holderHint, noHolder } }: { subject: StepSubject }) {
+  const { t } = useI18n()
   return (
-    <Field label="Người làm" hint={holderHint}>
+    <Field label={t(DOER)} hint={holderHint}>
       <p className="text-foreground flex min-h-12 min-w-0 items-center gap-2 text-[12.5px]">
         {holder ? (
           <>
@@ -501,11 +564,12 @@ function DoerPicker({
   value: string
   onChange: (id: string) => void
 }) {
+  const { t } = useI18n()
   const options = useDoerOptions(subject.holder, step)
   return (
-    <Field label="Người làm">
+    <Field label={t(DOER)}>
       <Select
-        label="Người làm"
+        label={t(DOER)}
         hideLabel
         size="lg"
         className="w-full"
@@ -522,6 +586,7 @@ function DoerPicker({
  *  them — a select whose value is not among its options prints a bare id. The
  *  empty first row exists only for a record with no holder, so no default doer. */
 function useDoerOptions(holder: StepSubject['holder'], step: NextStep | null) {
+  const { t } = useI18n()
   const options = useSalesPeople().map((a) => ({ value: a.id, label: a.name }))
   const known = [step?.doer, holder]
   for (const person of known) {
@@ -529,5 +594,10 @@ function useDoerOptions(holder: StepSubject['holder'], step: NextStep | null) {
       options.unshift({ value: person.id, label: person.name })
     }
   }
-  return holder ? options : [{ value: '', label: 'Chọn người làm' }, ...options]
+  return holder
+    ? options
+    : [
+        { value: '', label: t(message('Chọn người làm', 'Choose an assignee', '담당자 선택')) },
+        ...options,
+      ]
 }

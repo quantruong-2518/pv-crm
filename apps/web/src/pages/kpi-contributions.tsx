@@ -110,7 +110,7 @@ function adjustmentText(item: KpiContribution, t: ReturnType<typeof useI18n>['t'
       (
         {
           lead: '잠재 고객',
-          opportunity: '영업 기회',
+          opportunity: '기회',
           contract: '계약',
           installment: '분할 납부',
           meeting: '회의',

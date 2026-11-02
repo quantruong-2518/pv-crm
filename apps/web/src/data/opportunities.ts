@@ -26,6 +26,7 @@ import { toMoneyVnd, type OpportunityDraft } from '@pv/engines/fixtures/das-vina
 import type { RailObject } from '@pv/ui'
 import { api, type ApiNeed } from '@/app/api'
 import { cacheTier } from '@/app/query-client'
+import { message, translate } from '@/app/i18n'
 
 /** Sổ cơ hội — module 3. Đọc từ máy chủ.
  *
@@ -302,12 +303,20 @@ const laneRule = (role: OpportunityOwner['role']) =>
   PIC_RULES.opportunity.find((rule) => rule.role === role)!
 export const SALE_LANE = laneRule('SALE')
 export const BD_LANE = laneRule('BD')
-export const SALE_PRIMARY_LABEL = 'Sale chính'
-export const CHANGE_SALE_PRIMARY = 'Đổi Sale chính'
+export const SALE_PRIMARY_COPY = message('Sale chính', 'Primary salesperson', '주 영업 담당자')
+export const CHANGE_SALE_PRIMARY_COPY = message(
+  'Đổi Sale chính',
+  'Change primary salesperson',
+  '주 영업 담당자 변경',
+)
 
 /** Why a lane shows nobody: the dash's tooltip and the filter's "nobody" option. */
-export const NO_SALE = 'Chưa có Sale phụ trách'
-export const NO_BD = 'Chưa có BD phụ trách'
+export const NO_SALE_COPY = message(
+  'Chưa có Sale phụ trách',
+  'No salesperson in charge',
+  '담당 영업 없음',
+)
+export const NO_BD_COPY = message('Chưa có BD phụ trách', 'No BD in charge', '담당 BD 없음')
 
 /** Who the server accepts as the SALE primary: only sellers while the lane
  *  holds one, everyone otherwise. A person the directory lacks counts as no
@@ -327,7 +336,13 @@ export const marksPrimary = (owner: OpportunityOwner, lane: readonly Opportunity
 /** One lane as a line of names, its primary marked. Also reads a contract's
  *  signing snapshot, which keeps the same shape. */
 export const laneText = (lane: OpportunityOwner[]) =>
-  lane.map((o) => (marksPrimary(o, lane) ? `${o.name} (chính)` : o.name)).join(', ')
+  lane
+    .map((o) =>
+      marksPrimary(o, lane)
+        ? `${o.name} ${translate(message('(chính)', '(primary)', '(주)'))}`
+        : o.name,
+    )
+    .join(', ')
 
 /** The primary a form stands on: the user's pick while that person is still on
  *  the lane, else the stored primary. NO further fallback — with neither, the
@@ -383,7 +398,7 @@ export function isRottingOp(op: Pick<OpportunityBookRow, 'position'>): boolean {
 }
 
 /** The word a column clock wears once it ran over. */
-export const OVERDUE_WORD = 'quá hạn'
+export const OVERDUE_COPY = message('quá hạn', 'overdue', '기한 초과')
 
 /** A column's clock: days here against the column's limit, and whether it ran
  *  over. ONE formatter for the book, the bar's hint, the profile and the
@@ -406,8 +421,17 @@ export function formatStageClock(
   limit: number | null,
   overdue = limit !== null && days > limit,
 ): StageClock {
-  const short = limit === null ? `${days} ngày` : `${days}/${limit} ngày`
-  const text = limit === null ? `${days} ngày · chưa đặt hạn` : short
+  const unit = (n: number) => message(`${n} ngày`, `${n} ${n === 1 ? 'day' : 'days'}`, `${n}일`)
+  const short =
+    limit === null
+      ? translate(unit(days))
+      : translate(message(`${days}/${limit} ngày`, `${days}/${limit} days`, `${days}/${limit}일`))
+  const noLimit = message(
+    `${days} ngày · chưa đặt hạn`,
+    `${days} ${days === 1 ? 'day' : 'days'} · no limit set`,
+    `${days}일 · 기한 미설정`,
+  )
+  const text = limit === null ? translate(noLimit) : short
   return {
     days,
     limit,
@@ -415,7 +439,7 @@ export function formatStageClock(
     tone: overdue ? 'warning' : 'muted',
     text,
     short,
-    label: overdue ? `${text} · ${OVERDUE_WORD}` : text,
+    label: overdue ? `${text} · ${translate(OVERDUE_COPY)}` : text,
   }
 }
 
@@ -442,8 +466,12 @@ export function activityAgo(at: string): string {
   const days = Math.round(
     (Date.parse(vnToday()) - Date.parse(VN_DAY.format(new Date(at)))) / DAY_MS,
   )
-  if (days <= 0) return 'Hôm nay'
-  return days === 1 ? 'Hôm qua' : `${days} ngày trước`
+  if (days <= 0) return translate(message('Hôm nay', 'Today', '오늘'))
+  return translate(
+    days === 1
+      ? message('Hôm qua', 'Yesterday', '어제')
+      : message(`${days} ngày trước`, `${days} days ago`, `${days}일 전`),
+  )
 }
 
 /** An open deal whose expected close day is already behind it. No expected
@@ -469,9 +497,15 @@ export function isLateClose(op: OpportunityRow): boolean {
  *  ăn 400; bản kia lệch thì dữ liệu sai vào bảng. */
 export function missingOf(draft: OpportunityDraft): string[] {
   const missing: string[] = []
-  if (draft.name.trim() === '') missing.push('tên cơ hội')
-  if (draft.closedDate === '') missing.push('ngày chốt dự kiến')
-  if (draft.amount === null || draft.amount === 0) missing.push('giá trị đơn')
+  if (draft.name.trim() === '') {
+    missing.push(translate(message('tên cơ hội', 'opportunity name', '기회 이름')))
+  }
+  if (draft.closedDate === '') {
+    missing.push(translate(message('ngày chốt dự kiến', 'expected close date', '예상 마감일')))
+  }
+  if (draft.amount === null || draft.amount === 0) {
+    missing.push(translate(message('giá trị đơn', 'deal value', '거래 금액')))
+  }
   return missing
 }
 

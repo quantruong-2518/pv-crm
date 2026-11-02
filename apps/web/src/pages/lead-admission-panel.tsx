@@ -22,8 +22,6 @@ import { message, translate, useI18n, type Lang } from '@/app/i18n'
 const leadPath = (code: string) => `/sales/leads/${code}`
 const accountPath = (code: string) => `/sales/accounts/${code}`
 
-const say = (lang: Lang, vi: string, en: string, ko: string) => translate(message(vi, en, ko), lang)
-
 const VERDICT = {
   'new-account': message('Công ty mới', 'New company', '새 회사'),
   'same-lead': message('Đã có trong sổ', 'Already in the list', '이미 등록됨'),
@@ -35,6 +33,12 @@ const VERDICT = {
   'returning-account': message('Khách cũ quay lại', 'Returning customer', '기존 고객 재방문'),
   'needs-review': message('Cần kiểm tra trùng', 'Review possible match', '중복 여부 확인 필요'),
 } as const
+
+const CREATE_FOR_COMPANY = message(
+  'Tạo lead mới cho công ty này',
+  'Create a new lead for this company',
+  '이 회사의 새 리드 만들기',
+)
 
 const MATCH_KEY: Record<AdmissionMatchKey, ReturnType<typeof message>> = {
   'tax-code': message('Mã số thuế', 'Tax ID', '세금번호'),
@@ -52,8 +56,11 @@ const ownerText = (ownerName: string | null | undefined, lead: string, lang: Lan
     ? ''
     : lead +
       (ownerName === null
-        ? say(lang, 'chưa có người phụ trách', 'unassigned', '담당자 없음')
-        : say(lang, `do ${ownerName} phụ trách`, `owned by ${ownerName}`, `${ownerName} 담당`))
+        ? translate(message('chưa có người phụ trách', 'unassigned', '담당자 없음'), lang)
+        : translate(
+            message(`do ${ownerName} phụ trách`, `owned by ${ownerName}`, `${ownerName} 담당`),
+            lang,
+          ))
 
 const keysText = (keys: readonly AdmissionMatchKey[], lang: Lang) =>
   keys.map((key) => translate(MATCH_KEY[key], lang)).join(' · ')
@@ -65,14 +72,16 @@ function Code({ children }: { children: string }) {
 const companyText = (account: AdmissionMatch['account'], lang: Lang) =>
   account
     ? `${account.name} (${account.code})`
-    : say(lang, 'Công ty này', 'This company', '이 회사')
+    : translate(message('Công ty này', 'This company', '이 회사'), lang)
 
 const noAccess = (lang: Lang) =>
-  say(
+  translate(
+    message(
+      'Bạn không có quyền mở lead này.',
+      'You cannot open this lead.',
+      '이 리드를 열 권한이 없습니다.',
+    ),
     lang,
-    'Bạn không có quyền mở lead này.',
-    'You cannot open this lead.',
-    '이 리드를 열 권한이 없습니다.',
   )
 
 type Choice = { label: ReactNode; primary?: boolean; run: () => void }
@@ -109,11 +118,13 @@ export function LeadAdmissionPanel({
 
         {bookChanged && (
           <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.5]">
-            {say(
+            {translate(
+              message(
+                'Sổ vừa thay đổi. Đây là kết quả mới.',
+                'The list changed. Review this updated result.',
+                '목록이 변경되었습니다. 새 결과를 확인하세요.',
+              ),
               lang,
-              'Sổ vừa thay đổi. Đây là kết quả mới.',
-              'The list changed. Review this updated result.',
-              '목록이 변경되었습니다. 새 결과를 확인하세요.',
             )}
           </p>
         )}
@@ -122,7 +133,8 @@ export function LeadAdmissionPanel({
 
         {match.matchedOn.length > 0 && (
           <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.5]">
-            {say(lang, 'Trùng theo', 'Matched on', '일치 항목')}: {keysText(match.matchedOn, lang)}
+            {translate(message('Trùng theo', 'Matched on', '일치 항목'), lang)}:{' '}
+            {keysText(match.matchedOn, lang)}
           </p>
         )}
       </div>
@@ -185,8 +197,8 @@ function leadsOf(match: AdmissionMatch): AdmissionLeadChoice[] {
 /** Joining a lead that already holds the person adds nobody: it is a merge. */
 const joinLabel = (lead: AdmissionLeadChoice, lang: Lang) =>
   lead.newPeople === 0
-    ? say(lang, 'Gộp vào lead', 'Merge into lead', '리드에 병합')
-    : say(lang, 'Thêm vào lead', 'Add to lead', '리드에 추가')
+    ? translate(message('Gộp vào lead', 'Merge into lead', '리드에 병합'), lang)
+    : translate(message('Thêm vào lead', 'Add to lead', '리드에 추가'), lang)
 
 /** The sentence and the buttons of one verdict. Several open leads go out as
  *  `rows`, each with its own buttons. */
@@ -209,37 +221,38 @@ function verdictOf(
       const held = leads.every((lead) => lead.outOfScope)
       const [only] = leads
       const company = companyText(match.account, lang)
-      const create = say(
-        lang,
-        'Tạo lead mới cho công ty này',
-        'Create a new lead for this company',
-        '이 회사의 새 리드 만들기',
-      )
+      const create = translate(CREATE_FOR_COMPANY, lang)
       if (leads.length !== 1 || !only) {
         const said =
           leads.length <= 1
-            ? say(
+            ? translate(
+                message(
+                  `${company} đã có lead đang mở trong sổ.`,
+                  `${company} already has an open lead.`,
+                  `${company}에 진행 중인 리드가 있습니다.`,
+                ),
                 lang,
-                `${company} đã có lead đang mở trong sổ.`,
-                `${company} already has an open lead.`,
-                `${company}에 진행 중인 리드가 있습니다.`,
               )
             : held
-              ? say(
+              ? translate(
+                  message(
+                    `${company} có nhiều lead đang mở. Bạn không có quyền mở các lead đó.`,
+                    `${company} has multiple open leads. You cannot open them.`,
+                    `${company}에 진행 중인 리드가 여러 개 있지만 열 권한이 없습니다.`,
+                  ),
                   lang,
-                  `${company} có nhiều lead đang mở. Bạn không có quyền mở các lead đó.`,
-                  `${company} has multiple open leads. You cannot open them.`,
-                  `${company}에 진행 중인 리드가 여러 개 있지만 열 권한이 없습니다.`,
                 )
-              : say(
+              : translate(
+                  message(
+                    `${company} có nhiều lead đang mở. Chọn một lead hoặc tạo lead mới.`,
+                    `${company} has multiple open leads. Choose one or create a new lead.`,
+                    `${company}에 진행 중인 리드가 여러 개 있습니다. 하나를 선택하거나 새 리드를 만드세요.`,
+                  ),
                   lang,
-                  `${company} có nhiều lead đang mở. Chọn một lead hoặc tạo lead mới.`,
-                  `${company} has multiple open leads. Choose one or create a new lead.`,
-                  `${company}에 진행 중인 리드가 여러 개 있습니다. 하나를 선택하거나 새 리드를 만드세요.`,
                 )
         return {
           said: known
-            ? `${say(lang, 'Khách này đã có trong sổ.', 'This customer is already in the list.', '이 고객은 이미 등록되어 있습니다.')} ${said}`
+            ? `${translate(message('Khách này đã có trong sổ.', 'This customer is already in the list.', '이 고객은 이미 등록되어 있습니다.'), lang)} ${said}`
             : said,
           rows: leads,
           choices: [createLead(create, held)],
@@ -250,17 +263,21 @@ function verdictOf(
       const access = only.outOfScope ? ` ${noAccess(lang)}` : ''
       return {
         said: known
-          ? say(
+          ? translate(
+              message(
+                `Khách này đã có trong sổ ở lead ${code}${owner}.${access}`,
+                `This customer already has lead ${code}${owner}.${access}`,
+                `이 고객은 이미 리드 ${code}에 등록되어 있습니다${owner}.${access}`,
+              ),
               lang,
-              `Khách này đã có trong sổ ở lead ${code}${owner}.${access}`,
-              `This customer already has lead ${code}${owner}.${access}`,
-              `이 고객은 이미 리드 ${code}에 등록되어 있습니다${owner}.${access}`,
             )
-          : say(
+          : translate(
+              message(
+                `${company} có lead đang mở ${code}${owner}. Người liên hệ này chưa có trong lead đó.${access}`,
+                `${company} has open lead ${code}${owner}. This contact is not on that lead yet.${access}`,
+                `${company}에 진행 중인 리드 ${code}이(가) 있습니다${owner}. 이 연락처는 아직 해당 리드에 없습니다.${access}`,
+              ),
               lang,
-              `${company} có lead đang mở ${code}${owner}. Người liên hệ này chưa có trong lead đó.${access}`,
-              `${company} has open lead ${code}${owner}. This contact is not on that lead yet.${access}`,
-              `${company}에 진행 중인 리드 ${code}이(가) 있습니다${owner}. 이 연락처는 아직 해당 리드에 없습니다.${access}`,
             ),
         rows: [],
         choices: [
@@ -284,37 +301,34 @@ function verdictOf(
     }
     case 'returning-account':
       return {
-        said: say(
+        said: translate(
+          message(
+            `${companyText(match.account, lang)} đã có trong sổ, hiện không có lead đang mở. Lead mới sẽ gắn vào công ty này.`,
+            `${companyText(match.account, lang)} is already in the list with no open leads. The new lead will link to this company.`,
+            `${companyText(match.account, lang)}은(는) 이미 등록되어 있지만 진행 중인 리드가 없습니다. 새 리드는 이 회사에 연결됩니다.`,
+          ),
           lang,
-          `${companyText(match.account, lang)} đã có trong sổ, hiện không có lead đang mở. Lead mới sẽ gắn vào công ty này.`,
-          `${companyText(match.account, lang)} is already in the list with no open leads. The new lead will link to this company.`,
-          `${companyText(match.account, lang)}은(는) 이미 등록되어 있지만 진행 중인 리드가 없습니다. 새 리드는 이 회사에 연결됩니다.`,
         ),
         rows: [],
-        choices: [
-          createLead(
-            say(
-              lang,
-              'Tạo lead mới cho công ty này',
-              'Create a new lead for this company',
-              '이 회사의 새 리드 만들기',
-            ),
-            true,
-          ),
-        ],
+        choices: [createLead(translate(CREATE_FOR_COMPANY, lang), true)],
       }
     case 'needs-review':
       return {
-        said: say(
+        said: translate(
+          message(
+            'Có hồ sơ gần giống thông tin vừa nhập. Xem lại trước khi tạo.',
+            'A similar record exists. Review it before creating a lead.',
+            '입력한 정보와 비슷한 기록이 있습니다. 리드를 만들기 전에 확인하세요.',
+          ),
           lang,
-          'Có hồ sơ gần giống thông tin vừa nhập. Xem lại trước khi tạo.',
-          'A similar record exists. Review it before creating a lead.',
-          '입력한 정보와 비슷한 기록이 있습니다. 리드를 만들기 전에 확인하세요.',
         ),
         rows: [],
         choices: [
           createLead(
-            say(lang, 'Vẫn tạo lead mới', 'Create new lead anyway', '그래도 새 리드 만들기'),
+            translate(
+              message('Vẫn tạo lead mới', 'Create new lead anyway', '그래도 새 리드 만들기'),
+              lang,
+            ),
           ),
         ],
       }
@@ -327,7 +341,7 @@ function OpenLead({ code }: { code: string }) {
   const { lang } = useI18n()
   return (
     <>
-      {say(lang, 'Mở lead', 'Open lead', '리드 열기')} <Code>{code}</Code>
+      {translate(message('Mở lead', 'Open lead', '리드 열기'), lang)} <Code>{code}</Code>
     </>
   )
 }
@@ -354,22 +368,26 @@ function LeadRow({
     <li className="flex flex-wrap items-center justify-between gap-3">
       <span className="flex min-w-0 flex-col gap-1 text-[12.5px] leading-[1.5]">
         <span className="font-semibold">
-          Lead <Code>{code}</Code>
+          {translate(message('Lead', 'Lead', '리드'), lang)} <Code>{code}</Code>
           {ownerText(ownerName, ' · ', lang)}
         </span>
         <span className="text-muted-foreground">
           {newPeople === 0
-            ? say(
+            ? translate(
+                message(
+                  'Người liên hệ này đã có trong lead.',
+                  'This contact is already on the lead.',
+                  '이 연락처는 이미 리드에 있습니다.',
+                ),
                 lang,
-                'Người liên hệ này đã có trong lead.',
-                'This contact is already on the lead.',
-                '이 연락처는 이미 리드에 있습니다.',
               )
-            : say(
+            : translate(
+                message(
+                  'Người liên hệ này chưa có trong lead.',
+                  'This contact is not on the lead yet.',
+                  '이 연락처는 아직 리드에 없습니다.',
+                ),
                 lang,
-                'Người liên hệ này chưa có trong lead.',
-                'This contact is not on the lead yet.',
-                '이 연락처는 아직 리드에 없습니다.',
               )}
           {outOfScope && ` ${noAccess(lang)}`}
         </span>
@@ -393,7 +411,7 @@ function LeadRow({
             disabled={pending}
             onClick={() => onOpen(code)}
           >
-            {say(lang, 'Mở lead', 'Open lead', '리드 열기')}
+            {translate(message('Mở lead', 'Open lead', '리드 열기'), lang)}
           </Button>
         </span>
       )}
@@ -425,7 +443,9 @@ function CandidateRow({
           )}
           {lead && (
             <>
-              {account ? ' · lead' : 'Lead'}
+              {account
+                ? translate(message(' · lead', ' · lead', ' · 리드'), lang)
+                : translate(message('Lead', 'Lead', '리드'), lang)}
               {leadCode && (
                 <>
                   {' '}
@@ -438,16 +458,19 @@ function CandidateRow({
         </span>
         {matchedOn.length > 0 && (
           <span className="text-muted-foreground">
-            {say(lang, 'Trùng theo', 'Matched on', '일치 항목')}: {keysText(matchedOn, lang)}
+            {translate(message('Trùng theo', 'Matched on', '일치 항목'), lang)}:{' '}
+            {keysText(matchedOn, lang)}
           </span>
         )}
         {outOfScope && (
           <span className="text-muted-foreground">
-            {say(
+            {translate(
+              message(
+                'Bạn không có quyền mở hồ sơ này.',
+                'You cannot open this record.',
+                '이 기록을 열 권한이 없습니다.',
+              ),
               lang,
-              'Bạn không có quyền mở hồ sơ này.',
-              'You cannot open this record.',
-              '이 기록을 열 권한이 없습니다.',
             )}
           </span>
         )}
@@ -471,7 +494,8 @@ function CandidateRow({
               className="pointer-coarse:h-12"
               onClick={() => onOpen(accountPath(account.code))}
             >
-              {say(lang, 'Mở công ty', 'Open company', '회사 열기')} <Code>{account.code}</Code>
+              {translate(message('Mở công ty', 'Open company', '회사 열기'), lang)}{' '}
+              <Code>{account.code}</Code>
             </Button>
           )
         ))}

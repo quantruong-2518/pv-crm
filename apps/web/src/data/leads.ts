@@ -40,6 +40,7 @@ import type {
   LeadRow,
 } from '@pv/contracts'
 import { api } from '@/app/api'
+import { message, translate, type Message } from '@/app/i18n'
 import { cacheTier } from '@/app/query-client'
 import { DEFAULT_LEAD_BOOK_QUERY, leadBookQueryToParams } from '@/app/url'
 import { APPROVER_ROLE_LABEL } from '@/data/directory'
@@ -235,14 +236,30 @@ export const leadFacetsQuery = (query: LeadBookQuery) => {
  *  fixture (biên giới package · CLAUDE.md). */
 export const ORIGIN_FACE: Record<
   OriginKind,
-  { label: string; icon: IconGlyph; openLabel: string }
+  { label: Message; icon: IconGlyph; openLabel: Message }
 > = {
-  campaign: { label: 'Chiến dịch', icon: Megaphone, openLabel: 'Xem chiến dịch' },
-  event: { label: 'Sự kiện', icon: CalendarClock, openLabel: 'Xem sự kiện' },
+  campaign: {
+    label: message('Chiến dịch', 'Campaign', '캠페인'),
+    icon: Megaphone,
+    openLabel: message('Xem chiến dịch', 'View campaign', '캠페인 보기'),
+  },
+  event: {
+    label: message('Sự kiện', 'Event', '이벤트'),
+    icon: CalendarClock,
+    openLabel: message('Xem sự kiện', 'View event', '이벤트 보기'),
+  },
   /* Nhãn KIỂU phải khác tên NGUỒN: nguồn GT tên sẵn là "Khách cũ giới thiệu",
      nên nhãn kiểu trùng chữ sẽ in ra hai lần cùng một câu trên một thẻ. */
-  referral: { label: 'Được giới thiệu', icon: Handshake, openLabel: 'Xem nguồn' },
-  'self-sourced': { label: 'Tạo trực tiếp', icon: PenLine, openLabel: 'Xem nguồn' },
+  referral: {
+    label: message('Được giới thiệu', 'Referred', '소개받음'),
+    icon: Handshake,
+    openLabel: message('Xem nguồn', 'View source', '유입 경로 보기'),
+  },
+  'self-sourced': {
+    label: message('Tạo trực tiếp', 'Created directly', '직접 생성'),
+    icon: PenLine,
+    openLabel: message('Xem nguồn', 'View source', '유입 경로 보기'),
+  },
 }
 
 /* `SOURCE_KIND_FACE` (khoá theo `kind` của một dòng SỔ NGUỒN, `GET
@@ -288,10 +305,18 @@ export const NO_CAMPAIGN_ICON = CircleDashed
  *  một dòng dữ liệu bắt đầu nói hai câu khác nhau về cùng một trạng thái — sổ
  *  bảo "chưa ai nhận", hồ sơ bảo "không có", và người đọc phải tự đoán hai câu
  *  đó có cùng nghĩa không. */
-export const NO_OWNER_TITLE = 'Còn ở kho chung, chưa ai nhận'
+export const NO_OWNER_COPY = message(
+  'Còn ở kho chung, chưa ai nhận',
+  'Unassigned in the shared pool',
+  '공용 목록에서 배정 대기 중',
+)
 
 /** The creator column's empty title; leads older than the column carry none. */
-export const NO_CREATOR_TITLE = 'Chưa ghi nhận người tạo'
+export const NO_CREATOR_COPY = message(
+  'Chưa ghi nhận người tạo',
+  'Creator not recorded',
+  '생성자 기록 없음',
+)
 
 // ---------------------------------------------------------------------------
 // Next action — việc nên làm tiếp trên một lead
@@ -317,6 +342,38 @@ export type NextAction = {
   primary: boolean
   /** Vì sao đề xuất việc này — hiện ngay dưới nút, không giấu trong code. */
   why: string
+}
+
+/** A lead that left the flow offers two doors only: look at where it came from, or hand it on. */
+function leftFlowActions(exitReason: string): NextAction[] {
+  return [
+    {
+      key: 'open-source-record',
+      label: translate(message('Xem nguồn kéo về', 'View the source', '유입 경로 보기')),
+      icon: Megaphone,
+      primary: true,
+      why: translate(
+        message(
+          `Lead đã ra khỏi luồng · ${exitReason}.`,
+          `The lead left the flow · ${exitReason}.`,
+          `리드가 프로세스에서 제외됨 · ${exitReason}.`,
+        ),
+      ),
+    },
+    {
+      key: 'assign-owner',
+      label: translate(message('Giao việc', 'Assign', '업무 배정')),
+      icon: Users,
+      primary: false,
+      why: translate(
+        message(
+          'Nhờ người khác xác minh lại trước khi đóng hẳn.',
+          'Ask someone else to verify before closing for good.',
+          '완전히 종료하기 전에 다른 사람에게 다시 확인을 요청하세요.',
+        ),
+      ),
+    },
+  ]
 }
 
 /** Việc nên làm tiếp, xếp từ gấp nhất.
@@ -348,52 +405,61 @@ export function nextActions(lead: Lead, contact: LeadContact | null): NextAction
   const missing = Math.max(0, REQUIRED_SLOTS - lead.requiredFilled)
   const gate = canPromoteToSql(lead)
 
-  if (lead.exitReason) {
-    return [
-      {
-        key: 'open-source-record',
-        label: 'Xem nguồn kéo về',
-        icon: Megaphone,
-        primary: true,
-        why: `Lead đã ra khỏi luồng · ${lead.exitReason}.`,
-      },
-      {
-        key: 'assign-owner',
-        label: 'Giao việc',
-        icon: Users,
-        primary: false,
-        why: 'Nhờ người khác xác minh lại trước khi đóng hẳn.',
-      },
-    ]
-  }
+  if (lead.exitReason) return leftFlowActions(lead.exitReason)
 
   if (!lead.owner) {
     out.push({
       key: 'claim-lead',
-      label: 'Nhận lead về mình',
+      label: translate(message('Nhận lead về mình', 'Claim this lead', '리드 직접 받기')),
       icon: UserPlus,
       primary: true,
-      why: 'Lead còn ở kho chung, chưa ai nhận.',
+      why: translate(
+        message(
+          'Lead còn ở kho chung, chưa ai nhận.',
+          'The lead is still in the shared pool.',
+          '리드가 아직 공용 목록에 있습니다.',
+        ),
+      ),
     })
   }
 
   if (missing > 0) {
     out.push({
       key: 'fill-slots',
-      label: `Lấy ${missing} ô còn thiếu`,
+      label: translate(
+        message(
+          `Lấy ${missing} ô còn thiếu`,
+          `Get the ${missing} missing ${missing === 1 ? 'field' : 'fields'}`,
+          `누락된 항목 ${missing}개 채우기`,
+        ),
+      ),
       icon: ClipboardList,
       primary: out.length === 0,
-      why: `Cần đủ ${REQUIRED_SLOTS} ô bắt buộc.`,
+      why: translate(
+        message(
+          `Cần đủ ${REQUIRED_SLOTS} ô bắt buộc.`,
+          `All ${REQUIRED_SLOTS} required fields are needed.`,
+          `필수 항목 ${REQUIRED_SLOTS}개를 모두 채워야 합니다.`,
+        ),
+      ),
     })
   }
 
   if (gate.ok) {
     out.push({
       key: 'propose-sql',
-      label: 'Đề nghị nhận vào pipeline',
+      label: translate(
+        message('Đề nghị nhận vào pipeline', 'Propose moving to pipeline', '파이프라인 편입 제안'),
+      ),
       icon: ArrowRight,
       primary: out.length === 0,
-      why: `Đủ ${REQUIRED_SLOTS} ô bắt buộc. ${APPROVER_ROLE_LABEL} là người duyệt.`,
+      why: translate(
+        message(
+          `Đủ ${REQUIRED_SLOTS} ô bắt buộc. ${APPROVER_ROLE_LABEL.vi} là người duyệt.`,
+          `All ${REQUIRED_SLOTS} required fields are filled. The ${APPROVER_ROLE_LABEL.en} approves.`,
+          `필수 항목 ${REQUIRED_SLOTS}개가 모두 채워졌습니다. ${APPROVER_ROLE_LABEL.ko}이(가) 승인합니다.`,
+        ),
+      ),
     })
   }
 
@@ -401,32 +467,60 @@ export function nextActions(lead: Lead, contact: LeadContact | null): NextAction
     const limit = PIPELINE_STAGES.find((s) => s.key === lead.stage)
     out.push({
       key: 'flag-blocked',
-      label: 'Báo tắc',
+      label: translate(message('Báo tắc', 'Flag as stuck', '정체 보고')),
       icon: TriangleAlert,
       primary: out.length === 0,
-      why: `Nằm cột "${limit?.label ?? lead.stage}" ${lead.daysHere} ngày, quá hạn ${limit?.limitDays ?? '?'} ngày của cột.`,
+      why: translate(
+        message(
+          `Nằm cột "${limit?.label ?? lead.stage}" ${lead.daysHere} ngày, quá hạn ${limit?.limitDays ?? '?'} ngày của cột.`,
+          `In stage "${limit?.label ?? lead.stage}" for ${lead.daysHere} days, over the stage limit of ${limit?.limitDays ?? '?'} days.`,
+          `"${limit?.label ?? lead.stage}" 단계에 ${lead.daysHere}일째 머물러 단계 기한 ${limit?.limitDays ?? '?'}일을 넘겼습니다.`,
+        ),
+      ),
     })
   } else if (lead.stage === 'quotation') {
     out.push({
       key: 'chase-signature',
-      label: 'Nhắc ký',
+      label: translate(message('Nhắc ký', 'Remind to sign', '서명 요청')),
       icon: PenLine,
       primary: out.length === 0,
-      why: 'Đơn đang ở cột cuối, còn thiếu chữ ký.',
+      why: translate(
+        message(
+          'Đơn đang ở cột cuối, còn thiếu chữ ký.',
+          'The deal is in the last stage and still needs a signature.',
+          '마지막 단계에 있으며 서명이 아직 없습니다.',
+        ),
+      ),
     })
   } else if (lead.stage) {
     out.push({
       key: 'advance-stage',
-      label: 'Đề nghị sang cột kế',
+      label: translate(message('Đề nghị sang cột kế', 'Propose next stage', '다음 단계 이동 제안')),
       icon: ArrowRight,
       primary: out.length === 0,
-      why: 'Đơn còn trong hạn của cột.',
+      why: translate(
+        message(
+          'Đơn còn trong hạn của cột.',
+          'The deal is within the stage limit.',
+          '단계 기한 내에 있습니다.',
+        ),
+      ),
     })
   }
 
   out.push({
     key: contact?.phone ? 'call-customer' : 'send-message',
-    label: contact?.phone ? `Gọi ${contact.name}` : 'Nhắn trên kênh khách vừa dùng',
+    label: contact?.phone
+      ? translate(
+          message(`Gọi ${contact.name}`, `Call ${contact.name}`, `${contact.name}에게 전화`),
+        )
+      : translate(
+          message(
+            'Nhắn trên kênh khách vừa dùng',
+            'Message on the channel the customer last used',
+            '고객이 마지막으로 사용한 채널로 메시지 보내기',
+          ),
+        ),
     icon: contact?.phone ? Phone : MessageSquare,
     primary: false,
     /* `contact.title` có thể trống trên dữ liệu thật (ô 4 chưa moi hết) — nối
@@ -436,15 +530,23 @@ export function nextActions(lead: Lead, contact: LeadContact | null): NextAction
       ? contact.title
         ? `${contact.title} · ${contact.phone}`
         : contact.phone
-      : 'Chưa có số điện thoại.',
+      : translate(
+          message('Chưa có số điện thoại.', 'No phone number yet.', '전화번호가 없습니다.'),
+        ),
   })
 
   out.push({
     key: 'assign-owner',
-    label: 'Giao việc',
+    label: translate(message('Giao việc', 'Assign', '업무 배정')),
     icon: Users,
     primary: false,
-    why: 'Giao cho người khác cùng làm.',
+    why: translate(
+      message(
+        'Giao cho người khác cùng làm.',
+        'Hand it to someone else to work on together.',
+        '다른 사람과 함께 처리하도록 배정합니다.',
+      ),
+    ),
   })
 
   return out
@@ -458,8 +560,11 @@ export function nextActions(lead: Lead, contact: LeadContact | null): NextAction
  *  cổng — nó CHƯA có cột nào để đứng, và đó chính là việc phải làm. */
 export type WorkColumn = StageKey | 'unstaged'
 
-export const WORK_COLUMNS: { key: WorkColumn; label: string; limitDays?: number }[] = [
-  { key: 'unstaged', label: 'Chưa vào sổ cơ hội' },
+export const workColumns = (): { key: WorkColumn; label: string; limitDays?: number }[] => [
+  {
+    key: 'unstaged',
+    label: translate(message('Chưa vào sổ cơ hội', 'Not yet an opportunity', '아직 기회에 없음')),
+  },
   ...PIPELINE_STAGES.map((s) => ({
     key: s.key as WorkColumn,
     label: s.label,
@@ -541,8 +646,20 @@ export function myWork(input: {
       push(
         lead,
         lead.stage
-          ? `Bạn đang giữ · nằm cột này ${lead.daysHere} ngày`
-          : 'Bạn đang giữ · chưa vào sổ cơ hội',
+          ? translate(
+              message(
+                `Bạn đang giữ · nằm cột này ${lead.daysHere} ngày`,
+                `You hold it · in this stage for ${lead.daysHere} days`,
+                `담당 중 · 이 단계에 ${lead.daysHere}일째`,
+              ),
+            )
+          : translate(
+              message(
+                'Bạn đang giữ · chưa vào sổ cơ hội',
+                'You hold it · not yet an opportunity',
+                '담당 중 · 아직 기회에 없음',
+              ),
+            ),
       )
     }
   }
@@ -552,32 +669,80 @@ export function myWork(input: {
       const missing = Math.max(0, REQUIRED_SLOTS - lead.requiredFilled)
       push(
         lead,
-        missing > 0 ? `Còn thiếu ${missing} ô bắt buộc` : 'Đủ ô bắt buộc · chờ đẩy sang Sale',
+        missing > 0
+          ? translate(
+              message(
+                `Còn thiếu ${missing} ô bắt buộc`,
+                `${missing} required ${missing === 1 ? 'field' : 'fields'} missing`,
+                `필수 항목 ${missing}개 누락`,
+              ),
+            )
+          : translate(
+              message(
+                'Đủ ô bắt buộc · chờ đẩy sang Sale',
+                'Required fields filled · waiting to move to Sales',
+                '필수 항목 입력 완료 · 영업팀 전달 대기',
+              ),
+            ),
       )
     }
   }
 
   if (actor.roleIds.includes('marketing')) {
-    for (const lead of mine) push(lead, `Đang nuôi ở bậc đầu mối · ${lead.daysHere} ngày`)
+    for (const lead of mine) {
+      const reason = message(
+        `Đang nuôi ở bậc đầu mối · ${lead.daysHere} ngày`,
+        `Nurtured at the prospect tier · ${lead.daysHere} days`,
+        `잠재 등급에서 육성 중 · ${lead.daysHere}일`,
+      )
+      push(lead, translate(reason))
+    }
   }
 
   if (actor.roleIds.includes('presales')) {
     for (const lead of running) {
       if (lead.stage === 'assigned' || lead.stage === 'engaged') {
-        push(lead, `Đơn ở cột có demo · chủ đơn ${lead.owner ?? 'chưa ai'}`)
+        const owner = lead.owner
+        const reason = message(
+          `Đơn ở cột có demo · chủ đơn ${owner ?? 'chưa ai'}`,
+          `Deal in a demo stage · owner ${owner ?? 'none'}`,
+          `데모 단계의 딜 · 담당자 ${owner ?? '없음'}`,
+        )
+        push(lead, translate(reason))
       }
     }
   }
 
   if (actor.roleIds.includes('head-of-sales')) {
     for (const lead of running) {
-      if (canPromoteToSql(lead).ok) push(lead, 'Đủ ô bắt buộc · chờ bạn duyệt vào pipeline')
+      if (canPromoteToSql(lead).ok) {
+        const reason = message(
+          'Đủ ô bắt buộc · chờ bạn duyệt vào pipeline',
+          'Required fields filled · waiting for your approval into the pipeline',
+          '필수 항목 입력 완료 · 파이프라인 편입 승인 대기',
+        )
+        push(lead, translate(reason))
+      }
     }
     for (const lead of running) {
-      if (isOverSla(lead)) push(lead, `Quá hạn cột · ${lead.daysHere} ngày`)
+      if (isOverSla(lead)) {
+        const reason = message(
+          `Quá hạn cột · ${lead.daysHere} ngày`,
+          `Over the stage limit · ${lead.daysHere} days`,
+          `단계 기한 초과 · ${lead.daysHere}일`,
+        )
+        push(lead, translate(reason))
+      }
     }
     for (const lead of running) {
-      if (!lead.owner) push(lead, 'Còn ở kho chung · chưa ai nhận')
+      if (!lead.owner) {
+        const reason = message(
+          'Còn ở kho chung · chưa ai nhận',
+          'In the shared pool · unassigned',
+          '공용 목록 · 배정 대기 중',
+        )
+        push(lead, translate(reason))
+      }
     }
   }
 
@@ -628,33 +793,65 @@ export function assigneeOptions(
     .map((a) => {
       const domains = domainsOf(a.id)
       let rank = 90
-      let why = 'Trong phòng kinh doanh'
+      let why = translate(message('Trong phòng kinh doanh', 'In the sales team', '영업팀 소속'))
 
       if (a.id === meId) {
         rank = 0
-        why = 'Bạn tự nhận'
+        why = translate(message('Bạn tự nhận', 'You take it', '직접 받기'))
       } else if (a.id === owner) {
         rank = 10
-        why = `Sale phụ trách ngành ${domains.join(' · ')}`
+        const names = domains.join(' · ')
+        why = translate(
+          message(
+            `Sale phụ trách ngành ${names}`,
+            `Salesperson in charge for ${names}`,
+            `${names} 담당 영업`,
+          ),
+        )
       } else if (a.roleIds.includes('bd') && missing > 0) {
         rank = 20
-        why = `Còn ${missing} ô bắt buộc, việc của BD`
+        why = translate(
+          message(
+            `Còn ${missing} ô bắt buộc, việc của BD`,
+            `${missing} required ${missing === 1 ? 'field' : 'fields'} left, a BD task`,
+            `필수 항목 ${missing}개 남음, BD 업무`,
+          ),
+        )
       } else if (a.roleIds.includes('marketing') && lead.tier === 'prospect') {
         rank = 40
-        why = 'Lead còn ở bậc đầu mối, Marketing nuôi tiếp'
+        why = translate(
+          message(
+            'Lead còn ở bậc đầu mối, Marketing nuôi tiếp',
+            'The lead is still at the prospect tier; Marketing keeps nurturing',
+            '리드가 아직 잠재 등급이므로 마케팅이 계속 육성합니다',
+          ),
+        )
       } else if (a.roleIds.includes('head-of-sales')) {
         rank = 50
         /* Không còn "người gật mọi đề nghị" — không còn đề nghị nào để gật.
            Vai này đứng cao vì nó là vai DUY NHẤT giao được lead cho người
            khác (`lead.assign`), nên nó cũng là người nhận lại được một lead
            đang không biết đưa cho ai. */
-        why = 'Trưởng phòng, điều phối lead cho cả phòng'
+        why = translate(
+          message(
+            'Trưởng phòng, điều phối lead cho cả phòng',
+            'Head of sales, distributes leads for the whole team',
+            '영업 팀장, 팀 전체의 리드를 배분합니다',
+          ),
+        )
       } else if (domains.length > 0) {
         rank = 70
-        why = `Sale ngành ${domains.join(' · ')}`
+        const names = domains.join(' · ')
+        why = translate(message(`Sale ngành ${names}`, `Sales for ${names}`, `${names} 영업`))
       } else if (a.roleIds.includes('bd')) {
         rank = 60
-        why = 'Mở khách mới, điền ô bắt buộc'
+        why = translate(
+          message(
+            'Mở khách mới, điền ô bắt buộc',
+            'Opens new customers and fills required fields',
+            '신규 고객을 열고 필수 항목을 채웁니다',
+          ),
+        )
       }
 
       return { actor: a, domains, rank, why }

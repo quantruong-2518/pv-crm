@@ -1,3 +1,4 @@
+import { message, translate } from '@/app/i18n'
 import { toast } from '@/app/toast'
 
 /** Keeps an open tab from running a bundle the server has already replaced.
@@ -33,12 +34,27 @@ async function checkVersion(): Promise<void> {
     const { id } = (await res.json()) as { id?: string }
     if (!id || id === __BUILD_ID__) return
     announced = true
-    toast('Có bản mới của PV One', {
-      tone: 'info',
-      detail: 'Tải lại khi tiện để dùng bản mới.',
-      action: { label: 'Tải lại', onClick: () => window.location.reload() },
-      ttlMs: 3_600_000,
-    })
+    const msg = (vi: string, en: string, ko: string) => translate(message(vi, en, ko))
+    toast(
+      msg(
+        'Có bản mới của PV One',
+        'A new version of PV One is available',
+        'PV One 새 버전이 있습니다',
+      ),
+      {
+        tone: 'info',
+        detail: msg(
+          'Tải lại khi tiện để dùng bản mới.',
+          'Reload when convenient to use the new version.',
+          '편할 때 새로고침하여 새 버전을 사용하세요.',
+        ),
+        action: {
+          label: msg('Tải lại', 'Reload', '새로고침'),
+          onClick: () => window.location.reload(),
+        },
+        ttlMs: 3_600_000,
+      },
+    )
   } catch {
     /* offline or mid-deploy: the next tick asks again */
   }

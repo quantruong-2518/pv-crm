@@ -110,14 +110,12 @@ export function AddLossReason() {
           message(
             'Thêm lý do dừng cơ hội',
             'Add an opportunity stop reason',
-            '영업 기회 중단 사유 추가',
+            '기회 중단 사유 추가',
           ),
         )}
         value={name}
         onChange={(e) => setName(e.target.value)}
-        placeholder={t(
-          message('Lý do dừng cơ hội', 'Opportunity stop reason', '영업 기회 중단 사유'),
-        )}
+        placeholder={t(message('Lý do dừng cơ hội', 'Opportunity stop reason', '기회 중단 사유'))}
         className="pointer-coarse:h-12 min-w-0 flex-1"
       />
       <Select

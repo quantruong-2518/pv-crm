@@ -6,6 +6,7 @@ import type {
   OpportunityMoneyContract,
   OpportunityMoneyInstallment,
 } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 import { contractDetailQuery, viewInstallment } from '@/data/contracts'
 import { BADGE_INK } from '@/data/opportunities'
 import { dm } from '@/lib/date'
@@ -32,12 +33,13 @@ export function InstallmentTiles({
   contract: OpportunityMoneyContract
   onOpen: (installment: OpportunityMoneyInstallment) => void
 }) {
+  const { t, lang } = useI18n()
   const detail = useQuery(contractDetailQuery(contract.code))
 
   return (
     <div
       role="group"
-      aria-label="Các đợt thanh toán"
+      aria-label={t(message('Các đợt thanh toán', 'Installments', '납부 회차'))}
       className="-m-1 grid snap-x auto-cols-[max(176px,calc((100%-24px)/3))] grid-flow-col gap-3 overflow-x-auto p-1"
     >
       {contract.installments.map((i) => {
@@ -61,12 +63,14 @@ export function InstallmentTiles({
             <span className="tnum font-num text-[20px] font-semibold leading-[1.3]">
               {compactMoney(i.amount, contract.currency)}
             </span>
-            <span className="text-muted-foreground tnum text-[12px]">hạn {dm(i.due)}</span>
+            <span className="text-muted-foreground tnum text-[12px]">
+              {t(message(`hạn ${dm(i.due)}`, `due ${dm(i.due)}`, `기한 ${dm(i.due)}`))}
+            </span>
             <TintBadge
               tone={INSTALLMENT_TONE[i.status]}
               className={cn(i.status === 'upcoming' && BADGE_INK)}
             >
-              {installmentStatusLine(i)}
+              {installmentStatusLine(i, lang)}
             </TintBadge>
             {line && (
               <span

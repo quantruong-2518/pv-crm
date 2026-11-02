@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Button, Icon, cn } from '@pv/ui'
 import type { CommActionChannel } from '@pv/contracts'
 import { useCan } from '@/app/auth'
+import { message, useI18n, type Message } from '@/app/i18n'
 import { COMMS_CHANNEL_ICON } from '@/data/comms'
 import { commTargetQuery } from '@/data/comm-record-detail'
 import { notConfirmableReason } from '@/data/comm-records'
@@ -22,12 +23,12 @@ export type { CommContact, CommMail, CommSubject } from './comm-action-confirm'
  *  contact never happens without its comm. The call button stays on desktop and opens
  *  `tel:` there too (ADR 0075 §6). Below `sm` the three share one row at the
  *  48px tablet floor (law 13); above it they sit inline at 40px. */
-const BUTTON_LABEL: Record<CommActionChannel, string> = {
-  phone: 'Gọi',
-  'zalo-oa': 'Zalo',
-  telegram: 'Telegram',
-  whatsapp: 'WhatsApp',
-  email: 'Gửi mail',
+const BUTTON_LABEL: Record<CommActionChannel, Message> = {
+  phone: message('Gọi', 'Call', '전화'),
+  'zalo-oa': message('Zalo', 'Zalo', 'Zalo'),
+  telegram: message('Telegram', 'Telegram', 'Telegram'),
+  whatsapp: message('WhatsApp', 'WhatsApp', 'WhatsApp'),
+  email: message('Gửi mail', 'Send email', '메일 보내기'),
 }
 
 export function CommActions({
@@ -45,6 +46,7 @@ export function CommActions({
   channels?: readonly CommActionChannel[]
   className?: string
 }) {
+  const { t, lang } = useI18n()
   const canRecord = useCan('comm.view')
   /* Mail to a lead is a lead permission: the comm would move the lead too. */
   const canMail = useCan('lead.send-email') || subject.kind !== 'lead'
@@ -53,13 +55,33 @@ export function CommActions({
   const [asking, setAsking] = useState<CommActionChannel | null>(null)
 
   const blocked = (channel: CommActionChannel): string | undefined => {
-    if (!canRecord) return 'Vai của bạn không ghi được lượt liên hệ.'
-    if (known && !known.confirmable) return notConfirmableReason(subject.kind)
-    if (channel === 'email') {
-      if (!canMail) return 'Cần quyền gửi email cho lead.'
-      return contact.email ? mail?.blocked : 'Chưa có email.'
+    if (!canRecord) {
+      return t(
+        message(
+          'Vai của bạn không ghi được lượt liên hệ.',
+          'Your role cannot record interactions.',
+          '현재 역할로는 연락 기록을 남길 수 없습니다.',
+        ),
+      )
     }
-    return contact.phone ? undefined : 'Chưa có số điện thoại.'
+    if (known && !known.confirmable) return notConfirmableReason(subject.kind, lang)
+    if (channel === 'email') {
+      if (!canMail) {
+        return t(
+          message(
+            'Cần quyền gửi email cho lead.',
+            'Permission to email leads is required.',
+            '리드에게 이메일을 보낼 권한이 필요합니다.',
+          ),
+        )
+      }
+      return contact.email
+        ? mail?.blocked
+        : t(message('Chưa có email.', 'No email yet.', '이메일이 없습니다.'))
+    }
+    return contact.phone
+      ? undefined
+      : t(message('Chưa có số điện thoại.', 'No phone number yet.', '전화번호가 없습니다.'))
   }
 
   /* Telegram and WhatsApp are opt-in: the record's floating bar carries them,
@@ -86,11 +108,11 @@ export function CommActions({
               className="pointer-coarse:h-12 w-full max-sm:h-12 sm:w-auto"
               disabled={reason !== undefined}
               title={reason}
-              aria-label={`${BUTTON_LABEL[channel]} · ${contact.name}`}
+              aria-label={`${t(BUTTON_LABEL[channel])} · ${contact.name}`}
               onClick={() => setAsking(channel)}
             >
               <Icon icon={COMMS_CHANNEL_ICON[channel]} size={16} />
-              {BUTTON_LABEL[channel]}
+              {t(BUTTON_LABEL[channel])}
             </Button>
           )
         })}

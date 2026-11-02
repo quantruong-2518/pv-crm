@@ -12,6 +12,7 @@ import {
   type SalesStopReason,
   type WorkstreamBookQuery,
 } from '@pv/contracts'
+import { formatNumber, getLang, message, translate, type Lang } from '@/app/i18n'
 import { DEFAULT_LEAD_BOOK_QUERY, leadBookQueryToParams } from '@/app/url'
 import { DEFAULT_OPPORTUNITY_BOOK_QUERY, opportunityBookQueryToParams } from '@/data/opportunities'
 import { DEFAULT_WORKSTREAM_BOOK_QUERY, workstreamBookQueryToParams } from '@/data/workstreams'
@@ -52,10 +53,14 @@ export function stepPick(pick: PeriodPick, by: -1 | 1, today = new Date()): Peri
 }
 
 /** Month or quarter number, then the year. */
-export const periodLabel = (key: string): string =>
-  key[5] === 'Q'
-    ? `Quý ${key.slice(6)} · ${key.slice(0, 4)}`
-    : `Tháng ${Number(key.slice(5))} · ${key.slice(0, 4)}`
+export const periodLabel = (key: string, lang: Lang = getLang()): string => {
+  const year = key.slice(0, 4)
+  const n = key[5] === 'Q' ? key.slice(6) : String(Number(key.slice(5)))
+  const quarter = key[5] === 'Q'
+  if (lang === 'ko') return `${year}년 ${n}${quarter ? '분기' : '월'}`
+  if (lang === 'en') return `${quarter ? 'Q' : 'Month '}${n} · ${year}`
+  return `${quarter ? 'Quý' : 'Tháng'} ${n} · ${year}` // i18n-ignore
+}
 
 // ---------------------------------------------------------------------------
 // DELTA — against the previous period of the same grain
@@ -64,11 +69,18 @@ export const periodLabel = (key: string): string =>
 export type Delta = { direction: 'up' | 'down' | 'flat'; text: string }
 
 /** Whole numbers stay whole, fractions keep one digit, VN decimal comma (law 6). */
-export const num = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
+export const num = (value: number) => formatNumber(value, getLang(), { maximumFractionDigits: 1 })
 
 /** A sum in dong. Under a billion, billions with one digit would round a real
  *  20 million down to zero. */
-export const money = (vnd: number) => (vnd >= 1_000_000_000 ? billions(vnd, 1) : millions(vnd, 0))
+export function money(vnd: number, lang: Lang = getLang()): string {
+  const big = vnd >= 1_000_000_000
+  if (lang === 'vi') return big ? billions(vnd, 1) : millions(vnd, 0)
+  const fixed = (value: number, digits: number) =>
+    formatNumber(value, lang, { minimumFractionDigits: digits, maximumFractionDigits: digits })
+  if (lang === 'en') return big ? `${fixed(vnd / 1e9, 1)}B` : `${fixed(vnd / 1e6, 0)}M`
+  return big ? `${fixed(vnd / 1e8, 1)}억` : `${fixed(vnd / 1e4, 0)}만`
+}
 
 /** Null when either side is missing: "up from nothing" is not a figure.
  *  `points` takes two ratios and prints the gap in percentage points, because
@@ -81,10 +93,15 @@ export function deltaOf(
 ): Delta | null {
   if (now === null || before === null) return null
   const diff = now - before
-  if (diff === 0) return { direction: 'flat', text: 'Không đổi' }
+  if (diff === 0)
+    return { direction: 'flat', text: translate(message('Không đổi', 'No change', '변화 없음')) }
   const gap = Math.abs(diff)
   const size =
-    unit === 'points' ? `${num(gap * 100)} điểm` : unit === 'count' ? num(gap) : money(gap)
+    unit === 'points'
+      ? `${num(gap * 100)} ${translate(message('điểm', 'pts', '%p'))}`
+      : unit === 'count'
+        ? num(gap)
+        : money(gap)
   return { direction: diff > 0 ? 'up' : 'down', text: `${diff > 0 ? '+' : '−'}${size}` }
 }
 
@@ -92,13 +109,11 @@ export function deltaOf(
 export const rateOf = (part: number, whole: number): number | null =>
   whole > 0 ? part / whole : null
 
-/* Steps two to four carry the lead book's score-strip labels (`leads-parts.tsx`).
-   The first does not: that strip's first card is the whole book, this is one cohort. */
 const COHORT_STEPS = [
-  { key: 'leads', label: 'Lead vào sổ' },
-  { key: 'firstContacts', label: 'Đã liên hệ lần đầu' },
-  { key: 'opportunities', label: 'Thành cơ hội' },
-  { key: 'contracts', label: 'Đã ký hợp đồng' },
+  { key: 'leads' },
+  { key: 'firstContacts' },
+  { key: 'opportunities' },
+  { key: 'contracts' },
 ] as const
 
 /** The cohort as funnel steps; `ratio` is against the step before, null on the first. */

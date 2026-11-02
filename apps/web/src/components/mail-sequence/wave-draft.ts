@@ -3,6 +3,7 @@ import {
   type CampaignWaveInput,
   type MailTemplateRow,
 } from '@pv/contracts'
+import { getLang, message, translate, type Lang } from '@/app/i18n'
 
 /** The draft a mail SEQUENCE is written in — one letter per wave, no audience.
  *
@@ -141,21 +142,33 @@ export function dropCommitted(s: ComposerState, localId: string): ComposerState 
  *  button is a step away from the compose box (the MAS panel) and has to say
  *  what is missing without re-reading the draft field by field. `null` = at
  *  least one wave would go out. */
-export function composerBlocker(s: ComposerState): string | null {
+export function composerBlocker(s: ComposerState, lang: Lang = getLang()): string | null {
+  const m = (vi: string, en: string, ko: string) => translate(message(vi, en, ko), lang)
   if (composerDraftValid(s) && effectiveWaves(s).length > 0) return null
   if (s.committed.length > 0 && !composerDraftTouched(s)) return null
   if (s.committed.length >= CAMPAIGN_START_MAX_WAVES) return null
 
   const gaps = [
-    s.label.trim() === '' ? 'tên đợt' : null,
-    s.subject.trim() === '' ? 'tiêu đề' : null,
-    s.body.trim() === '' ? 'nội dung' : null,
+    s.label.trim() === '' ? m('tên đợt', 'wave name', '웨이브 이름') : null,
+    s.subject.trim() === '' ? m('tiêu đề', 'subject', '제목') : null,
+    s.body.trim() === '' ? m('nội dung', 'body', '내용') : null,
   ].filter((gap) => gap !== null)
 
-  if (gaps.length > 0) return `Còn thiếu ${gaps.join(', ')}.`
+  if (gaps.length > 0) {
+    const list = gaps.join(', ')
+    return m(`Còn thiếu ${list}.`, `Missing ${list}.`, `${list}을(를) 입력해 주세요.`)
+  }
   const ctaTouched = s.ctaLabel.trim() !== '' || s.ctaUrl.trim() !== ''
   if (ctaTouched && (s.ctaLabel.trim() === '' || !HTTP_URL.test(s.ctaUrl.trim()))) {
-    return 'Nút trong email cần đủ nhãn và địa chỉ bắt đầu bằng http/https.'
+    return m(
+      'Nút trong email cần đủ nhãn và địa chỉ bắt đầu bằng http/https.',
+      'The email button needs both a label and an address starting with http/https.',
+      '이메일 버튼에는 이름과 http/https로 시작하는 주소가 모두 필요합니다.',
+    )
   }
-  return 'Thời gian đặt lịch phải sau thời điểm hiện tại.'
+  return m(
+    'Thời gian đặt lịch phải sau thời điểm hiện tại.',
+    'The scheduled time must be after now.',
+    '예약 시각은 현재 이후여야 합니다.',
+  )
 }

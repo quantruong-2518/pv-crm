@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { read, utils, type WorkBook } from 'xlsx'
 import { SegmentedControl, Skeleton } from '@pv/ui'
+import { message, useI18n } from '@/app/i18n'
 
 /* A preview, not an editor: past this many rows the download is the way in. */
 const ROW_CAP = 1000
@@ -9,6 +10,7 @@ const ROW_CAP = 1000
  *  Cells print as Excel formats them (`raw: false`), so dates and money read
  *  the way the sender saw them. Default export: loaded lazily by the preview. */
 export default function SheetView({ blob }: { blob: Blob }) {
+  const { t, number } = useI18n()
   const [book, setBook] = useState<WorkBook | null>(null)
   const [sheet, setSheet] = useState('')
 
@@ -45,7 +47,7 @@ export default function SheetView({ blob }: { blob: Blob }) {
     <div className="flex flex-col gap-3">
       {book.SheetNames.length > 1 && (
         <SegmentedControl
-          label="Trang tính"
+          label={t(message('Trang tính', 'Sheets', '시트'))}
           hideLabel
           size="sm"
           tone="quiet"
@@ -56,7 +58,9 @@ export default function SheetView({ blob }: { blob: Blob }) {
         />
       )}
       {rows.length === 0 ? (
-        <p className="text-muted-foreground m-0 py-8 text-center text-[13px]">Trang này trống.</p>
+        <p className="text-muted-foreground m-0 py-8 text-center text-[13px]">
+          {t(message('Trang này trống.', 'This sheet is empty.', '이 시트는 비어 있습니다.'))}
+        </p>
       ) : (
         <div className="bg-surface-ink/9 overflow-x-auto rounded-lg">
           <table className="tnum w-max min-w-full border-collapse text-[12.5px]">
@@ -89,8 +93,13 @@ export default function SheetView({ blob }: { blob: Blob }) {
       )}
       {rows.length > ROW_CAP && (
         <p className="text-muted-foreground m-0 text-[12px]">
-          Đang hiện {ROW_CAP.toLocaleString('vi-VN')} / {rows.length.toLocaleString('vi-VN')} dòng.
-          Tải xuống để xem đủ.
+          {t(
+            message(
+              `Đang hiện ${number(ROW_CAP)} / ${number(rows.length)} dòng. Tải xuống để xem đủ.`,
+              `Showing ${number(ROW_CAP)} of ${number(rows.length)} rows. Download to see them all.`,
+              `${number(rows.length)}행 중 ${number(ROW_CAP)}행을 표시 중입니다. 다운로드하면 전체를 볼 수 있습니다.`,
+            ),
+          )}
         </p>
       )}
     </div>

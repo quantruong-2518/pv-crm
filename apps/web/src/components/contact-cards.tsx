@@ -3,6 +3,7 @@ import { Avatar, Badge, Icon, Mail, Phone, cn, type IconGlyph } from '@pv/ui'
 import type { ContactBookRow } from '@pv/contracts'
 import { dmhm } from '@/lib/date'
 import { phoneText } from '@/lib/phone'
+import { message, useI18n } from '@/app/i18n'
 import { COMMS_CHANNEL_ICON, COMMS_CHANNEL_LABEL } from '@/data/comms'
 import { CommActionConfirm } from './comm-action-confirm'
 import { LetterComposer } from './mail-letter/letter-composer'
@@ -62,6 +63,7 @@ function Reach({
 /** The newest time this person was reached, on every card so the book shows
  *  who has gone cold. */
 function LastContact({ last }: { last: ContactBookRow['lastContact'] }) {
+  const { t } = useI18n()
   return (
     <span className="text-muted-foreground flex min-w-0 items-center gap-2 text-[12px]">
       {last ? (
@@ -70,13 +72,14 @@ function LastContact({ last }: { last: ContactBookRow['lastContact'] }) {
           <span className="tnum truncate">{`${COMMS_CHANNEL_LABEL[last.channel]} · ${dmhm(last.at)}`}</span>
         </>
       ) : (
-        'Chưa liên hệ lần nào'
+        t(message('Chưa liên hệ lần nào', 'Never contacted', '연락한 적 없음'))
       )}
     </span>
   )
 }
 
 function ContactCard({ contact: c, onAsk }: { contact: ContactBookRow; onAsk: (a: Ask) => void }) {
+  const { t } = useI18n()
   const company = c.accountName ?? c.company
   const role = [c.title, company].filter(Boolean).join(' · ')
   const wide = c.isPrimary
@@ -84,8 +87,14 @@ function ContactCard({ contact: c, onAsk }: { contact: ContactBookRow; onAsk: (a
     <Reach
       icon={Phone}
       value={c.phone ? phoneText(c.phone) : undefined}
-      missing="Chưa có số điện thoại"
-      label={`Liên hệ Zalo với ${c.name}`}
+      missing={t(message('Chưa có số điện thoại', 'No phone number', '전화번호 없음'))}
+      label={t(
+        message(
+          `Liên hệ Zalo với ${c.name}`,
+          `Contact ${c.name} on Zalo`,
+          `${c.name}님에게 Zalo로 연락`,
+        ),
+      )}
       large={wide}
       onPress={() => onAsk({ channel: 'zalo-oa', contact: c })}
     />
@@ -94,8 +103,14 @@ function ContactCard({ contact: c, onAsk }: { contact: ContactBookRow; onAsk: (a
     <Reach
       icon={Mail}
       value={c.email}
-      missing="Chưa có email"
-      label={`Gửi mail cho ${c.name}`}
+      missing={t(message('Chưa có email', 'No email', '이메일 없음'))}
+      label={t(
+        message(
+          `Gửi mail cho ${c.name}`,
+          `Send an email to ${c.name}`,
+          `${c.name}님에게 메일 보내기`,
+        ),
+      )}
       large={wide}
       onPress={() => onAsk({ channel: 'email', contact: c })}
     />
@@ -114,7 +129,7 @@ function ContactCard({ contact: c, onAsk }: { contact: ContactBookRow; onAsk: (a
         badge={
           wide && (
             <Badge tone="success" className="shrink-0">
-              Liên hệ chính
+              {t(message('Liên hệ chính', 'Primary contact', '주 연락처'))}
             </Badge>
           )
         }

@@ -3,7 +3,7 @@ import type { FlowVectorStep } from '@pv/ui'
 import type { LeadEvent } from '@pv/engines/fixtures/das-vina'
 import { TouchTimelineResponse, type TouchKind, type TouchRow } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
-import { ROLE_LABEL } from '@/data/users'
+import { kpiRoleText } from '@/data/kpi-i18n'
 import { dm, dmy } from '@/lib/date'
 
 /** Dòng thời gian của một mã — hai cửa, một phép dịch.
@@ -124,7 +124,7 @@ export function stepsOf(rows: readonly TouchRow[]): FlowVectorStep[] {
            write time (`0039`). Absent on rows written before that column, and
            on rows the bulk importer wrote, so the step prints a name with no
            role rather than borrowing the one the person holds today. */
-        ...(row.to.role ? { role: ROLE_LABEL[row.to.role] } : {}),
+        ...(row.to.role ? { role: kpiRoleText(row.to.role) } : {}),
       })
     } else if (row.kind === 'handed-over' && row.from) {
       steps.push({ kind: 'pool', touchId: row.id, at: dm(row.at), atFull: dmy(row.at) })

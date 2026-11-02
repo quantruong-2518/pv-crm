@@ -13,6 +13,7 @@ import {
 } from '@pv/ui'
 import { WORKSTREAM_JOURNEY_STEPS, type WorkstreamJourneyResponse } from '@pv/contracts'
 import { useCan } from '@/app/auth'
+import { message, useI18n, type Message } from '@/app/i18n'
 import { chainPath } from '@/data/opportunities'
 import { workstreamJourneyQuery } from '@/data/workstream-journey'
 import type { RunSubject } from '@/components/run/run-subject'
@@ -34,6 +35,15 @@ type Journey = WorkstreamJourneyResponse
 type StepKey = (typeof WORKSTREAM_JOURNEY_STEPS)[number]['key']
 
 const STEPS = WORKSTREAM_JOURNEY_STEPS.filter((step) => step.key !== 'dropped')
+
+const STEP_LABEL: Record<StepKey, Message> = {
+  lead: message('Lead', 'Lead', '리드'),
+  opportunity: message('Cơ hội', 'Opportunity', '기회'),
+  contract: message('Hợp đồng', 'Contract', '계약'),
+  'after-sale': message('Sau bán', 'After-sale', '사후 관리'),
+  growth: message('Tăng trưởng', 'Growth', '성장'),
+  dropped: message('Rơi', 'Dropped', '이탈'),
+}
 
 /** A deal's name rides along as the picker's hint: two codes alone do not tell
  *  a person which deal is which. */
@@ -81,6 +91,7 @@ export function ContextStrip({ objects }: { objects: RailObject[] }) {
 }
 
 function RunBar({ journey, current }: { journey: Journey; current: RunSubject }) {
+  const { t } = useI18n()
   const navigate = useNavigate()
   const canOpenContract = useCan('contract.view')
   const pathOf = (key: StepKey, code: string) =>
@@ -98,7 +109,7 @@ function RunBar({ journey, current }: { journey: Journey; current: RunSubject })
 
       <ol
         role="list"
-        aria-label="Các bước của lượt"
+        aria-label={t(message('Các bước của lượt', 'Journey steps', '진행 단계'))}
         className="m-0 flex min-w-0 flex-1 list-none flex-wrap items-center gap-y-1 p-0"
       >
         {STEPS.map((step, i) => {
@@ -134,7 +145,13 @@ function RunBar({ journey, current }: { journey: Journey; current: RunSubject })
               >
                 <StatusDot
                   state={here ? 'current' : reached ? 'ok' : 'next'}
-                  label={here ? 'đang ở đây' : reached ? 'đã tới' : 'chưa tới'}
+                  label={t(
+                    here
+                      ? message('đang ở đây', 'you are here', '현재 위치')
+                      : reached
+                        ? message('đã tới', 'reached', '도달')
+                        : message('chưa tới', 'not reached yet', '미도달'),
+                  )}
                 />
                 <span
                   className={cn(
@@ -146,7 +163,7 @@ function RunBar({ journey, current }: { journey: Journey; current: RunSubject })
                         : 'text-glass-foreground font-medium',
                   )}
                 >
-                  {step.label}
+                  {t(STEP_LABEL[step.key])}
                 </span>
                 {chip && <ContextRail objects={[chip]} />}
                 {items.length > 1 && (
@@ -154,12 +171,21 @@ function RunBar({ journey, current }: { journey: Journey; current: RunSubject })
                     size="sm"
                     variant="ghost"
                     label={`+${items.length - 1}`}
-                    ariaLabel={`Chọn trong ${items.length} ${step.label.toLowerCase()}`}
+                    ariaLabel={t(
+                      message(
+                        `Chọn trong ${items.length} ${STEP_LABEL[step.key].vi.toLowerCase()}`,
+                        `Pick one of ${items.length}: ${STEP_LABEL[step.key].en}`,
+                        `${STEP_LABEL[step.key].ko} ${items.length}건 중 선택`,
+                      ),
+                    )}
                     className="pointer-coarse:h-12 tnum h-[26px] min-h-0 rounded-sm px-2 font-mono text-[11px]"
                     choices={items.map(({ code, hint }) => ({
                       key: code,
                       label: <span className="font-mono">{code}</span>,
-                      hint: code === current.code && step.key === current.kind ? 'đang mở' : hint,
+                      hint:
+                        code === current.code && step.key === current.kind
+                          ? t(message('đang mở', 'open', '열려 있음'))
+                          : hint,
                       onSelect: () => {
                         const to = pathOf(step.key, code)
                         if (to) navigate(to)
@@ -181,7 +207,7 @@ function RunBar({ journey, current }: { journey: Journey; current: RunSubject })
           onClick={() => navigate(`/sales/workstreams/${encodeURIComponent(journey.code)}`)}
         >
           <Icon icon={Route} size={16} />
-          Tiến trình tổng
+          {t(message('Tiến trình tổng', 'Overall progress', '전체 진행 상황'))}
         </Button>
       )}
     </GlassCard>

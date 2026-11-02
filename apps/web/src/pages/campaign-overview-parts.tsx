@@ -66,8 +66,13 @@ export function CampaignSummary({
               <Chip>{campaign.code}</Chip>
               <span className="text-muted-foreground tnum text-[12px]">
                 {t(message('Tạo', 'Created', '생성'))} {dmy(campaign.createdAt)} ·{' '}
-                {t(message('Sửa gần nhất', 'Updated', '최근 수정'))} {dmy(campaign.updatedAt)}{' '}
-                {t(message('lúc', 'at', ''))} {timeOnly(campaign.updatedAt)}
+                {t(
+                  message(
+                    `Sửa gần nhất ${dmy(campaign.updatedAt)} lúc ${timeOnly(campaign.updatedAt)}`,
+                    `Updated ${dmy(campaign.updatedAt)} at ${timeOnly(campaign.updatedAt)}`,
+                    `최근 수정 ${dmy(campaign.updatedAt)} ${timeOnly(campaign.updatedAt)}`,
+                  ),
+                )}
               </span>
             </div>
             <h1 className="font-display m-0 break-words text-[26px] font-semibold leading-[1.2] tracking-[-.45px] lg:text-[30px]">

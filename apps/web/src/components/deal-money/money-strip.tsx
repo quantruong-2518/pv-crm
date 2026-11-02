@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { GlassCard, Separator, cn } from '@pv/ui'
 import type { OpportunityMoneyNegotiation, OpportunityProfileResponse } from '@pv/contracts'
 import { daysUntil } from '@pv/engines'
+import { message, useI18n, type Lang, type Message } from '@/app/i18n'
 import { vnToday } from '@/data/opportunities'
 import { useContractKindLabel } from '@/data/sales-config'
 import { dmy } from '@/lib/date'
@@ -19,18 +20,23 @@ import { barWidth, compactMoney, kindLabel } from './money'
 export function MoneyStrip({ op, onEdit }: { op: OpportunityProfileResponse; onEdit: () => void }) {
   const { money } = op
   const { totals } = money
+  const { t, lang } = useI18n()
   const resolveKind = useContractKindLabel()
   const text = (amount: number) => compactMoney(amount, totals.currency)
   const collecting = money.paymentsVisible && money.contracts.length > 0
   const waiting = money.open.filter((n) => n.pendingId !== null)
   const validity = validityOf(waiting)
-  const quoting = quotingLine(waiting, resolveKind)
+  const quoting = quotingLine(waiting, resolveKind, lang, t)
 
   const quoted = waiting.length > 0
   const top = collecting || quoted
 
   return (
-    <GlassCard role="group" aria-label="Tiền của cơ hội" className="flex flex-col gap-6 p-5 sm:p-6">
+    <GlassCard
+      role="group"
+      aria-label={t(message('Tiền của cơ hội', 'Money of this opportunity', '기회 금액'))}
+      className="flex flex-col gap-6 p-5 sm:p-6"
+    >
       {top && (
         <div
           className={cn(
@@ -43,24 +49,16 @@ export function MoneyStrip({ op, onEdit }: { op: OpportunityProfileResponse; onE
         >
           {collecting && (
             <Tile
-              label="Còn phải thu"
+              label={t(message('Còn phải thu', 'Outstanding', '미수금'))}
               value={text(totals.outstanding)}
               large
               className="sm:col-span-2 lg:col-span-1"
             >
               {totals.overdue.count > 0 && (
-                <span className="text-destructive-foreground">
-                  Quá hạn {text(totals.overdue.amount)} · {totals.overdue.count} đợt · trễ nhất{' '}
-                  {totals.overdue.maxDaysLate} ngày
-                </span>
+                <span className="text-destructive-foreground">{overdueNote(totals, text, t)}</span>
               )}
               {totals.notYetDue.count > 0 && (
-                <span className="text-muted-foreground">
-                  Chưa đến hạn {text(totals.notYetDue.amount)} ·{' '}
-                  {totals.notYetDue.nearestDays === 0
-                    ? 'gần nhất đến hạn hôm nay'
-                    : `gần nhất còn ${totals.notYetDue.nearestDays} ngày`}
-                </span>
+                <span className="text-muted-foreground">{notDueNote(totals, text, t)}</span>
               )}
               {totals.signed > 0 && (
                 <span className="bg-surface-ink/12 flex h-2 overflow-hidden rounded-sm" aria-hidden>
@@ -77,41 +75,53 @@ export function MoneyStrip({ op, onEdit }: { op: OpportunityProfileResponse; onE
             </Tile>
           )}
           {collecting && (
-            <Tile label="Đã thu" value={text(totals.collected)}>
+            <Tile
+              label={t(message('Đã thu', 'Collected', '수금액'))}
+              value={text(totals.collected)}
+            >
               {totals.collectedShare !== null && (
                 <span className="text-muted-foreground">
-                  {totals.collectedShare}% · {totals.installments.paid} /{' '}
-                  {totals.installments.total} đợt
+                  {t(
+                    message(
+                      `${totals.collectedShare}% · ${totals.installments.paid} / ${totals.installments.total} đợt`,
+                      `${totals.collectedShare}% · ${totals.installments.paid} / ${totals.installments.total} payments`,
+                      `${totals.collectedShare}% · ${totals.installments.paid} / ${totals.installments.total}회`,
+                    ),
+                  )}
                 </span>
               )}
             </Tile>
           )}
           {collecting && (
-            <Tile label="Đã ký" value={text(totals.signed)}>
+            <Tile label={t(message('Đã ký', 'Signed', '계약 체결'))} value={text(totals.signed)}>
               {totals.contracts > 0 && (
-                <span className="text-muted-foreground">{totals.contracts} hợp đồng</span>
+                <span className="text-muted-foreground">
+                  {t(
+                    message(
+                      `${totals.contracts} hợp đồng`,
+                      `${totals.contracts} contracts`,
+                      `계약 ${totals.contracts}건`,
+                    ),
+                  )}
+                </span>
               )}
             </Tile>
           )}
           {quoted && (
-            <Tile label="Đang báo giá" value={text(totals.quoting)} large={!collecting}>
+            <Tile
+              label={t(message('Đang báo giá', 'Quoting', '견적 진행 중'))}
+              value={text(totals.quoting)}
+              large={!collecting}
+            >
               {quoting && <span className="text-muted-foreground">{quoting}</span>}
             </Tile>
           )}
           {!collecting && validity && (
             <Tile
-              label="Hiệu lực báo giá"
-              value={
-                validity.expired
-                  ? 'Hết hiệu lực'
-                  : validity.days === 0
-                    ? 'Hết hiệu lực hôm nay'
-                    : `còn ${validity.days} ngày`
-              }
+              label={t(message('Hiệu lực báo giá', 'Quotation validity', '견적서 유효기간'))}
+              value={validityValue(validity, t)}
             >
-              <span className="text-muted-foreground">
-                {validity.expired ? 'từ' : 'đến'} {dmy(validity.day)}
-              </span>
+              <span className="text-muted-foreground">{validityDay(validity, t)}</span>
             </Tile>
           )}
         </div>
@@ -120,7 +130,11 @@ export function MoneyStrip({ op, onEdit }: { op: OpportunityProfileResponse; onE
       {top && <Separator />}
       <EstimateRow
         op={op}
-        label={collecting ? 'Đã ký so với dự kiến' : 'Đang báo giá so với dự kiến'}
+        label={t(
+          collecting
+            ? message('Đã ký so với dự kiến', 'Signed vs. estimate', '체결 대비 예상')
+            : message('Đang báo giá so với dự kiến', 'Quoting vs. estimate', '견적 대비 예상'),
+        )}
         shown={collecting ? totals.signed : totals.quoting}
         onEdit={onEdit}
       />
@@ -128,15 +142,79 @@ export function MoneyStrip({ op, onEdit }: { op: OpportunityProfileResponse; onE
   )
 }
 
+type Totals = OpportunityProfileResponse['money']['totals']
+type Say = (copy: Message) => string
+type Validity = NonNullable<ReturnType<typeof validityOf>>
+
+function overdueNote(totals: Totals, text: (amount: number) => string, t: Say) {
+  const { amount, count, maxDaysLate } = totals.overdue
+  return t(
+    message(
+      `Quá hạn ${text(amount)} · ${count} đợt · trễ nhất ${maxDaysLate} ngày`,
+      `Overdue ${text(amount)} · ${count} installments · up to ${maxDaysLate} days late`,
+      `기한 초과 ${text(amount)} · 납부 회차 ${count}개 · 최대 ${maxDaysLate}일 지연`,
+    ),
+  )
+}
+
+function notDueNote(totals: Totals, text: (amount: number) => string, t: Say) {
+  const { amount, nearestDays } = totals.notYetDue
+  return t(
+    nearestDays === 0
+      ? message(
+          `Chưa đến hạn ${text(amount)} · gần nhất đến hạn hôm nay`,
+          `Not yet due ${text(amount)} · next one due today`,
+          `기한 전 ${text(amount)} · 가장 가까운 건은 오늘 기한`,
+        )
+      : message(
+          `Chưa đến hạn ${text(amount)} · gần nhất còn ${nearestDays} ngày`,
+          `Not yet due ${text(amount)} · next one in ${nearestDays} days`,
+          `기한 전 ${text(amount)} · 가장 가까운 건은 ${nearestDays}일 남음`,
+        ),
+  )
+}
+
+function validityValue(validity: Validity, t: Say) {
+  if (validity.expired) return t(message('Hết hiệu lực', 'Expired', '만료됨'))
+  if (validity.days === 0) return t(message('Hết hiệu lực hôm nay', 'Expires today', '오늘 만료'))
+  return t(
+    message(`còn ${validity.days} ngày`, `${validity.days} days left`, `${validity.days}일 남음`),
+  )
+}
+
+function validityDay(validity: Validity, t: Say) {
+  const day = dmy(validity.day)
+  return t(
+    validity.expired
+      ? message(`từ ${day}`, `since ${day}`, `${day}부터`)
+      : message(`đến ${day}`, `until ${day}`, `${day}까지`),
+  )
+}
+
 /** One quote reads kind and round; several read as a count. */
 function quotingLine(
   waiting: OpportunityMoneyNegotiation[],
   resolveKind: (code: string) => string,
+  lang: Lang,
+  t: (copy: Message) => string,
 ): string | null {
   const only = waiting.length === 1 ? waiting[0] : undefined
-  if (!only) return waiting.length === 0 ? null : `${waiting.length} báo giá đang chờ`
+  if (!only) {
+    return waiting.length === 0
+      ? null
+      : t(
+          message(
+            `${waiting.length} báo giá đang chờ`,
+            `${waiting.length} quotations waiting`,
+            `견적서 ${waiting.length}건 대기 중`,
+          ),
+        )
+  }
   const round = only.rounds.find((r) => r.id === only.pendingId)
-  return [kindLabel(only.kind, resolveKind), round && `lần ${round.roundNo}`]
+  return [
+    kindLabel(only.kind, resolveKind, lang),
+    round && t(message(`lần ${round.roundNo}`, `round ${round.roundNo}`, `${round.roundNo}차`)),
+  ]
     .filter(Boolean)
     .join(' · ')
 }

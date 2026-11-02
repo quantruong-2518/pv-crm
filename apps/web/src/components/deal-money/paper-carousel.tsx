@@ -1,5 +1,6 @@
 import { useRef, type ReactNode } from 'react'
 import { Button, ChevronLeft, ChevronRight, Icon, cn } from '@pv/ui'
+import { message, useI18n } from '@/app/i18n'
 
 /** A row of selectable cards that scrolls sideways, with a heading, an "i / n"
  *  counter and prev/next buttons. Built generic so it can move to `@pv/ui`
@@ -36,6 +37,7 @@ export function PaperCarousel({
   selectedKey: string | undefined
   onSelect: (key: string) => void
 }) {
+  const { t } = useI18n()
   const scroller = useRef<HTMLDivElement>(null)
   const at = Math.max(
     items.findIndex((i) => i.key === selectedKey),
@@ -65,7 +67,7 @@ export function PaperCarousel({
             <Button
               size="md"
               variant="ghost"
-              aria-label="Hợp đồng trước"
+              aria-label={t(message('Hợp đồng trước', 'Previous contract', '이전 계약'))}
               className="pointer-coarse:size-12 size-10 px-0"
               disabled={at === 0}
               onClick={() => go(-1)}
@@ -75,7 +77,7 @@ export function PaperCarousel({
             <Button
               size="md"
               variant="ghost"
-              aria-label="Hợp đồng sau"
+              aria-label={t(message('Hợp đồng sau', 'Next contract', '다음 계약'))}
               className="pointer-coarse:size-12 size-10 px-0"
               disabled={at === items.length - 1}
               onClick={() => go(1)}

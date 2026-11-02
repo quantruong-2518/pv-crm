@@ -24,7 +24,12 @@ import {
 } from '@/data/contracts'
 import { InstallmentModal, type ModalInstallment } from '@/components/deal-money/installment-modal'
 import { ContractInside } from '@/components/contract-inside'
-import { MAIL_BLOCKED, contractChain, hasInside, useContractRun } from '@/components/contract-run'
+import {
+  mailBlockedText,
+  contractChain,
+  hasInside,
+  useContractRun,
+} from '@/components/contract-run'
 import { LetterComposer } from '@/components/mail-letter/letter-composer'
 import { ActionBar, type BarContact } from '@/components/record/action-bar'
 import { RecordCard } from '@/components/record/record-card'
@@ -87,7 +92,7 @@ function ContractScreen({ contract }: { contract: Contract }) {
   const navigate = useNavigate()
   const run = useContractRun(contract)
   const [composing, setComposing] = useState<{ to: string | null } | null>(null)
-  const mailBlocked = useCan('lead.send-email') ? undefined : MAIL_BLOCKED
+  const mailBlocked = useCan('lead.send-email') ? undefined : mailBlockedText(lang)
   const canRecord = useCan('comm.view')
   /* Only an explicit `false` shuts the doors: an API one deploy behind sends none. */
   const readOnly = contract.canEdit === false

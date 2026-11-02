@@ -5,6 +5,7 @@ import {
   type ConfigProposal,
   type LeadMotion,
 } from '@pv/contracts'
+import { message } from '@/app/i18n'
 import type { ConfigEdit, LadderRow } from '@/data/sales-config'
 
 /** A whole number of days, at least one. Zero is refused here although the
@@ -50,60 +51,54 @@ export const byOrd = (a: ConfigEntry, b: ConfigEntry) => a.ord - b.ord
 export const CONFIG_AREAS = [
   {
     key: 'frame',
-    label: 'Khung hành trình',
     step: null,
     sections: [
-      { id: 'step-frame', no: '5.14', title: 'Bước tiếp theo theo từng trạng thái' },
-      { id: 'tier-limits', no: '5.5', title: 'Hạn từng bậc lead' },
+      { id: 'step-frame', no: '5.14' },
+      { id: 'tier-limits', no: '5.5' },
     ],
   },
   {
     key: 'intake',
-    label: 'Tiếp nhận lead',
     step: 1,
-    sections: [{ id: 'motions', no: '5.13', title: 'Phương án tiếp cận' }],
+    sections: [{ id: 'motions', no: '5.13' }],
   },
   {
     key: 'assign',
-    label: 'Phân công',
     step: 2,
     sections: [
-      { id: 'motion-policy', no: '5.9', title: 'Hạn liên hệ lần đầu' },
-      { id: 'industries', no: '5.20', title: 'Nhóm ngành và ngành' },
+      { id: 'motion-policy', no: '5.9' },
+      { id: 'industries', no: '5.20' },
     ],
   },
   {
     key: 'care',
-    label: 'Chăm sóc và liên hệ',
     step: 3,
     sections: [
-      { id: 'stop-reasons', no: '5.4', title: 'Lý do dừng chăm sóc' },
-      { id: 'waiting-labels', no: '5.4e', title: 'Nhãn nhóm chờ' },
-      { id: 'comm-criteria', no: '5.10', title: 'Câu hỏi đánh giá liên hệ' },
-      { id: 'step-kinds', no: '5.11', title: 'Loại bước tiếp theo' },
-      { id: 'recare-cycles', no: '5.19', title: 'Kỳ chăm sóc khách đã mua' },
+      { id: 'stop-reasons', no: '5.4' },
+      { id: 'waiting-labels', no: '5.4e' },
+      { id: 'comm-criteria', no: '5.10' },
+      { id: 'step-kinds', no: '5.11' },
+      { id: 'recare-cycles', no: '5.19' },
     ],
   },
   {
     key: 'deal',
-    label: 'Cơ hội',
     step: 4,
     sections: [
-      { id: 'freshness', no: '5.12', title: 'Hoạt động cuối' },
-      { id: 'care-reasons', no: '5.4b', title: 'Lý do dừng cơ hội' },
-      { id: 'quote-reasons', no: '5.4d', title: 'Lý do báo giá lại' },
-      { id: 'products', no: '5.4c', title: 'Sản phẩm/dịch vụ' },
-      { id: 'contract-kinds', no: '5.15', title: 'Loại hợp đồng' },
+      { id: 'freshness', no: '5.12' },
+      { id: 'care-reasons', no: '5.4b' },
+      { id: 'quote-reasons', no: '5.4d' },
+      { id: 'products', no: '5.4c' },
+      { id: 'contract-kinds', no: '5.15' },
     ],
   },
   {
     key: 'kpi',
-    label: 'KPI',
     step: null,
     sections: [
-      { id: 'kpi-metrics', no: '5.16', title: 'Chỉ số theo vai trò' },
-      { id: 'kpi-alert', no: '5.17', title: 'Ngưỡng cảnh báo' },
-      { id: 'kpi-teams', no: '5.18', title: 'Phòng ban & nhóm' },
+      { id: 'kpi-metrics', no: '5.16' },
+      { id: 'kpi-alert', no: '5.17' },
+      { id: 'kpi-teams', no: '5.18' },
     ],
   },
 ] as const
@@ -141,7 +136,7 @@ export function scrollToSection(id: SectionId) {
 }
 
 /** The head of every note about the reader's own change still waiting. */
-export const WAITING = 'Đang chờ duyệt'
+export const WAITING = message('Đang chờ duyệt', 'Awaiting approval', '승인 대기 중')
 
 /** A catalog entry's waiting edits, in the approver's own sentence, or null
  *  when none waits. */

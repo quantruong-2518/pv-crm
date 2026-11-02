@@ -20,7 +20,7 @@ const METRIC: Record<KpiMetricKey, Message> = {
     'Signed value from sourced leads',
     '유입 리드 계약 금액',
   ),
-  'opportunities-opened': message('Cơ hội đã mở', 'Opportunities opened', '생성된 영업 기회'),
+  'opportunities-opened': message('Cơ hội đã mở', 'Opportunities opened', '생성된 기회'),
   'first-response-hours': message(
     'Thời gian phản hồi lead đầu tiên',
     'First lead response time',
@@ -29,7 +29,7 @@ const METRIC: Record<KpiMetricKey, Message> = {
   'opportunity-accept-rate': message(
     'Tỷ lệ cơ hội được nhận',
     'Opportunity acceptance rate',
-    '영업 기회 수락률',
+    '기회 수락률',
   ),
   'demos-joined': message('Buổi demo đã tham gia', 'Demos attended', '참석한 데모'),
   'signed-value': message('Giá trị hợp đồng đã ký', 'Signed contract value', '체결 계약 금액'),
@@ -39,7 +39,7 @@ const METRIC: Record<KpiMetricKey, Message> = {
   'accept-lag-days': message(
     'Thời gian nhận cơ hội',
     'Opportunity acceptance time',
-    '영업 기회 수락 소요 시간',
+    '기회 수락 소요 시간',
   ),
   'collected-value': message('Tiền đã thu', 'Collected value', '수금액'),
   'approval-turnaround-hours': message(

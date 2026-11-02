@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Avatar, AvatarGroup, cn } from '@pv/ui'
+import { message, translate, useI18n, type Lang } from '@/app/i18n'
 import { dmy } from '@/lib/date'
 
 /** The cells every paged book draws the same way: who holds the row, a day,
@@ -22,8 +23,10 @@ export function Missing({ why }: { why: string }) {
 const shownOf = (p: Pic) => p.name ?? p.email ?? ''
 
 /** One person as the tooltip lists them: role, name, then the primary mark. */
-const lineOf = (p: Pic) =>
-  `${p.role ? `${p.role}: ` : ''}${shownOf(p)}${p.primary ? ' (chính)' : ''}`
+const PRIMARY_MARK = message(' (chính)', ' (primary)', ' (주요)')
+
+const lineOf = (p: Pic, lang: Lang) =>
+  `${p.role ? `${p.role}: ` : ''}${shownOf(p)}${p.primary ? translate(PRIMARY_MARK, lang) : ''}`
 
 /** Who holds the row: avatar AND name, because a hover tooltip never opens
  *  under a finger. Several people print the primary's name and "+N"; the
@@ -44,6 +47,7 @@ export function PicCell({
   /** Assign / claim buttons; stopping the row's click is the caller's job. */
   action?: ReactNode
 }) {
+  const { lang } = useI18n()
   /* Stable sort: the primary leads, everyone else keeps the caller's order. */
   const ordered = people
     .filter((p) => p.name || p.email)
@@ -55,7 +59,7 @@ export function PicCell({
   const said =
     rest.length === 0
       ? [first.name, first.role, first.email].filter(Boolean).join(' · ')
-      : ordered.map(lineOf).join(' · ')
+      : ordered.map((p) => lineOf(p, lang)).join(' · ')
 
   return (
     <span className="flex min-w-0 items-center gap-2">

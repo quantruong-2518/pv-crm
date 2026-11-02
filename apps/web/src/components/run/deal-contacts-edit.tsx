@@ -9,6 +9,7 @@ import type {
   OpportunityProfileResponse,
 } from '@pv/contracts'
 import { userMessage } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import { leadContactsQuery } from '@/data/contacts'
 import { useSaveDealContacts } from '@/data/opportunities-write'
@@ -33,6 +34,7 @@ export function ContactsEditDrawer({
   open: boolean
   onClose: () => void
 }) {
+  const { t } = useI18n()
   const navigate = useNavigate()
   const save = useSaveDealContacts(op.code)
   const { data: leadPeople } = useQuery({ ...leadContactsQuery(op.leadCode), enabled: open })
@@ -62,14 +64,37 @@ export function ContactsEditDrawer({
   const refusal = op.acts.editDetails.ok ? null : op.acts.editDetails.reason
   const line = save.error
     ? userMessage(save.error)
-    : (refusal ?? (bare ? 'Chọn ít nhất một người liên hệ.' : 'Đúng một người là liên hệ chính.'))
+    : (refusal ??
+      (bare
+        ? t(
+            message(
+              'Chọn ít nhất một người liên hệ.',
+              'Choose at least one contact.',
+              '연락처를 한 명 이상 선택하세요.',
+            ),
+          )
+        : t(
+            message(
+              'Đúng một người là liên hệ chính.',
+              'Exactly one contact must be the primary one.',
+              '주 연락처는 정확히 한 명이어야 합니다.',
+            ),
+          )))
 
   const submit = () =>
     save.mutate(
       { contacts: picks },
       {
         onSuccess: () => {
-          toastDone(`Đã lưu người liên hệ của ${op.code}.`)
+          toastDone(
+            t(
+              message(
+                `Đã lưu người liên hệ của ${op.code}.`,
+                `Saved the contacts of ${op.code}.`,
+                `${op.code}의 연락처를 저장했습니다.`,
+              ),
+            ),
+          )
           onClose()
         },
       },
@@ -79,7 +104,7 @@ export function ContactsEditDrawer({
     <Drawer
       open={open}
       onClose={onClose}
-      title="Sửa người liên hệ"
+      title={t(message('Sửa người liên hệ', 'Edit contacts', '연락처 수정'))}
       subtitle={
         <>
           <span className="font-mono">{op.code}</span> · {op.account}
@@ -101,7 +126,7 @@ export function ContactsEditDrawer({
           <div className="flex shrink-0 gap-2">
             <Button size="lg" variant="ghost" disabled={save.isPending} onClick={onClose}>
               <Icon icon={X} size={16} />
-              Huỷ
+              {t(message('Huỷ', 'Cancel', '취소'))}
             </Button>
             <Button
               size="lg"
@@ -109,7 +134,9 @@ export function ContactsEditDrawer({
               onClick={submit}
             >
               <Icon icon={Save} size={16} />
-              {save.isPending ? 'Đang lưu…' : 'Lưu'}
+              {save.isPending
+                ? t(message('Đang lưu…', 'Saving…', '저장 중…'))
+                : t(message('Lưu', 'Save', '저장'))}
             </Button>
           </div>
         </div>

@@ -38,50 +38,50 @@ export function campaignColumns(
   },
   lang: Lang,
 ): TableColumn[] {
-  const t = (vi: string, en: string, ko: string) => translate(message(vi, en, ko), lang)
+  const m = (vi: string, en: string, ko: string) => translate(message(vi, en, ko), lang)
   return [
     {
-      header: t('Chiến dịch', 'Campaign', '캠페인'),
+      header: m('Chiến dịch', 'Campaign', '캠페인'),
       width: COL.name,
       sortKey: 'name',
       filter: filters.source,
     },
-    { header: t('Trạng thái', 'Status', '상태'), width: COL.status },
+    { header: m('Trạng thái', 'Status', '상태'), width: COL.status },
     {
-      header: t('Số người nhận', 'Recipients', '수신자'),
+      header: m('Số người nhận', 'Recipients', '수신자'),
       width: COL.status,
       align: 'right',
       sortKey: 'audienceCount',
     },
     {
-      header: t('Số đợt đã gửi', 'Mail runs', '발송 횟수'),
+      header: m('Số đợt đã gửi', 'Waves sent', '발송한 웨이브'),
       width: COL.status,
       align: 'right',
       sortKey: 'waveCount',
     },
     {
-      header: t('Số thư đã gửi', 'Emails sent', '발송한 이메일'),
+      header: m('Số thư đã gửi', 'Emails sent', '발송한 이메일'),
       width: COL.status,
       align: 'right',
     },
     {
-      header: t('Tỉ lệ thư đến nơi', 'Delivery rate', '전달률'),
+      header: m('Tỉ lệ thư đến nơi', 'Delivery rate', '전달률'),
       width: COL.status,
       align: 'right',
     },
-    { header: t('Tỉ lệ bấm link', 'Click rate', '클릭률'), width: COL.status, align: 'right' },
+    { header: m('Tỉ lệ bấm link', 'Click rate', '클릭률'), width: COL.status, align: 'right' },
     {
-      header: t('Ngày tạo', 'Created', '생성일'),
+      header: m('Ngày tạo', 'Created', '생성일'),
       width: COL.date,
       sortKey: 'createdAt',
       filter: filters.created,
     },
-    { header: t('Người phụ trách', 'Owner', '담당자'), width: COL.person, filter: filters.owner },
+    { header: m('Người phụ trách', 'Owner', '담당자'), width: COL.person, filter: filters.owner },
   ]
 }
 
 export function campaignCells(c: CampaignBookRow, lang: Lang) {
-  const t = (vi: string, en: string, ko: string) => translate(message(vi, en, ko), lang)
+  const m = (vi: string, en: string, ko: string) => translate(message(vi, en, ko), lang)
   /* Scheduled-only waves have sent nothing: still an absence, not a zero. */
   const totals = c.waveTotals && c.waveTotals.sent > 0 ? c.waveTotals : undefined
   const lastWaveAt = c.waveTotals?.lastWaveAt
@@ -94,7 +94,7 @@ export function campaignCells(c: CampaignBookRow, lang: Lang) {
         </span>
         <span className={MUTED_LINE}>
           <CodeCell code={c.code} /> ·{' '}
-          {c.sourceName ?? t('chưa gán nguồn dẫn', 'No source assigned', '유입 경로 없음')}
+          {c.sourceName ?? m('chưa gán nguồn dẫn', 'No source assigned', '유입 경로 없음')}
         </span>
       </div>
     </div>,
@@ -104,38 +104,38 @@ export function campaignCells(c: CampaignBookRow, lang: Lang) {
     c.audienceCount > 0 ? (
       figure('a', count(c.audienceCount, lang))
     ) : (
-      <Missing key="a" why={t('Chưa có người nhận', 'No recipients yet', '수신자 없음')} />
+      <Missing key="a" why={m('Chưa có người nhận', 'No recipients yet', '수신자 없음')} />
     ),
     c.waveCount > 0 ? (
       figure(
         'w',
         count(c.waveCount, lang),
         lastWaveAt &&
-          t(
+          m(
             `Đợt cuối gửi ngày ${dm(lastWaveAt)}`,
             `Last sent ${dm(lastWaveAt)}`,
             `${dm(lastWaveAt)}에 마지막 발송`,
           ),
       )
     ) : (
-      <Missing key="w" why={t('Chưa gửi đợt nào', 'No mail runs yet', '발송 내역 없음')} />
+      <Missing key="w" why={m('Chưa gửi đợt nào', 'No waves sent yet', '발송한 웨이브 없음')} />
     ),
     totals ? (
       figure('m', count(totals.sent, lang))
     ) : (
-      <Missing key="m" why={t('Chưa gửi thư nào', 'No emails sent yet', '발송한 이메일 없음')} />
+      <Missing key="m" why={m('Chưa gửi thư nào', 'No emails sent yet', '발송한 이메일 없음')} />
     ),
     totals ? (
       figure(
         'r',
         shareOf(totals.delivered, totals.sent),
-        t(
+        m(
           `${count(totals.delivered, lang)} trên ${count(totals.sent, lang)} thư đến hộp thư`,
           `${count(totals.delivered, lang)} of ${count(totals.sent, lang)} emails delivered`,
           `${count(totals.sent, lang)}개 중 ${count(totals.delivered, lang)}개 전달`,
         ) +
           (totals.bounced > 0
-            ? t(
+            ? m(
                 ` · ${count(totals.bounced, lang)} thư bị trả lại`,
                 ` · ${count(totals.bounced, lang)} bounced`,
                 ` · 반송 ${count(totals.bounced, lang)}개`,
@@ -144,30 +144,30 @@ export function campaignCells(c: CampaignBookRow, lang: Lang) {
         totals.bounced > 0,
       )
     ) : (
-      <Missing key="r" why={t('Chưa gửi thư nào', 'No emails sent yet', '발송한 이메일 없음')} />
+      <Missing key="r" why={m('Chưa gửi thư nào', 'No emails sent yet', '발송한 이메일 없음')} />
     ),
     totals ? (
       figure(
         'c',
         shareOf(totals.clicked, totals.delivered),
-        t(
+        m(
           `${count(totals.clicked, lang)} trên ${count(totals.delivered, lang)} thư đến nơi có bấm link`,
           `${count(totals.clicked, lang)} of ${count(totals.delivered, lang)} delivered emails had a link click`,
           `전달된 이메일 ${count(totals.delivered, lang)}개 중 ${count(totals.clicked, lang)}개에서 링크 클릭`,
         ),
       )
     ) : (
-      <Missing key="c" why={t('Chưa gửi thư nào', 'No emails sent yet', '발송한 이메일 없음')} />
+      <Missing key="c" why={m('Chưa gửi thư nào', 'No emails sent yet', '발송한 이메일 없음')} />
     ),
     <DateCell
       key="d"
       day={c.createdAt}
-      empty={t('Chưa ghi nhận ngày tạo', 'No creation date', '생성일 없음')}
+      empty={m('Chưa ghi nhận ngày tạo', 'No creation date', '생성일 없음')}
     />,
     <PicCell
       key="o"
       people={[{ id: c.ownerId, name: c.ownerName, email: c.ownerEmail }]}
-      empty={t(NO_OWNER, 'No owner', '담당자 없음')}
+      empty={m(NO_OWNER, 'No owner', '담당자 없음')}
     />,
   ]
 }

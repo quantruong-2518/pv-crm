@@ -1,9 +1,11 @@
 import { useSearchParams } from 'react-router-dom'
 import { AppShell, ScreenLayout, SegmentedControl } from '@pv/ui'
 import { useAppChrome } from '@/app/chrome'
+import { useI18n } from '@/app/i18n'
+import { NURTURING_COPY as COPY } from '@/data/nurturing-copy'
 import { RecareBook } from './nurturing-leads'
 import { StopLogBook } from './nurturing-log'
-import { NURTURE_TABS, NURTURE_TAB_LABEL, type NurtureTab } from './nurturing-model'
+import { NURTURE_TABS, type NurtureTab } from './nurturing-model'
 
 /** The stopped-customers page — `/sales/nurturing` (ADR 0109, 0125): the parked leads to
  *  contact again, and the log of every stop decision. The tab lives in the
@@ -15,17 +17,18 @@ import { NURTURE_TABS, NURTURE_TAB_LABEL, type NurtureTab } from './nurturing-mo
  *  objects has no one story to chain. */
 
 export function NurturingPage() {
-  const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
+  const { t } = useI18n()
+  const chrome = useAppChrome({ searchPlaceholder: t(COPY.chromeSearch) })
   const [params, setParams] = useSearchParams()
   const asked = params.get('tab')
-  const tab: NurtureTab = NURTURE_TABS.find((t) => t === asked) ?? 'recare'
+  const tab: NurtureTab = NURTURE_TABS.find((name) => name === asked) ?? 'recare'
 
   const nav = (
     <SegmentedControl
-      label="Mục"
+      label={t(COPY.sections)}
       hideLabel
       value={tab}
-      options={NURTURE_TABS.map((t) => ({ value: t, label: NURTURE_TAB_LABEL[t] }))}
+      options={NURTURE_TABS.map((name) => ({ value: name, label: t(COPY.tabs[name]) }))}
       onChange={(value) => setParams({ tab: value })}
     />
   )

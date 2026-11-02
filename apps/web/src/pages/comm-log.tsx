@@ -11,7 +11,7 @@ import {
 } from '@pv/contracts'
 import { isApiError } from '@/app/api'
 import { useAppChrome } from '@/app/chrome'
-import { message, useI18n } from '@/app/i18n'
+import { message, translate, useI18n } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import { dmhm } from '@/lib/date'
 import { CommEvaluation } from '@/components/comm-evaluation'
@@ -63,7 +63,7 @@ export function CommLogPage() {
       message(
         'Tìm khách hàng, cơ hội, báo giá, hồ sơ…',
         'Search accounts, opportunities, quotes, and profiles…',
-        '고객사, 영업 기회, 견적 및 프로필 검색…',
+        '고객사, 기회, 견적 및 프로필 검색…',
       ),
     ),
   })
@@ -118,14 +118,14 @@ export function CommLogPage() {
         {step > 1 && ws ? (
           <StepDone
             no={1}
-            label={t(message('Lượt bán', 'Sales workstream', '영업 건'))}
+            label={t(message('Lượt bán', 'Workstream', '영업 건'))}
             value={`${ws.code} · ${ws.customer} · ${subjectKindLabel(subjectCode)} ${subjectCode}`}
             onEdit={() => setStep(1)}
           />
         ) : (
           <StepCard
             no={1}
-            title={t(message('Chọn lượt bán', 'Choose a sales workstream', '영업 건 선택'))}
+            title={t(message('Chọn lượt bán', 'Choose a workstream', '영업 건 선택'))}
           >
             <PickWorkstream
               onPick={(picked) => {
@@ -202,16 +202,16 @@ export default CommLogPage
 
 /** The content is the comm's summary, so it carries the summary's cap. */
 function contentBlockerOf(text: string, lang: ReturnType<typeof useI18n>['lang']): string | null {
-  const t = (vi: string, en: string, ko: string) => ({ vi, en, ko })[lang]
+  const m = (vi: string, en: string, ko: string) => ({ vi, en, ko })[lang]
   const length = text.trim().length
   if (length === 0)
-    return t(
+    return m(
       'Chưa ghi nội dung trao đổi.',
       'Add interaction details before continuing.',
       '계속하기 전에 연락 내용을 입력하세요.',
     )
   return length > DEBRIEF_SUMMARY_MAX
-    ? t(
+    ? m(
         `Nội dung dài ${length.toLocaleString('vi-VN')} ký tự, tối đa ${DEBRIEF_SUMMARY_MAX.toLocaleString('vi-VN')} ký tự. Rút gọn lại.`,
         `This is ${length.toLocaleString('en-US')} characters. The limit is ${DEBRIEF_SUMMARY_MAX.toLocaleString('en-US')}. Shorten it to continue.`,
         `내용이 ${length.toLocaleString('ko-KR')}자입니다. 최대 ${DEBRIEF_SUMMARY_MAX.toLocaleString('ko-KR')}자까지 입력할 수 있습니다. 줄여 주세요.`,
@@ -395,7 +395,17 @@ function useSaveLog() {
       await confirm.mutateAsync({ id, body })
       onDone(id)
     } catch (error) {
-      setFailure(isApiError(error) ? commCreateFailure(error) : 'Không lưu được. Thử lại.')
+      setFailure(
+        isApiError(error)
+          ? commCreateFailure(error)
+          : translate(
+              message(
+                'Không lưu được. Thử lại.',
+                'Could not save. Try again.',
+                '저장하지 못했습니다. 다시 시도해 주세요.',
+              ),
+            ),
+      )
     } finally {
       setBusy(false)
     }

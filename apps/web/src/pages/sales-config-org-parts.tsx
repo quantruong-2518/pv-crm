@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Avatar, Button, ChevronRight, GlassCard, Icon, cn } from '@pv/ui'
 import type { OrgPerson, OrgTreeResponse, OrgUnit } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 import {
   HEAD_LABEL,
   KIND_LABEL,
@@ -16,6 +17,9 @@ import {
  *  per row (the owner's call on the canvas). Without `kpi.view-all` the units
  *  above the reader's own arrive bare, so their head and count are not printed:
  *  "no head" there would be a statement nobody checked. */
+
+const peopleCount = (n: string) =>
+  message(`${n} người`, `${n} ${n === '1' ? 'person' : 'people'}`, `${n}명`)
 
 const INDENT = ['pl-4', 'pl-8', 'pl-12'] as const
 const NAME_TYPE = {
@@ -40,6 +44,7 @@ function UnitLine({
   /** On the accent tint, where muted ink takes its tinted pair. */
   on: boolean
 }) {
+  const { t, number } = useI18n()
   const { unit } = row
   const head = unit.headId ? names.get(unit.headId) : undefined
   return (
@@ -59,7 +64,7 @@ function UnitLine({
                   : 'text-warning',
             )}
           >
-            {head ?? noHead(unit.kind)}
+            {head ?? t(noHead(unit.kind))}
           </span>
         )}
       </span>
@@ -71,7 +76,7 @@ function UnitLine({
             on ? 'text-on-tint-primary-muted' : 'text-muted-foreground',
           )}
         >
-          {unit.memberIds.length} người
+          {t(peopleCount(number(unit.memberIds.length)))}
         </span>
       )}
     </>
@@ -98,9 +103,13 @@ export function TreePanel({
   selected: string
   onSelect: (id: string) => void
 }) {
+  const { t, number } = useI18n()
   return (
     <GlassCard variant="b" className="flex min-w-0 flex-col gap-1 self-start p-3">
-      <ul aria-label="Cây đơn vị" className="m-0 flex flex-col gap-1">
+      <ul
+        aria-label={t(message('Cây đơn vị', 'Unit tree', '조직도'))}
+        className="m-0 flex flex-col gap-1"
+      >
         {rows.map((row) => {
           const on = row.unit.id === selected
           return (
@@ -138,7 +147,9 @@ export function TreePanel({
             selected === UNPLACED ? 'bg-accent' : 'bg-surface-ink/5 hover:bg-surface-ink/8',
           )}
         >
-          <span className="flex-1 text-[13px] font-semibold">Chưa xếp đơn vị</span>
+          <span className="flex-1 text-[13px] font-semibold">
+            {t(message('Chưa xếp đơn vị', 'Unassigned', '미배정'))}
+          </span>
           <span
             className={cn(
               NOTE,
@@ -146,7 +157,7 @@ export function TreePanel({
               selected === UNPLACED ? 'text-on-tint-warning' : 'text-warning',
             )}
           >
-            {unplaced} người
+            {t(peopleCount(number(unplaced)))}
           </span>
         </button>
       )}
@@ -164,9 +175,13 @@ export function PhoneTree({
   names: Names
   seeAll: boolean
 }) {
+  const { t } = useI18n()
   return (
     <GlassCard variant="b" className="p-2">
-      <ul aria-label="Cây đơn vị" className="m-0 flex flex-col gap-1">
+      <ul
+        aria-label={t(message('Cây đơn vị', 'Unit tree', '조직도'))}
+        className="m-0 flex flex-col gap-1"
+      >
         {rows.map((row) => (
           <li key={row.unit.id} className={cn(ROW, indentOf(row.depth))}>
             <UnitLine
@@ -183,11 +198,12 @@ export function PhoneTree({
 }
 
 function Face({ person, trailing }: { person: OrgPerson; trailing?: ReactNode }) {
+  const { lang } = useI18n()
   return (
     <>
       <Avatar name={person.name} size="md" card={false} className="size-8" />
       <span className="min-w-0 flex-1 break-words text-[13px]">{person.name}</span>
-      <span className={cn(NOTE, 'text-muted-foreground')}>{rolesText(person)}</span>
+      <span className={cn(NOTE, 'text-muted-foreground')}>{rolesText(person, lang)}</span>
       {trailing}
     </>
   )
@@ -206,6 +222,7 @@ function People({
   canEdit: boolean
   onMove: (p: OrgPerson) => void
 }) {
+  const { t } = useI18n()
   return (
     <ul className="m-0 flex flex-col gap-1">
       {people.map((p) => (
@@ -213,7 +230,7 @@ function People({
           {canEdit ? (
             <button
               type="button"
-              aria-label={`Chuyển ${p.name}`}
+              aria-label={t(message(`Chuyển ${p.name}`, `Move ${p.name}`, `${p.name} 이동`))}
               onClick={() => onMove(p)}
               className={cn(PERSON_ROW, 'motion-std hover:bg-surface-ink/8')}
             >
@@ -257,6 +274,7 @@ export function UnitPanel({
   canEdit: boolean
   actions: PanelActions
 }) {
+  const { t } = useI18n()
   const byId = new Map(tree.people.map((p) => [p.actorId, p]))
   const peopleOf = (ids: readonly string[]) =>
     ids.flatMap((id) => {
@@ -269,7 +287,8 @@ export function UnitPanel({
     return (
       <GlassCard variant="b" className="flex min-w-0 flex-col gap-4 p-5 lg:p-6">
         <h3 className="m-0 text-[16px] font-bold">
-          Chưa xếp đơn vị · <span className="tnum font-num">{people.length}</span>
+          {t(message('Chưa xếp đơn vị', 'Unassigned', '미배정'))} ·{' '}
+          <span className="tnum font-num">{people.length}</span>
         </h3>
         <People people={people} canEdit={canEdit} onMove={actions.onMove} />
       </GlassCard>
@@ -291,7 +310,7 @@ export function UnitPanel({
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <span className={cn(NOTE, 'text-muted-foreground')}>
-            {KIND_LABEL[unit.kind]}
+            {t(KIND_LABEL[unit.kind])}
             {parent && ` · ${parent.name}`}
           </span>
           <h3 className="m-0 break-words text-[16px] font-bold">{unit.name}</h3>
@@ -304,7 +323,7 @@ export function UnitPanel({
                 className="pointer-coarse:h-12"
                 onClick={() => actions.onRemove(unit)}
               >
-                Xoá
+                {t(message('Xoá', 'Delete', '삭제'))}
               </Button>
             )}
             <Button
@@ -312,15 +331,15 @@ export function UnitPanel({
               className="pointer-coarse:h-12"
               onClick={() => actions.onEdit(unit)}
             >
-              Sửa
+              {t(message('Sửa', 'Edit', '수정'))}
             </Button>
           </div>
         )}
       </div>
 
       {known && (
-        <section aria-label={HEAD_LABEL[unit.kind]} className="flex flex-col gap-2">
-          <h4 className={LABEL}>{HEAD_LABEL[unit.kind]}</h4>
+        <section aria-label={t(HEAD_LABEL[unit.kind])} className="flex flex-col gap-2">
+          <h4 className={LABEL}>{t(HEAD_LABEL[unit.kind])}</h4>
           <div className="bg-surface-ink/5 flex min-h-14 items-center gap-3 rounded-md px-3 py-2">
             {head ? (
               <>
@@ -330,7 +349,7 @@ export function UnitPanel({
                 </span>
               </>
             ) : (
-              <span className="text-warning flex-1 text-[13px]">{noHead(unit.kind)}</span>
+              <span className="text-warning flex-1 text-[13px]">{t(noHead(unit.kind))}</span>
             )}
             {canEdit && members.length > 0 && (
               <Button
@@ -339,7 +358,13 @@ export function UnitPanel({
                 className="pointer-coarse:h-12"
                 onClick={() => actions.onHead(unit)}
               >
-                Đổi {HEAD_LABEL[unit.kind].toLowerCase()}
+                {t(
+                  message(
+                    `Đổi ${HEAD_LABEL[unit.kind].vi.toLowerCase()}`,
+                    `Change ${HEAD_LABEL[unit.kind].en.toLowerCase()}`,
+                    `${HEAD_LABEL[unit.kind].ko} 변경`,
+                  ),
+                )}
               </Button>
             )}
           </div>
@@ -347,10 +372,14 @@ export function UnitPanel({
       )}
 
       {known && (
-        <section aria-label="Thành viên" className="flex flex-col gap-2">
+        <section
+          aria-label={t(message('Thành viên', 'Members', '구성원'))}
+          className="flex flex-col gap-2"
+        >
           <div className="flex items-center gap-2">
             <h4 className={cn(LABEL, 'flex-1')}>
-              Thành viên · <span className="tnum font-num">{members.length}</span>
+              {t(message('Thành viên', 'Members', '구성원'))} ·{' '}
+              <span className="tnum font-num">{members.length}</span>
             </h4>
             {canEdit && (
               <Button
@@ -359,7 +388,7 @@ export function UnitPanel({
                 className="pointer-coarse:h-12"
                 onClick={() => actions.onAdd(unit)}
               >
-                Thêm người
+                {t(message('Thêm người', 'Add person', '구성원 추가'))}
               </Button>
             )}
           </div>

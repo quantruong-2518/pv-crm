@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { X } from '@pv/ui'
 import { Button, GlassCard, Icon } from '@pv/ui'
+import { message, useI18n } from '@/app/i18n'
 import { useExpiryWarning } from './lifecycle'
 import { renewSession } from './renew'
 import { useSession } from './session'
@@ -45,6 +46,7 @@ function countdown(ms: number): string {
  *  còn gì để xin — bày một cái nút bấm vào là mất phiên ngay thì thà không bày,
  *  chỉ nói cho họ biết còn bao lâu mà lưu việc lại. */
 export function ExpiryWarning() {
+  const { t } = useI18n()
   const deadline = useExpiryWarning((s) => s.deadline)
   const ticket = useSession((s) => s.ticket)
   const [dismissed, setDismissed] = useState<number | null>(null)
@@ -69,17 +71,35 @@ export function ExpiryWarning() {
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-1">
             <p className="m-0 text-[12.5px] font-semibold">
-              Hết thời gian đăng nhập sau {countdown(deadline - now)}
+              {t(
+                message(
+                  `Hết thời gian đăng nhập sau ${countdown(deadline - now)}`,
+                  `Your session ends in ${countdown(deadline - now)}`,
+                  `${countdown(deadline - now)} 후 로그인 시간이 만료됩니다`,
+                ),
+              )}
             </p>
             <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.5]">
               {renewable
-                ? 'Không thao tác thì sẽ tự đăng xuất.'
-                : 'Hết ca làm việc. Lưu việc đang dở trước khi đăng nhập lại.'}
+                ? t(
+                    message(
+                      'Không thao tác thì sẽ tự đăng xuất.',
+                      'You will be signed out automatically if you do nothing.',
+                      '조작이 없으면 자동으로 로그아웃됩니다.',
+                    ),
+                  )
+                : t(
+                    message(
+                      'Hết ca làm việc. Lưu việc đang dở trước khi đăng nhập lại.',
+                      'Your shift has ended. Save your work in progress before signing in again.',
+                      '근무 시간이 끝났습니다. 다시 로그인하기 전에 작업 중인 내용을 저장하세요.',
+                    ),
+                  )}
             </p>
           </div>
           <button
             type="button"
-            aria-label="Ẩn nhắc này"
+            aria-label={t(message('Ẩn nhắc này', 'Dismiss this reminder', '이 알림 닫기'))}
             onClick={() => setDismissed(deadline)}
             className="motion-std text-muted-foreground hover:text-foreground hover:bg-surface-ink/9 -mr-1 flex size-8 shrink-0 items-center justify-center rounded-md"
           >
@@ -88,7 +108,7 @@ export function ExpiryWarning() {
         </div>
         {renewable && (
           <Button size="sm" onClick={() => void renewSession()}>
-            Gia hạn đăng nhập
+            {t(message('Gia hạn đăng nhập', 'Extend sign-in', '로그인 연장'))}
           </Button>
         )}
       </GlassCard>

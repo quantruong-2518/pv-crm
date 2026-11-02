@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Avatar, Badge, GlassCard, cn } from '@pv/ui'
 import {
-  KPI_METRIC_LABEL,
   kpiAssignmentDeadline,
   type KpiAssignmentChild,
   type KpiAssignmentPageResponse,
@@ -10,6 +9,8 @@ import {
   type KpiMetricKey,
 } from '@pv/contracts'
 import type { ApiError } from '@/app/api'
+import { message, translate, useI18n } from '@/app/i18n'
+import { kpiMetricText } from '@/data/kpi-i18n'
 import { FIELD_EDGE, StackTable, type StackColumn } from '@/components/stack-table'
 import { dm } from '@/lib/date'
 import { NOTE } from './home-tiles'
@@ -48,14 +49,21 @@ const SUM_TEXT = 'text-[14px] font-bold leading-5'
 
 /* On a card a field takes the full width, so the box is wide enough to type in. */
 const columnsOf = (defs: readonly KpiMetricDef[], editable: boolean): StackColumn[] => [
-  { header: 'Giao cho', width: `minmax(${WHO_WIDTH}px,1.4fr)` },
+  {
+    header: translate(message('Giao cho', 'Assign to', '배정 대상')),
+    width: `minmax(${WHO_WIDTH}px,1.4fr)`,
+  },
   ...defs.map((def) => ({
-    header: KPI_METRIC_LABEL[def.key],
+    header: kpiMetricText(def.key),
     width: `minmax(${FIGURE_WIDTH}px,1fr)`,
     align: 'right' as const,
     stack: editable ? ('wide' as const) : undefined,
   })),
-  { header: 'Trạng thái', width: `minmax(${STATE_WIDTH}px,0.8fr)`, align: 'right' as const },
+  {
+    header: translate(message('Trạng thái', 'Status', '상태')),
+    width: `minmax(${STATE_WIDTH}px,0.8fr)`,
+    align: 'right' as const,
+  },
 ]
 
 function WhoCell({
@@ -67,6 +75,7 @@ function WhoCell({
   period: string
   role: KpiAssignmentPageResponse['role']
 }) {
+  const { t } = useI18n()
   if (child.kind === 'person') {
     return (
       <span className="flex min-w-0 items-center gap-3">
@@ -84,7 +93,9 @@ function WhoCell({
       >
         <span className="truncate">{unit.name}</span>
       </Link>
-      <span className={NOTE}>{unit.head?.name ?? 'Chưa có trưởng đơn vị'}</span>
+      <span className={NOTE}>
+        {unit.head?.name ?? t(message('Chưa có trưởng đơn vị', 'No unit head', '단위 책임자 없음'))}
+      </span>
     </span>
   )
 }
@@ -96,7 +107,9 @@ function StateCell({ child, period }: { child: KpiAssignmentChild; period: strin
   }
   const label = UNIT_STATE_LABEL[child.state]
   const due =
-    child.state === 'not-sent' ? ` · hạn ${dm(kpiAssignmentDeadline(period, child.unit.kind))}` : ''
+    child.state === 'not-sent'
+      ? ` · ${translate(message('hạn', 'due', '기한'))} ${dm(kpiAssignmentDeadline(period, child.unit.kind))}`
+      : ''
   return <Badge tone={label.tone} className="tnum font-num">{`${label.text}${due}`}</Badge>
 }
 
@@ -144,6 +157,7 @@ export function ChildrenTable({
   errors: readonly (ApiError | null)[]
   onEdit: (key: string, text: string) => void
 }) {
+  const { t } = useI18n()
   const additive = additiveOf(defs)
   const word = receivedWord(page)
   const cell = (child: KpiAssignmentChild, def: KpiMetricDef) => {
@@ -154,12 +168,18 @@ export function ChildrenTable({
       <ValueCell
         key={def.key}
         def={def}
-        label={`${KPI_METRIC_LABEL[def.key]} giao ${name}`}
+        label={t(
+          message(
+            `${kpiMetricText(def.key)} giao ${name}`,
+            `${kpiMetricText(def.key)} assigned to ${name}`,
+            `${name}에게 배정된 ${kpiMetricText(def.key)}`,
+          ),
+        )}
         editable={editable}
         text={text}
         saved={saved.get(key) ?? null}
         {...lastReading(page.lastActualPeriod, child.lastActuals, def.key)}
-        onChange={(t) => onEdit(key, t)}
+        onChange={(typed) => onEdit(key, typed)}
       />
     )
   }
@@ -178,7 +198,9 @@ export function ChildrenTable({
             span: true,
             cells: [
               <span key="who" className={SUM_TEXT}>
-                Tổng giao / {word}
+                {t(
+                  message(`Tổng giao / ${word}`, `Assigned total / ${word}`, `배정 합계 / ${word}`),
+                )}
               </span>,
               ...additive.map(sumCell),
               null,
@@ -193,7 +215,15 @@ export function ChildrenTable({
       className={cn('flex min-w-0 flex-col gap-4 self-start py-4', FIELD_EDGE)}
     >
       {page.children.length === 0 ? (
-        <p className={cn(NOTE, 'px-5')}>Không có đơn vị hay người nào giữ vai trò này.</p>
+        <p className={cn(NOTE, 'px-5')}>
+          {t(
+            message(
+              'Không có đơn vị hay người nào giữ vai trò này.',
+              'No unit or person holds this role.',
+              '이 역할을 맡은 단위나 사람이 없습니다.',
+            ),
+          )}
+        </p>
       ) : (
         <StackTable
           from="lg"
@@ -215,7 +245,15 @@ export function ChildrenTable({
         />
       )}
       {editable && sums.some((s) => s.flag === 'below') && (
-        <p className={cn(NOTE, 'px-5')}>Tổng giao phải đủ {word} mới gửi được.</p>
+        <p className={cn(NOTE, 'px-5')}>
+          {t(
+            message(
+              `Tổng giao phải đủ ${word} mới gửi được.`,
+              `The assigned total must cover the ${word} before it can be sent.`,
+              `배정 합계가 ${word}을(를) 채워야 발송할 수 있습니다.`,
+            ),
+          )}
+        </p>
       )}
       {errors.some(Boolean) && (
         <div className="flex flex-col gap-1 px-5">

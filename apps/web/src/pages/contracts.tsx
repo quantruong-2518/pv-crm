@@ -15,7 +15,7 @@ import { ContractBookQuery, type ContractStatusFilter } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { useAppChrome } from '@/app/chrome'
-import { useI18n } from '@/app/i18n'
+import { message, useI18n } from '@/app/i18n'
 import { CONTRACT_COPY as COPY } from '@/data/contract-copy'
 import {
   CONTRACT_FILTER_KEYS,
@@ -60,9 +60,8 @@ function ContractScore() {
   const shortMoney = (value: number, unit: 'billion' | 'million') => {
     const divisor = unit === 'billion' ? 1_000_000_000 : 1_000_000
     const amount = number(value / divisor, { maximumFractionDigits: 1 })
-    if (lang === 'ko') return `${amount} ${unit === 'billion' ? '십억' : '백만'} ₫`
-    if (lang === 'en') return `${amount} ${unit === 'billion' ? 'bn' : 'm'} ₫`
-    return `${amount} ${unit === 'billion' ? 'tỷ' : 'triệu'} ₫`
+    const word = unit === 'billion' ? message('tỷ', 'bn', '십억') : message('triệu', 'm', '백만')
+    return `${amount} ${t(word)} ₫`
   }
   const contractCount =
     lang === 'ko' ? `계약 ${number(signedCount)}건` : `${number(signedCount)} ${t(COPY.bookCount)}`

@@ -6,9 +6,10 @@ import {
   type WaveChannel,
 } from '@pv/engines/fixtures/das-vina'
 import { dm, dmy } from '@/lib/date'
+import { formatNumber, getLang, message, translate, type Lang } from '@/app/i18n'
 import {
   DRAFT_STEP_DAYS,
-  DRAFT_TEMPLATE,
+  draftTemplate,
   EMPTY_GROUP,
   dayAfterToday,
   type DraftWave,
@@ -63,7 +64,7 @@ export const MAX_CHANNEL_TAGS = 3
 
 /** Số nguyên có dấu chấm ngăn nghìn (luật 6). `millions`/`percent` của @pv/ui lo
  *  phần tiền và tỉ lệ; số người nhận không thuộc hai loại đó. */
-export const grouped = (n: number) => n.toLocaleString('vi-VN')
+export const grouped = (n: number) => formatNumber(n)
 
 /** Kênh nguồn đã dùng, theo thứ tự đợt và không lặp. */
 export const channelsOf = (source: SourceRow): WaveChannel[] => [
@@ -109,7 +110,9 @@ export function nextWave(waves: DraftWave[]): DraftWave {
   const from = last && !last.sendNow ? daysFromToday(last.dateISO) : 0
 
   return {
-    label: `Đợt ${waves.length + 1}`,
+    label: translate(
+      message(`Đợt ${waves.length + 1}`, `Wave ${waves.length + 1}`, `웨이브 ${waves.length + 1}`),
+    ),
     channel: 'email',
     sendNow: waves.length === 0,
     dateISO: dayAfterToday(from + DRAFT_STEP_DAYS),
@@ -165,7 +168,7 @@ export function draftOf(source: SourceRow | null, withEmptyWave: boolean): Campa
     : {
         name: '',
         group: EMPTY_GROUP,
-        waves: DRAFT_TEMPLATE.waves,
+        waves: draftTemplate().waves,
         stopOnReply: true,
         stopAtLeads: 0,
       }
@@ -182,7 +185,8 @@ export function draftOf(source: SourceRow | null, withEmptyWave: boolean): Campa
  *  sổ không mang cùng một chữ. */
 export function duplicateOf(source: SourceRow): CampaignDraft {
   const base = draftOf(source, false)
-  return { ...base, name: `${source.label} — bản sao`, group: EMPTY_GROUP }
+  const suffix = translate(message('bản sao', 'copy', '사본'))
+  return { ...base, name: `${source.label} — ${suffix}`, group: EMPTY_GROUP }
 }
 
 /** Đợt này gửi lúc nào, viết thành chữ. Dùng ở form, ở thanh tóm tắt và ở chuỗi
@@ -191,5 +195,18 @@ export function duplicateOf(source: SourceRow): CampaignDraft {
  *  "Gửi ngay" KHÔNG có nghĩa là bấm phát đi liền: chiến dịch còn phải được bấm
  *  "Bắt đầu chạy" đã. Chữ trên màn phải nói đủ mệnh đề đó, nếu không người mới
  *  bấm Lưu nháp rồi ngồi đợi mail bay đi. */
-export const whenText = (w: DraftWave) =>
-  w.sendNow ? 'gửi ngay khi chiến dịch bắt đầu chạy' : `hẹn ${dmy(w.dateISO)} lúc ${w.time}`
+export const whenText = (w: DraftWave, lang: Lang = getLang()) =>
+  translate(
+    w.sendNow
+      ? message(
+          'gửi ngay khi chiến dịch bắt đầu chạy',
+          'sends as soon as the campaign starts running',
+          '캠페인이 시작되면 바로 발송',
+        )
+      : message(
+          `hẹn ${dmy(w.dateISO)} lúc ${w.time}`,
+          `scheduled ${dmy(w.dateISO)} at ${w.time}`,
+          `${dmy(w.dateISO)} ${w.time} 예약`,
+        ),
+    lang,
+  )

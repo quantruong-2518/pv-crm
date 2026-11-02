@@ -47,7 +47,7 @@ const seriesText = (key: SeriesKey, t: ReturnType<typeof useI18n>['t']) =>
       ? message('Lead vào sổ', 'Leads added', '등록된 리드')
       : key === 'firstContacts'
         ? message('Đã liên hệ lần đầu', 'First contact made', '첫 접점 완료')
-        : message('Thành cơ hội', 'Converted to opportunity', '영업 기회로 전환'),
+        : message('Thành cơ hội', 'Converted to opportunity', '기회로 전환'),
   )
 
 const SERIES: readonly Series[] = [

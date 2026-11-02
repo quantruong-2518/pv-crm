@@ -36,6 +36,8 @@ import { Field } from './ops-fields'
 import { message, useI18n } from '@/app/i18n'
 import { QUIET } from './run/run-person'
 
+const EMAIL = message('Email', 'Email', '이메일')
+
 /** The "Contacts" card on the lead profile — who we know at this company.
  *
  *  ------------------------------------------------------------------
@@ -91,6 +93,7 @@ export function ContactsCard({
   /** No call/Zalo/mail per row — the screen's floating bar already holds them. */
   hideCommActions?: boolean
 }) {
+  const { t } = useI18n()
   const { data, isPending } = useQuery(leadContactsQuery(code))
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<ContactRow | null>(null)
@@ -110,7 +113,7 @@ export function ContactsCard({
               onClick={() => setAdding(true)}
             >
               <Icon icon={Plus} size={16} />
-              Thêm người liên hệ
+              {t(message('Thêm người liên hệ', 'Add contact', '연락처 추가'))}
             </Button>
           )}
         </div>
@@ -128,12 +131,13 @@ export function ContactsCard({
                 onClick={() => setAdding(true)}
               >
                 <Icon icon={Plus} size={16} />
-                Thêm
+                {t(message('Thêm', 'Add', '추가'))}
               </Button>
             ) : undefined
           }
         >
-          Người liên hệ {rows.length > 0 && `(${rows.length})`}
+          {t(message('Người liên hệ', 'Contacts', '연락처'))}{' '}
+          {rows.length > 0 && `(${rows.length})`}
         </SectionTitle>
       )}
 
@@ -141,7 +145,13 @@ export function ContactsCard({
         <Skeleton className="h-20 w-full" />
       ) : rows.length === 0 ? (
         <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-          Chưa có người liên hệ. Người đầu tiên là người liên hệ chính.
+          {t(
+            message(
+              'Chưa có người liên hệ. Người đầu tiên là người liên hệ chính.',
+              'No contacts yet. The first contact becomes the primary contact.',
+              '아직 연락처가 없습니다. 첫 번째 연락처가 주 연락처가 됩니다.',
+            ),
+          )}
         </p>
       ) : (
         <ul className="flex flex-col gap-3">
@@ -180,8 +190,13 @@ export function ContactsCard({
 /** The two skins of this card, as components rather than a ternary around the
  *  whole body: one JSX tree, two frames. */
 function CardShell({ children }: { children: ReactNode }) {
+  const { t } = useI18n()
   return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-4 sm:p-5" aria-label="Người liên hệ">
+    <GlassCard
+      variant="b"
+      className="flex flex-col gap-4 p-4 sm:p-5"
+      aria-label={t(message('Người liên hệ', 'Contacts', '연락처'))}
+    >
       {children}
     </GlassCard>
   )
@@ -422,7 +437,7 @@ function ContactDrawer({
           />
         </Field>
 
-        <Field label="Email" errors={errors.email} hint={t(TEXT.messagesAreSentToThe)}>
+        <Field label={t(EMAIL)} errors={errors.email} hint={t(TEXT.messagesAreSentToThe)}>
           <Input
             type="email"
             value={draft.email}

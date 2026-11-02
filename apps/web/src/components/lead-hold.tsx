@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { Button, CalendarClock, Icon, RotateCcw, Timer } from '@pv/ui'
-import { LEAD_STATE_LABEL, type LeadProfile } from '@pv/contracts'
+import type { LeadProfile } from '@pv/contracts'
 import { userMessage } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 import { useCan } from '@/app/auth'
 import { toastDone, toastFail } from '@/app/toast'
 import { useEndLeadHold } from '@/data/holds'
+import { leadStateLabel } from '@/data/sales-labels-i18n'
 import { HoldDialog } from '@/components/hold-dialog'
 import { HoldStrip } from '@/components/hold-strip'
 import { NurtureDialog } from '@/components/lead-state-actions'
@@ -48,6 +50,7 @@ export function LeadHoldDialog({
  *  one that just ended the hold can finish its own save and close. The park
  *  way out needs `lead.disqualify` besides the hold's own permission. */
 export function LeadHoldStrip({ lead, canWrite }: { lead: LeadProfile; canWrite: boolean }) {
+  const { t } = useI18n()
   const [changing, setChanging] = useState(false)
   const [parking, setParking] = useState(false)
   const end = useEndLeadHold(lead.code)
@@ -57,8 +60,27 @@ export function LeadHoldStrip({ lead, canWrite }: { lead: LeadProfile; canWrite:
     end.mutate(
       { to: 'resume' },
       {
-        onSuccess: () => toastDone(`Đã bỏ tạm hoãn ${lead.code}.`),
-        onError: (e) => toastFail('Không bỏ tạm hoãn được lead.', userMessage(e)),
+        onSuccess: () =>
+          toastDone(
+            t(
+              message(
+                `Đã bỏ tạm hoãn ${lead.code}.`,
+                `Released the hold on ${lead.code}.`,
+                `${lead.code}의 보류를 해제했습니다.`,
+              ),
+            ),
+          ),
+        onError: (e) =>
+          toastFail(
+            t(
+              message(
+                'Không bỏ tạm hoãn được lead.',
+                'Could not release the hold on the lead.',
+                '리드의 보류를 해제하지 못했습니다.',
+              ),
+            ),
+            userMessage(e),
+          ),
       },
     )
 
@@ -66,7 +88,7 @@ export function LeadHoldStrip({ lead, canWrite }: { lead: LeadProfile; canWrite:
     <>
       <Button size="md" className="pointer-coarse:h-12" disabled={end.isPending} onClick={resume}>
         <Icon icon={RotateCcw} size={16} />
-        Bỏ tạm hoãn
+        {t(message('Bỏ tạm hoãn', 'Release hold', '보류 해제'))}
       </Button>
       {canPark && (
         <Button
@@ -76,7 +98,13 @@ export function LeadHoldStrip({ lead, canWrite }: { lead: LeadProfile; canWrite:
           onClick={() => setParking(true)}
         >
           <Icon icon={Timer} size={16} />
-          Chuyển vào {LEAD_STATE_LABEL.nurturing}
+          {t(
+            message(
+              `Chuyển vào ${leadStateLabel('nurturing', 'vi')}`,
+              `Move to ${leadStateLabel('nurturing', 'en')}`,
+              `${leadStateLabel('nurturing', 'ko')}(으)로 이동`,
+            ),
+          )}
         </Button>
       )}
       <Button
@@ -86,7 +114,7 @@ export function LeadHoldStrip({ lead, canWrite }: { lead: LeadProfile; canWrite:
         onClick={() => setChanging(true)}
       >
         <Icon icon={CalendarClock} size={16} />
-        Đổi ngày hẹn
+        {t(message('Đổi ngày hẹn', 'Change date', '날짜 변경'))}
       </Button>
     </>
   )

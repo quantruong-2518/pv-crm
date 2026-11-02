@@ -9,6 +9,7 @@ import {
   WorkstreamBookResponse,
   WorkstreamScorecard,
   type WorkstreamBoardColumn,
+  type WorkstreamCloseReason,
   type WorkstreamFootprint,
   type WorkstreamRow,
   type WorkstreamStandKind,
@@ -16,7 +17,9 @@ import {
 } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
 import { cacheTier } from '@/app/query-client'
+import { getLang, message, translate, type Lang, type Message } from '@/app/i18n'
 import { BADGE_INK } from '@/data/opportunities'
+import { salesLabel } from '@/data/sales-labels-i18n'
 import type { Pic } from '@/components/book-cells'
 
 /** Workstream book — `/sales/workstreams`. One row per customer journey run.
@@ -58,26 +61,37 @@ export const NARROWING_CLEARED = {
  *  beside its enum so the board door and this screen print the same word. */
 export { CLOSE_REASON_LABEL } from '@pv/contracts'
 
+const CLOSE_REASON_COPY: Record<WorkstreamCloseReason, Message> = {
+  WON: message('Thắng', 'Won', '수주'),
+  LOST: message('Thua', 'Lost', '실주'),
+  CHURNED: message('Rời bỏ', 'Churned', '이탈'),
+}
+
+/** The contract's close-reason words, one per language. */
+export const closeReasonLabel = (reason: WorkstreamCloseReason, lang: Lang = getLang()) =>
+  translate(CLOSE_REASON_COPY[reason], lang)
+
 /** One name per status, so the table's tab and the board's filter chip cannot
  *  call the same filter two different things. */
-export const WORKSTREAM_STATUS_LABEL: Record<WorkstreamStatus, string> = {
-  open: 'Đang hoạt động',
-  closed: 'Đã kết thúc',
-  all: 'Tất cả',
+export const WORKSTREAM_STATUS_COPY: Record<WorkstreamStatus, Message> = {
+  open: message('Đang hoạt động', 'Open', '진행 중'),
+  closed: message('Đã kết thúc', 'Closed', '종료'),
+  all: message('Tất cả', 'All', '전체'),
 }
 
 /** Said wherever a run has nobody in charge — the table's dash tooltip, the
  *  owner filter's "none" option and the board card's visible line. */
-export const NO_PIC = 'Chưa có người phụ trách'
+export const NO_PIC_COPY = message('Chưa có người phụ trách', 'No owner yet', '담당자 없음')
+export const noPic = (lang: Lang = getLang()) => translate(NO_PIC_COPY, lang)
 
 /** The one word per seat that heads a person in the book's column and the
  *  board's card (both draw `PicCell`). The deal's word names the seat, not a
  *  lane: the server's holder falls back to the acceptor or a BD when a deal
  *  has no seller, so "Sale" or a primary mark would be wrong for them. */
-const IN_CHARGE_SEAT: Record<'lead' | 'deal' | 'contract', Pick<Pic, 'role'>> = {
-  lead: { role: 'PIC lead' },
-  deal: { role: 'Phụ trách cơ hội' },
-  contract: { role: 'Người chốt' },
+const IN_CHARGE_SEAT: Record<'lead' | 'deal' | 'contract', Message> = {
+  lead: message('PIC lead', 'Lead owner', '리드 담당자'),
+  deal: message('Phụ trách cơ hội', 'Opportunity owner', '기회 담당자'),
+  contract: message('Người chốt', 'Closer', '체결 담당'),
 }
 
 /** The people who answer for the object the run stands on, as `PicCell` takes
@@ -85,6 +99,7 @@ const IN_CHARGE_SEAT: Record<'lead' | 'deal' | 'contract', Pick<Pic, 'role'>> = 
  *  Sale and BD the row always carried. */
 export function inChargePics(
   row: Pick<WorkstreamRow, 'inCharge' | 'saleHolder' | 'bdHolder'>,
+  lang: Lang = getLang(),
 ): Pic[] {
   const { inCharge, saleHolder, bdHolder } = row
   if (inCharge === undefined) {
@@ -94,7 +109,10 @@ export function inChargePics(
     ]
   }
   if (inCharge === null) return []
-  return inCharge.people.map((p) => ({ ...p, ...IN_CHARGE_SEAT[inCharge.seat] }))
+  return inCharge.people.map((p) => ({
+    ...p,
+    role: translate(IN_CHARGE_SEAT[inCharge.seat], lang),
+  }))
 }
 
 /** One hue per object kind, the pill shapes the opportunity book's stage cell
@@ -114,13 +132,27 @@ export const STAND_TONE: Record<
 export type JourneyStep = (typeof WORKSTREAM_JOURNEY_STEPS)[number]
 export type JourneyStepKey = JourneyStep['key']
 
-const STEP_LABEL = Object.fromEntries(
-  WORKSTREAM_JOURNEY_STEPS.map((s) => [s.key, s.label]),
-) as Record<JourneyStepKey, string>
+const STEP_LABEL: Record<JourneyStepKey, Message> = {
+  lead: message('Lead', 'Lead', '리드'),
+  opportunity: message('Cơ hội', 'Opportunity', '기회'),
+  contract: message('Hợp đồng', 'Contract', '계약'),
+  'after-sale': message('Sau bán', 'After-sales', '판매 후'),
+  growth: message('Tăng trưởng', 'Growth', '성장'),
+  dropped: message('Rơi', 'Dropped', '이탈'),
+}
+
+/** A board column or step name the server sent in Vietnamese, said in `lang`;
+ *  a name this table does not know (a stage, a person's own wording) passes through. */
+export function boardLabel(label: string, lang: Lang = getLang()): string {
+  const known = [...Object.values(STEP_LABEL), ...Object.values(CLOSE_REASON_COPY)]
+  const copy = known.find((entry) => entry.vi === label)
+  return copy ? translate(copy, lang) : salesLabel(label, lang)
+}
 
 /** The one word per journey step. Keyed by the step's own type, so a key the
  *  contract does not hold fails to compile instead of printing in English. */
-export const stepLabel = (key: JourneyStepKey): string => STEP_LABEL[key]
+export const stepLabel = (key: JourneyStepKey, lang: Lang = getLang()): string =>
+  translate(STEP_LABEL[key], lang)
 
 const STEP_OF_KIND = { LD: 'lead', OP: 'opportunity', HĐ: 'contract' } as const satisfies Record<
   WorkstreamStandKind,
@@ -132,11 +164,8 @@ export const stepOfKind = (kind: WorkstreamStandKind): JourneyStepKey => STEP_OF
 
 /** What a stand kind is called: the journey step it sits at, so the header
  *  filter, its chip and the board's step rail say the same word. */
-export const STAND_KIND_LABEL: Record<WorkstreamStandKind, string> = {
-  LD: stepLabel(STEP_OF_KIND.LD),
-  OP: stepLabel(STEP_OF_KIND.OP),
-  HĐ: stepLabel(STEP_OF_KIND.HĐ),
-}
+export const standKindLabel = (kind: WorkstreamStandKind, lang: Lang = getLang()): string =>
+  stepLabel(STEP_OF_KIND[kind], lang)
 
 /** Every channel is always present on the wire, so a sum of 0 is a real 0.
  *  Lives here, not in `components/workstream-bits.tsx`: fast refresh allows a

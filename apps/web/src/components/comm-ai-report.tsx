@@ -36,6 +36,7 @@ function AskButton({
   note: string
   children: ReactNode
 }) {
+  const { t } = useI18n()
   return (
     <Button
       type="button"
@@ -45,7 +46,7 @@ function AskButton({
       onClick={() => ai.ask(part, note)}
     >
       <Icon icon={Orbit} size={16} />
-      {ai.asking === part ? 'Đang tạo…' : children}
+      {ai.asking === part ? t(message('Đang tạo…', 'Generating…', '생성 중…')) : children}
     </Button>
   )
 }
@@ -65,7 +66,13 @@ export function CommAiStatus({ ai }: { ai: CommAiReportState }) {
                 'AI가 녹음을 듣는 중입니다. 몇 분 걸립니다.',
               ),
             )
-          : 'AI đang đọc, có thể mất tới một phút.'}
+          : t(
+              message(
+                'AI đang đọc, có thể mất tới một phút.',
+                'The AI is reading. This can take up to a minute.',
+                'AI가 읽는 중입니다. 최대 1분 정도 걸릴 수 있습니다.',
+              ),
+            )}
       </p>
     )
   }
@@ -92,6 +99,7 @@ export function CommAiContent({
   onTitle?: (title: string) => void
 }) {
   const { t } = useI18n()
+  const noteWord = t(ai.words.note)
   const take = () => {
     if (!ai.report) return
     ai.summaryTaken(note)
@@ -121,10 +129,10 @@ export function CommAiContent({
         {ai.canAsk && (
           <>
             <AskButton ai={ai} part="summary" note={note}>
-              Tạo tóm tắt
+              {t(message('Tạo tóm tắt', 'Create summary', '요약 생성'))}
             </AskButton>
             <AskButton ai={ai} part="minutes" note={note}>
-              Tạo biên bản
+              {t(message('Tạo biên bản', 'Create minutes', '회의록 생성'))}
             </AskButton>
           </>
         )}
@@ -136,13 +144,19 @@ export function CommAiContent({
             onClick={() => onNote(ai.restoreNote(note))}
           >
             <Icon icon={RotateCcw} size={16} />
-            Lấy lại {ai.words.note} cũ
+            {t(
+              message(
+                `Lấy lại ${noteWord} cũ`,
+                `Restore previous ${noteWord}`,
+                `이전 ${noteWord} 복원`,
+              ),
+            )}
           </Button>
         )}
         {ai.canRestoreMinutes && (
           <Button type="button" variant="ghost" className={TOUCH} onClick={ai.restoreMinutes}>
             <Icon icon={RotateCcw} size={16} />
-            Lấy lại biên bản đã sửa
+            {t(message('Lấy lại biên bản đã sửa', 'Restore edited minutes', '수정한 회의록 복원'))}
           </Button>
         )}
       </div>
@@ -162,12 +176,24 @@ export function CommAiContent({
           basis={ai.basis}
           empty={
             ai.summaryUsed
-              ? `Ô ${ai.words.note} đang khác bản này.`
-              : `Chưa điền gì. ${capitalized(ai.words.note)} của bạn vẫn giữ nguyên.`
+              ? t(
+                  message(
+                    `Ô ${noteWord} đang khác bản này.`,
+                    `The ${noteWord} field differs from this version.`,
+                    `${noteWord} 입력란이 이 버전과 다릅니다.`,
+                  ),
+                )
+              : t(
+                  message(
+                    `Chưa điền gì. ${capitalized(noteWord)} của bạn vẫn giữ nguyên.`,
+                    `Nothing filled in yet. Your ${noteWord} is unchanged.`,
+                    `아직 입력된 내용이 없습니다. 작성하신 ${noteWord}은(는) 그대로입니다.`,
+                  ),
+                )
           }
-          confirmLabel="Dùng bản này"
+          confirmLabel={t(message('Dùng bản này', 'Use this version', '이 버전 사용'))}
           done={ai.summaryUsed && note.trim() === ai.report.summary.trim()}
-          doneLabel="Đã điền vào ô"
+          doneLabel={t(message('Đã điền vào ô', 'Added to the field', '입력란에 반영됨'))}
           onConfirm={take}
         />
       )}
@@ -177,10 +203,28 @@ export function CommAiContent({
           className={BLOCK}
           suggestion={<MinutesBox ai={ai} />}
           basis={ai.basis}
-          empty={ai.minutesChangedSinceSave ? 'Chưa lưu phần vừa sửa.' : 'Chưa lưu biên bản.'}
-          confirmLabel="Lưu vào tệp đính kèm"
+          empty={
+            ai.minutesChangedSinceSave
+              ? t(
+                  message(
+                    'Chưa lưu phần vừa sửa.',
+                    'The latest edits are not saved.',
+                    '방금 수정한 내용이 저장되지 않았습니다.',
+                  ),
+                )
+              : t(
+                  message(
+                    'Chưa lưu biên bản.',
+                    'The minutes are not saved.',
+                    '회의록이 저장되지 않았습니다.',
+                  ),
+                )
+          }
+          confirmLabel={t(
+            message('Lưu vào tệp đính kèm', 'Save as attachment', '첨부 파일로 저장'),
+          )}
           done={ai.minutesSaved}
-          doneLabel="Đã lưu"
+          doneLabel={t(message('Đã lưu', 'Saved', '저장됨'))}
           onConfirm={ai.saveMinutes}
         />
       )}
@@ -192,19 +236,20 @@ export function CommAiContent({
  *  behind it cannot lower its contrast. `AiAction` has no disabled state, so
  *  saving and a refused save are said here. */
 function MinutesBox({ ai }: { ai: CommAiReportState }) {
+  const { t } = useI18n()
   return (
     <span className="flex flex-col gap-2">
       <Textarea
         rows={10}
         autoGrow
         value={ai.minutes}
-        aria-label="Biên bản"
+        aria-label={t(message('Biên bản', 'Minutes', '회의록'))}
         className="max-h-[60dvh] overflow-y-auto text-[14px]"
         onChange={(e) => ai.setMinutes(e.target.value)}
       />
       {ai.savingMinutes && (
         <span role="status" className="text-on-tint-primary-muted text-[12.5px]">
-          Đang lưu…
+          {t(message('Đang lưu…', 'Saving…', '저장 중…'))}
         </span>
       )}
       {ai.saveProblem && (
@@ -227,6 +272,7 @@ export function CommAiEvaluation({
   picked: Record<string, string>
   onPick: Dispatch<SetStateAction<Record<string, string>>>
 }) {
+  const { t } = useI18n()
   const rows = answersOnOffer(ai.report?.answers ?? [], criteria, picked)
   if (!ai.report || rows.length === 0) return null
 
@@ -247,10 +293,22 @@ export function CommAiEvaluation({
         </ul>
       }
       basis={ai.basis}
-      empty="Chưa điền gì. Câu trả lời của bạn vẫn giữ nguyên."
-      confirmLabel={`Dùng ${ai.words.evaluation} này`}
+      empty={t(
+        message(
+          'Chưa điền gì. Câu trả lời của bạn vẫn giữ nguyên.',
+          'Nothing filled in yet. Your answers are unchanged.',
+          '아직 입력된 내용이 없습니다. 작성하신 답변은 그대로입니다.',
+        ),
+      )}
+      confirmLabel={t(
+        message(
+          `Dùng ${t(ai.words.evaluation)} này`,
+          `Use this ${t(ai.words.evaluation)}`,
+          `이 ${t(ai.words.evaluation)} 사용`,
+        ),
+      )}
       done={rows.every((a) => picked[a.criterionId] === a.answerId)}
-      doneLabel="Đã điền vào ô"
+      doneLabel={t(message('Đã điền vào ô', 'Added to the field', '입력란에 반영됨'))}
       /* The person's own answers spread last: a question answered while the
          report ran stays as they left it. */
       onConfirm={() =>
@@ -275,6 +333,7 @@ export function CommAiSteps({
   draft: StepDraft
   onDraft: (next: StepDraft) => void
 }) {
+  const { t } = useI18n()
   if (!ai.report || !options) return null
   const steps = stepsOnOffer(ai.report.steps, options)
   if (steps.length === 0) return null
@@ -288,7 +347,17 @@ export function CommAiSteps({
           label: next.text,
           hint: (
             <>
-              {next.due !== '' && <span className="tnum block">Làm trước ngày {dm(next.due)}</span>}
+              {next.due !== '' && (
+                <span className="tnum block">
+                  {t(
+                    message(
+                      `Làm trước ngày ${dm(next.due)}`,
+                      `Do by ${dm(next.due)}`,
+                      `${dm(next.due)}까지 처리`,
+                    ),
+                  )}
+                </span>
+              )}
               <span className="block">{step.reason}</span>
             </>
           ),
@@ -297,9 +366,9 @@ export function CommAiSteps({
         }
       })}
       basis={ai.basis}
-      empty="Chưa chọn bước nào."
-      pickLabel="Chọn bước này"
-      pickedLabel="Đã điền vào ô"
+      empty={t(message('Chưa chọn bước nào.', 'No step chosen yet.', '선택한 단계가 없습니다.'))}
+      pickLabel={t(message('Chọn bước này', 'Choose this step', '이 단계 선택'))}
+      pickedLabel={t(message('Đã điền vào ô', 'Added to the field', '입력란에 반영됨'))}
     />
   )
 }

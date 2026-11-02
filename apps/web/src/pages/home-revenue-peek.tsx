@@ -9,7 +9,7 @@ import { money } from './home-model'
 import { CARD_WIDTH, type MoneyCard, type useMoneyCard } from './home-revenue-hover'
 import { KIND_INK, signedMoney } from './home-revenue-model'
 import { NOTE } from './home-tiles'
-import { message, translate } from '@/app/i18n'
+import { formatDate, getLang, message, translate } from '@/app/i18n'
 
 const tr = (vi: string, en: string, ko: string) => translate(message(vi, en, ko))
 const kindTitle = (kind: SalesMoneyFigureKind) =>
@@ -36,8 +36,17 @@ const amountOf = (kind: SalesMoneyFigureKind, vnd: number) =>
       ? `+${money(vnd)}`
       : signedMoney(vnd)
 
-const monthOf = (day: string, home: string) =>
-  `T${Number(day.slice(5, 7))}${day.slice(0, 4) === home.slice(0, 4) ? '' : `/${day.slice(0, 4)}`}`
+/** A month as the card names it; the year only when it is not the card's own. */
+function monthOf(day: string, home: string): string {
+  const lang = getLang()
+  const year = day.slice(0, 4)
+  const showYear = year !== home.slice(0, 4)
+  if (lang === 'vi') return `T${Number(day.slice(5, 7))}${showYear ? `/${year}` : ''}`
+  return formatDate(`${day.slice(0, 7)}-01`, lang, {
+    month: 'short',
+    ...(showYear && { year: 'numeric' as const }),
+  })
+}
 
 /** A date or a range as a tag, so it reads apart from the amount next to it. */
 function Day({ first, last }: { first: string; last: string }) {

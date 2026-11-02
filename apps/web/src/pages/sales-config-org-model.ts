@@ -6,27 +6,36 @@ import {
   type OrgUnitKind,
 } from '@pv/contracts'
 import type { ApiError } from '@/app/api'
-import { ROLE_LABEL } from '@/data/users'
+import { getLang, message, type Lang, type Message } from '@/app/i18n'
+import { kpiRoleText } from '@/data/kpi-i18n'
 
 /** Pure reads of the org tree (ADR 0118) for the org section (5.18):
  *  the rows in tree order, the labels each level wears, who is placed nowhere,
  *  which units may hold which, and which server complaint belongs to which box. */
 
-export const KIND_LABEL: Record<OrgUnitKind, string> = {
-  company: 'Công ty',
-  department: 'Phòng',
-  team: 'Nhóm',
+export const KIND_LABEL: Record<OrgUnitKind, Message> = {
+  company: message('Công ty', 'Company', '회사'),
+  department: message('Phòng', 'Department', '부서'),
+  team: message('Nhóm', 'Team', '팀'),
 }
 
 /** What the head of each level is called. Head is not a role (ADR 0118 §4), so
  *  the company's head is named by the seat, not by a job title. */
-export const HEAD_LABEL: Record<OrgUnitKind, string> = {
-  company: 'Người đứng đầu',
-  department: 'Trưởng phòng',
-  team: 'Trưởng nhóm',
+export const HEAD_LABEL: Record<OrgUnitKind, Message> = {
+  company: message('Người đứng đầu', 'Head', '대표'),
+  department: message('Trưởng phòng', 'Department head', '부서장'),
+  team: message('Trưởng nhóm', 'Team lead', '팀장'),
 }
 
-export const noHead = (kind: OrgUnitKind) => `Chưa có ${HEAD_LABEL[kind].toLowerCase()}`
+/** The empty-seat sentence, with the level named in lower case where the language has case. */
+export const noHead = (kind: OrgUnitKind): Message => {
+  const head = HEAD_LABEL[kind]
+  return message(
+    `Chưa có ${head.vi.toLowerCase()}`,
+    `No ${head.en.toLowerCase()} yet`,
+    `${head.ko} 미지정`,
+  )
+}
 
 /** The selection key of the "not placed" row; never a unit id (those are uuids). */
 export const UNPLACED = 'unplaced'
@@ -73,8 +82,8 @@ export function unplacedOf(tree: OrgTreeResponse): OrgPerson[] {
   return tree.people.filter((p) => !placed.has(p.actorId))
 }
 
-export const rolesText = (p: OrgPerson | undefined) =>
-  p ? p.roleIds.map((r) => ROLE_LABEL[r]).join(', ') : ''
+export const rolesText = (p: OrgPerson | undefined, lang: Lang = getLang()) =>
+  p ? p.roleIds.map((r) => kpiRoleText(r, lang)).join(', ') : ''
 
 /** Who may hang under whom (ADR 0118 §1): a department under the company only,
  *  a team under the company or a department. */

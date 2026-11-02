@@ -7,9 +7,9 @@ import {
   type KpiMetricDef,
 } from '@pv/contracts'
 import { toast, toastDone } from '@/app/toast'
-import { message, useI18n } from '@/app/i18n'
+import { message, translate, useI18n } from '@/app/i18n'
 import { useResolveTeamCounter } from '@/data/kpi-team-view'
-import { ROLE_LABEL } from '@/data/users'
+import { kpiRoleText } from '@/data/kpi-i18n'
 import { dmhm } from '@/lib/date'
 import { NOTE, TILE } from './home-tiles'
 import { COUNTER_LABEL, MOVED, defOfCounter, effectLines, headlineOf } from './kpi-allocate-model'
@@ -52,7 +52,16 @@ function Answers({
         onSuccess: () => {
           setOther('')
           if (!reopens || body.resolution === 'keep') return toastDone(done)
-          toast(done, { tone: 'success', detail: 'Bản nháp mới đã mở, chia lại rồi gửi duyệt.' })
+          toast(done, {
+            tone: 'success',
+            detail: t(
+              message(
+                'Bản nháp mới đã mở, chia lại rồi gửi duyệt.',
+                'A new draft is open. Split again, then submit for approval.',
+                '새 초안이 열렸습니다. 다시 배분한 후 승인 요청을 보내세요.',
+              ),
+            ),
+          })
         },
       },
     )
@@ -158,37 +167,41 @@ function Answers({
 }
 
 /** Why there are no answers under a counter, or `null` when there is nothing to say. */
-function noteOf(
-  c: KpiCounter,
-  def: KpiMetricDef,
-  closed: boolean,
-  me: string | undefined,
-  lang: 'vi' | 'en' | 'ko',
-) {
+function noteOf(c: KpiCounter, def: KpiMetricDef, closed: boolean, me: string | undefined) {
   if (c.status !== 'open') {
     if (!c.resolvedAt) return null
+    const at = dmhm(c.resolvedAt)
+    const to = c.counterValue === null ? '' : printValue(def.unit, c.counterValue)
     const after =
       c.counterValue === null
-        ? ''
-        : lang === 'vi'
-          ? ` · mức mới ${printValue(def.unit, c.counterValue)}`
-          : lang === 'en'
-            ? ` · new value ${printValue(def.unit, c.counterValue)}`
-            : ` · 새 값 ${printValue(def.unit, c.counterValue)}`
-    return `${lang === 'vi' ? 'Xử lý lúc' : lang === 'en' ? 'Resolved' : '처리'} ${dmhm(c.resolvedAt)}${after}`
+        ? message('', '', '')
+        : message(` · mức mới ${to}`, ` · new value ${to}`, ` · 새 값 ${to}`)
+    const resolved = message(`Xử lý lúc ${at}`, `Resolved ${at}`, `${at} 처리`)
+    return translate(
+      message(
+        `${resolved.vi}${after.vi}`,
+        `${resolved.en}${after.en}`,
+        `${resolved.ko}${after.ko}`,
+      ),
+    )
   }
-  if (closed)
-    return lang === 'vi'
-      ? 'Tháng đã kết thúc, không xử lý được nữa.'
-      : lang === 'en'
-        ? 'This month is closed. This proposal can no longer be resolved.'
-        : '월이 마감되어 이 제안을 더 이상 처리할 수 없습니다.'
+  if (closed) {
+    return translate(
+      message(
+        'Tháng đã kết thúc, không xử lý được nữa.',
+        'This month is closed. This proposal can no longer be resolved.',
+        '월이 마감되어 이 제안을 더 이상 처리할 수 없습니다.',
+      ),
+    )
+  }
   return c.actorId === me
-    ? lang === 'vi'
-      ? 'Quản lý xử lý đề xuất của bạn.'
-      : lang === 'en'
-        ? 'A manager is reviewing your proposal.'
-        : '관리자가 제안을 검토하고 있습니다.'
+    ? translate(
+        message(
+          'Quản lý xử lý đề xuất của bạn.',
+          'A manager is reviewing your proposal.',
+          '관리자가 제안을 검토하고 있습니다.',
+        ),
+      )
     : null
 }
 
@@ -210,33 +223,11 @@ function CounterCard({
   closed: boolean
   me: string | undefined
 }) {
-  const { t, lang } = useI18n()
+  const { t } = useI18n()
   const def = defOfCounter(counter)
   if (!def) return null
-  const originalLabel = COUNTER_LABEL[counter.status]
-  const label = {
-    ...originalLabel,
-    text: t(
-      message(
-        originalLabel.text,
-        counter.status === 'open'
-          ? 'Pending'
-          : counter.status === 'accepted'
-            ? 'Accepted'
-            : counter.status === 'kept'
-              ? 'Kept current'
-              : 'Countered',
-        counter.status === 'open'
-          ? '대기 중'
-          : counter.status === 'accepted'
-            ? '수락됨'
-            : counter.status === 'kept'
-              ? '현재 값 유지'
-              : '다른 값 제안',
-      ),
-    ),
-  }
-  const note = noteOf(counter, def, closed, me, lang)
+  const label = COUNTER_LABEL[counter.status]
+  const note = noteOf(counter, def, closed, me)
   const open = counter.status === 'open'
 
   return (
@@ -249,9 +240,9 @@ function CounterCard({
           <p className={cn(NOTE, 'tnum font-num')}>
             {t(
               message(
-                `${ROLE_LABEL[counter.role]} · gửi lúc ${dmhm(counter.createdAt)}`,
-                `${ROLE_LABEL[counter.role]} · sent ${dmhm(counter.createdAt)}`,
-                `${ROLE_LABEL[counter.role]} · ${dmhm(counter.createdAt)} 제출`,
+                `${kpiRoleText(counter.role)} · gửi lúc ${dmhm(counter.createdAt)}`,
+                `${kpiRoleText(counter.role)} · sent ${dmhm(counter.createdAt)}`,
+                `${kpiRoleText(counter.role)} · ${dmhm(counter.createdAt)} 제출`,
               ),
             )}
           </p>

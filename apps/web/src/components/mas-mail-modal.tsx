@@ -5,6 +5,7 @@ import type { CampaignWaveInput, MasAudience, MasSendRequest, MasSendResponse } 
 import { MAS_MAX_RECIPIENTS } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { message, translate, useI18n } from '@/app/i18n'
 import { toast } from '@/app/toast'
 import { MailGuideDrawer, type MailGuideSection } from '@/components/mail-guide-drawer'
 import { MailFloatingAids } from '@/components/mail-compose-bits'
@@ -67,8 +68,8 @@ export type MasMailModalProps = {
 }
 
 const STEPS = [
-  { key: 'to', label: 'Gửi tới' },
-  { key: 'content', label: 'Nội dung' },
+  { key: 'to', label: message('Gửi tới', 'Recipients', '수신자') },
+  { key: 'content', label: message('Nội dung', 'Content', '내용') },
 ]
 
 /** The guide opens on the step being stood on; "delivery" is one tab away. */
@@ -84,6 +85,7 @@ export function MasMailModal({
   subjectType = 'lead',
   onQueued,
 }: MasMailModalProps) {
+  const { t, lang } = useI18n()
   const draft = useMasMailDraft(open, initialCode, initialCodes)
   const [chain, setChain] = useState<ComposerState>(emptyComposerState)
   const [sequenceId, setSequenceId] = useState(() => crypto.randomUUID())
@@ -181,16 +183,42 @@ export function MasMailModal({
 
   const templateNameGap =
     draft.saveAsTemplate && canSaveTemplate && draft.templateName.trim() === ''
-      ? 'Đặt tên cho mẫu sắp lưu.'
+      ? t(
+          message(
+            'Đặt tên cho mẫu sắp lưu.',
+            'Name the template to save.',
+            '저장할 템플릿 이름을 입력하세요.',
+          ),
+        )
       : null
   const chainNameGap =
-    draft.campaignCode === NO_CAMPAIGN && !sequenceName.trim() ? 'Đặt tên cho chuỗi gửi này.' : null
+    draft.campaignCode === NO_CAMPAIGN && !sequenceName.trim()
+      ? t(
+          message(
+            'Đặt tên cho chuỗi gửi này.',
+            'Name this send chain.',
+            '이 발송 시퀀스의 이름을 입력하세요.',
+          ),
+        )
+      : null
 
   const stepBlockers: (string | null)[] = [
     chosen.length > MAS_MAX_RECIPIENTS
-      ? `Một lượt tối đa ${MAS_MAX_RECIPIENTS} người nhận. Đang chọn ${chosen.length}.`
+      ? t(
+          message(
+            `Một lượt tối đa ${MAS_MAX_RECIPIENTS} người nhận. Đang chọn ${chosen.length}.`,
+            `One send takes at most ${MAS_MAX_RECIPIENTS} recipients. ${chosen.length} selected.`,
+            `한 번에 최대 ${MAS_MAX_RECIPIENTS}명에게 보낼 수 있습니다. 현재 ${chosen.length}명 선택.`,
+          ),
+        )
       : chosen.length === 0
-        ? 'Chưa chọn người nhận.'
+        ? t(
+            message(
+              'Chưa chọn người nhận.',
+              'No recipients selected.',
+              '선택한 수신자가 없습니다.',
+            ),
+          )
         : null,
     composerBlocker(chain) ?? templateNameGap ?? chainNameGap,
   ]
@@ -209,12 +237,15 @@ export function MasMailModal({
     letterReady,
   )
   const hints = withApollo(
-    mailHints({
-      subject: letter.subject,
-      body: letter.body,
-      ctaUrl: letter.cta?.url,
-      missing: preview.letter?.missing,
-    }),
+    mailHints(
+      {
+        subject: letter.subject,
+        body: letter.body,
+        ctaUrl: letter.cta?.url,
+        missing: preview.letter?.missing,
+      },
+      lang,
+    ),
     report?.apolloCount ?? 0,
   )
 
@@ -262,10 +293,24 @@ export function MasMailModal({
       }
     } catch (error) {
       inFlight.current = false
-      const reason = isApiError(error) ? userMessage(error) : 'Không tạo được lượt gửi này.'
+      const reason = isApiError(error)
+        ? userMessage(error)
+        : translate(
+            message(
+              'Không tạo được lượt gửi này.',
+              'Could not create this send.',
+              '이 발송을 만들지 못했습니다.',
+            ),
+          )
       setFailure(
         completed > 0
-          ? `${reason} Đợt 1–${completed} đã xếp hàng và không rút lại được. Gửi lại sẽ tiếp tục từ đợt ${completed + 1}.`
+          ? `${reason} ${translate(
+              message(
+                `Đợt 1–${completed} đã xếp hàng và không rút lại được. Gửi lại sẽ tiếp tục từ đợt ${completed + 1}.`,
+                `Waves 1–${completed} are queued and cannot be recalled. Sending again resumes from wave ${completed + 1}.`,
+                `웨이브 1–${completed}은(는) 대기열에 들어가 회수할 수 없습니다. 다시 보내면 웨이브 ${completed + 1}부터 이어서 발송합니다.`,
+              ),
+            )}`
           : reason,
       )
       return
@@ -273,7 +318,13 @@ export function MasMailModal({
 
     toast(sendReport(waves.length, queuedTotal, done), {
       tone: 'success',
-      detail: 'Email gửi đi sau vài chục giây.',
+      detail: t(
+        message(
+          'Email gửi đi sau vài chục giây.',
+          'Emails go out within a few dozen seconds.',
+          '이메일은 수십 초 후 발송됩니다.',
+        ),
+      ),
     })
     const last = waves.at(-1)
     if (draft.saveAsTemplate && canSaveTemplate && last) keepAsTemplate(last)
@@ -301,12 +352,35 @@ export function MasMailModal({
         doors: [subjectType],
       },
       {
-        onSuccess: () => toast('Đã lưu mẫu email', { tone: 'success' }),
+        onSuccess: () =>
+          toast(
+            t(message('Đã lưu mẫu email', 'Email template saved', '이메일 템플릿을 저장했습니다')),
+            {
+              tone: 'success',
+            },
+          ),
         onError: (error) =>
-          toast(isApiError(error) ? userMessage(error) : 'Không lưu được mẫu email', {
-            tone: 'warning',
-            detail: 'Thư đã xếp hàng gửi.',
-          }),
+          toast(
+            isApiError(error)
+              ? userMessage(error)
+              : t(
+                  message(
+                    'Không lưu được mẫu email',
+                    'Could not save the email template',
+                    '이메일 템플릿을 저장하지 못했습니다',
+                  ),
+                ),
+            {
+              tone: 'warning',
+              detail: t(
+                message(
+                  'Thư đã xếp hàng gửi.',
+                  'The email is queued.',
+                  '메일은 발송 대기열에 들어갔습니다.',
+                ),
+              ),
+            },
+          ),
       },
     )
 
@@ -318,8 +392,16 @@ export function MasMailModal({
       ? ''
       : chosen.length === 1
         ? (chosen[0]?.contactName ?? '')
-        : `${chosen.length} người nhận`,
-    waves.length > 1 ? `${letter.subject.trim()} · ${waves.length} đợt` : letter.subject.trim(),
+        : t(
+            message(
+              `${chosen.length} người nhận`,
+              `${chosen.length} recipients`,
+              `수신자 ${chosen.length}명`,
+            ),
+          ),
+    waves.length > 1
+      ? `${letter.subject.trim()} · ${t(message(`${waves.length} đợt`, `${waves.length} waves`, `웨이브 ${waves.length}개`))}`
+      : letter.subject.trim(),
   ].map((summary, index) => (index <= reached ? summary : ''))
 
   return (
@@ -328,8 +410,18 @@ export function MasMailModal({
         open={open}
         onClose={onClose}
         width="wide"
-        title={oneSubject ? 'Gửi email' : 'Gửi email hàng loạt'}
-        subtitle="Hai bước: chọn người nhận, rồi viết nội dung và gửi."
+        title={
+          oneSubject
+            ? t(message('Gửi email', 'Send email', '이메일 보내기'))
+            : t(message('Gửi email hàng loạt', 'Send bulk email', '이메일 일괄 발송'))
+        }
+        subtitle={t(
+          message(
+            'Hai bước: chọn người nhận, rồi viết nội dung và gửi.',
+            'Two steps: choose recipients, then write the content and send.',
+            '두 단계: 수신자를 선택한 뒤 내용을 작성해 발송합니다.',
+          ),
+        )}
         meta={<CheckBadge checking={preflight.checking} report={report} picked={chosen.length} />}
         footer={
           <MailFooter
@@ -354,7 +446,12 @@ export function MasMailModal({
       >
         <div className="flex min-w-0 flex-col gap-6">
           <div className="flex min-w-0 flex-col gap-2">
-            <Stepper steps={STEPS} current={step} reached={reached} onGo={goTo} />
+            <Stepper
+              steps={STEPS.map((item) => ({ ...item, label: t(item.label) }))}
+              current={step}
+              reached={reached}
+              onGo={goTo}
+            />
             <div className="grid min-w-0 grid-cols-2 gap-2">
               {summaries.map((summary, index) => (
                 <p
@@ -385,7 +482,13 @@ export function MasMailModal({
                     make "resume" send a different chain (see `goTo`). */}
                 {submittedWaves > 0 ? (
                   <p className="text-warning m-0 text-[12.5px] leading-[1.6]">
-                    {`Đợt 1–${submittedWaves} đã xếp hàng và không rút lại được. Thư và tuỳ chọn gửi đã khoá. Bấm gửi để tiếp tục từ đợt ${submittedWaves + 1}.`}
+                    {t(
+                      message(
+                        `Đợt 1–${submittedWaves} đã xếp hàng và không rút lại được. Thư và tuỳ chọn gửi đã khoá. Bấm gửi để tiếp tục từ đợt ${submittedWaves + 1}.`,
+                        `Waves 1–${submittedWaves} are queued and cannot be recalled. The email and send options are locked. Press send to resume from wave ${submittedWaves + 1}.`,
+                        `웨이브 1–${submittedWaves}은(는) 대기열에 들어가 회수할 수 없습니다. 메일과 발송 옵션은 잠겼습니다. 발송을 누르면 웨이브 ${submittedWaves + 1}부터 이어서 발송합니다.`,
+                      ),
+                    )}
                   </p>
                 ) : (
                   <>
@@ -450,10 +553,12 @@ function autoSequenceName(
   firstWave: string,
 ): string {
   const only = chosen.length === 1 ? chosen[0] : undefined
-  const who = only
-    ? only.code
-    : `${chosen.length} ${subjectType === 'opportunity' ? 'cơ hội' : 'lead'}`
-  return [who, firstWave.trim() || 'Tự soạn'].join(' · ')
+  const noun =
+    subjectType === 'opportunity'
+      ? message('cơ hội', 'opportunities', '기회')
+      : message('lead', 'leads', '리드')
+  const who = only ? only.code : `${chosen.length} ${translate(noun)}`
+  return [who, firstWave.trim() || translate(message('Tự soạn', 'Custom', '직접 작성'))].join(' · ')
 }
 
 /** The Apollo warning rides with the hints: advice for whoever is about to
@@ -465,8 +570,20 @@ function withApollo(hints: MailHint[] | null, apollo: number): MailHint[] | null
     {
       id: 'apollo',
       tone: 'warn',
-      text: `Có ${apollo} liên hệ từ Apollo`,
-      detail: 'Chỉ gửi khi đã xác nhận họ đồng ý nhận email.',
+      text: translate(
+        message(
+          `Có ${apollo} liên hệ từ Apollo`,
+          `${apollo} ${apollo === 1 ? 'contact comes' : 'contacts come'} from Apollo`,
+          `Apollo 출처 연락처 ${apollo}명`,
+        ),
+      ),
+      detail: translate(
+        message(
+          'Chỉ gửi khi đã xác nhận họ đồng ý nhận email.',
+          'Send only if they have agreed to receive email.',
+          '이메일 수신 동의를 확인한 경우에만 보내세요.',
+        ),
+      ),
     },
   ]
 }
@@ -483,8 +600,26 @@ function chainCta(chain: ComposerState): MasSendRequest['cta'] {
  *  posts them seconds later. A chain reports its length, because the number of
  *  letters is not what the person just decided. */
 function sendReport(waves: number, queued: number, latest: readonly MasSendResponse[]): string {
-  if (waves > 1) return `Đã xếp hàng ${waves} đợt · ${queued} email`
-  return latest.every((result) => result.state === 'SCHEDULED')
-    ? `Đã đặt lịch ${queued} email`
-    : `Đã xếp hàng ${queued} email`
+  if (waves > 1) {
+    return translate(
+      message(
+        `Đã xếp hàng ${waves} đợt · ${queued} email`,
+        `${waves} waves queued · ${queued} ${queued === 1 ? 'email' : 'emails'}`,
+        `웨이브 ${waves}개 대기열 등록 · 이메일 ${queued}건`,
+      ),
+    )
+  }
+  return translate(
+    latest.every((result) => result.state === 'SCHEDULED')
+      ? message(
+          `Đã đặt lịch ${queued} email`,
+          `${queued} ${queued === 1 ? 'email' : 'emails'} scheduled`,
+          `이메일 ${queued}건 예약됨`,
+        )
+      : message(
+          `Đã xếp hàng ${queued} email`,
+          `${queued} ${queued === 1 ? 'email' : 'emails'} queued`,
+          `이메일 ${queued}건 대기열 등록`,
+        ),
+  )
 }

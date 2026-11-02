@@ -16,6 +16,7 @@ import type {
   MasSendResponse,
 } from '@pv/contracts'
 import { api, isApiError, userMessage, type ApiError, type ApiNeed } from '@/app/api'
+import { message, translate } from '@/app/i18n'
 import { cacheTier } from '@/app/query-client'
 
 /** Module 5 · MAS mail — the five doors the compose panel and the lead
@@ -236,7 +237,15 @@ export function useAutoPreflight(audience: MasAudience, enabled: boolean) {
           if (controller.signal.aborted) return
           setAnswer({
             key,
-            error: isApiError(cause) ? userMessage(cause) : 'Không kiểm tra được người nhận.',
+            error: isApiError(cause)
+              ? userMessage(cause)
+              : translate(
+                  message(
+                    'Không kiểm tra được người nhận.',
+                    'Could not check the recipients.',
+                    '수신자를 확인하지 못했습니다.',
+                  ),
+                ),
           })
         })
     }, PREFLIGHT_SETTLE_MS)
@@ -346,7 +355,17 @@ export function useMailPreview(draft: MasPreviewRequest, enabled: boolean) {
              letter — and printing it would report a failure to somebody who
              caused none. Only a real refusal reaches the screen. */
           if (controller.signal.aborted) return
-          setError(isApiError(cause) ? userMessage(cause) : 'Không dựng được bản xem trước.')
+          setError(
+            isApiError(cause)
+              ? userMessage(cause)
+              : translate(
+                  message(
+                    'Không dựng được bản xem trước.',
+                    'Could not build the preview.',
+                    '미리보기를 만들지 못했습니다.',
+                  ),
+                ),
+          )
         })
         .finally(() => {
           if (!controller.signal.aborted) setPending(false)

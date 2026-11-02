@@ -1,3 +1,5 @@
+import { formatNumber, message, translate } from '@/app/i18n'
+
 /** Đọc một tệp bảng thành ô chữ. KHÔNG biết lead là gì.
  *
  *  Tách khỏi `data/intake.ts` vì đây là tầng ĐỊNH DẠNG: nó biết dấu phẩy, dấu
@@ -172,22 +174,53 @@ export function parseDelimited(text: string, delimiter?: string): string[][] {
  *  có đọc tiếp được không" và màn không có gì để nói thêm. */
 function toSheet(table: string[][], fileName: string): Sheet {
   if (table.length === 0) {
-    throw new SheetError('Tệp không có dòng nào đọc được.')
+    throw new SheetError(
+      translate(
+        message(
+          'Tệp không có dòng nào đọc được.',
+          'The file has no readable rows.',
+          '파일에 읽을 수 있는 행이 없습니다.',
+        ),
+      ),
+    )
   }
 
   const headers = (table[0] ?? []).map((h) => h.trim())
   if (headers.every((h) => h === '')) {
-    throw new SheetError('Dòng đầu tiên trống. Cần một dòng tiêu đề cột.')
+    throw new SheetError(
+      translate(
+        message(
+          'Dòng đầu tiên trống. Cần một dòng tiêu đề cột.',
+          'The first row is empty. A column header row is required.',
+          '첫 행이 비어 있습니다. 열 제목 행이 필요합니다.',
+        ),
+      ),
+    )
   }
 
   const rows = table.slice(1)
   if (rows.length === 0) {
-    throw new SheetError('Tệp chỉ có dòng tiêu đề.')
+    throw new SheetError(
+      translate(
+        message(
+          'Tệp chỉ có dòng tiêu đề.',
+          'The file has only a header row.',
+          '파일에 제목 행만 있습니다.',
+        ),
+      ),
+    )
   }
 
   if (rows.length > MAX_ROWS) {
+    const [count, max] = [rows.length, MAX_ROWS].map((n) => formatNumber(n))
     throw new SheetError(
-      `Tệp có ${rows.length.toLocaleString('vi-VN')} dòng, tối đa ${MAX_ROWS.toLocaleString('vi-VN')}. Chia tệp ra rồi nạp từng phần.`,
+      translate(
+        message(
+          `Tệp có ${count} dòng, tối đa ${max}. Chia tệp ra rồi nạp từng phần.`,
+          `The file has ${count} rows; the maximum is ${max}. Split the file and import it in parts.`,
+          `파일에 ${count}행이 있으며 최대 ${max}행까지 가능합니다. 파일을 나누어 가져오세요.`,
+        ),
+      ),
     )
   }
 
@@ -215,7 +248,15 @@ export async function readSheet(file: File): Promise<Sheet> {
   const lower = file.name.toLowerCase()
 
   if (lower.endsWith('.xls')) {
-    throw new SheetError('Chưa đọc được tệp .xls. Mở bằng Excel rồi lưu thành .xlsx hoặc .csv.')
+    throw new SheetError(
+      translate(
+        message(
+          'Chưa đọc được tệp .xls. Mở bằng Excel rồi lưu thành .xlsx hoặc .csv.',
+          'Cannot read .xls files yet. Open it in Excel and save it as .xlsx or .csv.',
+          '.xls 파일은 아직 읽을 수 없습니다. Excel에서 열어 .xlsx 또는 .csv로 저장하세요.',
+        ),
+      ),
+    )
   }
 
   if (lower.endsWith('.xlsx')) {
@@ -235,12 +276,28 @@ export async function readSheet(file: File): Promise<Sheet> {
     try {
       sheets = await readXlsxFile(file)
     } catch {
-      throw new SheetError('Không mở được tệp xlsx. Tệp hỏng hoặc đang đặt mật khẩu.')
+      throw new SheetError(
+        translate(
+          message(
+            'Không mở được tệp xlsx. Tệp hỏng hoặc đang đặt mật khẩu.',
+            'Cannot open the xlsx file. It is damaged or password-protected.',
+            'xlsx 파일을 열 수 없습니다. 파일이 손상되었거나 암호가 설정되어 있습니다.',
+          ),
+        ),
+      )
     }
 
     const first = sheets[0]
     if (!first) {
-      throw new SheetError('Tệp xlsx không có sheet nào đọc được.')
+      throw new SheetError(
+        translate(
+          message(
+            'Tệp xlsx không có sheet nào đọc được.',
+            'The xlsx file has no readable sheet.',
+            'xlsx 파일에 읽을 수 있는 시트가 없습니다.',
+          ),
+        ),
+      )
     }
 
     return {
@@ -263,7 +320,10 @@ export async function readSheet(file: File): Promise<Sheet> {
  *  ép tab — vì một cột địa chỉ có dấu phẩy sẽ làm bộ đoán chọn nhầm dấu phẩy và
  *  cắt bảng ra sai chỗ, mà người dán thì không có tệp nào để mở ra kiểm. */
 export function sheetFromPaste(text: string): Sheet {
-  return toSheet(parseDelimited(text, '\t'), 'ô dán từ Excel')
+  return toSheet(
+    parseDelimited(text, '\t'),
+    translate(message('ô dán từ Excel', 'cells pasted from Excel', 'Excel에서 붙여넣은 셀')),
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -300,7 +360,11 @@ export function detectMojibakeColumn(
     /* By RATIO, not by one cell: a single odd cell is one dirty row, a whole odd
        column is a file saved wrong — only the second is worth stopping for. */
     if (bad[0] !== undefined && bad.length / cells.length >= 0.3) {
-      return { column: headers[i] || `cột ${i + 1}`, sample: bad[0] }
+      return {
+        column:
+          headers[i] || translate(message(`cột ${i + 1}`, `column ${i + 1}`, `${i + 1}번째 열`)),
+        sample: bad[0],
+      }
     }
   }
 

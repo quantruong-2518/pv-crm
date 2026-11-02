@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { CalendarClock, ChevronDown, Send } from '@pv/ui'
 import { Button, Icon, Modal, cn } from '@pv/ui'
+import { message, useI18n } from '@/app/i18n'
 
 /** What replaced the old delivery step in both mail panels (send and edit):
  *  the rarely-touched choices folded under the letter, and one look at the
@@ -25,6 +26,7 @@ export function SendOptions({
   summary: string
   children: ReactNode
 }) {
+  const { t } = useI18n()
   const [open, setOpen] = useState(forceOpen)
   useEffect(() => {
     if (forceOpen) setOpen(true)
@@ -37,7 +39,9 @@ export function SendOptions({
         onClick={() => setOpen(!open)}
         className="motion-std hover:bg-surface-ink/9 flex min-h-12 w-full min-w-0 items-center gap-3 rounded-md px-4 text-left"
       >
-        <span className="shrink-0 text-[13px] font-semibold leading-5">Tuỳ chọn gửi</span>
+        <span className="shrink-0 text-[13px] font-semibold leading-5">
+          {t(message('Tuỳ chọn gửi', 'Send options', '발송 옵션'))}
+        </span>
         {!open && (
           <span className="text-muted-foreground min-w-0 flex-1 truncate text-[12px] leading-4">
             {summary}
@@ -81,6 +85,7 @@ export function MailSendConfirm({
 }) {
   /* The Modal keeps drawing this footer through its exit animation, so a
      double-click would reach `onConfirm` twice — and each is a real send. */
+  const { t } = useI18n()
   const fired = useRef(false)
   useEffect(() => {
     if (open) fired.current = false
@@ -96,7 +101,7 @@ export function MailSendConfirm({
       footer={
         <div className="flex flex-wrap items-center justify-end gap-3">
           <Button size="lg" variant="ghost" type="button" onClick={onBack}>
-            Quay lại
+            {t(message('Quay lại', 'Back', '뒤로'))}
           </Button>
           <Button
             size="lg"

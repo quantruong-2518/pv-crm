@@ -11,6 +11,7 @@ import {
   type LeadAiJobStepKey,
 } from '@pv/contracts'
 import { userMessage, type ApiError } from '@/app/api'
+import { formatNumber, message, translate, useI18n, type Message } from '@/app/i18n'
 import { toast, toastFail } from '@/app/toast'
 import {
   COMM_AI_JOB_FAILED,
@@ -37,62 +38,119 @@ import { router } from '@/routes'
  *  the toasts, so opening a record goes through `router` itself. A reader with
  *  neither `lead.edit` nor `comm.view` has no jobs, so the tray draws nothing. */
 
-const STEP_LABEL: Record<LeadAiJobStepKey, string> = {
-  'read-lead': 'Đọc hồ sơ lead',
-  'web-search': 'Tìm thông tin trên web',
-  'tax-lookup': 'Tra cứu mã số thuế',
-  'dup-check': 'Kiểm tra trùng công ty',
-  write: 'Điền vào lead',
+const STEP_LABEL: Record<LeadAiJobStepKey, Message> = {
+  'read-lead': message('Đọc hồ sơ lead', 'Read the lead profile', '리드 프로필 읽기'),
+  'web-search': message('Tìm thông tin trên web', 'Search the web', '웹에서 정보 검색'),
+  'tax-lookup': message('Tra cứu mã số thuế', 'Look up the tax ID', '세금번호 조회'),
+  'dup-check': message('Kiểm tra trùng công ty', 'Check for duplicate companies', '중복 회사 확인'),
+  write: message('Điền vào lead', 'Fill in the lead', '리드에 입력'),
 }
 
-const COMM_STEP_LABEL: Record<CommAiJobStepKey, string> = {
-  'read-sources': 'Đọc ghi chú và tệp',
-  listen: 'Nghe ghi âm',
-  write: 'Viết tóm tắt và biên bản',
+const COMM_STEP_LABEL: Record<CommAiJobStepKey, Message> = {
+  'read-sources': message('Đọc ghi chú và tệp', 'Read the notes and files', '메모와 파일 읽기'),
+  listen: message('Nghe ghi âm', 'Listen to the recording', '녹음 듣기'),
+  write: message('Viết tóm tắt và biên bản', 'Write the summary and minutes', '요약과 회의록 작성'),
 }
+
+const FILL_FAILED = message(
+  'Chưa điền được. Thử lại sau ít phút.',
+  'Could not fill in. Try again in a few minutes.',
+  '자동 입력하지 못했습니다. 잠시 후 다시 시도하세요.',
+)
 
 const TOTAL = LEAD_AI_JOB_STEPS.length
 const COMM_TOTAL = COMM_AI_JOB_STEPS.length
 
-const seconds = (ms: number) =>
-  `${(ms / 1000).toLocaleString('vi-VN', { maximumFractionDigits: ms < 10_000 ? 1 : 0 })} giây`
+const seconds = (ms: number) => {
+  const n = formatNumber(ms / 1000, undefined, { maximumFractionDigits: ms < 10_000 ? 1 : 0 })
+  return translate(message(`${n} giây`, `${n} s`, `${n}초`))
+}
 
 type Moving = Pick<LeadAiJob, 'state' | 'step' | 'stepMs'>
 
 function stepsOf<Key extends string>(
   job: Moving,
   keys: readonly Key[],
-  labels: Record<Key, string>,
+  labels: Record<Key, Message>,
 ): AiTaskStep[] {
   return keys.map((key, i) => {
-    const label = labels[key]
+    const label = translate(labels[key])
     if (i < job.step) return { label, state: 'done', note: seconds(job.stepMs[i] ?? 0) }
-    if (i === job.step && job.state === 'RUNNING') return { label, state: 'now', note: 'đang chạy' }
+    if (i === job.step && job.state === 'RUNNING') {
+      return { label, state: 'now', note: translate(message('đang chạy', 'running', '진행 중')) }
+    }
     return { label, state: 'wait' }
   })
 }
 
-const runningBadge = (job: Moving, total: number) =>
-  job.state === 'QUEUED' ? 'Đang chờ' : `Bước ${Math.min(job.step + 1, total)}/${total}`
+function runningBadge(job: Moving, total: number) {
+  const at = Math.min(job.step + 1, total)
+  return translate(
+    job.state === 'QUEUED'
+      ? message('Đang chờ', 'Waiting', '대기 중')
+      : message(`Bước ${at}/${total}`, `Step ${at}/${total}`, `${at}/${total}단계`),
+  )
+}
 
-const elapsed = (job: Moving) =>
-  `${job.step} bước · ${seconds(job.stepMs.reduce((sum, ms) => sum + ms, 0))}`
+function elapsed(job: Moving) {
+  const time = seconds(job.stepMs.reduce((sum, ms) => sum + ms, 0))
+  return translate(
+    message(
+      `${job.step} bước · ${time}`,
+      `${job.step} ${job.step === 1 ? 'step' : 'steps'} · ${time}`,
+      `${job.step}단계 · ${time}`,
+    ),
+  )
+}
 
 function summaryOf(result: LeadAiJobResult): string {
   const filled = result.filled.length
   const unsure = result.filled.filter((entry) => entry.unsure).length
-  const clash = result.conflicts.map((c) => `Mã số thuế ${c.value} đã thuộc ${c.accountName}.`)
-  if (filled === 0)
+  const clash = result.conflicts.map((c) =>
+    translate(
+      message(
+        `Mã số thuế ${c.value} đã thuộc ${c.accountName}.`,
+        `Tax ID ${c.value} already belongs to ${c.accountName}.`,
+        `세금번호 ${c.value}은(는) 이미 ${c.accountName}에 속해 있습니다.`,
+      ),
+    ),
+  )
+  if (filled === 0) {
     return clash.length > 0
       ? clash.join(' ')
-      : 'Không tìm thấy thông tin công khai của công ty này.'
+      : translate(
+          message(
+            'Không tìm thấy thông tin công khai của công ty này.',
+            'No public information found for this company.',
+            '이 회사의 공개 정보를 찾지 못했습니다.',
+          ),
+        )
+  }
+  const names = result.notFound.map((key) => inlineLabel(key)).join(', ')
   const missing =
     result.notFound.length > 0
-      ? `Không tìm thấy ${result.notFound.map(inlineLabel).join(', ')}.`
+      ? translate(
+          message(
+            `Không tìm thấy ${names}.`,
+            `Could not find ${names}.`,
+            `${names}을(를) 찾지 못했습니다.`,
+          ),
+        )
       : ''
-  return [`Đã điền ${filled} ô${unsure > 0 ? `, ${unsure} ô chưa chắc` : ''}.`, missing, ...clash]
-    .filter(Boolean)
-    .join(' ')
+  const done = translate(
+    unsure > 0
+      ? message(
+          `Đã điền ${filled} ô, ${unsure} ô chưa chắc.`,
+          `Filled ${filled} ${filled === 1 ? 'field' : 'fields'}, ${unsure} unsure.`,
+          `${filled}개 항목을 입력했고, ${unsure}개는 불확실합니다.`,
+        )
+      : message(
+          `Đã điền ${filled} ô.`,
+          `Filled ${filled} ${filled === 1 ? 'field' : 'fields'}.`,
+          `${filled}개 항목을 입력했습니다.`,
+        ),
+  )
+  return [done, missing, ...clash].filter(Boolean).join(' ')
 }
 
 type Doors = {
@@ -104,8 +162,18 @@ type Doors = {
 }
 
 function itemOf(job: LeadAiJob, doors: Doors): AiTaskItem {
-  const title = `Điền hồ sơ · ${job.leadName}`
-  const open = { label: 'Mở lead', onClick: () => doors.openLead(job.leadCode), primary: true }
+  const title = translate(
+    message(
+      `Điền hồ sơ · ${job.leadName}`,
+      `Fill profile · ${job.leadName}`,
+      `프로필 입력 · ${job.leadName}`,
+    ),
+  )
+  const open = {
+    label: translate(message('Mở lead', 'Open lead', '리드 열기')),
+    onClick: () => doors.openLead(job.leadCode),
+    primary: true,
+  }
   if (job.state === 'QUEUED' || job.state === 'RUNNING') {
     return {
       id: job.id,
@@ -123,16 +191,28 @@ function itemOf(job: LeadAiJob, doors: Doors): AiTaskItem {
       id: job.id,
       title,
       status: 'failed',
-      badge: 'Lỗi',
+      badge: translate(message('Lỗi', 'Error', '오류')),
       /* Refused before any step (route off, limit): no step to blame. */
       steps: retryable
-        ? [{ label: `Bước ${at + 1}/${TOTAL} · ${STEP_LABEL[key]}`, state: 'fail', note: 'lỗi' }]
+        ? [
+            {
+              label: translate(
+                message(
+                  `Bước ${at + 1}/${TOTAL} · ${STEP_LABEL[key].vi}`,
+                  `Step ${at + 1}/${TOTAL} · ${STEP_LABEL[key].en}`,
+                  `${at + 1}/${TOTAL}단계 · ${STEP_LABEL[key].ko}`,
+                ),
+              ),
+              state: 'fail',
+              note: translate(message('lỗi', 'error', '오류')),
+            },
+          ]
         : undefined,
-      summary: job.error ?? 'Chưa điền được. Thử lại sau ít phút.',
+      summary: job.error ?? translate(FILL_FAILED),
       actions: retryable
         ? [
             {
-              label: 'Thử lại',
+              label: translate(message('Thử lại', 'Retry', '다시 시도')),
               onClick: () => doors.retry(job.leadCode),
               primary: true,
               busy: doors.retrying(job.leadCode),
@@ -141,16 +221,24 @@ function itemOf(job: LeadAiJob, doors: Doors): AiTaskItem {
         : [],
     }
   }
-  if (job.undoneAt)
-    return { id: job.id, title, status: 'done', badge: 'Đã hoàn tác', actions: [open] }
+  if (job.undoneAt) {
+    const badge = translate(message('Đã hoàn tác', 'Undone', '실행 취소됨'))
+    return { id: job.id, title, status: 'done', badge, actions: [open] }
+  }
   const undo = job.canUndo
-    ? [{ label: 'Hoàn tác', onClick: () => doors.undo(job.id), busy: doors.undoing(job.id) }]
+    ? [
+        {
+          label: translate(message('Hoàn tác', 'Undo', '실행 취소')),
+          onClick: () => doors.undo(job.id),
+          busy: doors.undoing(job.id),
+        },
+      ]
     : []
   return {
     id: job.id,
     title,
     status: 'done',
-    badge: 'Xong',
+    badge: translate(message('Xong', 'Done', '완료')),
     summary: job.result ? summaryOf(job.result) : undefined,
     meta: elapsed(job),
     actions: [open, ...undo],
@@ -159,7 +247,16 @@ function itemOf(job: LeadAiJob, doors: Doors): AiTaskItem {
 
 /** No retry here: a press needs the note in the form and the word on the recording. */
 function commItemOf(job: CommAiJob, openComm: (id: string) => void): AiTaskItem {
-  const base = { id: job.id, title: `Tóm tắt và biên bản · ${job.subjectCode}` }
+  const base = {
+    id: job.id,
+    title: translate(
+      message(
+        `Tóm tắt và biên bản · ${job.subjectCode}`,
+        `Summary and minutes · ${job.subjectCode}`,
+        `요약 및 회의록 · ${job.subjectCode}`,
+      ),
+    ),
+  }
   if (isCommJobActive(job)) {
     return {
       ...base,
@@ -168,26 +265,39 @@ function commItemOf(job: CommAiJob, openComm: (id: string) => void): AiTaskItem 
       steps: stepsOf(job, COMM_AI_JOB_STEPS, COMM_STEP_LABEL),
     }
   }
-  const actions = [{ label: 'Mở liên hệ', onClick: () => openComm(job.debriefId), primary: true }]
+  const actions = [
+    {
+      label: translate(message('Mở liên hệ', 'Open contact', '연락처 열기')),
+      onClick: () => openComm(job.debriefId),
+      primary: true,
+    },
+  ]
   return job.state === 'FAILED'
     ? {
         ...base,
         status: 'failed',
-        badge: 'Lỗi',
-        summary: job.error ?? COMM_AI_JOB_FAILED,
+        badge: translate(message('Lỗi', 'Error', '오류')),
+        summary: job.error ?? translate(COMM_AI_JOB_FAILED),
         actions,
       }
     : {
         ...base,
         status: 'done',
-        badge: 'Xong',
-        summary: 'Đã có tóm tắt và biên bản.',
+        badge: translate(message('Xong', 'Done', '완료')),
+        summary: translate(
+          message(
+            'Đã có tóm tắt và biên bản.',
+            'The summary and minutes are ready.',
+            '요약과 회의록이 준비되었습니다.',
+          ),
+        ),
         meta: elapsed(job),
         actions,
       }
 }
 
 export function AiTaskTrayHost() {
+  const { t } = useI18n()
   const client = useQueryClient()
   const jobs = useAiJobs()
   const open = useAiTray((s) => s.open)
@@ -210,11 +320,16 @@ export function AiTaskTrayHost() {
     },
     retry: (code) =>
       press.mutate(code, {
-        onError: (error) =>
-          toast(refusalLine(error) ?? 'Chưa điền được. Thử lại sau ít phút.', { tone: 'danger' }),
+        onError: (error) => toast(refusalLine(error) ?? t(FILL_FAILED), { tone: 'danger' }),
       }),
     undo: (id) =>
-      undo.mutate(id, { onError: (error) => toastFail('Chưa hoàn tác được.', userMessage(error)) }),
+      undo.mutate(id, {
+        onError: (error) =>
+          toastFail(
+            t(message('Chưa hoàn tác được.', 'Could not undo.', '실행 취소하지 못했습니다.')),
+            userMessage(error),
+          ),
+      }),
     retrying: (code) => press.isPending && press.variables === code,
     undoing: (id) => undo.isPending && undo.variables === id,
   }
@@ -227,7 +342,11 @@ export function AiTaskTrayHost() {
   /* Each door only when it has rows: a reader with one permission would be refused
      at the other, and the toast would blame a clear that worked. */
   const clearDone = () => {
-    const onError = (error: ApiError) => toastFail('Chưa xoá được.', userMessage(error))
+    const onError = (error: ApiError) =>
+      toastFail(
+        t(message('Chưa xoá được.', 'Could not clear.', '삭제하지 못했습니다.')),
+        userMessage(error),
+      )
     if (!jobs.every(isActive)) clear.mutate(undefined, { onError })
     if (!commJobs.every(isCommJobActive)) clearComm.mutate(undefined, { onError })
   }
@@ -242,12 +361,12 @@ export function AiTaskTrayHost() {
       onOpenChange={setOpen}
       onClearDone={clearDone}
       copy={{
-        title: 'Việc AI',
-        running: (n) => `${n} đang chạy`,
-        failed: (n) => `${n} lỗi`,
-        done: (n) => `${n} xong`,
-        clear: 'Xoá việc đã xong',
-        collapse: 'Thu gọn khay',
+        title: t(message('Việc AI', 'AI tasks', 'AI 작업')),
+        running: (n) => t(message(`${n} đang chạy`, `${n} running`, `${n}건 진행 중`)),
+        failed: (n) => t(message(`${n} lỗi`, `${n} failed`, `${n}건 오류`)),
+        done: (n) => t(message(`${n} xong`, `${n} done`, `${n}건 완료`)),
+        clear: t(message('Xoá việc đã xong', 'Clear finished tasks', '완료된 작업 지우기')),
+        collapse: t(message('Thu gọn khay', 'Collapse tray', '트레이 접기')),
       }}
     />
   )

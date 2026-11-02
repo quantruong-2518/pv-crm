@@ -43,10 +43,10 @@ export function DealHistoryCard({ op }: { op: OpportunityProfileResponse }) {
       id={HISTORY_ID}
       tabIndex={-1}
       className="flex flex-col gap-3 p-4 outline-none sm:p-5"
-      aria-label={t(message('Tiến trình công việc', 'Opportunity timeline', '영업 기회 타임라인'))}
+      aria-label={t(message('Tiến trình công việc', 'Opportunity timeline', '기회 타임라인'))}
     >
       <SectionTitle size="detail">
-        {t(message('Tiến trình công việc', 'Opportunity timeline', '영업 기회 타임라인'))}
+        {t(message('Tiến trình công việc', 'Opportunity timeline', '기회 타임라인'))}
       </SectionTitle>
       {journey.isPending ? (
         <Skeleton className="h-32 w-full" />
@@ -56,7 +56,7 @@ export function DealHistoryCard({ op }: { op: OpportunityProfileResponse }) {
             message(
               'Không tải được tiến trình công việc của cơ hội.',
               'Could not load the opportunity timeline.',
-              '영업 기회 타임라인을 불러오지 못했습니다.',
+              '기회 타임라인을 불러오지 못했습니다.',
             ),
           )}{' '}
           {isApiError(journey.error)

@@ -1,6 +1,7 @@
 import { useThemeMode, wordmarkBlue } from '@pv/ui'
 import { useEffect, useRef, useState } from 'react'
 import { Button, CircleCheck, GlassCard, Icon, Plug, RefreshCw, wordmarkLight } from '@pv/ui'
+import { message, translate, useI18n, type Lang, type Message } from '@/app/i18n'
 import { queryClient } from '@/app/query-client'
 import { probeServer, useServerHealth } from './server-health'
 
@@ -59,10 +60,21 @@ function countdown(ms: number): string {
 /** How long it has been, in the words a person would use out loud. Under a
  *  minute carries no number at all: a zero there reads as broken, and the exact
  *  second an outage started is of no use to anyone waiting it out. */
-function howLong(ms: number): string {
+function howLong(ms: number): Message {
   const minutes = Math.floor(ms / 60000)
-  return minutes < 1 ? 'chưa tới một phút' : `${minutes} phút`
+  return minutes < 1
+    ? message('chưa tới một phút', 'less than a minute', '1분 미만')
+    : message(
+        `${minutes} phút`,
+        `${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`,
+        `${minutes}분`,
+      )
 }
+
+const MAINTENANCE = message('Hệ thống đang bảo trì', 'System under maintenance', '시스템 점검 중')
+const RECONNECTED = message('Đã kết nối lại', 'Reconnected', '다시 연결되었습니다')
+
+const t0 = (copy: Message, lang: Lang) => translate(copy, lang)
 
 /** A clock that only runs while it is being read. */
 function useNow(running: boolean): number {
@@ -81,6 +93,7 @@ function Waiting() {
   const nextProbeAt = useServerHealth((s) => s.nextProbeAt)
   const probing = useServerHealth((s) => s.probing)
   const now = useNow(true)
+  const { t } = useI18n()
 
   return (
     <>
@@ -89,9 +102,15 @@ function Waiting() {
           <Icon icon={Plug} size={24} />
         </span>
         <div className="flex flex-col gap-2">
-          <h1 className="font-display m-0 text-[20px] font-semibold">Hệ thống đang bảo trì</h1>
+          <h1 className="font-display m-0 text-[20px] font-semibold">{t(MAINTENANCE)}</h1>
           <p className="text-muted-foreground m-0 text-pretty text-[12.5px] leading-[1.65]">
-            Nội dung bạn đang nhập vẫn còn nguyên.
+            {t(
+              message(
+                'Nội dung bạn đang nhập vẫn còn nguyên.',
+                'What you were typing is still here.',
+                '입력 중이던 내용은 그대로 남아 있습니다.',
+              ),
+            )}
           </p>
         </div>
       </div>
@@ -99,18 +118,31 @@ function Waiting() {
       <div className="flex flex-col gap-2">
         <p className="m-0 text-[12.5px] font-semibold">
           {probing
-            ? 'Đang kiểm tra…'
-            : `Tự kiểm tra lại sau ${countdown((nextProbeAt ?? now) - now)}`}
+            ? t(message('Đang kiểm tra…', 'Checking…', '확인 중…'))
+            : t(
+                message(
+                  `Tự kiểm tra lại sau ${countdown((nextProbeAt ?? now) - now)}`,
+                  `Checking again in ${countdown((nextProbeAt ?? now) - now)}`,
+                  `${countdown((nextProbeAt ?? now) - now)} 후 다시 확인합니다`,
+                ),
+              )}
         </p>
         <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.65]">
-          Ngưng {howLong(now - (since ?? now))}
-          {probes > 0 && ` · đã kiểm ${probes} lần`}
+          {t(
+            message(
+              `Ngưng ${t0(howLong(now - (since ?? now)), 'vi')}`,
+              `Down for ${t0(howLong(now - (since ?? now)), 'en')}`,
+              `중단 ${t0(howLong(now - (since ?? now)), 'ko')}`,
+            ),
+          )}
+          {probes > 0 &&
+            ` · ${t(message(`đã kiểm ${probes} lần`, `checked ${probes} ${probes === 1 ? 'time' : 'times'}`, `${probes}회 확인`))}`}
         </p>
       </div>
 
       <Button variant="ghost" size="lg" onClick={() => void probeServer()} disabled={probing}>
         <Icon icon={RefreshCw} />
-        Kiểm tra ngay
+        {t(message('Kiểm tra ngay', 'Check now', '지금 확인'))}
       </Button>
     </>
   )
@@ -118,6 +150,7 @@ function Waiting() {
 
 function Recovered() {
   const since = useServerHealth((s) => s.since)
+  const { t } = useI18n()
 
   return (
     <div className="flex flex-col gap-4">
@@ -125,9 +158,15 @@ function Recovered() {
         <Icon icon={CircleCheck} size={24} />
       </span>
       <div className="flex flex-col gap-2">
-        <h1 className="font-display m-0 text-[20px] font-semibold">Đã kết nối lại</h1>
+        <h1 className="font-display m-0 text-[20px] font-semibold">{t(RECONNECTED)}</h1>
         <p className="text-muted-foreground m-0 text-pretty text-[12.5px] leading-[1.65]">
-          Gián đoạn {howLong(Date.now() - (since ?? Date.now()))}. Bạn có thể làm tiếp.
+          {t(
+            message(
+              `Gián đoạn ${t0(howLong(Date.now() - (since ?? Date.now())), 'vi')}. Bạn có thể làm tiếp.`,
+              `Down for ${t0(howLong(Date.now() - (since ?? Date.now())), 'en')}. You can carry on.`,
+              `${t0(howLong(Date.now() - (since ?? Date.now())), 'ko')} 동안 중단되었습니다. 계속 작업하셔도 됩니다.`,
+            ),
+          )}
         </p>
       </div>
     </div>
@@ -137,6 +176,7 @@ function Recovered() {
 /** Mounted once, at the root, beside the toasts. Renders nothing at all until
  *  the server stops answering. */
 export function ServerDown() {
+  const { t } = useI18n()
   const themeMode = useThemeMode()
   const health = useServerHealth((s) => s.health)
   const [showing, setShowing] = useState(false)
@@ -170,7 +210,7 @@ export function ServerDown() {
       className="fixed inset-0 z-[70] flex items-center justify-center overflow-auto bg-[var(--scrim)] p-6 backdrop-blur-md"
       role="dialog"
       aria-modal="true"
-      aria-label={health === 'down' ? 'Hệ thống đang bảo trì' : 'Đã kết nối lại'}
+      aria-label={t(health === 'down' ? MAINTENANCE : RECONNECTED)}
     >
       <GlassCard className="flex w-full max-w-[420px] flex-col gap-6 p-8">
         <img

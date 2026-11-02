@@ -5,6 +5,7 @@ import {
   type KpiRoleMetric,
   type KpiRoleMetricsResponse,
 } from '@pv/contracts'
+import { message, type Message } from '@/app/i18n'
 
 /** The KPI matrix's logic: what one cell holds, what a press turns it into,
  *  and whether a role's edited column may be sent. No render, no fetch.
@@ -15,10 +16,10 @@ import {
 
 export type CellState = 'primary' | 'on' | 'off'
 
-export const CELL_LABEL: Record<CellState, string> = {
-  primary: 'Chỉ số chính',
-  on: 'Có tính',
-  off: 'Không tính',
+export const CELL_LABEL: Record<CellState, Message> = {
+  primary: message('Chỉ số chính', 'Primary metric', '핵심 지표'),
+  on: message('Có tính', 'Counted', '반영'),
+  off: message('Không tính', 'Not counted', '미반영'),
 }
 
 /** One press moves a cell one step round: counted → not counted → primary → counted. */

@@ -20,7 +20,7 @@ import { isApiError, userMessage } from '@/app/api'
 import { SEARCH_DELAY_MS } from '@/app/book-query'
 import {
   DEFAULT_WORKSTREAM_BOOK_QUERY,
-  WORKSTREAM_STATUS_LABEL,
+  WORKSTREAM_STATUS_COPY,
   boardColumnId,
   boardStepGroups,
   parseBoardStep,
@@ -165,22 +165,12 @@ export function WorkstreamsBoard() {
                   or the board is narrowed by something nobody can take off. */}
               {base.status !== DEFAULT_WORKSTREAM_BOOK_QUERY.status && (
                 <DropFilter
-                  label={t(
-                    message(
-                      WORKSTREAM_STATUS_LABEL[base.status],
-                      ({ open: 'Open', closed: 'Closed', all: 'All' } as Record<string, string>)[
-                        base.status
-                      ] ?? WORKSTREAM_STATUS_LABEL[base.status],
-                      ({ open: '진행 중', closed: '종료', all: '전체' } as Record<string, string>)[
-                        base.status
-                      ] ?? WORKSTREAM_STATUS_LABEL[base.status],
-                    ),
-                  )}
+                  label={t(WORKSTREAM_STATUS_COPY[base.status])}
                   aria={t(
                     message(
-                      `Bỏ lọc trạng thái ${WORKSTREAM_STATUS_LABEL[base.status]}`,
-                      `Remove ${WORKSTREAM_STATUS_LABEL[base.status]} status filter`,
-                      `${WORKSTREAM_STATUS_LABEL[base.status]} 상태 필터 지우기`,
+                      `Bỏ lọc trạng thái ${WORKSTREAM_STATUS_COPY[base.status].vi}`,
+                      `Remove ${WORKSTREAM_STATUS_COPY[base.status].en} status filter`,
+                      `${WORKSTREAM_STATUS_COPY[base.status].ko} 상태 필터 지우기`,
                     ),
                   )}
                   onDrop={() => drop('status')}

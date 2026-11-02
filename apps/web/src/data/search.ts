@@ -13,6 +13,7 @@ import {
 import { ArrowRight, type SearchGroup, type SearchRecords } from '@pv/ui'
 import { api, type ApiNeed } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { hitPath, hitRow, pickedKind, SEARCH_KIND_FACTS, splitPrefix } from './search-rows'
 import { searchableText } from '@/lib/search-box'
 
@@ -74,6 +75,7 @@ function useSettled(value: string): string {
 }
 
 export function useHeaderSearch(): SearchRecords | undefined {
+  const { t, lang } = useI18n()
   const navigate = useNavigate()
   const client = useQueryClient()
   const allowed: Record<SearchKind, boolean> = {
@@ -124,7 +126,7 @@ export function useHeaderSearch(): SearchRecords | undefined {
     label,
     // Two contacts of one lead share kind + code, so the position joins the id.
     rows: hits.map((hit, i) => ({
-      ...hitRow(hit, (picked) => open(picked, log)),
+      ...hitRow(hit, (picked) => open(picked, log), lang),
       id: `${id}:${i}`,
     })),
   })
@@ -134,19 +136,30 @@ export function useHeaderSearch(): SearchRecords | undefined {
     const hits = (recent.data?.items ?? []).flatMap((item) =>
       item.type === 'record' ? [item.hit] : [],
     )
-    groups = [toGroup('recent', 'Đã mở gần đây', hits, { q: '', resultCount: hits.length })]
+    groups = [
+      toGroup('recent', t(message('Đã mở gần đây', 'Recently opened', '최근 연 항목')), hits, {
+        q: '',
+        resultCount: hits.length,
+      }),
+    ]
   } else if (searching && found.data) {
     const resultCount = found.data.groups.reduce((n, g) => n + g.hits.length, 0)
     const log = { q: settled.q, ...(kind ? { kinds: [kind] } : {}), resultCount }
     groups = found.data.groups.map((g) => {
       const facts = SEARCH_KIND_FACTS[g.kind]
-      const group = toGroup(g.kind, facts.label, g.hits, log)
+      const group = toGroup(g.kind, t(facts.label), g.hits, log)
       if (g.more) {
         const href = `${facts.book}?q=${encodeURIComponent(settled.q)}`
         group.rows.push({
           id: `${g.kind}:all`,
           icon: ArrowRight,
-          label: `Xem tất cả trong sổ ${facts.label}`,
+          label: t(
+            message(
+              `Xem tất cả trong sổ ${facts.label.vi}`,
+              `View all in ${facts.label.en}`,
+              `${facts.label.ko} 전체 보기`,
+            ),
+          ),
           onClick: () => navigate(href),
         })
       }
@@ -158,15 +171,36 @@ export function useHeaderSearch(): SearchRecords | undefined {
   let status: string | undefined
   if (typed === '') status = undefined
   else if (searchableText(current.q) === undefined)
-    status = `Gõ ít nhất ${SEARCH_MIN_CHARS} ký tự để tìm bản ghi.`
-  else if (pending) status = 'Đang tìm…'
-  else if (found.isError) status = 'Không tìm được bản ghi. Thử lại sau.'
-  else if (!groups.length) status = `Không có bản ghi nào khớp “${current.q}”.`
+    status = t(
+      message(
+        `Gõ ít nhất ${SEARCH_MIN_CHARS} ký tự để tìm bản ghi.`,
+        `Type at least ${SEARCH_MIN_CHARS} characters to search records.`,
+        `기록을 검색하려면 ${SEARCH_MIN_CHARS}자 이상 입력하세요.`,
+      ),
+    )
+  else if (pending) status = t(message('Đang tìm…', 'Searching…', '검색 중…'))
+  else if (found.isError) {
+    status = t(
+      message(
+        'Không tìm được bản ghi. Thử lại sau.',
+        'Could not search records. Try again later.',
+        '기록을 검색하지 못했습니다. 나중에 다시 시도해 주세요.',
+      ),
+    )
+  } else if (!groups.length) {
+    status = t(
+      message(
+        `Không có bản ghi nào khớp “${current.q}”.`,
+        `No records match “${current.q}”.`,
+        `“${current.q}”와 일치하는 기록이 없습니다.`,
+      ),
+    )
+  }
 
   return {
     scopes: SEARCH_KINDS.filter((k) => allowed[k]).map((k) => ({
       id: k,
-      label: SEARCH_KIND_FACTS[k].label,
+      label: t(SEARCH_KIND_FACTS[k].label),
     })),
     scope,
     onScopeChange: (id) => {

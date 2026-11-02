@@ -14,6 +14,7 @@ import {
   type StepOptionsResponse,
 } from '@pv/contracts'
 import { api, isApiError, userMessage, type ApiError } from '@/app/api'
+import { getLang, message, translate, useLang, type Lang, type Message } from '@/app/i18n'
 import { useCan } from '@/app/auth'
 import { cacheTier } from '@/app/query-client'
 import { dmy } from '@/lib/date'
@@ -39,9 +40,15 @@ import { dueOnPick } from '@/data/next-step'
  *  `data/comm-ai-job.ts`): the answer lands here the same way, whenever it comes. */
 
 /** What the form around the blocks calls its boxes; the blocks say the same word. */
-export type CommAiWords = { note: string; evaluation: string }
-const FORM_WORDS: CommAiWords = { note: 'ghi chú', evaluation: 'đánh giá' }
-export const MEETING_AI_WORDS: CommAiWords = { note: 'tóm tắt', evaluation: 'kết quả' }
+export type CommAiWords = { note: Message; evaluation: Message }
+const FORM_WORDS: CommAiWords = {
+  note: message('ghi chú', 'notes', '메모'),
+  evaluation: message('đánh giá', 'evaluation', '평가'),
+}
+export const MEETING_AI_WORDS: CommAiWords = {
+  note: message('tóm tắt', 'summary', '요약'),
+  evaluation: message('kết quả', 'outcome', '결과'),
+}
 
 /** A failed read reads as off: the buttons stay hidden rather than refuse. */
 const commAiStatusQuery = queryOptions({
@@ -104,6 +111,7 @@ async function dropFile(id: string, fileId: string) {
 }
 
 export function useCommAiReport(record: DebriefView, words = FORM_WORDS) {
+  const lang = useLang()
   const permitted = useCan('comm.view-content') && record.closableByMe
   const status = useQuery({ ...commAiStatusQuery, enabled: permitted })
   const client = useQueryClient()
@@ -151,13 +159,13 @@ export function useCommAiReport(record: DebriefView, words = FORM_WORDS) {
   useLayoutEffect(() => {
     if (!job || isCommJobActive(job) || landed.current === job.id) return
     landed.current = job.id
-    if (job.state === 'FAILED') setJobProblem(job.error ?? COMM_AI_JOB_FAILED)
+    if (job.state === 'FAILED') setJobProblem(job.error ?? translate(COMM_AI_JOB_FAILED))
     else if (job.report) land(job.report, job.part, job.note)
   }, [job, land])
 
   const save = useMutation<string, ApiError, { text: string; replaces: string | null }>({
     mutationFn: async ({ text, replaces }) => {
-      const file = new File([text], minutesFileName(record), { type: 'text/plain' })
+      const file = new File([text], minutesFileName(record, getLang()), { type: 'text/plain' })
       const fileId = await uploadCommFile(record.id, file, 'text/plain')
       /* New file first, so a failure never leaves the record with none. An old copy
          that will not delete stays in the list, where the person can remove it. */
@@ -169,7 +177,17 @@ export function useCommAiReport(record: DebriefView, words = FORM_WORDS) {
       setHeld((h) => h && { ...h, savedMinutes: text })
     },
     onError: (error) =>
-      setSaveProblem(isApiError(error) ? userMessage(error) : 'Không lưu được biên bản. Thử lại.'),
+      setSaveProblem(
+        isApiError(error)
+          ? userMessage(error)
+          : translate(
+              message(
+                'Không lưu được biên bản. Thử lại.',
+                'Could not save the minutes. Try again.',
+                '회의록을 저장하지 못했습니다. 다시 시도해 주세요.',
+              ),
+            ),
+      ),
     onSettled: () => void client.invalidateQueries({ queryKey: COMM_RECORDS_KEY }),
   })
 
@@ -220,7 +238,12 @@ export function useCommAiReport(record: DebriefView, words = FORM_WORDS) {
   const saveMinutes = () => {
     if (!held || save.isPending) return
     const text = held.minutes.trim()
-    if (text === '') return setSaveProblem('Biên bản đang trống.')
+    if (text === '')
+      return setSaveProblem(
+        translate(
+          message('Biên bản đang trống.', 'The minutes are empty.', '회의록이 비어 있습니다.'),
+        ),
+      )
     setSaveProblem(null)
     save.mutate({ text, replaces: savedFile })
   }
@@ -243,7 +266,7 @@ export function useCommAiReport(record: DebriefView, words = FORM_WORDS) {
     /* Hidden while a press runs: its answer is about to replace these blocks. */
     report: asking ? null : (held?.report ?? null),
     part: held?.part ?? null,
-    basis: held ? commAiBasis(held.report.sources, words.note) : '',
+    basis: held ? commAiBasis(held.report.sources, translate(words.note, lang), lang) : '',
     summaryUsed: held?.summaryUsed ?? false,
     /** The part a running press or job asked for; null when idle. */
     asking,
@@ -273,19 +296,41 @@ export type CommAiReportState = ReturnType<typeof useCommAiReport>
 
 /** The law 9 line, from what the server says was read and never from the model.
  *  Built beside the data, as in `data/plan.ts`, so the words cannot drift from it. */
-function commAiBasis({ note, turns, files, unread }: CommAiSources, noteWord: string): string {
+function commAiBasis(
+  { note, turns, files, unread }: CommAiSources,
+  noteWord: string,
+  lang: Lang,
+): string {
   const read = [
     ...(note ? [noteWord] : []),
-    ...(turns > 0 ? [`${turns} lượt trao đổi`] : []),
+    ...(turns > 0
+      ? [
+          translate(
+            message(`${turns} lượt trao đổi`, `${turns} exchanges`, `대화 ${turns}회`),
+            lang,
+          ),
+        ]
+      : []),
     ...files,
   ]
-  const skipped = unread.length > 0 ? `Chưa đọc: ${unread.join(', ')}` : ''
+  const skipped =
+    unread.length > 0
+      ? translate(
+          message(
+            `Chưa đọc: ${unread.join(', ')}`,
+            `Not read: ${unread.join(', ')}`,
+            `읽지 못함: ${unread.join(', ')}`,
+          ),
+          lang,
+        )
+      : ''
   return [read.join(' · '), skipped].filter(Boolean).join('. ')
 }
 
-function minutesFileName(record: DebriefView): string {
+function minutesFileName(record: DebriefView, lang: Lang): string {
   const day = dmy(record.meeting?.at ?? record.createdAt).replaceAll('/', '-')
-  return `Biên bản ${record.subject.code} ${day}.txt`
+  const name = translate(message('Biên bản', 'Minutes', '회의록'), lang)
+  return `${name} ${record.subject.code} ${day}.txt`
 }
 
 /** Answers the form can take: the vocabulary may have moved since the press, a

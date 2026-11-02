@@ -15,27 +15,26 @@ import {
   cn,
 } from '@pv/ui'
 import {
-  OPPORTUNITY_STATE_LABEL,
   OPPORTUNITY_STOP_NOTE_MAX,
   OPPORTUNITY_STOP_REASON_OTHER,
   OPPORTUNITY_STOP_REASON_OTHER_LABEL,
-  CONTRACT_PENALTY_DIRECTION_LABEL,
   type ContractPenalty,
   type ContractTermination,
   type CurrencyCode,
 } from '@pv/contracts'
 import { userMessage } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import { contractTerminationReasonsQuery, rowOf, type Contract } from '@/data/contracts'
+import { penaltyDirectionText, penaltyStatusText } from '@/data/contract-copy'
+import { opportunityStatusLabel } from '@/data/sales-labels-i18n'
 import {
-  PENALTY_STATE_WORD,
   penaltyDayWrong,
   penaltyDraftOf,
   penaltyInputOf,
   penaltyProblem,
 } from '@/data/contract-penalty'
 import { useTerminateContract } from '@/data/contracts-write'
-import { dmy } from '@/lib/date'
 import { moneyIn, symbolOf } from './deal-money/money'
 import { PenaltyDrawer, PenaltyFields } from './contract-penalty'
 import { Field } from './ops-fields'
@@ -48,8 +47,48 @@ import { Field } from './ops-fields'
  *  its own snapshot of the collected money; the figure here is only the hint.
  *  Amounts are in the contract's currency. */
 
-const REFUND_OVER = 'Số tiền hoàn cho khách không được lớn hơn số đã thu.'
+const REFUND_OVER = message(
+  'Số tiền hoàn cho khách không được lớn hơn số đã thu.',
+  'The refund to the customer cannot exceed the amount collected.',
+  '고객 환불액은 수금액을 초과할 수 없습니다.',
+)
 const NOTE = 'min-w-0 flex-1 text-[11.5px] leading-[1.5]'
+
+/** What ending a contract does to the money, said before the button. */
+function TerminateNotice() {
+  const { t } = useI18n()
+  return (
+    <div className="bg-destructive/10 text-on-tint-destructive flex flex-col gap-1 rounded-md p-4 text-[12.5px] leading-[1.6]">
+      <p className="m-0">
+        {t(
+          message(
+            'Hợp đồng thôi tính vào doanh số.',
+            'The contract no longer counts toward sales.',
+            '이 계약은 더 이상 매출에 포함되지 않습니다.',
+          ),
+        )}
+      </p>
+      <p className="m-0">
+        {t(
+          message(
+            'Công ty giữ số tiền đã thu, trừ phần hoàn cho khách.',
+            'The company keeps the money collected, minus the refund to the customer.',
+            '회사는 수금한 금액에서 고객 환불액을 뺀 금액을 보유합니다.',
+          ),
+        )}
+      </p>
+      <p className="m-0 font-semibold">
+        {t(
+          message(
+            'Chấm dứt rồi không mở lại được.',
+            'A terminated contract cannot be reopened.',
+            '종료한 계약은 다시 열 수 없습니다.',
+          ),
+        )}
+      </p>
+    </div>
+  )
+}
 
 export function TerminateDrawer({
   contract,
@@ -60,6 +99,7 @@ export function TerminateDrawer({
   open: boolean
   onClose: () => void
 }) {
+  const { t } = useI18n()
   const [reasonKey, setReasonKey] = useState('')
   const [note, setNote] = useState('')
   const [refund, setRefund] = useState<number | null>(0)
@@ -87,7 +127,15 @@ export function TerminateDrawer({
       {
         /* Closes only once the server accepted, so a refusal cannot vanish. */
         onSuccess: () => {
-          toastDone(`Đã chấm dứt ${contract.code}.`)
+          toastDone(
+            t(
+              message(
+                `Đã chấm dứt ${contract.code}.`,
+                `Terminated ${contract.code}.`,
+                `${contract.code}을(를) 종료했습니다.`,
+              ),
+            ),
+          )
           setReasonKey('')
           setNote('')
           setRefund(0)
@@ -97,10 +145,12 @@ export function TerminateDrawer({
       },
     )
 
+  const otherLabel = t(message(OPPORTUNITY_STOP_REASON_OTHER_LABEL, 'Other', '기타'))
+  const refundOver = t(REFUND_OVER)
   const options = [
-    { value: '', label: 'Chọn lý do…' },
+    { value: '', label: t(message('Chọn lý do…', 'Choose a reason…', '사유 선택…')) },
     ...(catalog?.rows ?? []).map((r) => ({ value: r.id, label: r.name })),
-    { value: OPPORTUNITY_STOP_REASON_OTHER, label: OPPORTUNITY_STOP_REASON_OTHER_LABEL },
+    { value: OPPORTUNITY_STOP_REASON_OTHER, label: otherLabel },
   ]
 
   const status = terminate.error
@@ -108,25 +158,31 @@ export function TerminateDrawer({
     : busy
       ? null
       : reasonKey === ''
-        ? 'Chọn một lý do.'
+        ? t(message('Chọn một lý do.', 'Choose a reason.', '사유를 선택하세요.'))
         : noteNeeded && note.trim() === ''
-          ? `Chọn "${OPPORTUNITY_STOP_REASON_OTHER_LABEL}" thì phải nhập ghi chú.`
+          ? t(
+              message(
+                `Chọn "${OPPORTUNITY_STOP_REASON_OTHER_LABEL}" thì phải nhập ghi chú.`,
+                `A note is required when you choose "${otherLabel}".`,
+                `"${otherLabel}"을(를) 선택하면 메모를 입력해야 합니다.`,
+              ),
+            )
           : overRefund
-            ? REFUND_OVER
+            ? refundOver
             : penaltyWrong
 
   /* Red only for the line on show: a plain prompt stays grey. */
   const wrong =
     Boolean(terminate.error) ||
     (status !== null &&
-      ((overRefund && status === REFUND_OVER) ||
+      ((overRefund && status === refundOver) ||
         (penaltyDayWrong(penalty) && status === penaltyWrong)))
 
   return (
     <Drawer
       open={open}
       onClose={onClose}
-      title="Chấm dứt hợp đồng"
+      title={t(message('Chấm dứt hợp đồng', 'Terminate contract', '계약 종료'))}
       subtitle={
         <>
           <span className="font-mono">{contract.code}</span> · {contract.customer}
@@ -144,15 +200,11 @@ export function TerminateDrawer({
       }
     >
       <div className="flex flex-col gap-6">
-        <div className="bg-destructive/10 text-on-tint-destructive flex flex-col gap-1 rounded-md p-4 text-[12.5px] leading-[1.6]">
-          <p className="m-0">Hợp đồng thôi tính vào doanh số.</p>
-          <p className="m-0">Công ty giữ số tiền đã thu, trừ phần hoàn cho khách.</p>
-          <p className="m-0 font-semibold">Chấm dứt rồi không mở lại được.</p>
-        </div>
+        <TerminateNotice />
 
-        <Field label="Lý do" required plain>
+        <Field label={t(message('Lý do', 'Reason', '사유'))} required plain>
           <Select
-            label="Lý do chấm dứt"
+            label={t(message('Lý do chấm dứt', 'Reason for termination', '종료 사유'))}
             hideLabel
             value={reasonKey}
             onChange={setReasonKey}
@@ -162,12 +214,18 @@ export function TerminateDrawer({
           />
         </Field>
 
-        <Field label="Ghi chú" required={noteNeeded}>
+        <Field label={t(message('Ghi chú', 'Note', '메모'))} required={noteNeeded}>
           <Textarea
             autoGrow
             rows={3}
             value={note}
-            aria-label="Ghi chú khi chấm dứt hợp đồng"
+            aria-label={t(
+              message(
+                'Ghi chú khi chấm dứt hợp đồng',
+                'Note on terminating the contract',
+                '계약 종료 메모',
+              ),
+            )}
             aria-required={noteNeeded}
             maxLength={OPPORTUNITY_STOP_NOTE_MAX}
             onChange={(e) => setNote(e.target.value)}
@@ -204,6 +262,7 @@ function TerminateFooter({
   onClose: () => void
   onSubmit: () => void
 }) {
+  const { t } = useI18n()
   return (
     <div className="flex flex-wrap items-center justify-between gap-4">
       <span
@@ -221,7 +280,7 @@ function TerminateFooter({
           onClick={onClose}
         >
           <Icon icon={X} size={16} />
-          Huỷ
+          {t(message('Huỷ', 'Cancel', '취소'))}
         </Button>
         <Button
           size="md"
@@ -231,7 +290,9 @@ function TerminateFooter({
           onClick={onSubmit}
         >
           <Icon icon={Ban} size={16} />
-          {busy ? 'Đang chấm dứt…' : 'Chấm dứt hợp đồng'}
+          {busy
+            ? t(message('Đang chấm dứt…', 'Terminating…', '종료하는 중…'))
+            : t(message('Chấm dứt hợp đồng', 'Terminate contract', '계약 종료'))}
         </Button>
       </div>
     </div>
@@ -252,20 +313,27 @@ function RefundField({
   currency: CurrencyCode | null
   invalid: boolean
 }) {
+  const { t, number } = useI18n()
   const money = moneyIn(currency)
   const kept = Math.max(collected - (value ?? 0), 0)
   return (
     <Field
-      label="Số tiền hoàn cho khách"
-      hint={`Đã thu ${money(collected)} · giữ lại ${money(kept)}.`}
+      label={t(message('Số tiền hoàn cho khách', 'Refund to customer', '고객 환불액'))}
+      hint={t(
+        message(
+          `Đã thu ${money(collected)} · giữ lại ${money(kept)}.`,
+          `Collected ${money(collected)} · kept ${money(kept)}.`,
+          `수금 ${money(collected)} · 보유 ${money(kept)}.`,
+        ),
+      )}
     >
       <span className="relative flex items-center">
         <Input
           inputMode="numeric"
-          aria-label="Số tiền hoàn cho khách"
+          aria-label={t(message('Số tiền hoàn cho khách', 'Refund to customer', '고객 환불액'))}
           aria-invalid={invalid}
           className="tnum font-num pointer-coarse:h-12 pr-8"
-          value={value === null ? '' : value.toLocaleString('vi-VN')}
+          value={value === null ? '' : number(value)}
           onChange={(e) => {
             const digits = e.target.value.replace(/\D/g, '')
             onChange(digits === '' ? null : Number(digits))
@@ -309,27 +377,39 @@ function PenaltyBlock({
   money: (n: number) => string
   onEdit?: () => void
 }) {
+  const { t, lang, date } = useI18n()
   if (!penalty && !onEdit) return null
-  const word = penalty && PENALTY_STATE_WORD[penalty.direction]
   return (
     <div className="bg-surface-ink/5 flex flex-wrap items-center gap-4 rounded-md p-4">
-      {penalty && word ? (
+      {penalty ? (
         <>
           <Figure
-            label={CONTRACT_PENALTY_DIRECTION_LABEL[penalty.direction]}
+            label={penaltyDirectionText(penalty.direction, lang)}
             value={money(penalty.amount)}
             strong
           />
           <Badge tone={penalty.settledOn ? 'success' : 'warning'}>
-            {penalty.settledOn ? `${word.done} ngày ${dmy(penalty.settledOn)}` : word.wait}
+            {penalty.settledOn
+              ? t(
+                  message(
+                    `${penaltyStatusText(penalty.direction, true, 'vi')} ngày ${date(penalty.settledOn)}`,
+                    `${penaltyStatusText(penalty.direction, true, 'en')} on ${date(penalty.settledOn)}`,
+                    `${date(penalty.settledOn)} ${penaltyStatusText(penalty.direction, true, 'ko')}`,
+                  ),
+                )
+              : penaltyStatusText(penalty.direction, false, lang)}
           </Badge>
         </>
       ) : (
-        <span className="text-muted-foreground text-[12.5px]">Không có tiền phạt</span>
+        <span className="text-muted-foreground text-[12.5px]">
+          {t(message('Không có tiền phạt', 'No penalty', '위약금 없음'))}
+        </span>
       )}
       {onEdit && (
         <Button variant="ghost" size="sm" className="pointer-coarse:h-12 ml-auto" onClick={onEdit}>
-          {penalty ? 'Sửa' : 'Ghi tiền phạt'}
+          {penalty
+            ? t(message('Sửa', 'Edit', '수정'))
+            : t(message('Ghi tiền phạt', 'Record penalty', '위약금 기록'))}
         </Button>
       )}
     </div>
@@ -347,6 +427,7 @@ export function TerminationCard({
   contract: Contract
   termination: ContractTermination
 }) {
+  const { t: say, date } = useI18n()
   const [editing, setEditing] = useState(false)
   const money = moneyIn(contract.currency)
 
@@ -354,12 +435,24 @@ export function TerminationCard({
     <GlassCard
       variant="b"
       className="flex flex-col gap-4 p-4 sm:p-5"
-      aria-label={`Hợp đồng ${OPPORTUNITY_STATE_LABEL.terminated.toLowerCase()}`}
+      aria-label={say(
+        message(
+          `Hợp đồng ${opportunityStatusLabel('terminated', 'vi').toLowerCase()}`,
+          `Contract ${opportunityStatusLabel('terminated', 'en').toLowerCase()}`,
+          `계약 ${opportunityStatusLabel('terminated', 'ko')}`,
+        ),
+      )}
     >
       <div className="flex flex-col gap-1">
         <SectionTitle size="detail">{t.reasonLabel}</SectionTitle>
         <span className="text-muted-foreground text-[12px]">
-          {t.byName} chấm dứt ngày {dmy(t.terminatedAt)}
+          {say(
+            message(
+              `${t.byName} chấm dứt ngày ${date(t.terminatedAt)}`,
+              `Terminated by ${t.byName} on ${date(t.terminatedAt)}`,
+              `${t.byName}이(가) ${date(t.terminatedAt)}에 종료`,
+            ),
+          )}
         </span>
       </div>
       {t.note && (
@@ -368,11 +461,21 @@ export function TerminationCard({
         </p>
       )}
       <div className="grid gap-4 sm:grid-cols-[1fr_auto_1fr_auto_1fr] sm:gap-6">
-        <Figure label="Đã thu" value={money(t.collectedAmount)} />
+        <Figure
+          label={say(message('Đã thu', 'Collected', '수금액'))}
+          value={money(t.collectedAmount)}
+        />
         <Operator sign="−" />
-        <Figure label="Hoàn cho khách" value={money(t.refundedAmount)} />
+        <Figure
+          label={say(message('Hoàn cho khách', 'Refunded to customer', '고객 환불'))}
+          value={money(t.refundedAmount)}
+        />
         <Operator sign="=" />
-        <Figure label="Giữ lại" value={money(t.collectedAmount - t.refundedAmount)} strong />
+        <Figure
+          label={say(message('Giữ lại', 'Kept', '보유액'))}
+          value={money(t.collectedAmount - t.refundedAmount)}
+          strong
+        />
       </div>
       <PenaltyBlock
         penalty={t.penalty}

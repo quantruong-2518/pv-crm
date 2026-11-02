@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Badge, Button, GlassCard, Input, SectionTitle, cn } from '@pv/ui'
 import {
-  KPI_METRIC_LABEL,
   KpiAllocationDraftBody,
   KpiAllocationSubmitBody,
   type KpiAllocation,
@@ -12,13 +11,14 @@ import {
 } from '@pv/contracts'
 import type { ApiError } from '@/app/api'
 import { useSession } from '@/app/auth'
+import { message, translate, useI18n } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import { Field } from '@/components/field-bits'
 import { StackTable, type StackColumn } from '@/components/stack-table'
 import { useDraftTeamAllocation, useSubmitTeamAllocation } from '@/data/kpi-team-view'
-import { ROLE_LABEL } from '@/data/users'
+import { kpiMetricText, kpiRoleText } from '@/data/kpi-i18n'
 import { NOTE } from './home-tiles'
-import { PACKAGE_LABEL, actedAt, typedOf } from './kpi-allocate-model'
+import { PACKAGE_LABEL, actedAt, decidedVerb, typedOf } from './kpi-allocate-model'
 import { FailLine } from './kpi-allocate-parts'
 import { TargetHistoryButton } from './kpi-history'
 import { DASH, UNIT_WORD, parseTyped, printShort, printValue } from './kpi-model'
@@ -41,24 +41,55 @@ const cellKey = (actorId: string, metric: KpiMetricKey) => `${actorId}|${metric}
 /** Whole days only; anything else is NaN, which the contract refuses. */
 const toDays = (text: string) => (/^\d+$/.test(text.trim()) ? Number(text) : Number.NaN)
 
+const NOT_SPLIT = message(
+  'Chưa chia cho thành viên',
+  'Not yet split among members',
+  '팀원에게 아직 배분되지 않음',
+)
+
 type Check = { text: string; badge: { tone: 'success' | 'warning'; text: string } | null }
 
 /** One metric's sum against the team's share; the share is printed even before anything is split. */
 function checkOf(def: KpiMetricDef, share: number, total: KpiAllocationTotal | undefined): Check {
   const print = (v: number) => printValue(def.unit, v)
-  if (!total) return { text: `Phần của nhóm ${print(share)} · chưa chia`, badge: null }
+  const own = print(share)
+  if (!total) {
+    const text = message(
+      `Phần của nhóm ${own} · chưa chia`,
+      `Team share ${own} · not yet split`,
+      `팀 몫 ${own} · 미배분`,
+    )
+    return { text: translate(text), badge: null }
+  }
   if (total.allocated === null) {
-    return { text: `Phần của nhóm ${print(share)} · mỗi người một mức riêng`, badge: null }
+    const text = message(
+      `Phần của nhóm ${own} · mỗi người một mức riêng`,
+      `Team share ${own} · each person has their own level`,
+      `팀 몫 ${own} · 개인별 기준 적용`,
+    )
+    return { text: translate(text), badge: null }
   }
   const { delta } = total
+  const amount = delta === null ? '' : print(Math.abs(delta))
   const gap =
     delta === null || delta === 0
       ? null
-      : `${delta < 0 ? 'Thiếu' : 'Thừa'} ${print(Math.abs(delta))}`
+      : translate(
+          delta < 0
+            ? message(`Thiếu ${amount}`, `Short ${amount}`, `${amount} 부족`)
+            : message(`Thừa ${amount}`, `Over ${amount}`, `${amount} 초과`),
+        )
+  const done = print(total.allocated)
   return {
-    text: `Đã chia ${print(total.allocated)} / ${print(share)}`,
+    text: translate(
+      message(`Đã chia ${done} / ${own}`, `Split ${done} / ${own}`, `배분 ${done} / ${own}`),
+    ),
     badge:
-      delta === 0 ? { tone: 'success', text: 'Khớp' } : gap ? { tone: 'warning', text: gap } : null,
+      delta === 0
+        ? { tone: 'success', text: translate(message('Khớp', 'Matches', '일치')) }
+        : gap
+          ? { tone: 'warning', text: gap }
+          : null,
   }
 }
 
@@ -76,24 +107,60 @@ function SaveBar({
   onSave?: () => void
   onSend?: (ackDays: number) => void
 }) {
+  const { t } = useI18n()
   const [daysText, setDaysText] = useState(initialDays === null ? '' : String(initialDays))
+  const replyLabel = t(message('Hạn trả lời (số ngày)', 'Reply deadline (days)', '회신 기한(일)'))
   const days = ACK_DAYS.safeParse(toDays(daysText))
   const problem =
     daysText === ''
-      ? 'Nhập hạn trả lời để gửi duyệt.'
+      ? t(
+          message(
+            'Nhập hạn trả lời để gửi duyệt.',
+            'Enter the reply deadline to submit for approval.',
+            '승인 요청을 보내려면 회신 기한을 입력하세요.',
+          ),
+        )
       : days.success
         ? undefined
-        : `Nhập số ngày từ ${ACK_DAYS.minValue} đến ${ACK_DAYS.maxValue}.`
+        : t(
+            message(
+              `Nhập số ngày từ ${ACK_DAYS.minValue} đến ${ACK_DAYS.maxValue}.`,
+              `Enter a number of days from ${ACK_DAYS.minValue} to ${ACK_DAYS.maxValue}.`,
+              `${ACK_DAYS.minValue}일에서 ${ACK_DAYS.maxValue}일 사이의 숫자를 입력하세요.`,
+            ),
+          )
   return (
     <div className="flex flex-wrap items-center justify-end gap-3 px-5">
       <div className="mr-auto flex min-w-0 flex-col gap-1">
         <p className={NOTE}>
-          Hàng nghìn ngăn bằng dấu chấm, số lẻ dùng dấu phẩy. Tỷ lệ nhập theo phần trăm.
+          {t(
+            message(
+              'Hàng nghìn ngăn bằng dấu chấm, số lẻ dùng dấu phẩy. Tỷ lệ nhập theo phần trăm.',
+              'Separate thousands with a period and decimals with a comma. Enter rates as percentages.',
+              '천 단위는 마침표, 소수점은 쉼표로 입력하세요. 비율은 퍼센트로 입력합니다.',
+            ),
+          )}
         </p>
-        {dirty && <p className={NOTE}>Có thay đổi chưa lưu. Lưu nháp rồi mới gửi duyệt được.</p>}
+        {dirty && (
+          <p className={NOTE}>
+            {t(
+              message(
+                'Có thay đổi chưa lưu. Lưu nháp rồi mới gửi duyệt được.',
+                'There are unsaved changes. Save the draft before submitting for approval.',
+                '저장하지 않은 변경 사항이 있습니다. 임시 저장 후 승인 요청을 보낼 수 있습니다.',
+              ),
+            )}
+          </p>
+        )}
         <Field
-          label="Hạn trả lời (số ngày)"
-          hint="Quá hạn mà người nhận chưa trả lời thì áp dụng mức đã giao."
+          label={replyLabel}
+          hint={t(
+            message(
+              'Quá hạn mà người nhận chưa trả lời thì áp dụng mức đã giao.',
+              'If the recipient has not replied by the deadline, the assigned level applies.',
+              '기한까지 수신자가 회신하지 않으면 배정된 기준이 적용됩니다.',
+            ),
+          )}
           problem={problem}
           className="mt-1 w-72 max-w-full"
         >
@@ -101,13 +168,13 @@ function SaveBar({
           <span className="flex items-center gap-2">
             <Input
               inputMode="numeric"
-              aria-label="Hạn trả lời (số ngày)"
+              aria-label={replyLabel}
               className="pointer-coarse:h-12 tnum font-num w-24 text-right"
               value={daysText}
               invalid={problem !== undefined}
               onChange={(e) => setDaysText(e.target.value)}
             />
-            <span className={NOTE}>ngày</span>
+            <span className={NOTE}>{t(message('ngày', 'days', '일'))}</span>
           </span>
         </Field>
         {errors.map((error, i) => (
@@ -120,14 +187,14 @@ function SaveBar({
         disabled={!onSave}
         onClick={onSave}
       >
-        Lưu nháp
+        {t(message('Lưu nháp', 'Save draft', '임시 저장'))}
       </Button>
       <Button
         className="pointer-coarse:h-12"
         disabled={!onSend || !days.success}
         onClick={() => days.success && onSend?.(days.data)}
       >
-        Gửi duyệt
+        {t(message('Gửi duyệt', 'Submit for approval', '승인 요청'))}
       </Button>
     </div>
   )
@@ -135,19 +202,32 @@ function SaveBar({
 
 /** Package state in one line, then why it needs the lead's hand, if it does. */
 function StateNotes({ pkg }: { pkg: KpiAllocation | undefined }) {
+  const { t } = useI18n()
   if (!pkg) return null
-  const sent = pkg.decidedAt
-    ? actedAt(pkg.decidedBy, pkg.status === 'returned' ? 'trả lại' : 'duyệt', pkg.decidedAt)
-    : null
+  const sent = pkg.decidedAt ? actedAt(pkg.decidedBy, decidedVerb(pkg.status), pkg.decidedAt) : null
   return (
     <div className="flex flex-col gap-1">
       {sent && <p className={NOTE_NUM}>{sent}</p>}
       {pkg.status === 'returned' && pkg.returnReason && (
-        <p className="text-[12.5px] leading-5">Lý do trả lại: {pkg.returnReason}</p>
+        <p className="text-[12.5px] leading-5">
+          {t(
+            message(
+              `Lý do trả lại: ${pkg.returnReason}`,
+              `Reason for return: ${pkg.returnReason}`,
+              `반려 사유: ${pkg.returnReason}`,
+            ),
+          )}
+        </p>
       )}
       {pkg.shareChanged && (
         <p className="text-[12.5px] font-semibold leading-5">
-          Phần của nhóm đã đổi. Chia lại rồi gửi duyệt.
+          {t(
+            message(
+              'Phần của nhóm đã đổi. Chia lại rồi gửi duyệt.',
+              'The team share changed. Split again, then submit for approval.',
+              '팀 몫이 변경되었습니다. 다시 배분한 후 승인 요청을 보내세요.',
+            ),
+          )}
         </p>
       )}
     </div>
@@ -191,10 +271,11 @@ function SplitTable({
   textOf: (key: string, def: KpiMetricDef) => string
   onEdit: (key: string, text: string) => void
 }) {
+  const { t } = useI18n()
   const tableColumns: StackColumn[] = [
-    { header: 'Thành viên', width: 'minmax(160px,1.2fr)' },
+    { header: t(message('Thành viên', 'Member', '팀원')), width: 'minmax(160px,1.2fr)' },
     ...columns.map((def) => ({
-      header: KPI_METRIC_LABEL[def.key],
+      header: kpiMetricText(def.key),
       width: 'minmax(168px,1fr)',
       align: 'right' as const,
       stack: editable ? ('wide' as const) : undefined,
@@ -212,7 +293,13 @@ function SplitTable({
           <span className="flex w-full items-center gap-2">
             <Input
               inputMode="decimal"
-              aria-label={`${KPI_METRIC_LABEL[def.key]} của ${holder.name}`}
+              aria-label={t(
+                message(
+                  `${kpiMetricText(def.key)} của ${holder.name}`,
+                  `${kpiMetricText(def.key)} for ${holder.name}`,
+                  `${holder.name}의 ${kpiMetricText(def.key)}`,
+                ),
+              )}
               className="pointer-coarse:h-12 tnum font-num min-w-0 text-right"
               value={textOf(key, def)}
               invalid={parseTyped(def.unit, textOf(key, def)) === null}
@@ -226,7 +313,15 @@ function SplitTable({
           </span>
         )}
         {last !== null && (
-          <span className={NOTE_NUM}>Tháng trước đạt {printShort(def.unit, last)}</span>
+          <span className={NOTE_NUM}>
+            {t(
+              message(
+                `Tháng trước đạt ${printShort(def.unit, last)}`,
+                `Last month: ${printShort(def.unit, last)}`,
+                `지난달 달성 ${printShort(def.unit, last)}`,
+              ),
+            )}
+          </span>
         )}
       </span>
     )
@@ -271,7 +366,7 @@ function TotalsList({
         )
         return (
           <li key={def.key} className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="text-[12.5px] font-semibold">{KPI_METRIC_LABEL[def.key]}</span>
+            <span className="text-[12.5px] font-semibold">{kpiMetricText(def.key)}</span>
             <span className={NOTE_NUM}>{check.text}</span>
             {check.badge && <Badge tone={check.badge.tone}>{check.badge.text}</Badge>}
           </li>
@@ -303,6 +398,7 @@ export function TeamSplit({
   /** The reader leads the team and the month is open. */
   canEdit: boolean
 }) {
+  const { t } = useI18n()
   const me = useSession((s) => s.actor?.id)
   const draft = useDraftTeamAllocation(period, teamId)
   const submit = useSubmitTeamAllocation(period, teamId)
@@ -313,9 +409,7 @@ export function TeamSplit({
   const status = pkg?.status
   const editable = canEdit && (!pkg || status === 'draft' || editing)
   const reopenable = canEdit && !editable && (status === 'returned' || pkg?.shareChanged === true)
-  const state = pkg
-    ? PACKAGE_LABEL[pkg.status]
-    : { text: 'Chưa chia cho thành viên', tone: 'draft' as const }
+  const state = pkg ? PACKAGE_LABEL[pkg.status] : { text: t(NOT_SPLIT), tone: 'draft' as const }
 
   const saved = new Map(pkg?.lines.map((l) => [cellKey(l.actorId, l.metricKey), l]))
   const textOf = (key: string, def: KpiMetricDef) => {
@@ -340,13 +434,19 @@ export function TeamSplit({
       onSuccess: () => {
         setEdits({})
         setEditing(false)
-        toastDone('Đã lưu nháp')
+        toastDone(t(message('Đã lưu nháp', 'Draft saved', '임시 저장했습니다')))
       },
     })
   }
   const send = (ackDays: number) => {
     draft.reset()
-    submit.mutate({ role, teamId, ackDays }, { onSuccess: () => toastDone('Đã gửi duyệt') })
+    submit.mutate(
+      { role, teamId, ackDays },
+      {
+        onSuccess: () =>
+          toastDone(t(message('Đã gửi duyệt', 'Submitted for approval', '승인 요청을 보냈습니다'))),
+      },
+    )
   }
 
   return (
@@ -369,13 +469,14 @@ export function TeamSplit({
                 className="pointer-coarse:h-12"
                 onClick={() => setEditing(true)}
               >
-                Chia lại
+                {t(message('Chia lại', 'Split again', '다시 배분'))}
               </Button>
             )}
           </>
         }
       >
-        Chia cho thành viên · {ROLE_LABEL[role]}
+        {t(message('Chia cho thành viên', 'Split among members', '팀원에게 배분'))} ·{' '}
+        {kpiRoleText(role)}
       </SectionTitle>
       <StateNotes pkg={pkg} />
       <GlassCard variant="b" className="flex flex-col gap-4 py-4">
@@ -383,7 +484,15 @@ export function TeamSplit({
           <Badge tone={state.tone}>{state.text}</Badge>
         </div>
         {holders.length === 0 ? (
-          <p className={cn(NOTE, 'px-5')}>Nhóm chưa có ai giữ vai trò này.</p>
+          <p className={cn(NOTE, 'px-5')}>
+            {t(
+              message(
+                'Nhóm chưa có ai giữ vai trò này.',
+                'No one in the team holds this role.',
+                '팀에 이 역할을 맡은 사람이 없습니다.',
+              ),
+            )}
+          </p>
         ) : (
           <SplitTable
             columns={columns}
@@ -397,7 +506,13 @@ export function TeamSplit({
         <TotalsList columns={columns} shares={shares} pkg={pkg} />
         {editable && foreign && pkg?.submittedBy && (
           <p className={cn(NOTE, 'px-5')}>
-            {pkg.submittedBy.name} sửa bản nháp sau cùng. Lưu nháp rồi gửi duyệt.
+            {t(
+              message(
+                `${pkg.submittedBy.name} sửa bản nháp sau cùng. Lưu nháp rồi gửi duyệt.`,
+                `${pkg.submittedBy.name} edited the draft last. Save the draft, then submit for approval.`,
+                `${pkg.submittedBy.name}님이 임시 저장본을 마지막으로 수정했습니다. 임시 저장 후 승인 요청을 보내세요.`,
+              ),
+            )}
           </p>
         )}
         {editable && holders.length > 0 && (

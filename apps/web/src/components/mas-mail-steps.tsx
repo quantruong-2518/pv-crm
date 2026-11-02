@@ -13,7 +13,9 @@ import {
   cn,
 } from '@pv/ui'
 import type { CampaignBookRow, CampaignWaveInput, MasPreflightResponse } from '@pv/contracts'
-import { MAIL_NAME_MAX, MAS_RECIPIENT_BLOCK_LABEL, SALES_INBOX } from '@pv/contracts'
+import { MAIL_NAME_MAX, SALES_INBOX } from '@pv/contracts'
+import { message, useI18n, type Message } from '@/app/i18n'
+import { recipientBlockLabel } from '@/components/mail-letter/letter-model'
 import { MailPreviewCard } from '@/components/mail-compose-bits'
 import { Field } from '@/components/field-bits'
 import { PersonTokenField } from '@/components/person-token-field'
@@ -35,6 +37,14 @@ import {
  *  steps SHARE — the draft, the footer, the gate — and each part here only
  *  knows its own questions. */
 
+const ADD_RECIPIENT = message('Thêm người nhận', 'Add a recipient', '수신자 추가')
+
+const NO_EMAIL = message('Chưa có email', 'No email yet', '이메일 없음')
+
+/** `n` people, said per language (no plural in Vietnamese or Korean). */
+const peopleOf = (n: number) =>
+  message(`${n} người`, `${n} ${n === 1 ? 'person' : 'people'}`, `${n}명`)
+
 /** The server's answer about the list on screen — or nothing yet. */
 export type RecipientVerdicts = { report?: MasPreflightResponse; checking: boolean }
 
@@ -53,6 +63,7 @@ export function RecipientsStep({
   chosen: readonly MasRecipient[]
   verdicts: RecipientVerdicts
 }) {
+  const { t } = useI18n()
   const pick = (code: string) => {
     draft.setSelected((current) => new Set(current).add(code))
     if (draft.previewCode === '') draft.setPreviewCode(code)
@@ -66,14 +77,16 @@ export function RecipientsStep({
 
   return (
     <GlassCard variant="b" className="flex min-w-0 flex-col gap-4 p-6">
-      <SectionTitle size="md">Gửi tới ai?</SectionTitle>
+      <SectionTitle size="md">
+        {t(message('Gửi tới ai?', 'Who receives it?', '누구에게 보낼까요?'))}
+      </SectionTitle>
 
       {/* NO TOKENS: the grid below holds the same people with their addresses,
           and two rows of the same names is one too many. */}
-      <Field label="Thêm người nhận" className="max-w-[480px]">
+      <Field label={t(ADD_RECIPIENT)} className="max-w-[480px]">
         <PersonTokenField
-          label="Thêm người nhận"
-          placeholder="Thêm người nhận…"
+          label={t(ADD_RECIPIENT)}
+          placeholder={t(message('Thêm người nhận…', 'Add a recipient…', '수신자 추가…'))}
           tokens={[]}
           onSearch={onSearch}
           suggestions={recipients
@@ -83,7 +96,7 @@ export function RecipientsStep({
               name: lead.contactName,
               note: [
                 lead.destinationLabel,
-                lead.contactTitle || 'Chưa có chức danh',
+                lead.contactTitle || t(message('Chưa có chức danh', 'No job title', '직함 없음')),
                 lead.company,
                 lead.email,
               ]
@@ -112,37 +125,60 @@ function ChosenGrid({
   verdicts: RecipientVerdicts
   onRemove: (code: string) => void
 }) {
+  const { t } = useI18n()
   const [filter, setFilter] = useState<'all' | 'blocked'>('all')
   const { report, checking } = verdicts
   const byCode = new Map(report?.recipients.map((row) => [row.subjectCode, row]))
   const blocked = report?.blocked ?? 0
   const cells = chosen.filter((lead) => filter === 'all' || byCode.get(lead.code)?.block)
-  const summary = report
-    ? `${chosen.length} đã chọn · ${report.sendable} sẽ nhận · ${blocked} bị chặn`
-    : checking
-      ? `${chosen.length} đã chọn · đang kiểm tra…`
-      : `${chosen.length} đã chọn`
+  const summary = t(
+    report
+      ? message(
+          `${chosen.length} đã chọn · ${report.sendable} sẽ nhận · ${blocked} bị chặn`,
+          `${chosen.length} selected · ${report.sendable} will receive · ${blocked} blocked`,
+          `${chosen.length}명 선택 · ${report.sendable}명 수신 · ${blocked}명 차단`,
+        )
+      : checking
+        ? message(
+            `${chosen.length} đã chọn · đang kiểm tra…`,
+            `${chosen.length} selected · checking…`,
+            `${chosen.length}명 선택 · 확인 중…`,
+          )
+        : message(
+            `${chosen.length} đã chọn`,
+            `${chosen.length} selected`,
+            `${chosen.length}명 선택`,
+          ),
+  )
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-4">
         <span className="tnum text-[13px] font-semibold leading-5">{summary}</span>
         <SegmentedControl
-          label="Lọc người nhận"
+          label={t(message('Lọc người nhận', 'Filter recipients', '수신자 필터'))}
           hideLabel
           tone="quiet"
           value={filter}
           onChange={(value) => setFilter(value as 'all' | 'blocked')}
           options={[
-            { value: 'all', label: 'Tất cả' },
-            { value: 'blocked', label: 'Bị chặn', count: blocked },
+            { value: 'all', label: t(message('Tất cả', 'All', '전체')) },
+            { value: 'blocked', label: t(message('Bị chặn', 'Blocked', '차단됨')), count: blocked },
           ]}
         />
       </div>
 
       {cells.length === 0 ? (
         <p className="text-glass-foreground m-0 text-[12px] leading-5">
-          {chosen.length === 0 ? 'Chưa chọn ai.' : 'Không ai bị chặn trong danh sách này.'}
+          {chosen.length === 0
+            ? t(message('Chưa chọn ai.', 'Nobody selected yet.', '선택한 수신자가 없습니다.'))
+            : t(
+                message(
+                  'Không ai bị chặn trong danh sách này.',
+                  'Nobody in this list is blocked.',
+                  '이 목록에는 차단된 수신자가 없습니다.',
+                ),
+              )}
         </p>
       ) : (
         <ul className="m-0 grid max-h-[392px] min-w-0 list-none grid-cols-1 content-start gap-2 overflow-y-auto p-0 sm:grid-cols-2 lg:grid-cols-3">
@@ -159,17 +195,35 @@ function ChosenGrid({
 
       {report && report.hidden > 0 && (
         <p className="text-warning m-0 text-[12px] leading-5">
-          {report.hidden} người nhận bị ẩn theo quyền của bạn, sẽ không nhận email.
+          {t(
+            message(
+              `${report.hidden} người nhận bị ẩn theo quyền của bạn, sẽ không nhận email.`,
+              `${report.hidden} ${report.hidden === 1 ? 'recipient is' : 'recipients are'} hidden by your permissions and will not get the email.`,
+              `권한에 따라 숨겨진 수신자 ${report.hidden}명은 이메일을 받지 않습니다.`,
+            ),
+          )}
         </p>
       )}
       {report?.apolloCount ? (
         <p className="text-warning m-0 text-[12px] leading-5">
           <Icon icon={TriangleAlert} size={14} className="mr-2 inline align-middle" />
-          Có {report.apolloCount} liên hệ từ Apollo. Chỉ gửi khi đã xác nhận họ đồng ý nhận email.
+          {t(
+            message(
+              `Có ${report.apolloCount} liên hệ từ Apollo. Chỉ gửi khi đã xác nhận họ đồng ý nhận email.`,
+              `${report.apolloCount} ${report.apolloCount === 1 ? 'contact comes' : 'contacts come'} from Apollo. Send only if they have agreed to receive email.`,
+              `Apollo 출처 연락처가 ${report.apolloCount}명 있습니다. 이메일 수신 동의를 확인한 경우에만 보내세요.`,
+            ),
+          )}
         </p>
       ) : null}
       <p className="text-glass-foreground m-0 text-[12px] leading-5">
-        Kết quả kiểm tra hiện trên từng dòng.
+        {t(
+          message(
+            'Kết quả kiểm tra hiện trên từng dòng.',
+            'Check results appear on each row.',
+            '확인 결과는 각 행에 표시됩니다.',
+          ),
+        )}
       </p>
     </div>
   )
@@ -184,6 +238,7 @@ function RecipientCell({
   verdict?: MasPreflightResponse['recipients'][number]
   onRemove: () => void
 }) {
+  const { t, lang } = useI18n()
   const name = lead.destinationLabel
     ? `${lead.contactName} · ${lead.destinationLabel}`
     : lead.contactName
@@ -205,19 +260,29 @@ function RecipientCell({
           )}
           title={lead.email}
         >
-          {lead.email || 'Chưa có email'}
+          {lead.email || t(NO_EMAIL)}
         </span>
       </span>
       {verdict?.block ? (
-        <Badge tone="warning">{MAS_RECIPIENT_BLOCK_LABEL[verdict.block]}</Badge>
+        <Badge tone="warning">{recipientBlockLabel(verdict.block, lang)}</Badge>
       ) : verdict ? (
-        <span role="img" aria-label="Sẽ gửi" className="text-success flex shrink-0">
+        <span
+          role="img"
+          aria-label={t(message('Sẽ gửi', 'Will send', '발송 예정'))}
+          className="text-success flex shrink-0"
+        >
           <Icon icon={Check} size={14} />
         </span>
       ) : null}
       <button
         type="button"
-        aria-label={`Bỏ ${lead.contactName}`}
+        aria-label={t(
+          message(
+            `Bỏ ${lead.contactName}`,
+            `Remove ${lead.contactName}`,
+            `${lead.contactName} 제외`,
+          ),
+        )}
         onClick={onRemove}
         className="text-muted-foreground motion-std hover:bg-surface-ink/9 hover:text-foreground flex size-12 shrink-0 items-center justify-center rounded-md"
       >
@@ -234,6 +299,7 @@ function RecipientCell({
  *  Exported because `WaveComposer` owns the letter while this shared setting
  *  remains in the modal shell. */
 export function SaveTemplateBlock({ draft, allowed }: { draft: MasMailDraft; allowed: boolean }) {
+  const { t } = useI18n()
   return (
     <div className="flex min-w-0 flex-col gap-3">
       <Checkbox
@@ -241,18 +307,50 @@ export function SaveTemplateBlock({ draft, allowed }: { draft: MasMailDraft; all
         disabled={!allowed}
         checked={draft.saveAsTemplate && allowed}
         onChange={draft.setSaveAsTemplate}
-        label="Lưu nội dung này thành mẫu"
+        label={t(
+          message(
+            'Lưu nội dung này thành mẫu',
+            'Save this content as a template',
+            '이 내용을 템플릿으로 저장',
+          ),
+        )}
         /* The only hint left in the form: not guidance, but the reason a
            control is locked, and it has to stand beside that control. */
-        {...(allowed ? {} : { hint: 'Cần quyền sửa mẫu email. Thư vẫn gửi bình thường.' })}
+        {...(allowed
+          ? {}
+          : {
+              hint: t(
+                message(
+                  'Cần quyền sửa mẫu email. Thư vẫn gửi bình thường.',
+                  'Editing email templates needs permission. The email still sends normally.',
+                  '이메일 템플릿을 수정할 권한이 필요합니다. 메일은 정상적으로 발송됩니다.',
+                ),
+              ),
+            })}
       />
       {allowed && draft.saveAsTemplate && (
-        <Field label="Tên mẫu" required hint="Cả đội thấy tên này trong ô 'Bắt đầu từ mẫu'.">
+        <Field
+          label={t(message('Tên mẫu', 'Template name', '템플릿 이름'))}
+          required
+          hint={t(
+            message(
+              "Cả đội thấy tên này trong ô 'Bắt đầu từ mẫu'.",
+              "The whole team sees this name in the 'Start from a template' box.",
+              "팀 전체가 '템플릿으로 시작' 칸에서 이 이름을 봅니다.",
+            ),
+          )}
+        >
           <Input
             aria-required
             value={draft.templateName}
             maxLength={MAIL_NAME_MAX}
-            placeholder="VD: Chào lần đầu, nhà máy thực phẩm"
+            placeholder={t(
+              message(
+                'VD: Chào lần đầu, nhà máy thực phẩm',
+                'e.g. First hello, food factory',
+                '예: 첫 인사, 식품 공장',
+              ),
+            )}
             onChange={(event) => draft.setTemplateName(event.target.value)}
           />
         </Field>
@@ -280,14 +378,18 @@ export function DeliveryOptions({
   /** The typed chain name is empty — its error must not sit folded away. */
   forceOpen: boolean
 }) {
+  const { t } = useI18n()
   const chained = draft.campaignCode === NO_CAMPAIGN && waves > 1
+  const code = draft.campaignCode
   const summary = [
-    draft.campaignCode !== NO_CAMPAIGN
-      ? `Chiến dịch ${draft.campaignCode}`
+    code !== NO_CAMPAIGN
+      ? t(message(`Chiến dịch ${code}`, `Campaign ${code}`, `캠페인 ${code}`))
       : chained
-        ? `Chuỗi: ${sequenceName}`
-        : 'Không gắn chiến dịch',
-    draft.trackEngagement ? 'ghi nhận mở và bấm' : 'không ghi nhận mở, bấm',
+        ? t(message(`Chuỗi: ${sequenceName}`, `Chain: ${sequenceName}`, `시퀀스: ${sequenceName}`))
+        : t(message('Không gắn chiến dịch', 'No campaign', '캠페인 없음')),
+    draft.trackEngagement
+      ? t(message('ghi nhận mở và bấm', 'tracks opens and clicks', '열람·클릭 기록'))
+      : t(message('không ghi nhận mở, bấm', 'no open or click tracking', '열람·클릭 기록 안 함')),
   ].join(' · ')
 
   return (
@@ -296,16 +398,34 @@ export function DeliveryOptions({
           while `campaign.state` stays DRAFT, so its start button still passes
           its own guard and blasts the whole audience a second time. */}
       {allowCampaign && (
-        <Field label="Chiến dịch (không bắt buộc)" hint="Chỉ chiến dịch đang chạy mới hiện ở đây.">
+        <Field
+          label={t(message('Chiến dịch (không bắt buộc)', 'Campaign (optional)', '캠페인 (선택)'))}
+          hint={t(
+            message(
+              'Chỉ chiến dịch đang chạy mới hiện ở đây.',
+              'Only running campaigns appear here.',
+              '진행 중인 캠페인만 여기에 표시됩니다.',
+            ),
+          )}
+        >
           <Select
-            label="Chiến dịch"
+            label={t(message('Chiến dịch', 'Campaign', '캠페인'))}
             hideLabel
             size="lg"
             className="w-full"
             value={draft.campaignCode}
             onChange={draft.setCampaignCode}
             options={[
-              { value: NO_CAMPAIGN, label: 'Chuỗi riêng, không gắn chiến dịch' },
+              {
+                value: NO_CAMPAIGN,
+                label: t(
+                  message(
+                    'Chuỗi riêng, không gắn chiến dịch',
+                    'Standalone chain, no campaign',
+                    '캠페인 없는 단독 시퀀스',
+                  ),
+                ),
+              },
               ...campaigns.map((item) => ({
                 value: item.code,
                 label: `${item.code} · ${item.name}`,
@@ -318,7 +438,15 @@ export function DeliveryOptions({
       {/* One wave needs no chain name on screen (G3): it is still sent, filled
           from the list and the template, and only a chain makes it worth a look. */}
       {chained && (
-        <Field label="Tên chuỗi gửi · tự điền, sửa được">
+        <Field
+          label={t(
+            message(
+              'Tên chuỗi gửi · tự điền, sửa được',
+              'Chain name · filled in, editable',
+              '발송 시퀀스 이름 · 자동 입력, 수정 가능',
+            ),
+          )}
+        >
           <Input
             value={sequenceName}
             maxLength={MAIL_NAME_MAX}
@@ -331,8 +459,20 @@ export function DeliveryOptions({
         className="min-h-12"
         checked={draft.trackEngagement}
         onChange={draft.setTrackEngagement}
-        label="Ghi nhận khi khách mở email hoặc bấm nút"
-        hint="Lượt mở và lượt bấm hiện ở Lịch sử của hồ sơ."
+        label={t(
+          message(
+            'Ghi nhận khi khách mở email hoặc bấm nút',
+            'Track when the customer opens the email or presses a button',
+            '고객이 이메일을 열거나 버튼을 누르면 기록',
+          ),
+        )}
+        hint={t(
+          message(
+            'Lượt mở và lượt bấm hiện ở Lịch sử của hồ sơ.',
+            'Opens and clicks show in the record history.',
+            '열람과 클릭은 기록의 이력에 표시됩니다.',
+          ),
+        )}
       />
     </SendOptions>
   )
@@ -358,18 +498,31 @@ export function MasSendConfirm({
   onBack: () => void
   onConfirm: () => void
 }) {
+  const { t } = useI18n()
   const sendable = report?.sendable ?? 0
   const later = isLater(waves)
   return (
     <MailSendConfirm
       open={open && Boolean(report)}
-      title="Xác nhận gửi"
+      title={t(message('Xác nhận gửi', 'Confirm sending', '발송 확인'))}
       subtitle={
         later
-          ? 'Trước giờ hẹn vẫn dừng được ở sổ lô gửi.'
-          : 'Thư đã vào hàng đợi thì không rút lại được.'
+          ? t(
+              message(
+                'Trước giờ hẹn vẫn dừng được ở sổ lô gửi.',
+                'Until the scheduled time you can still stop it in the mail runs list.',
+                '예약 시간 전까지는 발송 건 목록에서 중단할 수 있습니다.',
+              ),
+            )
+          : t(
+              message(
+                'Thư đã vào hàng đợi thì không rút lại được.',
+                'Once emails are in the queue they cannot be recalled.',
+                '대기열에 들어간 메일은 회수할 수 없습니다.',
+              ),
+            )
       }
-      rows={confirmRows(chosen, sendable, waves, queued)}
+      rows={confirmRows(chosen, sendable, waves, queued, t)}
       action={sendLabel(later, sendable * waves.length)}
       later={later}
       onBack={onBack}
@@ -385,32 +538,84 @@ function confirmRows(
   sendable: number,
   waves: readonly CampaignWaveInput[],
   queued: number,
+  t: (copy: Message) => string,
 ): ConfirmRow[] {
   const only = chosen.length === 1 ? chosen[0] : undefined
   const left = waves.length
   const first = waves[0]?.scheduledAt
+  const mails = (n: number) =>
+    message(`${n} thư`, `${n} ${n === 1 ? 'email' : 'emails'}`, `메일 ${n}건`)
+  const rounds = (n: number) =>
+    message(`${n} đợt`, `${n} ${n === 1 ? 'wave' : 'waves'}`, `웨이브 ${n}개`)
   return [
     {
-      label: 'Người nhận',
+      label: t(message('Người nhận', 'Recipients', '수신자')),
       value: only
         ? `${only.contactName} · ${only.email}`
         : chosen.length === sendable
-          ? `${sendable} người`
-          : `${chosen.length} người đã chọn · ${sendable} sẽ nhận`,
+          ? t(peopleOf(sendable))
+          : t(
+              message(
+                `${chosen.length} người đã chọn · ${sendable} sẽ nhận`,
+                `${chosen.length} selected · ${sendable} will receive`,
+                `${chosen.length}명 선택 · ${sendable}명 수신`,
+              ),
+            ),
     },
     {
-      label: 'Số đợt',
-      value: queued > 0 ? `${left} đợt còn lại · ${queued} đợt đã xếp hàng` : `${left} đợt`,
+      label: t(message('Số đợt', 'Waves', '웨이브')),
+      value:
+        queued > 0
+          ? t(
+              message(
+                `${left} đợt còn lại · ${queued} đợt đã xếp hàng`,
+                `${left} ${left === 1 ? 'wave' : 'waves'} left · ${queued} already queued`,
+                `남은 웨이브 ${left}개 · 대기열 웨이브 ${queued}개`,
+              ),
+            )
+          : t(rounds(left)),
     },
     {
-      label: 'Tổng số thư',
-      value: left > 1 ? `${sendable} × ${left} = ${sendable * left} thư` : `${sendable} thư`,
+      label: t(message('Tổng số thư', 'Total emails', '총 메일 수')),
+      value:
+        left > 1
+          ? t(
+              message(
+                `${sendable} × ${left} = ${sendable * left} thư`,
+                `${sendable} × ${left} = ${sendable * left} emails`,
+                `${sendable} × ${left} = 메일 ${sendable * left}건`,
+              ),
+            )
+          : t(mails(sendable)),
     },
     {
-      label: 'Thời điểm',
-      value: `${first ? `Lúc ${dmhm(first)}` : 'Gửi ngay'}${left > 1 ? ' · các đợt sau theo giờ đặt ở từng đợt' : ''}`,
+      label: t(message('Thời điểm', 'Timing', '발송 시점')),
+      value: `${
+        first
+          ? t(message(`Lúc ${dmhm(first)}`, `At ${dmhm(first)}`, `${dmhm(first)}에`))
+          : t(message('Gửi ngay', 'Send now', '즉시 발송'))
+      }${
+        left > 1
+          ? t(
+              message(
+                ' · các đợt sau theo giờ đặt ở từng đợt',
+                ' · later waves follow the time set on each wave',
+                ' · 이후 웨이브는 각 웨이브에 설정한 시간에 발송',
+              ),
+            )
+          : ''
+      }`,
     },
-    { label: 'Bản lưu nội bộ', value: `${SALES_INBOX} nhận một bản BCC mỗi đợt` },
+    {
+      label: t(message('Bản lưu nội bộ', 'Internal copy', '내부 보관본')),
+      value: t(
+        message(
+          `${SALES_INBOX} nhận một bản BCC mỗi đợt`,
+          `${SALES_INBOX} gets a BCC copy of each wave`,
+          `${SALES_INBOX} 주소로 웨이브마다 BCC 사본이 발송됩니다`,
+        ),
+      ),
+    },
   ]
 }
 
@@ -424,11 +629,25 @@ export function CheckBadge({
   report?: MasPreflightResponse
   picked: number
 }) {
-  if (checking) return <Badge tone="draft">Đang kiểm tra…</Badge>
-  if (!report) return <Badge tone="draft">{`${picked} đã chọn`}</Badge>
+  const { t } = useI18n()
+  if (checking)
+    return <Badge tone="draft">{t(message('Đang kiểm tra…', 'Checking…', '확인 중…'))}</Badge>
+  if (!report) {
+    return (
+      <Badge tone="draft">
+        {t(message(`${picked} đã chọn`, `${picked} selected`, `${picked}명 선택`))}
+      </Badge>
+    )
+  }
   return (
     <Badge tone={report.blocked ? 'warning' : 'success'}>
-      {`${report.sendable} người sẽ nhận`}
+      {t(
+        message(
+          `${report.sendable} người sẽ nhận`,
+          `${report.sendable} will receive`,
+          `${report.sendable}명 수신`,
+        ),
+      )}
     </Badge>
   )
 }
@@ -448,10 +667,9 @@ export function LetterColumn({
   previewLead: MasRecipient | null
   onRecipient: (code: string) => void
 }) {
+  const { t } = useI18n()
   if (!ready) return <PreviewPlaceholder />
-  const to = previewLead
-    ? `${previewLead.contactName} · ${previewLead.email || 'Chưa có email'}`
-    : '—'
+  const to = previewLead ? `${previewLead.contactName} · ${previewLead.email || t(NO_EMAIL)}` : '—'
 
   return (
     <MailPreviewCard
@@ -460,16 +678,36 @@ export function LetterColumn({
       error={preview.error}
       recipients={chosen.map((lead) => ({
         code: lead.code,
-        label: `Như ${lead.contactName} nhận`,
+        label: t(
+          message(
+            `Như ${lead.contactName} nhận`,
+            `As ${lead.contactName} receives it`,
+            `${lead.contactName}님이 받는 모습`,
+          ),
+        ),
       }))}
       recipientCode={previewLead?.code}
       onRecipient={onRecipient}
       envelope={[
-        { label: 'Từ', value: preview.letter?.from ?? 'noreply · Pebble Vina' },
-        { label: 'Tới', value: to },
-        { label: 'Trả lời về', value: 'địa chỉ riêng của thư này' },
+        {
+          label: t(message('Từ', 'From', '보낸 사람')),
+          value: preview.letter?.from ?? 'noreply · Pebble Vina',
+        },
+        { label: t(message('Tới', 'To', '받는 사람')), value: to },
+        {
+          label: t(message('Trả lời về', 'Replies go to', '회신 주소')),
+          value: t(
+            message('địa chỉ riêng của thư này', "this email's own address", '이 메일 전용 주소'),
+          ),
+        },
       ]}
-      caption="Mỗi người nhận một thư riêng, tên điền theo từng người. Không đính kèm tệp được."
+      caption={t(
+        message(
+          'Mỗi người nhận một thư riêng, tên điền theo từng người. Không đính kèm tệp được.',
+          'Each recipient gets their own email, with their name filled in. Files cannot be attached.',
+          '수신자마다 별도 메일이 발송되며 이름이 자동으로 채워집니다. 파일은 첨부할 수 없습니다.',
+        ),
+      )}
     />
   )
 }
@@ -477,9 +715,16 @@ export function LetterColumn({
 /** Nothing written yet, so nothing to render — one dim line in the column the
  *  letter will occupy, not a card that announces its own emptiness. */
 function PreviewPlaceholder() {
+  const { t } = useI18n()
   return (
     <p className="text-muted-foreground m-0 px-1 text-[11.5px] leading-[1.6]">
-      Bản xem trước hiện khi bước "Nội dung" có tiêu đề và nội dung.
+      {t(
+        message(
+          'Bản xem trước hiện khi bước "Nội dung" có tiêu đề và nội dung.',
+          'The preview appears once the "Content" step has a subject and a body.',
+          '"내용" 단계에 제목과 본문이 있으면 미리보기가 표시됩니다.',
+        ),
+      )}
     </p>
   )
 }

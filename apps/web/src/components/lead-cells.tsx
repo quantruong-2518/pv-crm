@@ -1,4 +1,5 @@
 import type { LeadRow } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 
 /** Lead-row cells shared by the lead book and the campaign audience picker.
  *  Here rather than in `pages/leads-parts.tsx` because ADR 0078 lets campaign
@@ -10,6 +11,7 @@ import type { LeadRow } from '@pv/contracts'
  *  as well. Without it — no `lead.send-email`, or a lead mail is refused for —
  *  the address is plain text. */
 export function CompanyCell({ lead, onEmail }: { lead: LeadRow; onEmail?: () => void }) {
+  const { t } = useI18n()
   return (
     <span className="flex min-w-0 flex-col gap-1">
       <span className="truncate text-[13px] font-semibold" title={lead.company}>
@@ -23,7 +25,13 @@ export function CompanyCell({ lead, onEmail }: { lead: LeadRow; onEmail?: () => 
         {onEmail ? (
           <button
             type="button"
-            title={`Soạn email gửi ${lead.email}`}
+            title={t(
+              message(
+                `Soạn email gửi ${lead.email}`,
+                `Write an email to ${lead.email}`,
+                `${lead.email}에게 이메일 쓰기`,
+              ),
+            )}
             onClick={(event) => {
               event.stopPropagation()
               onEmail()
@@ -45,28 +53,29 @@ export function CompanyCell({ lead, onEmail }: { lead: LeadRow; onEmail?: () => 
 
 /* Pinned to Vietnam time so two machines in two zones print the same day, and
    `createdFrom`/`createdTo` filter on the very day printed. */
-const ENTRY_DAY = new Intl.DateTimeFormat('vi-VN', {
+const ENTRY_DAY: Intl.DateTimeFormatOptions = {
   timeZone: 'Asia/Ho_Chi_Minh',
   day: '2-digit',
   month: '2-digit',
   year: 'numeric',
-})
-const ENTRY_TIME = new Intl.DateTimeFormat('vi-VN', {
+}
+const ENTRY_TIME: Intl.DateTimeFormatOptions = {
   timeZone: 'Asia/Ho_Chi_Minh',
   hour: '2-digit',
   minute: '2-digit',
-  hour12: false,
-})
+  hourCycle: 'h23',
+}
 
 /** A day over its hour; "—" when the moment is absent or unreadable. */
 export function MomentCell({ iso }: { iso?: string }) {
+  const { date } = useI18n()
   const at = new Date(iso ?? '')
   if (Number.isNaN(at.getTime())) return <span className="text-muted-foreground">—</span>
   return (
     <span className="flex min-w-0 flex-col gap-1" title={iso}>
-      <span className="truncate text-[13px] font-semibold">{ENTRY_DAY.format(at)}</span>
+      <span className="truncate text-[13px] font-semibold">{date(at, ENTRY_DAY)}</span>
       <span className="text-muted-foreground truncate text-[11.5px] italic">
-        {ENTRY_TIME.format(at)}
+        {date(at, ENTRY_TIME)}
       </span>
     </span>
   )

@@ -11,6 +11,7 @@ import type {
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
 import { bookQueryParams } from '@/app/book-query'
+import { getLang, message, translate, type Lang, type Message } from '@/app/i18n'
 import { untilPushed } from '@/app/query-client'
 import { LETTERS_KEY } from '@/data/mas'
 
@@ -59,14 +60,17 @@ const patchDoor = (id: string, route: MailRunRoute) => ({
 
 export const MAIL_RUN_KEY = ['sales', 'mail-runs'] as const
 
-/** Nhãn tiếng Việt của năm trạng thái lô. */
-export const MAIL_RUN_STATE_LABEL: Record<MailRunState, string> = {
-  DRAFT: 'Nháp',
-  SCHEDULED: 'Đã hẹn giờ',
-  SENDING: 'Đang gửi',
-  SENT: 'Đã gửi',
-  CANCELLED: 'Đã huỷ',
+/** Display labels of the five run states, one message per language. */
+const MAIL_RUN_STATE_COPY: Record<MailRunState, Message> = {
+  DRAFT: message('Nháp', 'Draft', '초안'),
+  SCHEDULED: message('Đã hẹn giờ', 'Scheduled', '예약됨'),
+  SENDING: message('Đang gửi', 'Sending', '발송 중'),
+  SENT: message('Đã gửi', 'Sent', '발송됨'),
+  CANCELLED: message('Đã huỷ', 'Cancelled', '취소됨'),
 }
+
+export const mailRunStateLabel = (state: MailRunState, lang: Lang = getLang()) =>
+  translate(MAIL_RUN_STATE_COPY[state], lang)
 
 export const MAIL_RUN_STATE_TONE: Record<
   MailRunState,
@@ -193,7 +197,7 @@ export const DELIVERED_MAIL: Record<string, true | undefined> = {
 export const SKIPPED_MAIL: Record<string, true | undefined> = {
   withheld: true,
 }
-export const SKIPPED_MAIL_LABEL = 'Bỏ qua'
+export const SKIPPED_MAIL_COPY = message('Bỏ qua', 'Skipped', '건너뜀')
 
 /** Still able to change, so still worth asking about. `accepted` is NOT here
  *  even though a `delivered` webhook may follow it: a letter the receiving

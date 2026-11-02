@@ -11,6 +11,7 @@ import { Badge, Button, GlassCard, Icon, Modal, Skeleton } from '@pv/ui'
 import type { MailRunDetail } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { message, useI18n, type Lang, type Message } from '@/app/i18n'
 import { toast } from '@/app/toast'
 import { MailFloatingAids, MailPreviewCard, OldBookingLink } from '@/components/mail-compose-bits'
 import { MailGuideDrawer, type MailGuideSection } from '@/components/mail-guide-drawer'
@@ -24,9 +25,9 @@ import {
 } from '@/components/mail-sequence/wave-draft'
 import { mailHints } from '@/data/mail-hints'
 import {
-  MAIL_RUN_STATE_LABEL,
   MAIL_RUN_STATE_TONE,
   mailRunRoute,
+  mailRunStateLabel,
   useMailRunDetail,
   useMailRunEdit,
 } from '@/data/mail-runs'
@@ -47,13 +48,21 @@ import { dmhm } from '@/lib/date'
  *  tracking are exactly what `RunFacts` says cannot be touched here. */
 const GUIDE_PARTS: MailGuideSection[] = ['content']
 
-const PREVIEW_CAPTION = 'Tên và công ty là dữ liệu mẫu. Người nhận đã chốt lúc tạo lô.'
+const PREVIEW_CAPTION = message(
+  'Tên và công ty là dữ liệu mẫu. Người nhận đã chốt lúc tạo lô.',
+  'The name and company are sample data. The recipients were fixed when the run was created.',
+  '이름과 회사는 예시 데이터입니다. 수신자는 발송 건을 만들 때 확정되었습니다.',
+)
 /** `/sales/mail/preview` always renders a sample unsubscribe footer — it has no
  *  `delivery_id` to sign yet and cannot know the letter is bound for a GROUP
  *  door. A group letter never carries that footer when it actually sends
  *  (`mas-letter.ts`), so the note replaces the caption rather than letting the
  *  preview promise a link the real letter will not have. */
-const GROUP_PREVIEW_CAPTION = `${PREVIEW_CAPTION} Dòng huỷ đăng ký chỉ có ở bản xem trước, thư gộp gửi đi không có.`
+const GROUP_PREVIEW_CAPTION = message(
+  `${PREVIEW_CAPTION.vi} Dòng huỷ đăng ký chỉ có ở bản xem trước, thư gộp gửi đi không có.`,
+  `${PREVIEW_CAPTION.en} The unsubscribe line appears only in the preview; the combined letter that is sent does not have it.`,
+  `${PREVIEW_CAPTION.ko} 수신 거부 문구는 미리보기에만 표시되며, 실제로 발송되는 합본 메일에는 없습니다.`,
+)
 
 export function MailRunEditModal({
   runId,
@@ -67,6 +76,8 @@ export function MailRunEditModal({
   viaContent?: boolean
   onClose: () => void
 }) {
+  const i18n = useI18n()
+  const { t, lang } = i18n
   const open = runId !== null
   const detail = useMailRunDetail(runId, viaContent)
   const save = useMailRunEdit()
@@ -123,12 +134,15 @@ export function MailRunEditModal({
     },
     open && letterReady,
   )
-  const hints = mailHints({
-    subject: form.subject,
-    body: form.body,
-    ctaUrl: form.ctaUrl,
-    missing: preview.letter?.missing,
-  })
+  const hints = mailHints(
+    {
+      subject: form.subject,
+      body: form.body,
+      ctaUrl: form.ctaUrl,
+      missing: preview.letter?.missing,
+    },
+    lang,
+  )
 
   const submit = () => {
     if (inFlight.current || !base || !route || changed === 0 || blocker || save.isPending) return
@@ -138,21 +152,12 @@ export function MailRunEditModal({
       { id: base.id, edit: patch, route },
       {
         onSuccess: (result) => {
-          toast('Đã lưu thay đổi', {
-            tone: 'success',
-            /* The one doubt worth answering: whether the QUEUE moved with the
-               column, or the batch still goes out at the old hour. */
-            ...(result.rescheduled === undefined
-              ? {}
-              : { detail: `${result.rescheduled} thư chưa gửi đã dời sang giờ mới.` }),
-          })
+          toastSaved(result.rescheduled, t)
           onClose()
         },
         onError: (error) => {
           inFlight.current = false
-          const reason = isApiError(error) ? userMessage(error) : 'Không lưu được thay đổi.'
-          setFailure(reason)
-          toast('Không sửa được lô này', { tone: 'danger', detail: reason })
+          setFailure(toastRefused(error, t))
         },
       },
     )
@@ -166,7 +171,7 @@ export function MailRunEditModal({
   const body = !base ? (
     detail.error ? (
       <p className="text-destructive-foreground m-0 text-[12.5px] leading-[1.6]">
-        {isApiError(detail.error) ? userMessage(detail.error) : 'Không đọc được lô này.'}
+        {isApiError(detail.error) ? userMessage(detail.error) : t(READ_FAILED)}
       </p>
     ) : (
       <Skeleton height={320} />
@@ -181,15 +186,15 @@ export function MailRunEditModal({
         open={open}
         onClose={onClose}
         width="wide"
-        title={refused ? 'Không mở được lô thư' : locked ? 'Chi tiết thư' : 'Sửa lô thư chưa gửi'}
-        subtitle={base ? runLine(base) : refused ? undefined : 'Đang mở lô…'}
-        meta={base ? runBadge(base) : null}
+        title={modalTitle(refused, Boolean(locked), t)}
+        subtitle={modalSubtitle(base, refused, i18n)}
+        meta={base ? runBadge(base, lang) : null}
         footer={
           <EditFooter
             ready={Boolean(base) && !locked}
             blocker={failure || blocker}
             tone={failure ? 'danger' : blocker ? 'warning' : 'muted'}
-            note={refused ? '' : footerNote(Boolean(locked), changed)}
+            note={refused ? '' : footerNote(Boolean(locked), changed, t)}
             saveBlocked={changed === 0 || Boolean(blocker)}
             saving={save.isPending}
             aids={<MailFloatingAids hints={hints} onGuide={() => setGuideOpen(true)} />}
@@ -233,6 +238,77 @@ export function MailRunEditModal({
   )
 }
 
+type Say = (copy: Message) => string
+
+const READ_FAILED = message(
+  'Không đọc được lô này.',
+  'Could not read this run.',
+  '이 발송 건을 불러오지 못했습니다.',
+)
+
+const modalTitle = (refused: boolean, locked: boolean, t: Say) =>
+  t(
+    refused
+      ? message('Không mở được lô thư', 'Could not open the mail run', '발송 건을 열 수 없습니다')
+      : locked
+        ? message('Chi tiết thư', 'Letter details', '메일 상세')
+        : message('Sửa lô thư chưa gửi', 'Edit unsent mail run', '발송 전 메일 수정'),
+  )
+
+const modalSubtitle = (
+  base: MailRunDetail | undefined,
+  refused: boolean,
+  i18n: ReturnType<typeof useI18n>,
+) =>
+  base
+    ? runLine(base, i18n)
+    : refused
+      ? undefined
+      : i18n.t(message('Đang mở lô…', 'Opening the run…', '발송 건을 여는 중…'))
+
+function toastSaved(rescheduled: number | undefined, t: Say) {
+  toast(t(message('Đã lưu thay đổi', 'Changes saved', '변경 사항을 저장했습니다')), {
+    tone: 'success',
+    /* The one doubt worth answering: whether the QUEUE moved with the
+       column, or the batch still goes out at the old hour. */
+    ...(rescheduled === undefined
+      ? {}
+      : {
+          detail: t(
+            message(
+              `${rescheduled} thư chưa gửi đã dời sang giờ mới.`,
+              `${rescheduled} unsent letters moved to the new time.`,
+              `보내지 않은 메일 ${rescheduled}통을 새 시각으로 옮겼습니다.`,
+            ),
+          ),
+        }),
+  })
+}
+
+/** Toasts the refusal and returns its text for the footer. */
+function toastRefused(error: unknown, t: Say): string {
+  const reason = isApiError(error)
+    ? userMessage(error)
+    : t(
+        message(
+          'Không lưu được thay đổi.',
+          'Could not save the changes.',
+          '변경 사항을 저장하지 못했습니다.',
+        ),
+      )
+  toast(
+    t(
+      message(
+        'Không sửa được lô này',
+        'Could not edit this run',
+        '이 발송 건을 수정하지 못했습니다',
+      ),
+    ),
+    { tone: 'danger', detail: reason },
+  )
+  return reason
+}
+
 /** The letter, its folded send options, and the preview beside them — the
  *  same split as the send panel, and for the same reason: see the `wide:` note
  *  there. `letter` is `null` until the thing has a subject and a body, because
@@ -255,6 +331,7 @@ function EditBody({
   dropBooking: boolean
   onDropBooking: (drop: boolean) => void
 }) {
+  const { t } = useI18n()
   const at = scheduledSlot(form)
   /* Only the hour lives in the folded block, so an error the letter alone does
      not cause is the one that block would hide. */
@@ -265,13 +342,20 @@ function EditBody({
         <WaveComposer state={form} setState={setForm} templates={[]} frame="letter" />
         {run.bookingUrl && (
           <OldBookingLink
-            owner="Thư"
+            owner="letter"
             url={run.bookingUrl}
             dropped={dropBooking}
             onDrop={onDropBooking}
           />
         )}
-        <SendOptions forceOpen={timeGap} summary={at ? `Lúc ${dmhm(at)}` : 'Gửi ngay khi lưu'}>
+        <SendOptions
+          forceOpen={timeGap}
+          summary={
+            at
+              ? t(message(`Lúc ${dmhm(at)}`, `At ${dmhm(at)}`, `${dmhm(at)}에`))
+              : t(message('Gửi ngay khi lưu', 'Sent as soon as saved', '저장하면 바로 발송'))
+          }
+        >
           <SendWhen state={form} setState={setForm} />
           <RunFacts run={run} />
         </SendOptions>
@@ -283,11 +367,17 @@ function EditBody({
             letter={letter.letter}
             pending={letter.pending}
             error={letter.error}
-            caption={run.kind === 'group' ? GROUP_PREVIEW_CAPTION : PREVIEW_CAPTION}
+            caption={t(run.kind === 'group' ? GROUP_PREVIEW_CAPTION : PREVIEW_CAPTION)}
           />
         ) : (
           <p className="text-muted-foreground m-0 px-1 text-[11.5px] leading-[1.6]">
-            Bản xem trước hiện khi thư có tiêu đề và nội dung.
+            {t(
+              message(
+                'Bản xem trước hiện khi thư có tiêu đề và nội dung.',
+                'The preview appears once the letter has a subject and a body.',
+                '메일에 제목과 내용이 있으면 미리보기가 표시됩니다.',
+              ),
+            )}
           </p>
         )}
       </section>
@@ -315,26 +405,68 @@ function SaveConfirm({
   onBack: () => void
   onConfirm: () => void
 }) {
+  const { t, number } = useI18n()
   if (!run) return null
-  const letters = run.audienceCount.toLocaleString('vi-VN')
+  const letters = number(run.audienceCount)
   return (
     <MailSendConfirm
       open={open}
-      title="Xác nhận lưu"
-      subtitle="Chỉ lưu những ô bạn sửa. Người nhận giữ nguyên."
+      title={t(message('Xác nhận lưu', 'Confirm save', '저장 확인'))}
+      subtitle={t(
+        message(
+          'Chỉ lưu những ô bạn sửa. Người nhận giữ nguyên.',
+          'Only the fields you changed are saved. The recipients stay the same.',
+          '수정한 항목만 저장됩니다. 수신자는 그대로입니다.',
+        ),
+      )}
       rows={[
         {
-          label: 'Người nhận',
+          label: t(message('Người nhận', 'Recipients', '수신자')),
           value:
             run.kind === 'group'
-              ? 'Một thư chung · người nhận đã chốt'
-              : `${letters} người · đã chốt`,
+              ? t(
+                  message(
+                    'Một thư chung · người nhận đã chốt',
+                    'One shared letter · recipients fixed',
+                    '공용 메일 한 통 · 수신자 확정',
+                  ),
+                )
+              : t(
+                  message(
+                    `${letters} người · đã chốt`,
+                    `${letters} people · fixed`,
+                    `${letters}명 · 확정`,
+                  ),
+                ),
         },
-        { label: 'Tổng số thư', value: `${letters} thư` },
-        { label: 'Thời điểm', value: at ? `Lúc ${dmhm(at)}` : 'Gửi ngay khi lưu' },
-        { label: 'Thay đổi', value: `${changed} mục` },
+        {
+          label: t(message('Tổng số thư', 'Total letters', '총 메일 수')),
+          value: t(message(`${letters} thư`, `${letters} letters`, `${letters}통`)),
+        },
+        {
+          label: t(message('Thời điểm', 'Time', '시점')),
+          value: at
+            ? t(message(`Lúc ${dmhm(at)}`, `At ${dmhm(at)}`, `${dmhm(at)}에`))
+            : t(message('Gửi ngay khi lưu', 'Sent as soon as saved', '저장하면 바로 발송')),
+        },
+        {
+          label: t(message('Thay đổi', 'Changes', '변경')),
+          value: t(message(`${changed} mục`, `${changed} items`, `${changed}개 항목`)),
+        },
       ]}
-      action={`${at ? 'Lưu và lên lịch' : 'Lưu và gửi'} ${letters} thư`}
+      action={t(
+        at
+          ? message(
+              `Lưu và lên lịch ${letters} thư`,
+              `Save and schedule ${letters} letters`,
+              `메일 ${letters}통 저장 및 예약`,
+            )
+          : message(
+              `Lưu và gửi ${letters} thư`,
+              `Save and send ${letters} letters`,
+              `메일 ${letters}통 저장 및 발송`,
+            ),
+      )}
       later={at !== null}
       onBack={onBack}
       onConfirm={onConfirm}
@@ -374,6 +506,7 @@ function EditFooter({
   /** Opens the confirm box — the save itself happens there. */
   onSave: () => void
 }) {
+  const { t } = useI18n()
   return (
     <div className="relative flex min-w-0 flex-wrap items-center justify-between gap-4">
       <div className="absolute bottom-full right-0 mb-8">{aids}</div>
@@ -391,12 +524,14 @@ function EditFooter({
       </span>
       <div className="flex shrink-0 gap-2">
         <Button size="lg" variant="ghost" type="button" onClick={onClose}>
-          Đóng
+          {t(message('Đóng', 'Close', '닫기'))}
         </Button>
         {ready && (
           <Button size="lg" type="button" disabled={saveBlocked || saving} onClick={onSave}>
             <Icon icon={Save} size={16} />
-            {saving ? 'Đang lưu…' : 'Lưu thay đổi'}
+            {saving
+              ? t(message('Đang lưu…', 'Saving…', '저장 중…'))
+              : t(message('Lưu thay đổi', 'Save changes', '변경 사항 저장'))}
           </Button>
         )}
       </div>
@@ -406,26 +541,46 @@ function EditFooter({
 
 /** The same pill the run book draws for this batch — one batch must not change
  *  colour between the table and the panel opened from it. */
-const runBadge = (run: MailRunDetail) => (
-  <Badge tone={MAIL_RUN_STATE_TONE[run.state]}>{MAIL_RUN_STATE_LABEL[run.state]}</Badge>
+const runBadge = (run: MailRunDetail, lang: Lang) => (
+  <Badge tone={MAIL_RUN_STATE_TONE[run.state]}>{mailRunStateLabel(run.state, lang)}</Badge>
 )
 
-const footerNote = (locked: boolean, changed: number) =>
+const footerNote = (locked: boolean, changed: number, t: (copy: Message) => string) =>
   locked
-    ? 'Lô này chỉ còn xem được.'
+    ? t(
+        message(
+          'Lô này chỉ còn xem được.',
+          'This run can only be viewed now.',
+          '이 발송 건은 이제 조회만 가능합니다.',
+        ),
+      )
     : changed === 0
-      ? 'Chưa đổi gì.'
-      : `${changed} mục sẽ được lưu. Người nhận giữ nguyên.`
+      ? t(message('Chưa đổi gì.', 'Nothing changed.', '변경 사항이 없습니다.'))
+      : t(
+          message(
+            `${changed} mục sẽ được lưu. Người nhận giữ nguyên.`,
+            `${changed} items will be saved. The recipients stay the same.`,
+            `${changed}개 항목이 저장됩니다. 수신자는 그대로입니다.`,
+          ),
+        )
 
 /** Which batch is open, in one line. `waveNo` first because a chain is the case
  *  where "the label" names several things. */
-function runLine(run: MailRunDetail): string {
+function runLine(run: MailRunDetail, { t, number }: ReturnType<typeof useI18n>): string {
   const chain = run.sequenceName ?? run.campaignName
   return [
-    run.waveNo ? `Đợt ${run.waveNo}` : null,
+    run.waveNo
+      ? t(message(`Đợt ${run.waveNo}`, `Wave ${run.waveNo}`, `웨이브 ${run.waveNo}`))
+      : null,
     chain,
     run.phase ?? run.label,
-    `${run.audienceCount.toLocaleString('vi-VN')} người nhận`,
+    t(
+      message(
+        `${number(run.audienceCount)} người nhận`,
+        `${number(run.audienceCount)} recipients`,
+        `수신자 ${number(run.audienceCount)}명`,
+      ),
+    ),
   ]
     .filter(Boolean)
     .join(' · ')
@@ -439,6 +594,7 @@ function LockedView({
   run: MailRunDetail
   letter: ReturnType<typeof useMailPreview> | null
 }) {
+  const { t } = useI18n()
   return (
     <>
       <LockedNote run={run} />
@@ -447,7 +603,7 @@ function LockedView({
           letter={letter.letter}
           pending={letter.pending}
           error={letter.error}
-          caption={run.kind === 'group' ? GROUP_PREVIEW_CAPTION : PREVIEW_CAPTION}
+          caption={t(run.kind === 'group' ? GROUP_PREVIEW_CAPTION : PREVIEW_CAPTION)}
         />
       )}
     </>
@@ -457,15 +613,38 @@ function LockedView({
 /** Why the form is not there. The server knows something the run book cannot:
  *  `state` may still read `SCHEDULED` while the first letter is already gone. */
 function LockedNote({ run }: { run: MailRunDetail }) {
+  const { t } = useI18n()
   return (
     <GlassCard variant="b" className="flex min-w-0 flex-col gap-2 p-4">
-      <span className="text-[12.5px] font-semibold">Lô này không sửa được nữa</span>
+      <span className="text-[12.5px] font-semibold">
+        {t(
+          message(
+            'Lô này không sửa được nữa',
+            'This run can no longer be edited',
+            '이 발송 건은 더 이상 수정할 수 없습니다',
+          ),
+        )}
+      </span>
       <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.6]">
-        {run.editable
-          ? 'Chỉ người tạo lô hoặc người có quyền phát chiến dịch mới sửa được lô này.'
-          : run.state === 'SCHEDULED'
-            ? 'Lô đã bắt đầu gửi nên không sửa được. Muốn dừng phần chưa gửi, bấm Dừng ở sổ lô gửi.'
-            : `Lô đang ở trạng thái "${MAIL_RUN_STATE_LABEL[run.state]}". Chỉ lô còn hẹn giờ và chưa gửi thư nào mới sửa được.`}
+        {t(
+          run.editable
+            ? message(
+                'Chỉ người tạo lô hoặc người có quyền phát chiến dịch mới sửa được lô này.',
+                'Only the run creator or someone allowed to broadcast campaigns can edit this run.',
+                '발송 건 작성자 또는 캠페인 발송 권한이 있는 사람만 이 발송 건을 수정할 수 있습니다.',
+              )
+            : run.state === 'SCHEDULED'
+              ? message(
+                  'Lô đã bắt đầu gửi nên không sửa được. Muốn dừng phần chưa gửi, bấm Dừng ở sổ lô gửi.',
+                  'The run has started sending, so it cannot be edited. To stop the part not yet sent, press Stop in the mail runs book.',
+                  '발송이 시작되어 수정할 수 없습니다. 아직 보내지 않은 부분을 멈추려면 발송 건 목록에서 중단을 누르세요.',
+                )
+              : message(
+                  `Lô đang ở trạng thái "${mailRunStateLabel(run.state, 'vi')}". Chỉ lô còn hẹn giờ và chưa gửi thư nào mới sửa được.`,
+                  `The run is "${mailRunStateLabel(run.state, 'en')}". Only a scheduled run with no letters sent yet can be edited.`,
+                  `이 발송 건은 "${mailRunStateLabel(run.state, 'ko')}" 상태입니다. 예약 상태이고 아직 메일이 한 통도 나가지 않은 발송 건만 수정할 수 있습니다.`,
+                ),
+        )}
       </p>
     </GlassCard>
   )
@@ -475,14 +654,26 @@ function LockedNote({ run }: { run: MailRunDetail }) {
  *  because which batch is open is a fair question, and as text because a
  *  control that cannot be saved is a control that lies. */
 function RunFacts({ run }: { run: MailRunDetail }) {
+  const { t, number } = useI18n()
+  const people = number(run.audienceCount)
   const rows = [
-    { label: 'Người nhận', value: `${run.audienceCount.toLocaleString('vi-VN')} người · đã chốt` },
-    { label: 'Chuỗi gửi', value: run.sequenceName ?? '—' },
     {
-      label: 'Chiến dịch',
+      label: t(message('Người nhận', 'Recipients', '수신자')),
+      value: t(
+        message(`${people} người · đã chốt`, `${people} people · fixed`, `${people}명 · 확정`),
+      ),
+    },
+    { label: t(message('Chuỗi gửi', 'Sequence', '발송 시퀀스')), value: run.sequenceName ?? '—' },
+    {
+      label: t(message('Chiến dịch', 'Campaign', '캠페인')),
       value: run.campaignName ? `${run.campaignCode ?? ''} ${run.campaignName}`.trim() : '—',
     },
-    { label: 'Theo dõi', value: run.trackEngagement ? 'Có ghi nhận mở và bấm' : 'Không ghi nhận' },
+    {
+      label: t(message('Theo dõi', 'Tracking', '추적')),
+      value: run.trackEngagement
+        ? t(message('Có ghi nhận mở và bấm', 'Opens and clicks recorded', '열람·클릭 기록함'))
+        : t(message('Không ghi nhận', 'Not recorded', '기록 안 함')),
+    },
   ]
 
   return (
@@ -499,7 +690,13 @@ function RunFacts({ run }: { run: MailRunDetail }) {
         ))}
       </ul>
       <p className="text-muted-foreground m-0 mt-3 text-[11px] leading-[1.5]">
-        {rows.length} mục trên không sửa được từ đây. Cần đổi thì dừng lô rồi gửi lại.
+        {t(
+          message(
+            `${rows.length} mục trên không sửa được từ đây. Cần đổi thì dừng lô rồi gửi lại.`,
+            `${rows.length} items above cannot be edited from here. To change them, stop the run and send again.`,
+            `위의 ${rows.length}개 항목은 여기서 수정할 수 없습니다. 바꾸려면 발송 건을 중단한 뒤 다시 보내세요.`,
+          ),
+        )}
       </p>
     </div>
   )

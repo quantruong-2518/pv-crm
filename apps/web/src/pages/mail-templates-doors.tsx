@@ -1,10 +1,8 @@
 import { Checkbox, GlassCard, MetaPill, SegmentedControl } from '@pv/ui'
-import {
-  MAIL_DOOR_LABEL,
-  MailDoor,
-  OPPORTUNITY_MILESTONE_LABEL,
-  type MailTemplateMilestone,
-} from '@pv/contracts'
+import { MailDoor, OPPORTUNITY_MILESTONE_LABEL, type MailTemplateMilestone } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
+import { mailDoorLabel } from '@/data/mail-door-copy'
+import { opportunityMilestoneLabel } from '@/data/sales-labels-i18n'
 
 /** The template's "where used" block (G4, G-Template): which doors list it, and
  *  which of those open pre-filled with it. Split off `mail-templates-parts.tsx`
@@ -41,6 +39,7 @@ export function DoorsField({
   errors: { doors?: string[]; defaultFor?: string[] }
   onChange: (next: DoorSets) => void
 }) {
+  const { t, lang } = useI18n()
   const setDoors = (door: MailDoor) => {
     const next = ordered(toggle(doors, door))
     onChange({ doors: next, defaultFor: defaultFor.filter((d) => next.includes(d)) })
@@ -50,40 +49,72 @@ export function DoorsField({
 
   return (
     <GlassCard variant="b" className="flex min-w-0 flex-col gap-3 p-4">
-      <span className="text-[13px] font-semibold leading-5">Dùng ở</span>
-      <div role="group" aria-label="Dùng ở" className="flex flex-wrap gap-x-6">
+      <span className="text-[13px] font-semibold leading-5">
+        {t(message('Dùng ở', 'Used in', '사용 위치'))}
+      </span>
+      <div
+        role="group"
+        aria-label={t(message('Dùng ở', 'Used in', '사용 위치'))}
+        className="flex flex-wrap gap-x-6"
+      >
         {offeredDoors(doors).map((door) => (
           <Checkbox
             key={door}
             className="min-h-12"
             checked={doors.includes(door)}
             onChange={() => setDoors(door)}
-            label={MAIL_DOOR_LABEL[door]}
+            label={mailDoorLabel(door, lang)}
           />
         ))}
       </div>
       <Problem lines={errors.doors} />
       {doors.length === 0 && !errors.doors?.length && (
-        <span className="text-warning text-[11.5px] leading-[1.5]">Chọn ít nhất một nơi dùng.</span>
+        <span className="text-warning text-[11.5px] leading-[1.5]">
+          {t(
+            message(
+              'Chọn ít nhất một nơi dùng.',
+              'Choose at least one place to use it.',
+              '사용 위치를 하나 이상 선택해 주세요.',
+            ),
+          )}
+        </span>
       )}
 
       {doors.length > 0 && (
         <div className="flex flex-col gap-1 pt-1">
-          <span className="text-muted-foreground text-[11px]">Là mẫu mặc định khi mở từ</span>
-          <div role="group" aria-label="Mẫu mặc định" className="flex flex-wrap gap-x-6">
+          <span className="text-muted-foreground text-[11px]">
+            {t(
+              message(
+                'Là mẫu mặc định khi mở từ',
+                'Default template when opened from',
+                '다음에서 열 때 기본 템플릿',
+              ),
+            )}
+          </span>
+          <div
+            role="group"
+            aria-label={t(message('Mẫu mặc định', 'Default template', '기본 템플릿'))}
+            className="flex flex-wrap gap-x-6"
+          >
             {doors.map((door) => (
               <Checkbox
                 key={door}
                 className="min-h-12"
                 checked={defaultFor.includes(door)}
                 onChange={() => setDefault(door)}
-                label={MAIL_DOOR_LABEL[door]}
+                label={mailDoorLabel(door, lang)}
               />
             ))}
           </div>
           <Problem lines={errors.defaultFor} />
           <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-            Chọn ở đây sẽ thay mẫu mặc định cũ.
+            {t(
+              message(
+                'Chọn ở đây sẽ thay mẫu mặc định cũ.',
+                'Choosing it here replaces the old default template.',
+                '여기서 선택하면 기존 기본 템플릿이 바뀝니다.',
+              ),
+            )}
           </span>
         </div>
       )}
@@ -92,7 +123,13 @@ export function DoorsField({
           is kept so no migration is needed later, and the note says so. */}
       {doors.includes('quote') && (
         <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-          Mẫu thư chưa dùng được ở báo giá.
+          {t(
+            message(
+              'Mẫu thư chưa dùng được ở báo giá.',
+              'Email templates cannot be used for quotations yet.',
+              '이메일 템플릿은 아직 견적서에서 사용할 수 없습니다.',
+            ),
+          )}
         </span>
       )}
     </GlassCard>
@@ -113,7 +150,13 @@ const NO_MILESTONE = 'none'
 
 /** Small pill for a template that records a milestone when its letter leaves. */
 export function MilestonePill({ milestone }: { milestone: MailTemplateMilestone }) {
-  return <MetaPill tone="accent">{`Ghi ${OPPORTUNITY_MILESTONE_LABEL[milestone]}`}</MetaPill>
+  const { t, lang } = useI18n()
+  const name = opportunityMilestoneLabel(milestone, lang)
+  return (
+    <MetaPill tone="accent">
+      {t(message(`Ghi ${OPPORTUNITY_MILESTONE_LABEL[milestone]}`, `Logs ${name}`, `${name} 기록`))}
+    </MetaPill>
+  )
 }
 
 /** ADR 0069 §7, narrowed by 0072 §5: `sample` logs a care activity,
@@ -128,20 +171,24 @@ export function MilestoneField({
   errors?: string[]
   onChange: (next: MailTemplateMilestone | null) => void
 }) {
+  const { t, lang } = useI18n()
+  const title = t(
+    message('Ghi vào cơ hội khi gửi', 'Log to the opportunity when sent', '발송 시 기회에 기록'),
+  )
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <span className="text-muted-foreground text-[11px]">Ghi vào cơ hội khi gửi</span>
+      <span className="text-muted-foreground text-[11px]">{title}</span>
       <SegmentedControl
-        label="Ghi vào cơ hội khi gửi"
+        label={title}
         hideLabel
         value={milestone ?? NO_MILESTONE}
         onChange={(value) => onChange(value === 'sample' || value === 'quotation' ? value : null)}
         options={[
-          { value: NO_MILESTONE, label: 'Không ghi' },
-          { value: 'sample', label: OPPORTUNITY_MILESTONE_LABEL.sample },
+          { value: NO_MILESTONE, label: t(message('Không ghi', 'Do not log', '기록 안 함')) },
+          { value: 'sample', label: opportunityMilestoneLabel('sample', lang) },
           /* The quote door is not built yet: shown only when already saved. */
           ...(milestone === 'quotation'
-            ? [{ value: 'quotation', label: OPPORTUNITY_MILESTONE_LABEL.quotation }]
+            ? [{ value: 'quotation', label: opportunityMilestoneLabel('quotation', lang) }]
             : []),
         ]}
       />
@@ -149,7 +196,13 @@ export function MilestoneField({
         <Problem lines={errors} />
       ) : (
         <span className="text-muted-foreground text-[11px] leading-[1.5]">
-          Chỉ ghi khi cơ hội đã có người phụ trách.
+          {t(
+            message(
+              'Chỉ ghi khi cơ hội đã có người phụ trách.',
+              'Logged only when the opportunity has an owner.',
+              '기회에 담당자가 있을 때만 기록됩니다.',
+            ),
+          )}
         </span>
       )}
     </div>

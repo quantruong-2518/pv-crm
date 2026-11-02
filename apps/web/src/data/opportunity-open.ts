@@ -8,6 +8,7 @@ import {
 } from '@pv/contracts'
 import type { OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import { api } from '@/app/api'
+import { message, translate } from '@/app/i18n'
 import { missingOf, OPPORTUNITY_BOOK_KEY } from '@/data/opportunities'
 import { OPPORTUNITY_WRITE_NEED } from '@/data/opportunities-write'
 
@@ -38,6 +39,8 @@ export const openContextQuery = (leadCode: string, enabled: boolean) =>
 // Close-date chips
 // ---------------------------------------------------------------------------
 
+const msg = (vi: string, en: string, ko: string) => translate(message(vi, en, ko))
+
 export type CloseChip = { label: string; day: string }
 
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -55,10 +58,10 @@ export function closeChips(today: Date): CloseChip[] {
   const ahead = (days: number) => daysAhead(today, days)
   const quarterEnd = new Date(today.getFullYear(), Math.floor(today.getMonth() / 3) * 3 + 3, 0)
   return [
-    { label: '30 ngày', day: ahead(30) },
-    { label: '45 ngày', day: ahead(45) },
-    { label: '90 ngày', day: ahead(90) },
-    { label: 'Cuối quý', day: dayOf(quarterEnd) },
+    { label: msg('30 ngày', '30 days', '30일'), day: ahead(30) },
+    { label: msg('45 ngày', '45 days', '45일'), day: ahead(45) },
+    { label: msg('90 ngày', '90 days', '90일'), day: ahead(90) },
+    { label: msg('Cuối quý', 'End of quarter', '분기 말'), day: dayOf(quarterEnd) },
   ]
 }
 
@@ -128,9 +131,10 @@ export function missingForOpen(
   canAccept: boolean,
 ): string[] {
   const missing = missingOf(draft)
-  if (picks.length === 0) missing.push('người liên hệ của cơ hội')
+  if (picks.length === 0)
+    missing.push(msg('người liên hệ của cơ hội', 'opportunity contact', '기회 담당 연락처'))
   const noOwner = draft.bdOwners.length + draft.saleOwners.length === 0
-  if (noOwner && !canAccept) missing.push('người chịu trách nhiệm')
+  if (noOwner && !canAccept) missing.push(msg('người chịu trách nhiệm', 'owner', '담당자'))
   return missing
 }
 

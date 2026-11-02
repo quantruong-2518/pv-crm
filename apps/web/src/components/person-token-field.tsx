@@ -9,6 +9,7 @@ import {
   type RefObject,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { message, useI18n } from '@/app/i18n'
 import { ChevronDown, Search, X } from '@pv/ui'
 import { Avatar, Icon, Input, cn } from '@pv/ui'
 import { fuzzyRank } from '@/lib/fuzzy-rank'
@@ -228,6 +229,7 @@ export function PersonTokenField({
 }
 
 function Token({ person, onRemove }: { person: TokenPerson; onRemove: () => void }) {
+  const { t } = useI18n()
   return (
     <li className="bg-surface-ink/9 flex min-w-0 max-w-full items-center gap-2 rounded-md p-1">
       <Avatar size="sm" name={person.name} />
@@ -244,7 +246,9 @@ function Token({ person, onRemove }: { person: TokenPerson; onRemove: () => void
       ) : (
         <button
           type="button"
-          aria-label={`Bỏ ${person.name}`}
+          aria-label={t(
+            message(`Bỏ ${person.name}`, `Remove ${person.name}`, `${person.name} 제외`),
+          )}
           onClick={onRemove}
           className="motion-std hover:bg-surface-ink/16 pointer-coarse:size-12 flex size-8 shrink-0 items-center justify-center rounded-md"
         >
@@ -270,6 +274,7 @@ function SuggestionMenu({
   emptyNote?: string
   onPick: (id: string) => void
 }) {
+  const { t } = useI18n()
   return createPortal(
     <div
       style={{
@@ -283,10 +288,23 @@ function SuggestionMenu({
       {matches.length === 0 ? (
         <p className="text-glass-foreground m-0 px-2 py-2 text-[11.5px] leading-[1.5]">
           {!searching
-            ? (emptyNote ?? 'Không còn ai để thêm.')
+            ? (emptyNote ??
+              t(
+                message(
+                  'Không còn ai để thêm.',
+                  'Nobody left to add.',
+                  '추가할 사람이 더 없습니다.',
+                ),
+              ))
             : freeText
-              ? 'Không tìm thấy ai. Nhấn Enter để thêm tên vừa gõ.'
-              : 'Không tìm thấy ai.'}
+              ? t(
+                  message(
+                    'Không tìm thấy ai. Nhấn Enter để thêm tên vừa gõ.',
+                    'Nobody found. Press Enter to add the name you typed.',
+                    '검색 결과가 없습니다. Enter를 누르면 입력한 이름이 추가됩니다.',
+                  ),
+                )
+              : t(message('Không tìm thấy ai.', 'Nobody found.', '검색 결과가 없습니다.'))}
         </p>
       ) : (
         <ul className="m-0 flex list-none flex-col gap-1 p-0">

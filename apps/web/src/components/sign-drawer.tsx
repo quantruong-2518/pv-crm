@@ -9,16 +9,18 @@ import {
   type OpportunityProfileResponse,
 } from '@pv/contracts'
 import { userMessage } from '@/app/api'
+import { useI18n, type Message } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import { collectorNote, useCollectorCandidates } from '@/data/contract-collector'
 import { localDay } from '@/data/local-day'
 import { useSignContract } from '@/data/opportunities-write'
 import { useContractKindLabel, useContractKindOptions } from '@/data/sales-config'
 import { ContractKindField } from '@/components/contract-kind-field'
-import { NO_AMOUNT, compactMoney, kindLabel } from '@/components/deal-money/money'
+import { NO_AMOUNT_COPY, compactMoney, kindLabel } from '@/components/deal-money/money'
 import { ScheduleEditor } from '@/components/deal-pay'
 import { scheduleIssue, scheduleSummary } from '@/components/deal-pay/schedule-math'
 import { Field } from './ops-fields'
+import { SIGN_COPY } from './sign-drawer-copy'
 import { SignAmount, SignCollector, SignFooter, SignNotice, SignDay } from './sign-drawer-parts'
 
 /** A request to sign a contract on a deal — a panel over the deal's profile.
@@ -76,17 +78,19 @@ function bodyOf(form: SignForm): Omit<ContractSign, 'collectorId'> | null {
   }
 }
 
-const NO_QUOTATION = { value: '', label: 'Không gắn báo giá' }
-
 /** One option per negotiation still waiting for the customer. */
-function waitingOptions(op: OpportunityProfileResponse, resolveKind: (code: string) => string) {
+function waitingOptions(
+  op: OpportunityProfileResponse,
+  resolveKind: (code: string) => string,
+  t: (copy: Message) => string,
+) {
   return op.money.open.flatMap((n: OpportunityMoneyNegotiation) => {
     if (n.pendingId === null) return []
     const round = n.rounds.find((r) => r.id === n.pendingId)
     /* Short parts first: the box truncates from the right, so it cuts the name. */
     const parts = [
-      round && `Lần ${round.roundNo}`,
-      n.amount === null ? NO_AMOUNT : compactMoney(n.amount, n.currency),
+      round && t(SIGN_COPY.round(round.roundNo)),
+      n.amount === null ? t(NO_AMOUNT_COPY) : compactMoney(n.amount, n.currency),
       kindLabel(n.kind, resolveKind),
     ]
     return [{ value: n.pendingId, label: parts.filter(Boolean).join(' · ') }]
@@ -114,10 +118,11 @@ function idleNote(
   noKind: boolean,
   restFilled: boolean,
   collector: string,
+  t: (copy: Message) => string,
 ): string {
-  if (ready) return direct ? '' : 'Gửi xong, đề nghị chờ duyệt.'
+  if (ready) return direct ? '' : t(SIGN_COPY.sendDone)
   if (restFilled || collector !== '') return collector
-  return noKind ? '' : 'Chọn loại hợp đồng, nhập số tiền và đồng tiền.'
+  return noKind ? '' : t(SIGN_COPY.fillIn)
 }
 
 type Props = {
@@ -129,6 +134,7 @@ type Props = {
 }
 
 export function SignDrawer({ op, open, onClose, quotationId }: Props) {
+  const { t } = useI18n()
   const resolveKind = useContractKindLabel()
   const sign = useSignContract(op.code)
   const direct = op.signsDirect
@@ -166,7 +172,7 @@ export function SignDrawer({ op, open, onClose, quotationId }: Props) {
   const body = base && form.collectorId !== '' ? { ...base, collectorId: form.collectorId } : null
   const check = body ? ContractSign.safeParse(body) : null
   const blocked = check !== null && !check.success
-  const waiting = waitingOptions(op, resolveKind)
+  const waiting = waitingOptions(op, resolveKind, t)
   const noKind = useContractKindOptions(form.kind).length === 0
   const pick = (pendingId: string) => setForm((f) => lend(f, op, pendingId))
   const currency = form.currency === '' ? null : form.currency
@@ -181,26 +187,23 @@ export function SignDrawer({ op, open, onClose, quotationId }: Props) {
   const note = sign.error
     ? userMessage(sign.error)
     : busy
-      ? direct
-        ? 'Đang ký…'
-        : 'Đang gửi đề nghị ký…'
+      ? t(direct ? SIGN_COPY.signing : SIGN_COPY.sending)
       : blocked
         ? issue
-        : idleNote(direct, body !== null, noKind, base !== null, collectorFault)
+        : idleNote(direct, body !== null, noKind, base !== null, collectorFault, t)
 
   return (
     <Drawer
       open={open}
       onClose={onClose}
       width="lg"
-      title={again ? 'Ký thêm hợp đồng' : direct ? 'Ký hợp đồng' : 'Đề nghị ký'}
+      title={t(
+        again ? SIGN_COPY.titleAgain : direct ? SIGN_COPY.titleDirect : SIGN_COPY.titleProposal,
+      )}
       subtitle={
         <>
           <span className="font-mono">{op.code}</span> · {op.account}
-          {!direct &&
-            (again
-              ? '. Một hợp đồng mới bên cạnh hợp đồng đã ký, được duyệt thì cộng vào giá trị đơn.'
-              : '. Được duyệt thì đơn thành hợp đồng.')}
+          {!direct && t(again ? SIGN_COPY.subtitleAgain : SIGN_COPY.subtitleProposal)}
         </>
       }
       meta={<Chip>{op.code}</Chip>}
@@ -217,9 +220,11 @@ export function SignDrawer({ op, open, onClose, quotationId }: Props) {
             sign.mutate(body, {
               onSuccess: (answer) => {
                 toastDone(
-                  'contractCode' in answer
-                    ? `Đã ký hợp đồng ${answer.contractCode}.`
-                    : 'Đã gửi đề nghị ký, chờ duyệt.',
+                  t(
+                    'contractCode' in answer
+                      ? SIGN_COPY.signed(answer.contractCode)
+                      : SIGN_COPY.proposalSent,
+                  ),
                 )
                 onClose()
               },
@@ -230,15 +235,15 @@ export function SignDrawer({ op, open, onClose, quotationId }: Props) {
     >
       <div className="flex flex-col gap-6">
         {waiting.length > 0 && (
-          <Field label="Báo giá được ký" plain>
+          <Field label={t(SIGN_COPY.quotationToSign)} plain>
             <Select
-              label="Báo giá được ký"
+              label={t(SIGN_COPY.quotationToSign)}
               hideLabel
               size="lg"
               value={form.quotationId}
               neutralValue=""
               onChange={pick}
-              options={[NO_QUOTATION, ...waiting]}
+              options={[{ value: '', label: t(SIGN_COPY.noQuotation) }, ...waiting]}
               className="w-full"
             />
           </Field>
@@ -254,7 +259,7 @@ export function SignDrawer({ op, open, onClose, quotationId }: Props) {
           onCurrency={(next) => set('currency', next)}
         />
 
-        <Field label="Lịch thanh toán" plain>
+        <Field label={t(SIGN_COPY.paymentSchedule)} plain>
           <ScheduleEditor
             amount={form.amount}
             currency={currency}

@@ -3,6 +3,7 @@ import { Lock } from '@pv/ui'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { AuroraField, Button, GlassCard, Icon } from '@pv/ui'
 import type { AccessNeed, Branch, Permission, Verdict } from '@pv/engines'
+import { message, useI18n } from '@/app/i18n'
 import { useAccess } from './can'
 import { ExpiryWarning } from './expiry'
 import { ReauthDialog } from './reauth-dialog'
@@ -77,7 +78,7 @@ export function RequireAccess({
     access.log({
       actorId: actor.id,
       action: 'view',
-      note: `chặn vào ${location.pathname} · ${denied}`,
+      note: `chặn vào ${location.pathname} · ${denied}`, // i18n-ignore: audit log text
     })
   }, [status, actor, denied, location.pathname])
 
@@ -152,22 +153,44 @@ export function Can({
  *  nhầm người: thiếu license thì hỏi người ký hợp đồng, thiếu vai thì xin qua
  *  E3, ngoài phạm vi thì nhờ chính người đang giữ dữ liệu đó. */
 function AccessLocked({ verdict }: { verdict: Extract<Verdict, { ok: false }> }) {
+  const { t } = useI18n()
   const navigate = useNavigate()
   const signOut = useSession((s) => s.signOut)
 
-  const said =
+  const said = t(
     verdict.reason === 'branch-not-licensed'
-      ? 'Công ty chưa mở nhánh này.'
+      ? message(
+          'Công ty chưa mở nhánh này.',
+          'Your company has not enabled this area.',
+          '회사에서 이 기능을 아직 사용하도록 설정하지 않았습니다.',
+        )
       : verdict.reason === 'out-of-scope'
-        ? 'Dữ liệu này không do bạn phụ trách. Nhờ người phụ trách mở giúp.'
-        : 'Vai của bạn chưa có quyền vào màn này.'
+        ? message(
+            'Dữ liệu này không do bạn phụ trách. Nhờ người phụ trách mở giúp.',
+            'This data is not yours to handle. Ask its owner to open it for you.',
+            '이 데이터는 담당하신 항목이 아닙니다. 담당자에게 열어 달라고 요청하세요.',
+          )
+        : message(
+            'Vai của bạn chưa có quyền vào màn này.',
+            'Your role does not have access to this screen.',
+            '현재 권한으로는 이 화면에 들어갈 수 없습니다.',
+          ),
+  )
 
   return (
     <AuroraField>
       <div className="flex min-h-svh items-center justify-center p-6">
         <GlassCard className="flex max-w-md flex-col items-center gap-4 p-8 text-center">
           <Icon icon={Lock} size={26} className="text-muted-foreground" />
-          <h1 className="font-display text-[20px] font-semibold">Bị ẩn theo quyền của bạn</h1>
+          <h1 className="font-display text-[20px] font-semibold">
+            {t(
+              message(
+                'Bị ẩn theo quyền của bạn',
+                'Hidden by your permissions',
+                '권한에 따라 숨겨져 있습니다',
+              ),
+            )}
+          </h1>
           <p className="text-muted-foreground text-pretty text-[12.5px] leading-[1.65]">{said}</p>
           <div className="flex gap-3">
             <Button
@@ -176,7 +199,7 @@ function AccessLocked({ verdict }: { verdict: Extract<Verdict, { ok: false }> })
                    không phải email gửi tay. */
               }}
             >
-              Xin quyền
+              {t(message('Xin quyền', 'Request access', '권한 요청'))}
             </Button>
             <Button
               variant="ghost"
@@ -185,7 +208,7 @@ function AccessLocked({ verdict }: { verdict: Extract<Verdict, { ok: false }> })
                 navigate('/sign-in', { replace: true })
               }}
             >
-              Đăng xuất
+              {t(message('Đăng xuất', 'Sign out', '로그아웃'))}
             </Button>
           </div>
         </GlassCard>

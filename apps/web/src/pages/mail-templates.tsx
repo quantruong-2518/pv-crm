@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Plus } from '@pv/ui'
 import { Badge, Button, Icon, cn } from '@pv/ui'
-import { MAIL_DOOR_LABEL, type MailTemplateRow } from '@pv/contracts'
+import type { MailTemplateRow } from '@pv/contracts'
 import { useCan } from '@/app/auth'
+import { message, translate, useI18n } from '@/app/i18n'
+import { mailDoorLabel } from '@/data/mail-door-copy'
 import { isApiError, userMessage } from '@/app/api'
 import { masTemplatesQuery } from '@/data/mas'
 import { BookPage } from '@/components/book-page'
@@ -37,20 +39,33 @@ import { MailTemplateDrawer } from './mail-templates-parts'
  *  asks for the edit permission and not the one that fires mail. */
 const NO_ROWS: MailTemplateRow[] = []
 
-const EMPTY_MESSAGE = 'Chưa có mẫu thư nào.'
+const EMPTY_MESSAGE = message(
+  'Chưa có mẫu thư nào.',
+  'No email templates yet.',
+  '이메일 템플릿이 아직 없습니다.',
+)
 
 /** Where a template is listed (G4), a default door marked on its own tag —
  *  the one fact the book must show, since only one template holds each door.
  *  A milestone pill trails the doors when the template records one. */
 function DoorTags({ row }: { row: MailTemplateRow }) {
+  const { t, lang } = useI18n()
   return (
     <span className="flex min-w-0 flex-wrap gap-1">
       {row.doors.map((door) =>
         row.defaultFor.includes(door) ? (
-          <Badge key={door} tone="running">{`${MAIL_DOOR_LABEL[door]} · mặc định`}</Badge>
+          <Badge key={door} tone="running">
+            {t(
+              message(
+                `${mailDoorLabel(door, 'vi')} · mặc định`,
+                `${mailDoorLabel(door, 'en')} · default`,
+                `${mailDoorLabel(door, 'ko')} · 기본`,
+              ),
+            )}
+          </Badge>
         ) : (
           <Badge key={door} tone="draft">
-            {MAIL_DOOR_LABEL[door]}
+            {mailDoorLabel(door, lang)}
           </Badge>
         ),
       )}
@@ -60,6 +75,7 @@ function DoorTags({ row }: { row: MailTemplateRow }) {
 }
 
 export function MailTemplatesPage() {
+  const { t, lang } = useI18n()
   const canWrite = useCan('campaign.edit')
 
   /* `error` is read, not dropped: a dead server drawn as "the book is empty",
@@ -86,22 +102,40 @@ export function MailTemplatesPage() {
 
   const live = rows.filter((row) => row.active).length
   const summary = isPending
-    ? 'Đang tải danh sách mẫu thư…'
+    ? t(
+        message(
+          'Đang tải danh sách mẫu thư…',
+          'Loading email templates…',
+          '이메일 템플릿을 불러오는 중…',
+        ),
+      )
     : error
-      ? 'Không tải được danh sách mẫu thư.'
-      : `${rows.length} mẫu · ${live} đang dùng`
+      ? t(
+          message(
+            'Không tải được danh sách mẫu thư.',
+            'Could not load the email templates.',
+            '이메일 템플릿을 불러오지 못했습니다.',
+          ),
+        )
+      : t(
+          message(
+            `${rows.length} mẫu · ${live} đang dùng`,
+            `${rows.length} templates · ${live} in use`,
+            `템플릿 ${rows.length}개 · ${live}개 사용 중`,
+          ),
+        )
 
   return (
     <SettingsShell>
       <BookPage
-        title="Sổ mẫu thư"
+        title={t(message('Sổ mẫu thư', 'Email templates', '이메일 템플릿'))}
         actions={
           /* HIDDEN, not greyed out — for a read-only role "not yet" never
              arrives. The real gate is in `app/api/client.ts`, not here. */
           canWrite ? (
             <Button size="md" onClick={openCreate} className="pointer-coarse:h-12 max-sm:flex-1">
               <Icon icon={Plus} size={16} />
-              Thêm mẫu thư
+              {t(message('Thêm mẫu thư', 'Add email template', '이메일 템플릿 추가'))}
             </Button>
           ) : undefined
         }
@@ -121,9 +155,13 @@ export function MailTemplatesPage() {
         failure={
           error
             ? {
-                message: `Không tải được danh sách mẫu thư. ${
-                  isApiError(error) ? userMessage(error) : 'Thử lại.'
-                }`,
+                message: `${t(
+                  message(
+                    'Không tải được danh sách mẫu thư.',
+                    'Could not load the email templates.',
+                    '이메일 템플릿을 불러오지 못했습니다.',
+                  ),
+                )} ${isApiError(error) ? userMessage(error) : t(message('Thử lại.', 'Try again.', '다시 시도해 주세요.'))}`,
                 onRetry: () => void refetch(),
               }
             : undefined
@@ -135,22 +173,31 @@ export function MailTemplatesPage() {
              403, so they get the one button that does something: ask again. */
           rows.length === 0
             ? {
-                message: EMPTY_MESSAGE,
+                message: translate(EMPTY_MESSAGE, lang),
                 action: canWrite
-                  ? { label: 'Thêm mẫu thư', onClick: openCreate }
-                  : { label: 'Tải lại', onClick: () => void refetch() },
+                  ? {
+                      label: t(message('Thêm mẫu thư', 'Add email template', '이메일 템플릿 추가')),
+                      onClick: openCreate,
+                    }
+                  : {
+                      label: t(message('Tải lại', 'Reload', '새로고침')),
+                      onClick: () => void refetch(),
+                    },
               }
             : undefined
         }
         table={{
           minWidth: 'min-w-[1120px]',
           columns: [
-            { header: 'Mã', width: '1fr' },
-            { header: 'Tên mẫu', width: '1.4fr' },
-            { header: 'Tiêu đề email', width: '1.9fr' },
-            { header: 'Nút trong email', width: '160px' },
-            { header: 'Dùng khi', width: '1.4fr' },
-            { header: 'Trạng thái', width: '128px' },
+            { header: t(message('Mã', 'Code', '코드')), width: '1fr' },
+            { header: t(message('Tên mẫu', 'Template name', '템플릿 이름')), width: '1.4fr' },
+            { header: t(message('Tiêu đề email', 'Email subject', '이메일 제목')), width: '1.9fr' },
+            {
+              header: t(message('Nút trong email', 'Email button', '이메일 버튼')),
+              width: '160px',
+            },
+            { header: t(message('Dùng khi', 'Used when', '사용 시점')), width: '1.4fr' },
+            { header: t(message('Trạng thái', 'Status', '상태')), width: '128px' },
           ],
           rows: rows.map((row) => ({
             id: row.code,
@@ -176,7 +223,9 @@ export function MailTemplatesPage() {
               </span>,
               <DoorTags key="d" row={row} />,
               <Badge key="t" tone={row.active ? 'success' : 'draft'}>
-                {row.active ? 'Đang dùng' : 'Ngừng dùng'}
+                {row.active
+                  ? t(message('Đang dùng', 'In use', '사용 중'))
+                  : t(message('Ngừng dùng', 'Not in use', '사용 중지'))}
               </Badge>,
             ],
           })),

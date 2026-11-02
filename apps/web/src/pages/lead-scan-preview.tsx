@@ -20,6 +20,7 @@ import {
 } from '@pv/ui'
 import { ScanOutcome, type LeadScanResponse, type ScanGroup } from '@pv/contracts'
 import { listField, useClientBookFilter } from '@/app/client-book-filter'
+import { message, useI18n } from '@/app/i18n'
 import { useScanReplaces } from '@/data/lead-scan-replace'
 import { BookCount } from '@/components/book-page'
 import { ROW_ICON } from '@/components/table-bits'
@@ -49,11 +50,27 @@ import { FailedFiles, ScanHeader, type CancelProps } from './lead-scan-parts'
 const SCAN_FILTERS = { outcome: listField() }
 
 const FIELD_COLUMNS = [
-  { header: 'Trường', width: 'minmax(0,1fr)' },
-  { header: 'Giá trị', width: 'minmax(0,1.6fr)' },
-  { header: 'Nguồn', width: '56px', align: 'center' as const },
-  { header: 'Độ chắc', width: 'minmax(0,.8fr)' },
+  { header: message('Trường', 'Field', '항목'), width: 'minmax(0,1fr)' },
+  { header: message('Giá trị', 'Value', '값'), width: 'minmax(0,1.6fr)' },
+  { header: message('Nguồn', 'Source', '출처'), width: '56px', align: 'center' as const },
+  { header: message('Độ chắc', 'Confidence', '확실도'), width: 'minmax(0,.8fr)' },
 ]
+
+const NOTHING_SAVED = message(
+  'Chỉ ghi vào sổ khi bạn bấm tạo.',
+  'Nothing is saved until you press create.',
+  '생성을 누르기 전에는 아무것도 저장되지 않습니다.',
+)
+const SEARCH = message(
+  'Tìm theo công ty, người liên hệ, email hoặc mã lead…',
+  'Search by company, contact, email or lead code…',
+  '회사, 연락처, 이메일 또는 리드 코드로 검색…',
+)
+const NO_MATCH = message(
+  'Không có công ty nào khớp bộ lọc.',
+  'No companies match these filters.',
+  '필터에 맞는 회사가 없습니다.',
+)
 
 export function PreviewStep({
   batch,
@@ -66,6 +83,7 @@ export function PreviewStep({
   cancel: CancelProps
 }) {
   const navigate = useNavigate()
+  const { t } = useI18n()
   const [open, setOpen] = useState<string | null>(null)
   const preview = batch.preview
   const totals = preview?.totals ?? { accounts: 0, contacts: 0, leadsToCreate: 0 }
@@ -81,13 +99,16 @@ export function PreviewStep({
   const outcomeOptions = ScanOutcome.options
     .map((o) => ({ o, n: groups.filter((g) => g.outcome === o).length }))
     .filter(({ n }) => n > 0)
-    .map(({ o, n }) => ({ value: o, label: `${OUTCOME_FACE[o].text} · ${n}` }))
+    .map(({ o, n }) => ({ value: o, label: `${t(OUTCOME_FACE[o].text)} · ${n}` }))
   const columns = [
-    { header: 'Công ty', width: 'minmax(0,1.3fr)' },
-    { header: 'Người liên hệ', width: 'minmax(0,1.6fr)' },
+    { header: t(message('Công ty', 'Company', '회사')), width: 'minmax(0,1.3fr)' },
+    { header: t(message('Người liên hệ', 'Contact', '연락처')), width: 'minmax(0,1.6fr)' },
     {
       header: (
-        <ColumnFilter label="Khi bấm tạo" active={filters.outcome.length > 0}>
+        <ColumnFilter
+          label={t(message('Khi bấm tạo', 'On create', '생성 시'))}
+          active={filters.outcome.length > 0}
+        >
           {(close) => (
             <ColumnFilterList
               options={outcomeOptions}
@@ -106,24 +127,38 @@ export function PreviewStep({
   return (
     <>
       <ScanHeader
-        title={`Đọc xong ${batch.files.length} tệp`}
-        description="Chỉ ghi vào sổ khi bạn bấm tạo."
+        title={t(
+          message(
+            `Đọc xong ${batch.files.length} tệp`,
+            `Finished reading ${batch.files.length} ${batch.files.length === 1 ? 'file' : 'files'}`,
+            `파일 ${batch.files.length}개 읽기 완료`,
+          ),
+        )}
+        description={t(NOTHING_SAVED)}
         rail={scanRail(batch, navigate)}
         cancel={cancel}
       />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Tile label="Công ty" value={totals.accounts} />
-        <Tile label="Người liên hệ" value={totals.contacts} />
-        <Tile label="Lead sẽ tạo" value={totals.leadsToCreate} brand />
+        <Tile label={t(message('Công ty', 'Companies', '회사'))} value={totals.accounts} />
+        <Tile label={t(message('Người liên hệ', 'Contacts', '연락처'))} value={totals.contacts} />
+        <Tile
+          label={t(message('Lead sẽ tạo', 'Leads to create', '생성할 리드'))}
+          value={totals.leadsToCreate}
+          brand
+        />
       </div>
 
       {skipped.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
-          <span className="text-muted-foreground">Không tạo lead mới:</span>
-          {skipped.map((text) => (
-            <MetaPill key={text} className="tnum">
-              {text}
+          <span className="text-muted-foreground">
+            {t(
+              message('Không tạo lead mới:', 'Not creating new leads:', '새 리드를 생성하지 않음:'),
+            )}
+          </span>
+          {skipped.map((pill) => (
+            <MetaPill key={pill.vi} className="tnum">
+              {t(pill)}
             </MetaPill>
           ))}
         </div>
@@ -134,23 +169,26 @@ export function PreviewStep({
       <GlassCard variant="b" className="overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 px-5 py-3">
           <SearchField
-            placeholder="Tìm theo công ty, người liên hệ, email hoặc mã lead…"
+            placeholder={t(SEARCH)}
             value={text}
             onChange={setText}
             className="min-w-0 flex-1 sm:max-w-[320px]"
           />
-          <BookCount total={shown.length} noun="công ty" />
+          <BookCount total={shown.length} noun={t(message('công ty', 'companies', '회사'))} />
           {dirty && (
             <Button size="md" variant="ghost" onClick={clear} className="pointer-coarse:h-12">
-              Bỏ hết bộ lọc
+              {t(message('Bỏ hết bộ lọc', 'Clear filters', '필터 지우기'))}
             </Button>
           )}
         </div>
         {shown.length === 0 && groups.length > 0 ? (
           <EmptyState
             icon={Inbox}
-            message="Không có công ty nào khớp bộ lọc."
-            action={{ label: 'Bỏ hết bộ lọc', onClick: clear }}
+            message={t(NO_MATCH)}
+            action={{
+              label: t(message('Bỏ hết bộ lọc', 'Clear filters', '필터 지우기')),
+              onClick: clear,
+            }}
             className="px-5 py-8"
           />
         ) : (
@@ -174,21 +212,68 @@ export function PreviewStep({
         )}
       </GlassCard>
 
-      <div className="flex flex-col items-start gap-3">
-        <Button size="lg" disabled={nothing || replacing} onClick={onCommit} className="tnum">
-          {totals.leadsToCreate > 0
-            ? `Tạo ${totals.leadsToCreate} lead`
-            : `Nhập ${merges} công ty vào lead có sẵn`}
-        </Button>
-        <p className="text-muted-foreground tnum text-[12.5px]">
-          {nothing
-            ? 'Không có gì để tạo hay nhập.'
-            : merges > 0
-              ? `Bấm để tạo và nhập ${merges} công ty vào lead có sẵn.`
-              : 'Bấm để tạo lead.'}
-        </p>
-      </div>
+      <CommitBar
+        creates={totals.leadsToCreate}
+        merges={merges}
+        disabled={nothing || replacing}
+        onCommit={onCommit}
+      />
     </>
+  )
+}
+
+/** The one button of step 3 and the sentence under it saying what it will do. */
+function CommitBar({
+  creates,
+  merges,
+  disabled,
+  onCommit,
+}: {
+  creates: number
+  merges: number
+  disabled: boolean
+  onCommit: () => void
+}) {
+  const { t } = useI18n()
+  return (
+    <div className="flex flex-col items-start gap-3">
+      <Button size="lg" disabled={disabled} onClick={onCommit} className="tnum">
+        {creates > 0
+          ? t(
+              message(
+                `Tạo ${creates} lead`,
+                `Create ${creates} ${creates === 1 ? 'lead' : 'leads'}`,
+                `리드 ${creates}개 생성`,
+              ),
+            )
+          : t(
+              message(
+                `Nhập ${merges} công ty vào lead có sẵn`,
+                `Merge ${merges} ${merges === 1 ? 'company' : 'companies'} into existing leads`,
+                `회사 ${merges}곳을 기존 리드에 병합`,
+              ),
+            )}
+      </Button>
+      <p className="text-muted-foreground tnum text-[12.5px]">
+        {creates === 0 && merges === 0
+          ? t(
+              message(
+                'Không có gì để tạo hay nhập.',
+                'Nothing to create or merge.',
+                '생성하거나 병합할 항목이 없습니다.',
+              ),
+            )
+          : merges > 0
+            ? t(
+                message(
+                  `Bấm để tạo và nhập ${merges} công ty vào lead có sẵn.`,
+                  `Press to create leads and merge ${merges} ${merges === 1 ? 'company' : 'companies'} into existing leads.`,
+                  `눌러서 리드를 생성하고 회사 ${merges}곳을 기존 리드에 병합합니다.`,
+                ),
+              )
+            : t(message('Bấm để tạo lead.', 'Press to create leads.', '눌러서 리드를 생성합니다.'))}
+      </p>
+    </div>
   )
 }
 
@@ -249,9 +334,10 @@ function PeopleCell({ group }: { group: ScanGroup }) {
 }
 
 function OutcomeCell({ group }: { group: ScanGroup }) {
+  const { t } = useI18n()
   return (
     <span className="flex flex-wrap items-center gap-2">
-      <Badge tone={OUTCOME_FACE[group.outcome].tone}>{outcomeText(group)}</Badge>
+      <Badge tone={OUTCOME_FACE[group.outcome].tone}>{t(outcomeText(group))}</Badge>
       {group.outcome === 'MERGE_INTO_LEAD' && <Chip>{group.leadCode}</Chip>}
       {group.outcome === 'NEW_LEAD' && group.accountCode && <Chip>{group.accountCode}</Chip>}
     </span>
@@ -261,10 +347,11 @@ function OutcomeCell({ group }: { group: ScanGroup }) {
 /** The source is a button, not a column of file names: the name lives in its
  *  tooltip, and a click opens the file itself. */
 function FieldTable({ group, files }: { group: ScanGroup; files: LeadScanResponse['files'] }) {
+  const { t } = useI18n()
   const urlOf = new Map(files.map((file) => [file.name, file.url]))
   return (
     <DataTable
-      columns={FIELD_COLUMNS}
+      columns={FIELD_COLUMNS.map((c) => ({ ...c, header: t(c.header) }))}
       rowHeight="min-h-10 py-2"
       className="px-5"
       rows={group.fields.map((f, i) => ({
@@ -275,11 +362,15 @@ function FieldTable({ group, files }: { group: ScanGroup; files: LeadScanRespons
           </span>,
           <span key="v" className="flex min-w-0 flex-col gap-1">
             <span className="break-words">{f.value}</span>
-            {f.alt && <span className="text-warning break-words">hoặc {f.alt}</span>}
+            {f.alt && (
+              <span className="text-warning break-words">
+                {t(message(`hoặc ${f.alt}`, `or ${f.alt}`, `또는 ${f.alt}`))}
+              </span>
+            )}
           </span>,
           <SourceButton key="from" name={f.fromFile} url={urlOf.get(f.fromFile)} />,
           <Badge key="c" tone={CONFIDENCE_FACE[f.confidence].tone}>
-            {CONFIDENCE_FACE[f.confidence].text}
+            {t(CONFIDENCE_FACE[f.confidence].text)}
           </Badge>,
         ],
       }))}
@@ -288,6 +379,7 @@ function FieldTable({ group, files }: { group: ScanGroup; files: LeadScanRespons
 }
 
 function SourceButton({ name, url }: { name: string; url: string | undefined }) {
+  const { t } = useI18n()
   /* The book's round icon action (`ROW_ICON`), so a source reads like every other row icon. */
   const face = cn(ROW_ICON, 'inline-flex items-center justify-center')
   if (!url) {
@@ -296,7 +388,7 @@ function SourceButton({ name, url }: { name: string; url: string | undefined }) 
         role="img"
         className={cn(face, 'hover:bg-transparent')}
         title={name}
-        aria-label={`Nguồn: ${name}`}
+        aria-label={t(message(`Nguồn: ${name}`, `Source: ${name}`, `출처: ${name}`))}
       >
         <Icon icon={FileText} size={16} />
       </span>
@@ -308,7 +400,9 @@ function SourceButton({ name, url }: { name: string; url: string | undefined }) 
       target="_blank"
       rel="noopener noreferrer"
       title={name}
-      aria-label={`Mở tệp nguồn: ${name}`}
+      aria-label={t(
+        message(`Mở tệp nguồn: ${name}`, `Open source file: ${name}`, `원본 파일 열기: ${name}`),
+      )}
       className={cn(face, 'motion-std hover:text-foreground')}
     >
       <Icon icon={FileText} size={16} />

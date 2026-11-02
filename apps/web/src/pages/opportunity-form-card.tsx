@@ -40,7 +40,7 @@ import {
  *  server's copy and an abandoned edit never rides on the next save. */
 
 const TITLE: Record<DealEditPart, ReturnType<typeof message>> = {
-  terms: message('Sửa phiếu cơ hội', 'Edit opportunity details', '영업 기회 정보 수정'),
+  terms: message('Sửa phiếu cơ hội', 'Edit opportunity details', '기회 정보 수정'),
   details: message(
     'Sửa tên, mô tả và tệp',
     'Edit name, description, and files',
@@ -177,7 +177,7 @@ function TermsFields({ draft }: { draft: DealDraft }) {
                     message(
                       'Còn thiếu, chưa lưu được phiếu.',
                       'Required before this opportunity can be saved.',
-                      '영업 기회를 저장하려면 입력해야 합니다.',
+                      '기회를 저장하려면 입력해야 합니다.',
                     ),
                   ),
                 ]
@@ -240,13 +240,13 @@ function DetailsFields({ draft }: { draft: DealDraft }) {
   return (
     <div className="flex min-w-0 flex-col gap-5">
       <Field
-        label={t(message('Tên cơ hội', 'Opportunity name', '영업 기회 이름'))}
+        label={t(message('Tên cơ hội', 'Opportunity name', '기회 이름'))}
         required
         errors={errors.name}
       >
         <Input
           value={work.name}
-          aria-label={t(message('Tên cơ hội', 'Opportunity name', '영업 기회 이름'))}
+          aria-label={t(message('Tên cơ hội', 'Opportunity name', '기회 이름'))}
           aria-required
           maxLength={OPPORTUNITY_NAME_MAX}
           invalid={Boolean(errors.name)}
@@ -262,7 +262,7 @@ function DetailsFields({ draft }: { draft: DealDraft }) {
           maxLength={OPPORTUNITY_DESCRIPTION_MAX}
           invalid={Boolean(errors.description)}
           value={work.description}
-          aria-label={t(message('Mô tả cơ hội', 'Opportunity description', '영업 기회 설명'))}
+          aria-label={t(message('Mô tả cơ hội', 'Opportunity description', '기회 설명'))}
           placeholder={t(
             message(
               'Khách cần gì, một hai câu.',
@@ -312,7 +312,7 @@ function OwnersFields({ draft, op }: { draft: DealDraft; op: OpportunityProfileR
                     message(
                       'Đang chờ duyệt ký: không thể thêm hoặc bớt Sale. Đổi Sale chính trong menu Khác.',
                       'Signature approval is pending, so salespeople cannot be added or removed. Change the primary salesperson from More.',
-                      '서명 승인을 기다리는 중에는 영업 담당자를 추가하거나 제거할 수 없습니다. 더보기 메뉴에서 주 담당자를 변경하세요.',
+                      '서명 승인을 기다리는 중에는 영업 담당자를 추가하거나 제거할 수 없습니다. 더보기 메뉴에서 주 영업 담당자를 변경하세요.',
                     ),
                   )
                 : t(

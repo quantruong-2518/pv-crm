@@ -10,6 +10,7 @@ import type {
   UserRow,
 } from '@pv/contracts'
 import { api, isApiError, userMessage, type ApiError, type ApiNeed } from '@/app/api'
+import { getLang, message, translate, type Lang, type Message } from '@/app/i18n'
 import { DIRECTORY_KEY } from './directory'
 
 /** Quản trị · Người dùng — the four doors of `platform.actor`.
@@ -189,7 +190,17 @@ export function useHoldingsCheck() {
       .fetchQuery(userHoldingsQuery(id))
       .then((h) => (heldAny(h) ? setHoldings(h) : on.onFree()))
       .catch((e: unknown) =>
-        on.onFail(isApiError(e) ? userMessage(e) : 'Không đọc được việc người này đang giữ.'),
+        on.onFail(
+          isApiError(e)
+            ? userMessage(e)
+            : translate(
+                message(
+                  'Không đọc được việc người này đang giữ.',
+                  'Could not read what this person holds.',
+                  '이 사용자가 담당 중인 업무를 불러오지 못했습니다.',
+                ),
+              ),
+        ),
       )
       .finally(() => setChecking(false))
   }
@@ -244,12 +255,9 @@ export function useResetUserPassword() {
  *  server, names roles too; re-exported so screens keep one import path. */
 export { ROLE_LABEL }
 
-/** The role picker's list, built FROM the label table so the two can never
+/** The role picker's ids, read FROM the label table so the two can never
  *  disagree about which roles exist. */
-export const ROLE_OPTIONS = (Object.keys(ROLE_LABEL) as RoleId[]).map((id) => ({
-  value: id,
-  label: ROLE_LABEL[id],
-}))
+export const ROLE_IDS = Object.keys(ROLE_LABEL) as RoleId[]
 
 /** What a brand-new account gets before anybody touches the picker.
  *
@@ -277,19 +285,28 @@ export const BRANCH_OPTIONS = Branch.options
  *  do is worse than no control. */
 export const CORE_BRANCH = 'One' as const satisfies Branch
 
-export const SCOPE_ALL = 'Toàn bộ dữ liệu'
-export const SCOPE_OWN = 'Chỉ lead và cơ hội bạn phụ trách'
+const SCOPE_ALL = message('Toàn bộ dữ liệu', 'All data', '전체 데이터')
+const SCOPE_OWN = message(
+  'Chỉ lead và cơ hội bạn phụ trách',
+  'Only leads and opportunities you own',
+  '내가 담당하는 리드와 기회만',
+)
 
 /** Axis 3 of E2, in the two words the table column has room for. `ownOnly`
  *  cuts a person down to the rows standing in their own name — it is not a
  *  permission and cannot be granted around, which is why it reads as a scope
  *  rather than as a role. */
-export const scopeLabel = (ownOnly: boolean): string => (ownOnly ? SCOPE_OWN : SCOPE_ALL)
+export const scopeLabel = (ownOnly: boolean, lang: Lang = getLang()): string =>
+  translate(ownOnly ? SCOPE_OWN : SCOPE_ALL, lang)
 
 /** The contract's own words for an edit that edits nothing (`UserPatch`'s
  *  refine). Repeated here so the sentence the user reads is the same one
  *  whether the browser caught it or the server did. */
-export const NOTHING_TO_SAVE = 'Không có gì để sửa.'
+export const NOTHING_TO_SAVE: Message = message(
+  'Không có gì để sửa.',
+  'Nothing to change.',
+  '수정할 내용이 없습니다.',
+)
 
 // ---------------------------------------------------------------------------
 // Small derivations the screen needs
@@ -324,8 +341,15 @@ export function userTally(rows: readonly UserRow[]): UserTally {
  *  manager opens this screen with: how many people are in the book, how many of
  *  them ever finished setting up, and how many are shut out right now. A single
  *  "7 tài khoản" hides both of the states that need somebody to do something. */
-export const tallyLine = (t: UserTally): string =>
-  `${t.total} người dùng · ${t.passworded} đã đặt mật khẩu · ${t.locked} đang bị khoá`
+export const tallyLine = (t: UserTally, lang: Lang = getLang()): string =>
+  translate(
+    message(
+      `${t.total} người dùng · ${t.passworded} đã đặt mật khẩu · ${t.locked} đang bị khoá`,
+      `${t.total} ${t.total === 1 ? 'user' : 'users'} · ${t.passworded} with a password set · ${t.locked} locked`,
+      `사용자 ${t.total}명 · 비밀번호 설정 ${t.passworded}명 · 잠금 ${t.locked}명`,
+    ),
+    lang,
+  )
 
 /** What the panel holds while somebody is typing — the editable half of a row.
  *

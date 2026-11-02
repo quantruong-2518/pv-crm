@@ -6,14 +6,14 @@ import { AppShell, Button, Checkbox, Icon, ScreenLayout, type TableSort } from '
 import { OpportunityBookQuery, type OpportunityBookRow } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
-import { message, useI18n } from '@/app/i18n'
+import { message, translate, useI18n } from '@/app/i18n'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { openMasMail } from '@/app/mas-mail-composer'
 import { toast } from '@/app/toast'
 import { isApiError, userMessage } from '@/app/api'
 import {
   bdOwnersOf,
-  NO_BD,
+  NO_BD_COPY,
   DEFAULT_OPPORTUNITY_BOOK_QUERY,
   opportunityBookQuery,
   opportunityProfileQuery,
@@ -118,7 +118,7 @@ export function OpportunitiesPage() {
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <BookPage
-          title={t(message('Sổ cơ hội', 'Opportunities', '영업 기회'))}
+          title={t(message('Sổ cơ hội', 'Opportunities', '기회'))}
           actions={
             canCreate && (
               <CreateDoors onCreate={() => setCreating(true)} onSeeResult={clearFilters} />
@@ -134,7 +134,7 @@ export function OpportunitiesPage() {
           failure={
             bookError
               ? {
-                  message: `${t(message('Không tải được danh sách cơ hội.', 'Could not load opportunities.', '영업 기회를 불러오지 못했습니다.'))} ${
+                  message: `${t(message('Không tải được danh sách cơ hội.', 'Could not load opportunities.', '기회를 불러오지 못했습니다.'))} ${
                     isApiError(bookError)
                       ? userMessage(bookError)
                       : t(message('Thử lại.', 'Try again.', '다시 시도하세요.'))
@@ -246,7 +246,7 @@ function OpportunitySelectionBar({
       <div aria-hidden className="h-24" />
       <BookSelectionBar
         count={selectedCodes.size}
-        noun={t(message('cơ hội', 'opportunities', '영업 기회'))}
+        noun={t(message('cơ hội', 'opportunities', '기회'))}
         meta={mailTally(selectedCodes, mailable)}
         onClear={onClear}
         onSend={() =>
@@ -261,7 +261,7 @@ function OpportunitySelectionBar({
           <PinSelectionAction
             subject="opportunity"
             codes={[...selectedCodes]}
-            noun={t(message('cơ hội', 'opportunities', '영업 기회'))}
+            noun={t(message('cơ hội', 'opportunities', '기회'))}
             onDone={onClear}
           />
         }
@@ -273,19 +273,22 @@ function OpportunitySelectionBar({
 /** The book's two write doors. The create button opens a lead picker, then the
  *  lead profile's own `ConvertDialog` — a deal is still born from a lead. */
 function CreateDoors({ onCreate, onSeeResult }: { onCreate: () => void; onSeeResult: () => void }) {
+  const { t } = useI18n()
   const commitOps = useCommitOps()
   return (
     <>
       <ImportZone
         spec={OP_SPEC}
         existingKeys={NO_LOCAL_KEYS}
-        buttonLabel="Nhập cơ hội từ tệp"
+        buttonLabel={t(
+          message('Nhập cơ hội từ tệp', 'Import opportunities from file', '파일에서 기회 가져오기'),
+        )}
         onCommit={commitOps}
         onSeeResult={onSeeResult}
       />
       <Button size="md" onClick={onCreate} className="pointer-coarse:h-12 max-sm:flex-1">
         <Icon icon={Plus} size={16} />
-        Mở cơ hội
+        {t(message('Mở cơ hội', 'Open opportunity', '기회 열기'))}
       </Button>
     </>
   )
@@ -299,12 +302,38 @@ function useCommitOps() {
   return async ({ rows, fileName }: ImportCommit & { scope?: string }) => {
     const run = await loadFile({ rows, fileName })
     const { report } = run
-    toast(run.failure ?? `Đã thêm ${report.rows.length} cơ hội`, {
+    const added = message(
+      `Đã thêm ${report.rows.length} cơ hội`,
+      `Added ${report.rows.length} opportunities`,
+      `기회 ${report.rows.length}건을 추가했습니다`,
+    )
+    toast(run.failure ?? translate(added), {
       tone: run.failure ? 'danger' : 'success',
       detail: [
-        report.duplicates > 0 && `${report.duplicates} dòng chưa nạp: lead có cơ hội đang chạy`,
-        report.dupInFile > 0 && `${report.dupInFile} dòng trùng nhau trong tệp`,
-        report.errors.length > 0 && `${report.errors.length} dòng không nạp được`,
+        report.duplicates > 0 &&
+          translate(
+            message(
+              `${report.duplicates} dòng chưa nạp: lead có cơ hội đang chạy`,
+              `${report.duplicates} rows not loaded: the lead has an active opportunity`,
+              `${report.duplicates}개 행 미등록: 리드에 진행 중인 기회가 있습니다`,
+            ),
+          ),
+        report.dupInFile > 0 &&
+          translate(
+            message(
+              `${report.dupInFile} dòng trùng nhau trong tệp`,
+              `${report.dupInFile} duplicate rows in the file`,
+              `파일 내 중복 행 ${report.dupInFile}개`,
+            ),
+          ),
+        report.errors.length > 0 &&
+          translate(
+            message(
+              `${report.errors.length} dòng không nạp được`,
+              `${report.errors.length} rows could not be loaded`,
+              `${report.errors.length}개 행을 등록하지 못했습니다`,
+            ),
+          ),
       ]
         .filter(Boolean)
         .join(' · '),
@@ -321,7 +350,7 @@ function bookCells(op: OpportunityBookRow, canAccept: boolean, mail: () => void)
     <StageCell key="stage" op={op} />,
     <AmountCell key="amount" op={op} />,
     <CloseCell key="close" op={op} />,
-    <PeopleCell key="bd" owners={bdOwnersOf(op)} missing={NO_BD} />,
+    <PeopleCell key="bd" owners={bdOwnersOf(op)} missing={translate(NO_BD_COPY)} />,
     <SaleCell key="sale" op={op} canAccept={canAccept} />,
     <LastActivityCell key="activity" op={op} />,
     <NextStepCell key="next" op={op} />,

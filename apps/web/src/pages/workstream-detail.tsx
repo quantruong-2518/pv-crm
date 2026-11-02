@@ -74,7 +74,7 @@ function RunScreen({ journey }: { journey: Journey }) {
   /* `chainPath` has no contract door. */
   const canOpenContract = useCan('contract.view')
   const pathOf: PathOf = (kind, code) =>
-    kind !== 'HĐ'
+    kind !== 'HĐ' // i18n-ignore
       ? chainPath(kind, code)
       : canOpenContract
         ? `/sales/contracts/${encodeURIComponent(code)}`
@@ -150,7 +150,7 @@ function RunHeader({ journey: j, onOpenDeal }: { journey: Journey; onOpenDeal?: 
         onOpenDeal && (
           <Button size="lg" onClick={onOpenDeal}>
             <Icon icon={ArrowRight} size={16} />
-            {t(message('Mở cơ hội', 'Create opportunity', '영업 기회 만들기'))}
+            {t(message('Mở cơ hội', 'Create opportunity', '기회 만들기'))}
           </Button>
         )
       }

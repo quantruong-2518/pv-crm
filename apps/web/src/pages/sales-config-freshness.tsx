@@ -20,6 +20,12 @@ import { sentCopy } from './sales-config-copy'
  *  `sales-config-deal.tsx`. Both numbers go as ONE proposal through the approval
  *  inbox, and the box keeps the stored pair until it is approved. */
 
+const FRESHNESS_RULE = message(
+  'Không có hoạt động từ {warn} thì tô vàng, từ {alert} thì tô đỏ.',
+  'No activity for {warn} turns the row yellow; from {alert} turns it red.',
+  '{warn} 동안 활동이 없으면 노란색, {alert} 이후에는 빨간색으로 표시합니다.',
+)
+
 const FIELDS = [
   { axis: 'warnDays', setting: 'sales.activity.warn-days' },
   { axis: 'alertDays', setting: 'sales.activity.alert-days' },
@@ -133,21 +139,33 @@ export function ActivityFreshnessConfig() {
 
       {parsed.success && (
         <p className="m-0 text-[11.5px] leading-[1.5]">
-          {t(message('Không có hoạt động từ', 'No activity for', '활동이 없으면'))}{' '}
-          <span className="text-warning tnum font-num font-semibold">
-            {parsed.data.warnDays} ngày
-          </span>{' '}
-          {t(
-            message(
-              'thì tô vàng, từ',
-              'days turns the row yellow; from',
-              '이면 노란색, 다음부터는',
-            ),
-          )}{' '}
-          <span className="text-destructive-foreground tnum font-num font-semibold">
-            {parsed.data.alertDays} ngày
-          </span>{' '}
-          {t(message('thì tô đỏ.', 'days turns it red.', '이면 빨간색으로 표시합니다.'))}
+          {t(FRESHNESS_RULE)
+            .split(/(\{warn\}|\{alert\})/)
+            .map((part, i) =>
+              part === '{warn}' ? (
+                <span key={i} className="text-warning tnum font-num font-semibold">
+                  {t(
+                    message(
+                      `${parsed.data.warnDays} ngày`,
+                      `${parsed.data.warnDays} days`,
+                      `${parsed.data.warnDays}일`,
+                    ),
+                  )}
+                </span>
+              ) : part === '{alert}' ? (
+                <span key={i} className="text-destructive-foreground tnum font-num font-semibold">
+                  {t(
+                    message(
+                      `${parsed.data.alertDays} ngày`,
+                      `${parsed.data.alertDays} days`,
+                      `${parsed.data.alertDays}일`,
+                    ),
+                  )}
+                </span>
+              ) : (
+                part
+              ),
+            )}
         </p>
       )}
       <WaitingNote words={waiting} />

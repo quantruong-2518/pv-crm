@@ -1,17 +1,11 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Badge, CircleCheck, GlassCard, Icon, cn } from '@pv/ui'
-import {
-  KPI_METRIC_LABEL,
-  KPI_VERDICT_LABEL,
-  type KpiMetricDef,
-  type KpiPerson,
-  type KpiReading,
-  type KpiTeamRef,
-} from '@pv/contracts'
+import { type KpiMetricDef, type KpiPerson, type KpiReading, type KpiTeamRef } from '@pv/contracts'
+import { message, useI18n, type Message } from '@/app/i18n'
 import { StackTable, type StackColumn } from '@/components/stack-table'
 import type { KpiCatalog } from '@/data/kpi-catalog'
-import { ROLE_LABEL } from '@/data/users'
+import { kpiMetricText, kpiRoleText, kpiVerdictText } from '@/data/kpi-i18n'
 import { num } from './home-model'
 import { NOTE } from './home-tiles'
 import { teamPath } from './kpi-allocate-model'
@@ -43,13 +37,15 @@ import { AdjustmentNote, ByDefaultMark, VerdictBadge } from './kpi-parts'
  *  below `lg` each person is a card listing those cells. A person's name
  *  opens their own KPI screen on the same month. */
 
-const ATTENTION_COLUMNS: StackColumn[] = [
-  { header: 'Người', width: 'minmax(0,1.2fr)' },
-  { header: 'Vai trò', width: 'minmax(0,1.2fr)' },
-  { header: 'Chỉ số', width: 'minmax(0,1.8fr)' },
-  { header: 'Thực tế', width: 'minmax(0,1fr)', align: 'right' },
-  { header: 'Chỉ tiêu', width: 'minmax(0,1fr)', align: 'right' },
-  { header: 'Trạng thái', width: 'minmax(0,1.3fr)' },
+type Say = (copy: Message) => string
+
+const attentionColumns = (t: Say): StackColumn[] => [
+  { header: t(message('Người', 'Person', '담당자')), width: 'minmax(0,1.2fr)' },
+  { header: t(message('Vai trò', 'Role', '역할')), width: 'minmax(0,1.2fr)' },
+  { header: t(message('Chỉ số', 'Metric', '지표')), width: 'minmax(0,1.8fr)' },
+  { header: t(message('Thực tế', 'Actual', '실적')), width: 'minmax(0,1fr)', align: 'right' },
+  { header: t(message('Chỉ tiêu', 'Target', '목표')), width: 'minmax(0,1fr)', align: 'right' },
+  { header: t(message('Trạng thái', 'Status', '상태')), width: 'minmax(0,1.3fr)' },
 ]
 
 /* The heat map's floor follows its column count: DataTable clips sideways, so
@@ -82,6 +78,7 @@ function NameCell({
   period: string
   teamOf?: TeamOf
 }) {
+  const { t } = useI18n()
   const link = (
     <Link to={personHref(person.actorId, period)} className={NAME_LINK}>
       {person.name}
@@ -93,17 +90,17 @@ function NameCell({
     <span className={TWO_LINES}>
       {link}
       <Link to={teamPath(team.id, period)} className={TEAM_LINK}>
-        Nhóm {team.name}
+        {t(message(`Nhóm ${team.name}`, `Team ${team.name}`, `${team.name} 팀`))}
       </Link>
     </span>
   )
 }
 
-function attentionCells(row: PersonRow, period: string, teamOf?: TeamOf): ReactNode[] {
+function attentionCells(row: PersonRow, period: string, t: Say, teamOf?: TeamOf): ReactNode[] {
   const { item, acknowledgement: ack } = row
   const head = [
     <NameCell key="person" person={row.person} period={period} teamOf={teamOf} />,
-    ROLE_LABEL[row.role],
+    kpiRoleText(row.role),
   ]
   if (item === null) {
     return [
@@ -112,7 +109,15 @@ function attentionCells(row: PersonRow, period: string, teamOf?: TeamOf): ReactN
       DASH,
       DASH,
       <Badge key="state" tone="warning" className="whitespace-normal">
-        {ack.state === 'stale' ? 'Cần nhận lại chỉ tiêu' : 'Chưa nhận chỉ tiêu'}
+        {t(
+          ack.state === 'stale'
+            ? message(
+                'Cần nhận lại chỉ tiêu',
+                'Target must be received again',
+                '목표를 다시 수령해야 함',
+              )
+            : message('Chưa nhận chỉ tiêu', 'Target not received', '목표 미수령'),
+        )}
       </Badge>,
     ]
   }
@@ -121,7 +126,7 @@ function attentionCells(row: PersonRow, period: string, teamOf?: TeamOf): ReactN
   return [
     ...head,
     <span key="metric" className={TWO_LINES}>
-      <span>{KPI_METRIC_LABEL[def.key]}</span>
+      <span>{kpiMetricText(def.key)}</span>
       {shortfall && <span className={cn(NOTE, FIGURE)}>{shortfall}</span>}
     </span>,
     <span key="value" className={cn(FIGURE, 'font-semibold')}>
@@ -148,13 +153,21 @@ export function AttentionBlock({
   period: string
   teamOf?: TeamOf
 }) {
+  const { t } = useI18n()
   const rows = exceptionRows(catalog, people)
   const unjudged = unjudgedRoles(people)
   return (
     <GlassCard variant="b" className="flex flex-col gap-3 py-4">
       {unjudged > 0 && (
         <p className={cn(LINE, 'px-5')}>
-          <span className={FIGURE}>{num(unjudged)}</span> vai trò chưa có chỉ tiêu được duyệt.
+          <span className={FIGURE}>{num(unjudged)}</span>{' '}
+          {t(
+            message(
+              'vai trò chưa có chỉ tiêu được duyệt.',
+              unjudged === 1 ? 'role has no approved target.' : 'roles have no approved target.',
+              '개 역할에 승인된 목표가 없습니다.',
+            ),
+          )}
         </p>
       )}
       {rows.length > 0 && (
@@ -163,14 +176,20 @@ export function AttentionBlock({
           flush
           rowHeight="min-h-12 py-2"
           tableClassName="min-w-3xl"
-          columns={ATTENTION_COLUMNS}
-          rows={rows.map((row) => ({ id: row.id, cells: attentionCells(row, period, teamOf) }))}
+          columns={attentionColumns(t)}
+          rows={rows.map((row) => ({ id: row.id, cells: attentionCells(row, period, t, teamOf) }))}
         />
       )}
       {rows.length === 0 && unjudged === 0 && (
         <p className={cn(LINE, 'flex items-center gap-2 px-5')}>
           <Icon icon={CircleCheck} size={16} className="text-success shrink-0" />
-          Không ai đang hụt chỉ tiêu.
+          {t(
+            message(
+              'Không ai đang hụt chỉ tiêu.',
+              'No one is behind target.',
+              '목표에 미달한 사람이 없습니다.',
+            ),
+          )}
         </p>
       )}
     </GlassCard>
@@ -188,7 +207,7 @@ function heatCell(def: KpiMetricDef, reading: KpiReading | undefined) {
       <span className={cn(FIGURE, 'font-semibold')}>{printCell(def.unit, reading.value)}</span>
       <span className={cn(FIGURE, text, 'text-[11px] font-semibold leading-4')}>
         {share !== null && `${num(Math.round(share * 100))}% · `}
-        {KPI_VERDICT_LABEL[reading.verdict]}
+        {kpiVerdictText(reading.verdict)}
       </span>
       <AdjustmentNote unit={def.unit} reading={reading} form="heat" />
     </span>
@@ -207,18 +226,28 @@ function RoleHeat({
   period: string
   teamOf?: TeamOf
 }) {
+  const { t } = useI18n()
   const columns: StackColumn[] = [
-    { header: 'Người', width: `minmax(${HEAT_CELL}px,1.2fr)` },
+    { header: t(message('Người', 'Person', '담당자')), width: `minmax(${HEAT_CELL}px,1.2fr)` },
     ...defs.map((def) => ({
-      header: KPI_METRIC_LABEL[def.key],
+      header: kpiMetricText(def.key),
       width: `minmax(${HEAT_CELL}px,1fr)`,
     })),
   ]
   return (
     <GlassCard variant="b" className="flex flex-col gap-3 py-4">
       <h3 className="font-display px-5 text-[14px] font-semibold">
-        {ROLE_LABEL[group.role]}{' '}
-        <span className={cn(NOTE, FIGURE, 'font-normal')}>· {num(group.holders.length)} người</span>
+        {kpiRoleText(group.role)}{' '}
+        <span className={cn(NOTE, FIGURE, 'font-normal')}>
+          ·{' '}
+          {t(
+            message(
+              `${num(group.holders.length)} người`,
+              `${num(group.holders.length)} ${group.holders.length === 1 ? 'person' : 'people'}`,
+              `${num(group.holders.length)}명`,
+            ),
+          )}
+        </span>
       </h3>
       <StackTable
         from="lg"

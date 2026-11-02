@@ -8,6 +8,7 @@ import {
   SCAN_THUMB_EDGE_PX,
   type ScanFileDeclared,
 } from '@pv/contracts'
+import { getLang, message, translate, type Lang, type Message } from '@/app/i18n'
 import type { PrepFailure, PrepReply, PrepRequest } from './scan-prep.worker'
 
 /** Browser-side preparation of one scan batch: screen, hash, shrink, thumb.
@@ -54,7 +55,18 @@ const capOf = (mime: AcceptMime) =>
   mime === 'application/pdf' ? SCAN_MAX_PDF_BYTES : SCAN_MAX_IMAGE_RAW_BYTES
 
 /** The footnote's limits, read off the contract so a changed cap prints itself. */
-export const LIMITS_LABEL = `tối đa ${SCAN_MAX_FILES} tệp mỗi lô · ảnh ${SCAN_MAX_IMAGE_RAW_BYTES / MB} MB · PDF ${SCAN_MAX_PDF_BYTES / MB} MB`
+export const limitsLabel = (lang: Lang = getLang()) => {
+  const image = SCAN_MAX_IMAGE_RAW_BYTES / MB
+  const pdf = SCAN_MAX_PDF_BYTES / MB
+  return translate(
+    message(
+      `tối đa ${SCAN_MAX_FILES} tệp mỗi lô · ảnh ${image} MB · PDF ${pdf} MB`,
+      `up to ${SCAN_MAX_FILES} files per batch · images ${image} MB · PDF ${pdf} MB`,
+      `묶음당 최대 ${SCAN_MAX_FILES}개 파일 · 이미지 ${image}MB · PDF ${pdf}MB`,
+    ),
+    lang,
+  )
+}
 
 /** "JPG · PNG · … · PDF", read off the accept list so a new type prints itself. */
 export const ACCEPT_LABEL = [...new Set(SCAN_ACCEPT_MIME.map((m) => EXTENSION_LABEL[m]))].join(
@@ -76,20 +88,46 @@ export function mimeOf(file: File): AcceptMime | null {
 
 export type Picked = { file: File; mime: AcceptMime }
 
-/** Cheap checks before any byte is read. `rejected` is ready-to-show Vietnamese. */
+/** Cheap checks before any byte is read. `rejected` is ready-to-show text in the current language. */
 export function screenPicked(files: readonly File[]): { accepted: Picked[]; rejected: string[] } {
   const accepted: Picked[] = []
   const rejected: string[] = []
   let overflow = 0
   for (const file of files) {
     const mime = mimeOf(file)
-    if (!mime) rejected.push(`${file.name} không phải ảnh hay PDF`)
-    else if (file.size === 0) rejected.push(`${file.name} rỗng`)
-    else if (file.size > capOf(mime)) rejected.push(`${file.name} lớn hơn ${capOf(mime) / MB} MB`)
-    else if (accepted.length >= SCAN_MAX_FILES) overflow += 1
+    if (!mime) {
+      const text = message(
+        `${file.name} không phải ảnh hay PDF`,
+        `${file.name} is not an image or PDF`,
+        `${file.name}은(는) 이미지 또는 PDF가 아닙니다`,
+      )
+      rejected.push(translate(text))
+    } else if (file.size === 0) {
+      const text = message(
+        `${file.name} rỗng`,
+        `${file.name} is empty`,
+        `${file.name}이(가) 비어 있습니다`,
+      )
+      rejected.push(translate(text))
+    } else if (file.size > capOf(mime)) {
+      const mb = capOf(mime) / MB
+      const text = message(
+        `${file.name} lớn hơn ${mb} MB`,
+        `${file.name} is larger than ${mb} MB`,
+        `${file.name}이(가) ${mb}MB보다 큽니다`,
+      )
+      rejected.push(translate(text))
+    } else if (accepted.length >= SCAN_MAX_FILES) overflow += 1
     else accepted.push({ file, mime })
   }
-  if (overflow > 0) rejected.push(`${overflow} tệp vượt quá ${SCAN_MAX_FILES} tệp một lô`)
+  if (overflow > 0) {
+    const text = message(
+      `${overflow} tệp vượt quá ${SCAN_MAX_FILES} tệp một lô`,
+      `${overflow} files exceed the limit of ${SCAN_MAX_FILES} per batch`,
+      `파일 ${overflow}개가 묶음당 ${SCAN_MAX_FILES}개 제한을 초과했습니다`,
+    )
+    rejected.push(translate(text))
+  }
   return { accepted, rejected }
 }
 
@@ -196,8 +234,12 @@ export type Prepared = {
   declared: ScanFileDeclared
 }
 
-const FAILURE_TEXT: Record<PrepFailure, string> = {
-  decode: 'Không mở được ảnh này',
+const FAILURE_TEXT: Record<PrepFailure, Message> = {
+  decode: message(
+    'Không mở được ảnh này',
+    'Could not open this image',
+    '이 이미지를 열 수 없습니다',
+  ),
 }
 
 /** Throws an `Error` whose message is the Vietnamese line for the row. */
@@ -209,7 +251,7 @@ export async function prepareFile({ file, mime }: Picked): Promise<Prepared> {
       callWorker({ original: file, decoded: null, image: false }),
       readPdf(file),
     ])
-    if ('failure' in reply) throw new Error(FAILURE_TEXT[reply.failure])
+    if ('failure' in reply) throw new Error(translate(FAILURE_TEXT[reply.failure]))
     return {
       upload: file,
       thumb: pdf.thumb,
@@ -230,12 +272,12 @@ export async function prepareFile({ file, mime }: Picked): Promise<Prepared> {
     try {
       decoded = await decodeHeic(file)
     } catch {
-      throw new Error(FAILURE_TEXT.decode)
+      throw new Error(translate(FAILURE_TEXT.decode))
     }
   }
   const reply = await callWorker({ original: file, decoded, image: true })
-  if ('failure' in reply) throw new Error(FAILURE_TEXT[reply.failure])
-  if (!reply.image) throw new Error(FAILURE_TEXT.decode)
+  if ('failure' in reply) throw new Error(translate(FAILURE_TEXT[reply.failure]))
+  if (!reply.image) throw new Error(translate(FAILURE_TEXT.decode))
   const { blob, thumb, width, height } = reply.image
   return {
     upload: blob,

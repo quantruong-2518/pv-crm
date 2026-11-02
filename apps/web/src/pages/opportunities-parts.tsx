@@ -88,7 +88,7 @@ export function BookTabs({ query, onPatch }: { query: OpportunityBookQuery; onPa
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-3">
       <SegmentedControl
-        label={t(message('Trạng thái cơ hội', 'Opportunity status', '영업 기회 상태'))}
+        label={t(message('Trạng thái cơ hội', 'Opportunity status', '기회 상태'))}
         hideLabel
         tone="quiet"
         value={query.pinned ? PINNED : (query.state ?? ANY)}
@@ -121,7 +121,7 @@ export function BookCounts({
     <>
       <BookCount
         total={total}
-        noun={t(message('cơ hội', 'opportunities', '영업 기회'))}
+        noun={t(message('cơ hội', 'opportunities', '기회'))}
         hidden={hidden}
       />
       {/* Held deals are off the book and the board; the hold list is where they wait. */}
@@ -131,7 +131,7 @@ export function BookCounts({
           className="text-accent-foreground pointer-coarse:min-h-12 inline-flex items-center gap-1 text-[11.5px] font-semibold hover:underline"
         >
           <span className="tnum">{number(facets?.held ?? 0)}</span>{' '}
-          {t(message('cơ hội đang tạm hoãn', 'opportunities on hold', '보류 중인 영업 기회'))}
+          {t(message('cơ hội đang tạm hoãn', 'opportunities on hold', '보류 중인 기회'))}
           <Icon icon={ArrowRight} size={16} />
         </Link>
       )}
@@ -166,7 +166,7 @@ export function ScoreCards() {
           message(
             'Chưa có cơ hội để tính tỷ lệ',
             'No opportunities to calculate a rate',
-            '비율을 계산할 영업 기회가 없습니다',
+            '비율을 계산할 기회가 없습니다',
           ),
         )
       : undefined
@@ -174,17 +174,11 @@ export function ScoreCards() {
   const items = [
     {
       icon: Target,
-      label: t(message('Tổng cơ hội', 'Total opportunities', '전체 영업 기회')),
+      label: t(message('Tổng cơ hội', 'Total opportunities', '전체 기회')),
       value: loaded ? number(total) : '—',
       tone: warn(total === 0),
       hint: loaded
-        ? t(
-            message(
-              'Cơ hội ở mọi trạng thái',
-              'Opportunities in all statuses',
-              '모든 상태의 영업 기회',
-            ),
-          )
+        ? t(message('Cơ hội ở mọi trạng thái', 'Opportunities in all statuses', '모든 상태의 기회'))
         : undefined,
     },
     {
@@ -200,14 +194,14 @@ export function ScoreCards() {
               message(
                 `${openCount} cơ hội đang mở`,
                 `${number(openCount)} open opportunities`,
-                `진행 중 영업 기회 ${number(openCount)}건`,
+                `진행 중 기회 ${number(openCount)}건`,
               ),
             )
           : t(
               message(
                 `${openCount - openBlank}/${openCount} cơ hội đang mở · ${openBlank} chưa nhập giá trị`,
                 `${number(openCount - openBlank)}/${number(openCount)} open opportunities · ${number(openBlank)} without a value`,
-                `진행 중 영업 기회 ${number(openCount)}건 중 ${number(openCount - openBlank)}건 금액 입력 · ${number(openBlank)}건 미입력`,
+                `진행 중 기회 ${number(openCount)}건 중 ${number(openCount - openBlank)}건 금액 입력 · ${number(openBlank)}건 미입력`,
               ),
             ),
     },
@@ -226,14 +220,14 @@ export function ScoreCards() {
                 message(
                   `${won}/${total} cơ hội đã ký hợp đồng`,
                   `${number(won)}/${number(total)} opportunities signed`,
-                  `영업 기회 ${number(total)}건 중 ${number(won)}건 계약 체결`,
+                  `기회 ${number(total)}건 중 ${number(won)}건 계약 체결`,
                 ),
               )
             : t(
                 message(
                   `${won}/${total} cơ hội đã ký hợp đồng · ${terminated} đã chấm dứt`,
                   `${number(won)}/${number(total)} opportunities signed · ${number(terminated)} terminated`,
-                  `영업 기회 ${number(total)}건 중 ${number(won)}건 계약 체결 · ${number(terminated)}건 종료`,
+                  `기회 ${number(total)}건 중 ${number(won)}건 계약 체결 · ${number(terminated)}건 종료`,
                 ),
               ))),
     },
@@ -249,7 +243,7 @@ export function ScoreCards() {
             message(
               `${lost}/${total} cơ hội không tiếp tục theo đuổi`,
               `${number(lost)}/${number(total)} opportunities no longer pursued`,
-              `영업 기회 ${number(total)}건 중 ${number(lost)}건 진행 중단`,
+              `기회 ${number(total)}건 중 ${number(lost)}건 진행 중단`,
             ),
           )),
     },
@@ -259,9 +253,7 @@ export function ScoreCards() {
     <div className="flex flex-col gap-3">
       <div
         role="group"
-        aria-label={t(
-          message('Thẻ điểm sổ cơ hội', 'Opportunity book scorecard', '영업 기회 지표'),
-        )}
+        aria-label={t(message('Thẻ điểm sổ cơ hội', 'Opportunity book scorecard', '기회 지표'))}
         className="grid grid-cols-2 gap-3 lg:grid-cols-4"
       >
         {items.map((item) => (

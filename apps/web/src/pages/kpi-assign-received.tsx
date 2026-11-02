@@ -1,11 +1,8 @@
 import { GlassCard, cn } from '@pv/ui'
-import {
-  KPI_METRIC_LABEL,
-  kpiMetricShare,
-  type KpiAssignmentPageResponse,
-  type KpiMetricDef,
-} from '@pv/contracts'
+import { kpiMetricShare, type KpiAssignmentPageResponse, type KpiMetricDef } from '@pv/contracts'
 import { FIELD_EDGE } from '@/components/stack-table'
+import { message, useI18n } from '@/app/i18n'
+import { kpiMetricText } from '@/data/kpi-i18n'
 import { NOTE } from './home-tiles'
 import { ValueCell } from './kpi-allocate-teams'
 import {
@@ -34,6 +31,7 @@ function Received({
   page: KpiAssignmentPageResponse
   defs: readonly KpiMetricDef[]
 }) {
+  const { t } = useI18n()
   const of = (share: 'additive' | 'copied') =>
     page.received.flatMap((r) => {
       const def = defs.find((d) => d.key === r.metricKey)
@@ -45,7 +43,19 @@ function Received({
   if (page.received.length === 0) {
     return (
       <p className={NOTE}>
-        {page.parentSent ? 'Chưa nhận chỉ tiêu nào.' : 'Cấp trên chưa giao chỉ tiêu.'}
+        {t(
+          page.parentSent
+            ? message(
+                'Chưa nhận chỉ tiêu nào.',
+                'No targets received yet.',
+                '수령한 목표가 없습니다.',
+              )
+            : message(
+                'Cấp trên chưa giao chỉ tiêu.',
+                'The level above has not assigned targets yet.',
+                '상위 단위가 아직 목표를 배정하지 않았습니다.',
+              ),
+        )}
       </p>
     )
   }
@@ -53,17 +63,17 @@ function Received({
     <>
       {additive.map(({ def, value }) => (
         <div key={def.key} className="bg-surface-ink/5 flex flex-col gap-1 rounded-lg px-4 py-3">
-          <span className="text-muted-foreground text-[12.5px]">{KPI_METRIC_LABEL[def.key]}</span>
+          <span className="text-muted-foreground text-[12.5px]">{kpiMetricText(def.key)}</span>
           <span className={FIGURE}>{printTarget(def, value)}</span>
         </div>
       ))}
       {copied.length > 0 && (
         <>
-          <h3 className={cn(SUBHEAD, 'mt-2')}>{COPIED_WORD}</h3>
+          <h3 className={cn(SUBHEAD, 'mt-2')}>{t(COPIED_WORD)}</h3>
           <ul className="flex flex-col gap-2">
             {copied.map(({ def, value }) => (
               <li key={def.key} className={ROW}>
-                <span className="min-w-0 flex-1 text-[12.5px]">{KPI_METRIC_LABEL[def.key]}</span>
+                <span className="min-w-0 flex-1 text-[12.5px]">{kpiMetricText(def.key)}</span>
                 <span className="tnum font-num text-[12.5px] font-semibold">
                   {printTarget(def, value)}
                 </span>
@@ -90,22 +100,23 @@ function CompanyTotals({
   fields: Fields
   onEdit: (key: string, text: string) => void
 }) {
+  const { t } = useI18n()
   const row = (def: KpiMetricDef) => {
     const key = cellKey('total', '', def.key)
     const text = fields.textOf(key, def)
     const value = parseTyped(def.unit, text)
     return (
       <li key={def.key} className={cn(ROW, 'flex-wrap')}>
-        <span className="min-w-32 flex-1 text-[12.5px]">{KPI_METRIC_LABEL[def.key]}</span>
+        <span className="min-w-32 flex-1 text-[12.5px]">{kpiMetricText(def.key)}</span>
         <span className="ml-auto w-40 shrink-0">
           <ValueCell
             def={def}
-            label={KPI_METRIC_LABEL[def.key]}
+            label={kpiMetricText(def.key)}
             editable={editable}
             text={text}
             saved={typeof value === 'number' ? value : null}
             {...lastReading(page.lastActualPeriod, page.lastActualTotals, def.key)}
-            onChange={(t) => onEdit(key, t)}
+            onChange={(typed) => onEdit(key, typed)}
           />
         </span>
       </li>
@@ -118,7 +129,7 @@ function CompanyTotals({
       {rest.length > 0 && <ul className="flex flex-col gap-2">{rest.map(row)}</ul>}
       {copied.length > 0 && (
         <>
-          <h3 className={cn(SUBHEAD, 'mt-2')}>{COPIED_WORD}</h3>
+          <h3 className={cn(SUBHEAD, 'mt-2')}>{t(COPIED_WORD)}</h3>
           <ul className="flex flex-col gap-2">{copied.map(row)}</ul>
         </>
       )}
@@ -139,11 +150,15 @@ export function ReceivedCard({
   fields: Fields
   onEdit: (key: string, text: string) => void
 }) {
+  const { t } = useI18n()
   const company = page.unit.kind === 'company'
+  const kind = t(KIND_WORD[page.unit.kind])
   return (
     <GlassCard className={cn('flex flex-col gap-4 self-start p-6', FIELD_EDGE)}>
       <h2 className="text-[14px] font-semibold leading-5">
-        {company ? 'Chỉ tiêu công ty' : `${KIND_WORD[page.unit.kind]} nhận`}
+        {company
+          ? t(message('Chỉ tiêu công ty', 'Company targets', '회사 목표'))
+          : t(message(`${kind} nhận`, `Received by ${kind.toLowerCase()}`, `${kind} 수령`))}
       </h2>
       {company ? (
         <CompanyTotals

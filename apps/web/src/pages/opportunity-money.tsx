@@ -1,5 +1,6 @@
 import { GlassCard, MetaPill } from '@pv/ui'
 import type { OpportunityProfileResponse } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 import { MoneyStrip } from '@/components/deal-money/money-strip'
 import { PaperCarousel } from '@/components/deal-money/paper-carousel'
 import { paperItems } from '@/components/deal-money/paper-items'
@@ -24,6 +25,7 @@ export function DealMoney({
   sign: QuoteSign | null
   onEdit: () => void
 }) {
+  const { t } = useI18n()
   const { papers, picked } = state
   const contracts = op.money.contracts.length
 
@@ -33,20 +35,28 @@ export function DealMoney({
       <GlassCard
         variant="b"
         className="flex min-w-0 flex-col gap-6 p-5 sm:p-6"
-        aria-label="Hợp đồng"
+        aria-label={t(message('Hợp đồng', 'Contracts', '계약'))}
       >
         <PaperCarousel
           heading={
             <>
-              <h2 className="font-display m-0 text-[16px] font-semibold">Hợp đồng</h2>
+              <h2 className="font-display m-0 text-[16px] font-semibold">
+                {t(message('Hợp đồng', 'Contracts', '계약'))}
+              </h2>
               {contracts > 0 ? (
                 <MetaPill className="tnum">{contracts}</MetaPill>
               ) : (
-                <span className="text-muted-foreground text-[13px]">Chưa có hợp đồng</span>
+                <span className="text-muted-foreground text-[13px]">
+                  {t(message('Chưa có hợp đồng', 'No contracts yet', '계약 없음'))}
+                </span>
               )}
             </>
           }
-          label={contracts > 0 ? 'Các hợp đồng' : 'Báo giá chờ ký'}
+          label={
+            contracts > 0
+              ? t(message('Các hợp đồng', 'Contracts', '계약 목록'))
+              : t(message('Báo giá chờ ký', 'Quotations awaiting signature', '서명 대기 견적서'))
+          }
           items={paperItems(papers)}
           selectedKey={picked?.key}
           onSelect={state.pick}

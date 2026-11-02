@@ -45,7 +45,8 @@ import { message, useI18n } from '@/app/i18n'
 import { useSession } from '@/app/auth'
 import { dm } from '@/lib/date'
 import { toast } from '@/app/toast'
-import { STATUS_LABEL, STATUS_TONE, sourcesQuery } from '@/data/campaigns'
+import { STATUS_TEXT, STATUS_TONE, sourcesQuery } from '@/data/campaigns'
+import { costKindLabel, whyText } from '@/data/source-cost'
 import { RECIPIENT_SPEC } from '@/data/intake'
 import { useLeadImport } from '@/data/lead-import'
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
@@ -86,14 +87,10 @@ import { CAMPAIGN_ICON, draftOf, duplicateOf, grouped, sendsViaE4 } from './sour
 const NO_LOCAL_KEYS: ReadonlySet<string> = new Set()
 
 export function SourceDetailPage() {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const chrome = useAppChrome({
     searchPlaceholder: t(
-      message(
-        'Tìm chiến dịch, đợt gửi…',
-        'Search campaigns and waves…',
-        '캠페인 및 발송 차수 검색…',
-      ),
+      message('Tìm chiến dịch, đợt gửi…', 'Search campaigns and waves…', '캠페인 및 웨이브 검색…'),
     ),
   })
   const navigate = useNavigate()
@@ -216,9 +213,11 @@ export function SourceDetailPage() {
      cuối vẫn nằm trong cửa sổ trả lời. */
   const status = stopped
     ? { label: t(message('Đã dừng', 'Stopped', '중지됨')), tone: 'draft' as const }
-    : { label: STATUS_LABEL[source.status], tone: STATUS_TONE[source.status] }
+    : { label: t(STATUS_TEXT[source.status]), tone: STATUS_TONE[source.status] }
 
   const running = !stopped && source.status === 'running'
+  const absent = source.costByKind.absent.map((kind) => costKindLabel(kind, lang)).join(', ')
+  const why = whyText(source.good, source.leads, lang)
 
   /* Luật 10 · ContextRail. MỘT chip — chính chiến dịch đang mở — và đó là tất
      cả những gì E1 nói được hôm nay: một chiến dịch KHÔNG phải `platform.object`
@@ -255,18 +254,35 @@ export function SourceDetailPage() {
         {/* Bốn con số của ĐỢT, cùng bốn con số mà ô lớn phía trên cộng lại — kể
             cả số hỏng. Bỏ nó ở đây thì tổng nói 82 mà ba đợt cộng lại không ra. */}
         <span className="text-muted-foreground text-[11px]">
-          gửi <span className="tnum font-num">{grouped(w.sent)}</span> · mở{' '}
-          <span className="tnum font-num">{grouped(w.opened)}</span> · bấm{' '}
-          <span className="tnum font-num">{w.clicked}</span> · hỏng{' '}
+          {t(message('gửi', 'sent', '발송'))}{' '}
+          <span className="tnum font-num">{grouped(w.sent)}</span> ·{' '}
+          {t(message('mở', 'opened', '열람'))}{' '}
+          <span className="tnum font-num">{grouped(w.opened)}</span> ·{' '}
+          {t(message('bấm', 'clicked', '클릭'))} <span className="tnum font-num">{w.clicked}</span>{' '}
+          · {t(message('hỏng', 'bounced', '반송'))}{' '}
           <span className="tnum font-num">{w.bounced}</span>
         </span>
         <span className="text-muted-foreground text-[11px]">
-          {w.expected !== null ? `kỳ vọng ${w.expected} lead` : 'chưa đặt kỳ vọng'}
+          {w.expected !== null
+            ? t(
+                message(
+                  `kỳ vọng ${w.expected} lead`,
+                  `expected ${w.expected} leads`,
+                  `예상 리드 ${w.expected}건`,
+                ),
+              )
+            : t(message('chưa đặt kỳ vọng', 'no expectation set', '기대치 미설정'))}
         </span>
         {sendsViaE4(w.channel) ? null : (
           <span className="text-warning flex items-start gap-2 text-[11px] leading-[1.5]">
             <Icon icon={TriangleAlert} size={16} />
-            Chưa gửi tự động qua {CHANNEL_LABEL[w.channel]}. Đợt này đăng tay, số liệu nhập tay.
+            {t(
+              message(
+                `Chưa gửi tự động qua ${CHANNEL_LABEL[w.channel]}. Đợt này đăng tay, số liệu nhập tay.`,
+                `Not sent automatically via ${CHANNEL_LABEL[w.channel]}. This wave is posted by hand, figures entered by hand.`,
+                `${CHANNEL_LABEL[w.channel]}로는 자동 발송되지 않습니다. 이 웨이브는 직접 게시하고 수치도 직접 입력합니다.`,
+              ),
+            )}
           </span>
         )}
       </div>
@@ -482,7 +498,13 @@ export function SourceDetailPage() {
                 size="sm"
                 hint={
                   source.costByKind.total > 0
-                    ? `${source.costByKind.rows.length} loại chi tiền mặt · tổng ${millions(source.costByKind.total)} · không gồm giờ công`
+                    ? t(
+                        message(
+                          `${source.costByKind.rows.length} loại chi tiền mặt · tổng ${millions(source.costByKind.total)} · không gồm giờ công`,
+                          `${source.costByKind.rows.length} cash expense types · total ${millions(source.costByKind.total)} · excludes labor hours`,
+                          `현금 지출 ${source.costByKind.rows.length}종 · 합계 ${millions(source.costByKind.total)} · 인건비(근무 시간) 제외`,
+                        ),
+                      )
                     : undefined
                 }
               >
@@ -537,7 +559,7 @@ export function SourceDetailPage() {
                     rows={source.costByKind.rows.map((r) => ({
                       id: r.kind,
                       cells: [
-                        <span key="k">{r.label}</span>,
+                        <span key="k">{costKindLabel(r.kind, lang)}</span>,
                         <MoneyCell key="a" amount={r.amount} />,
                         <span key="s" className="tnum font-num">
                           {percent(r.share)}
@@ -549,16 +571,22 @@ export function SourceDetailPage() {
                     <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
                       {t(
                         message(
-                          `Không chi tiền cho ${source.costByKind.absent.join(', ')}.`,
-                          `No cash expenses for ${source.costByKind.absent.join(', ')}.`,
-                          `${source.costByKind.absent.join(', ')} 현금 지출 없음`,
+                          `Không chi tiền cho ${absent}.`,
+                          `No cash expenses for ${absent}.`,
+                          `${absent} 현금 지출 없음`,
                         ),
                       )}
                     </p>
                   ) : null}
                   {source.enough ? null : (
                     <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                      Dải giá ở trên chưa đủ chắc để so với chiến dịch khác: {source.why}.
+                      {t(
+                        message(
+                          `Dải giá ở trên chưa đủ chắc để so với chiến dịch khác: ${why}.`,
+                          `The price band above is not firm enough to compare with other campaigns: ${why}.`,
+                          `위 가격 범위는 다른 캠페인과 비교하기에 충분히 확실하지 않습니다: ${why}.`,
+                        ),
+                      )}
                     </p>
                   )}
                 </>
@@ -566,14 +594,28 @@ export function SourceDetailPage() {
             </GlassCard>
 
             <GlassCard variant="b" className="flex flex-col gap-4 p-5">
-              <SectionTitle size="sm" hint={`${source.waves.length} đợt`}>
-                Chuỗi đợt
+              <SectionTitle
+                size="sm"
+                hint={t(
+                  message(
+                    `${source.waves.length} đợt`,
+                    `${source.waves.length} waves`,
+                    `웨이브 ${source.waves.length}개`,
+                  ),
+                )}
+              >
+                {t(message('Chuỗi đợt', 'Wave sequence', '웨이브 순서'))}
               </SectionTitle>
               <Timeline items={items} />
               {stopped ? (
                 <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                  Chiến dịch đã dừng, các đợt chưa gửi sẽ không gửi nữa. Muốn chạy lại thì dùng Nhân
-                  bản.
+                  {t(
+                    message(
+                      'Chiến dịch đã dừng, các đợt chưa gửi sẽ không gửi nữa. Muốn chạy lại thì dùng Nhân bản.',
+                      'The campaign is stopped, so waves not yet sent will not go out. To run it again, use Duplicate.',
+                      '캠페인이 중단되어 아직 발송되지 않은 웨이브는 발송되지 않습니다. 다시 실행하려면 복제를 사용하세요.',
+                    ),
+                  )}
                 </p>
               ) : (
                 <Button
@@ -586,7 +628,13 @@ export function SourceDetailPage() {
                   }}
                 >
                   <Icon icon={Plus} size={16} />
-                  Thêm đợt vào chuỗi
+                  {t(
+                    message(
+                      'Thêm đợt vào chuỗi',
+                      'Add a wave to the sequence',
+                      '시퀀스에 웨이브 추가',
+                    ),
+                  )}
                 </Button>
               )}
             </GlassCard>
@@ -685,7 +733,7 @@ export function SourceDetailPage() {
                   message(
                     `${source.good}/${source.leads} lead của chiến dịch này đã qua cổng init data, và ${source.ops} trong số đó đã thành cơ hội.`,
                     `${source.good} of ${source.leads} campaign leads passed intake; ${source.ops} became opportunities.`,
-                    `캠페인 리드 ${source.leads}개 중 ${source.good}개가 접수 절차를 통과했고, 이 중 ${source.ops}개가 영업 기회가 되었습니다.`,
+                    `캠페인 리드 ${source.leads}개 중 ${source.good}개가 접수 절차를 통과했고, 이 중 ${source.ops}개가 기회가 되었습니다.`,
                   ),
                 )}
               </span>
@@ -700,7 +748,7 @@ export function SourceDetailPage() {
                 </Button>
                 <Button size="md" variant="ghost" onClick={() => navigate('/sales/opportunities')}>
                   <Icon icon={ArrowRight} size={16} />
-                  {t(message('Mở Sổ cơ hội', 'Open opportunities', '영업 기회 목록 열기'))}
+                  {t(message('Mở Sổ cơ hội', 'Open opportunities', '기회 목록 열기'))}
                 </Button>
               </div>
             </div>

@@ -1,8 +1,6 @@
 import type { BadgeProps } from '@pv/ui'
 import {
   KPI_CATALOG,
-  KPI_COUNTER_STATUS_LABEL,
-  KPI_METRIC_LABEL,
   type KpiAckState,
   type KpiAllocation,
   type KpiAllocationLine,
@@ -17,6 +15,8 @@ import {
 } from '@pv/contracts'
 import { userMessage, type ApiError } from '@/app/api'
 import { dm, dmhm } from '@/lib/date'
+import { getLang, message, translate, type Message } from '@/app/i18n'
+import { kpiAckText, kpiMetricText, kpiPackageText } from '@/data/kpi-i18n'
 import { MONTH_PARAM, printValue } from './kpi-model'
 
 /** What the targets, team and receipt screens share and is not a component:
@@ -28,21 +28,29 @@ import { MONTH_PARAM, printValue } from './kpi-model'
 
 type Tone = NonNullable<BadgeProps['tone']>
 
+/** A label whose `text` is read at render, so it follows the language without callers changing. */
+export const labelled = <T extends string>(text: () => string, tone: T) => ({
+  get text() {
+    return text()
+  },
+  tone,
+})
+
 export const PACKAGE_LABEL: Record<KpiAllocationStatus, { text: string; tone: Tone }> = {
-  draft: { text: 'Bản nháp', tone: 'draft' },
-  submitted: { text: 'Chờ duyệt', tone: 'warning' },
-  returned: { text: 'Bị trả lại', tone: 'danger' },
-  agreed: { text: 'Đã duyệt', tone: 'success' },
-  superseded: { text: 'Đang áp dụng', tone: 'success' },
+  draft: labelled(() => kpiPackageText('draft'), 'draft'),
+  submitted: labelled(() => kpiPackageText('submitted'), 'warning'),
+  returned: labelled(() => kpiPackageText('returned'), 'danger'),
+  agreed: labelled(() => kpiPackageText('agreed'), 'success'),
+  superseded: labelled(() => kpiPackageText('superseded'), 'success'),
 }
 
 /** A holder's answer to a line, one wording for the holder and the manager alike.
  *  `lapsed`: the deadline passed unanswered, so the head's level applies. */
 export const ACK_LABEL: Record<KpiAckState, { text: string; tone: Tone }> = {
-  pending: { text: 'Chưa xác nhận', tone: 'warning' },
-  countered: { text: 'Xin đổi mức', tone: 'running' },
-  acknowledged: { text: 'Đã xác nhận', tone: 'success' },
-  lapsed: { text: 'Nhận mặc định', tone: 'draft' },
+  pending: labelled(() => kpiAckText('pending'), 'warning'),
+  countered: labelled(() => kpiAckText('countered'), 'running'),
+  acknowledged: labelled(() => kpiAckText('acknowledged'), 'success'),
+  lapsed: labelled(() => kpiAckText('lapsed'), 'draft'),
 }
 
 /** What still waits on someone first, so the holder reads their own move first. */
@@ -60,13 +68,29 @@ export const ackCounts = (lines: readonly Pick<KpiAllocationLine, 'ackState'>[])
 export const missedDueOf = (line: Pick<KpiAllocationLine, 'lapsedOn'>): string | null =>
   line.lapsedOn ? dm(line.lapsedOn) : null
 
-export const missedText = (days: readonly string[]) => `Hạn trả lời ${days.join(', ')} đã qua`
+export const missedText = (days: readonly string[]) => {
+  const list = days.join(', ')
+  return translate(
+    message(
+      `Hạn trả lời ${list} đã qua`,
+      `Reply deadline ${list} has passed`,
+      `회신 기한 ${list}이(가) 지났습니다`,
+    ),
+  )
+}
+
+const COUNTER_TEXT: Record<KpiCounterStatus, Message> = {
+  open: message('Chờ xử lý', 'Pending', '처리 대기'),
+  accepted: message('Đã đồng ý', 'Accepted', '수락됨'),
+  kept: message('Giữ mức cũ', 'Kept current value', '기존 값 유지'),
+  countered: message('Đã đề nghị mức khác', 'Different value proposed', '다른 값 제안됨'),
+}
 
 export const COUNTER_LABEL: Record<KpiCounterStatus, { text: string; tone: Tone }> = {
-  open: { text: KPI_COUNTER_STATUS_LABEL.open, tone: 'warning' },
-  accepted: { text: KPI_COUNTER_STATUS_LABEL.accepted, tone: 'success' },
-  kept: { text: KPI_COUNTER_STATUS_LABEL.kept, tone: 'draft' },
-  countered: { text: KPI_COUNTER_STATUS_LABEL.countered, tone: 'running' },
+  open: labelled(() => translate(COUNTER_TEXT.open), 'warning'),
+  accepted: labelled(() => translate(COUNTER_TEXT.accepted), 'success'),
+  kept: labelled(() => translate(COUNTER_TEXT.kept), 'draft'),
+  countered: labelled(() => translate(COUNTER_TEXT.countered), 'running'),
 }
 
 export const TARGETS_PATH = '/sales/kpi/targets'
@@ -91,7 +115,10 @@ export function targetsPath(period: string, role: RoleId, teamId?: string): stri
 }
 
 /** The team's name after a role, for a package or counter that sits on a team. */
-export const teamSuffix = (team: KpiTeamRef | null) => (team ? ` · Nhóm ${team.name}` : '')
+export const teamSuffix = (team: KpiTeamRef | null) =>
+  team
+    ? ` · ${translate(message(`Nhóm ${team.name}`, `Team ${team.name}`, `${team.name} 팀`))}`
+    : ''
 
 /** A team the room package splits a share to. */
 export type TeamRow = { id: string; name: string; memberCount: number }
@@ -126,11 +153,25 @@ export const savedShare = (pkg: KpiAllocation | undefined, teamId: string, metri
  *  A changed share outranks the stored status: the package in force no longer
  *  matches what the room gave the team. */
 export function teamStatusOf(pkg: KpiAllocation | undefined): { text: string; tone: Tone } {
-  if (!pkg || pkg.status === 'draft') return { text: 'Chưa chia cho thành viên', tone: 'draft' }
-  if (pkg.shareChanged) return { text: 'Phần của nhóm đã đổi, chờ chia lại', tone: 'warning' }
-  if (pkg.status === 'submitted') return { text: 'Chờ duyệt', tone: 'warning' }
-  if (pkg.status === 'returned') return { text: 'Bị trả lại', tone: 'danger' }
-  return { text: 'Đã duyệt', tone: 'success' }
+  if (!pkg || pkg.status === 'draft') {
+    const text = message(
+      'Chưa chia cho thành viên',
+      'Not yet split among members',
+      '팀원에게 아직 배분되지 않음',
+    )
+    return { text: translate(text), tone: 'draft' }
+  }
+  if (pkg.shareChanged) {
+    const text = message(
+      'Phần của nhóm đã đổi, chờ chia lại',
+      "The team's share changed; waiting to be split again",
+      '팀 몫이 변경되어 재배분 대기 중',
+    )
+    return { text: translate(text), tone: 'warning' }
+  }
+  if (pkg.status === 'submitted') return { text: kpiPackageText('submitted'), tone: 'warning' }
+  if (pkg.status === 'returned') return { text: kpiPackageText('returned'), tone: 'danger' }
+  return { text: kpiPackageText('agreed'), tone: 'success' }
 }
 
 /** A stored value as the text a manager would type: `parseTyped` reads it back. */
@@ -144,14 +185,32 @@ export function typedOf(unit: KpiUnit, value: number): string {
 
 /** Name, verb and time; the verb and time alone when the name is missing. */
 export function actedAt(who: { name: string } | null, verb: string, at: string): string {
-  const when = `lúc ${dmhm(at)}`
-  return who
-    ? `${who.name} ${verb} ${when}`
-    : `${verb.charAt(0).toUpperCase()}${verb.slice(1)} ${when}`
+  const time = dmhm(at)
+  const cap = `${verb.charAt(0).toUpperCase()}${verb.slice(1)}`
+  const sentence = who
+    ? message(
+        `${who.name} ${verb} lúc ${time}`,
+        `${who.name} ${verb} at ${time}`,
+        `${who.name} ${time} ${verb}`,
+      )
+    : message(`${cap} lúc ${time}`, `${cap} at ${time}`, `${time} ${verb}`)
+  return translate(sentence)
 }
 
+/** The verb of a package's last decision, as `actedAt` takes it. */
+export const decidedVerb = (status: KpiAllocationStatus) =>
+  translate(
+    status === 'returned'
+      ? message('trả lại', 'returned', '반려')
+      : message('duyệt', 'approved', '승인'),
+  )
+
 /** Said after a 409 where the refusal means the line moved under the reader. */
-export const MOVED = 'Số vừa thay đổi, xem lại rồi bấm lại.'
+export const MOVED = message(
+  'Số vừa thay đổi, xem lại rồi bấm lại.',
+  'The figure just changed. Review it and try again.',
+  '수치가 방금 변경되었습니다. 확인 후 다시 눌러 주세요.',
+)
 
 /** A 409 carries the server's own sentence; a 400 names the field it refused. */
 export function failText(error: ApiError): string {
@@ -170,41 +229,139 @@ const lower = (text: string) => text.charAt(0).toLowerCase() + text.slice(1)
 /** What a holder asked for, in one sentence: only an open counter carries its "from".
  *  `named: false` drops the holder's name, for a place already headed with it. */
 export function headlineOf(c: KpiCounter, def: KpiMetricDef, named = true): string {
-  const metric = lower(KPI_METRIC_LABEL[c.metricKey])
+  const lang = getLang()
+  const metric = lower(kpiMetricText(c.metricKey, lang))
   const to = printValue(def.unit, c.proposed, true)
   const from = printValue(def.unit, c.assigned, true)
   const said =
     c.status !== 'open'
-      ? `đề xuất ${metric} ${to}`
+      ? message(`đề xuất ${metric} ${to}`, `proposed ${metric} ${to}`, `${metric} ${to} 제안`)
       : c.proposed === c.assigned
-        ? `đề xuất giữ ${metric} ở ${to}`
+        ? message(
+            `đề xuất giữ ${metric} ở ${to}`,
+            `proposed keeping ${metric} at ${to}`,
+            `${metric}을(를) ${to}로 유지하자고 제안`,
+          )
         : c.proposed < c.assigned
-          ? `xin giảm ${metric} từ ${from} xuống ${to}`
-          : `xin tăng ${metric} từ ${from} lên ${to}`
-  return named ? `${c.name} ${said}` : said.charAt(0).toUpperCase() + said.slice(1)
+          ? message(
+              `xin giảm ${metric} từ ${from} xuống ${to}`,
+              `asked to lower ${metric} from ${from} to ${to}`,
+              `${metric}을(를) ${from}에서 ${to}로 낮춰 달라고 요청`,
+            )
+          : message(
+              `xin tăng ${metric} từ ${from} lên ${to}`,
+              `asked to raise ${metric} from ${from} to ${to}`,
+              `${metric}을(를) ${from}에서 ${to}로 높여 달라고 요청`,
+            )
+  const text = translate(said, lang)
+  if (!named) return text.charAt(0).toUpperCase() + text.slice(1)
+  return `${c.name} ${text}`
 }
 
 /** What accepting an open counter would do to the split, as the server worked it out.
  *  On a team package the target it balances against is the team's share. */
 export function effectLines(c: KpiCounter, def: KpiMetricDef): string[] {
   const { allocatedAfter, roleTarget, shortfall, compensators } = c.effect
-  const target = c.team ? 'phần của nhóm' : 'chỉ tiêu vai trò'
+  const target = translate(
+    c.team
+      ? message('phần của nhóm', "the team's share", '팀 몫')
+      : message('chỉ tiêu vai trò', 'the role target', '역할 목표'),
+  )
   const print = (v: number) => printValue(def.unit, v)
   if (allocatedAfter === null) {
-    return [`Chỉ số này không cộng dồn, tổng của ${c.team ? 'nhóm' : 'vai trò'} không đổi.`]
-  }
-  const after = `Tổng sau khi đồng ý: ${print(allocatedAfter)}`
-  if (roleTarget === null) {
+    const scope = c.team ? message('nhóm', 'team', '팀') : message('vai trò', 'role', '역할')
     return [
-      `${after}. ${c.team ? 'Nhóm chưa được giao phần.' : 'Vai trò chưa có chỉ tiêu được duyệt.'}`,
+      translate(
+        message(
+          `Chỉ số này không cộng dồn, tổng của ${scope.vi} không đổi.`,
+          `This metric does not add up, so the ${scope.en} total is unchanged.`,
+          `이 지표는 합산되지 않으므로 ${scope.ko} 합계는 변하지 않습니다.`,
+        ),
+      ),
     ]
   }
-  if (allocatedAfter > roleTarget) {
-    return [`${after} · thừa ${print(allocatedAfter - roleTarget)} so với ${target}.`]
+  const after = message(
+    `Tổng sau khi đồng ý: ${print(allocatedAfter)}`,
+    `Total after accepting: ${print(allocatedAfter)}`,
+    `수락 후 합계: ${print(allocatedAfter)}`,
+  )
+  const lead = (extra: Message) =>
+    translate(message(`${after.vi}${extra.vi}`, `${after.en}${extra.en}`, `${after.ko}${extra.ko}`))
+  if (roleTarget === null) {
+    const note = c.team
+      ? message(
+          'Nhóm chưa được giao phần.',
+          'The team has no share yet.',
+          '팀에 배정된 몫이 없습니다.',
+        )
+      : message(
+          'Vai trò chưa có chỉ tiêu được duyệt.',
+          'The role has no approved target.',
+          '역할에 승인된 목표가 없습니다.',
+        )
+    return [lead(message(`. ${note.vi}`, `. ${note.en}`, `. ${note.ko}`))]
   }
-  if (!shortfall) return [`${after} · vẫn khớp ${target}.`]
-  const gap = `${after} · thiếu ${print(shortfall)} so với ${target}.`
-  if (compensators.length === 0) return [gap, 'Chưa có ai đúng tiến độ để bù phần thiếu.']
-  const who = compensators.map((p) => `${p.name} thêm ${print(p.delta)}`).join(' · ')
-  return [gap, `Gợi ý bù từ người đang đúng tiến độ: ${who}.`]
+  if (allocatedAfter > roleTarget) {
+    const over = print(allocatedAfter - roleTarget)
+    return [
+      lead(
+        message(
+          ` · thừa ${over} so với ${target}.`,
+          ` · ${over} over ${target}.`,
+          ` · ${target} 대비 ${over} 초과.`,
+        ),
+      ),
+    ]
+  }
+  if (!shortfall) {
+    return [
+      lead(
+        message(
+          ` · vẫn khớp ${target}.`,
+          ` · still matches ${target}.`,
+          ` · ${target}과(와) 일치.`,
+        ),
+      ),
+    ]
+  }
+  const gap = lead(
+    message(
+      ` · thiếu ${print(shortfall)} so với ${target}.`,
+      ` · ${print(shortfall)} short of ${target}.`,
+      ` · ${target} 대비 ${print(shortfall)} 부족.`,
+    ),
+  )
+  if (compensators.length === 0) {
+    return [
+      gap,
+      translate(
+        message(
+          'Chưa có ai đúng tiến độ để bù phần thiếu.',
+          'No one is on track to cover the shortfall.',
+          '부족분을 메울 수 있는 진도 정상 인원이 없습니다.',
+        ),
+      ),
+    ]
+  }
+  const who = compensators
+    .map((p) =>
+      translate(
+        message(
+          `${p.name} thêm ${print(p.delta)}`,
+          `${p.name} +${print(p.delta)}`,
+          `${p.name} +${print(p.delta)}`,
+        ),
+      ),
+    )
+    .join(' · ')
+  return [
+    gap,
+    translate(
+      message(
+        `Gợi ý bù từ người đang đúng tiến độ: ${who}.`,
+        `Suggested cover from people on track: ${who}.`,
+        `진도 정상 인원의 보완 제안: ${who}.`,
+      ),
+    ),
+  ]
 }

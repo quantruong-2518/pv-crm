@@ -1,14 +1,15 @@
 import type { ReactNode } from 'react'
 import { Badge, Icon, cn, type StatusDotState } from '@pv/ui'
-import { MAIL_LETTER_STATE_LABEL, type MailMergeKey } from '@pv/contracts'
+import type { MailMergeKey } from '@pv/contracts'
 import { CommLateMark, CommOverdueMark, CommStateBadge } from '@/components/comm-bits'
-import { LETTER_TONE } from '@/components/mail-letter/letter-model'
+import { LETTER_TONE, letterStateLabel } from '@/components/mail-letter/letter-model'
 import { MERGE_PATTERN } from '@/components/mail-rich-body-model'
 import { COMM_FOCUS, COMM_STATE_DOT } from '@/data/comm-record-detail'
 import { COMMS_CHANNEL_ICON, COMMS_CHANNEL_LABEL } from '@/data/comms'
-import { MERGE_LABEL } from '@/data/mail-hints'
+import { mergeLabel } from '@/data/mail-hints'
 import { useMinuteClock } from '@/data/minute-clock'
 import { dm, dmy, hm } from '@/lib/date'
+import { message, translate, useI18n, type Lang } from '@/app/i18n'
 import type { JourneyRow, MergeValues } from './comm-journey-rows'
 
 /** The rows of `CommJourney`: a gutter of channel icon over hour, then what
@@ -35,34 +36,36 @@ const DOT_TEXT: Record<StatusDotState, string> = {
 /** A comm's pill only while unfinished; a letter's for every state but SENT,
  *  the plain outcome. An empty comm gets no pill: its fill button says it. */
 function RowPill({ row }: { row: JourneyRow }) {
+  const { lang } = useI18n()
   if (row.commState === 'empty') return null
   if (row.commState && row.commState !== 'done') return <CommStateBadge state={row.commState} />
   const state = row.letter?.state
   if (!state || state === 'SENT') return null
-  return <Badge tone={LETTER_TONE[state].badge}>{MAIL_LETTER_STATE_LABEL[state]}</Badge>
+  return <Badge tone={LETTER_TONE[state].badge}>{letterStateLabel(state, lang)}</Badge>
 }
 
 const DAY_MS = 86_400_000
 
 /** Today · yesterday · dd/mm, with the year only outside the current one.
  *  Read in the reader's zone through `lib/date`, so 23:00Z is already tomorrow. */
-function dayLabel(at: string | null, now: number) {
-  if (!at) return 'Chưa có ngày'
+function dayLabel(at: string | null, now: number, lang: Lang) {
+  const m = (vi: string, en: string, ko: string) => translate(message(vi, en, ko), lang)
+  if (!at) return m('Chưa có ngày', 'No date', '날짜 없음')
   const day = dmy(at)
   const today = dmy(new Date(now).toISOString())
-  if (day === today) return 'Hôm nay'
-  if (day === dmy(new Date(now - DAY_MS).toISOString())) return 'Hôm qua'
+  if (day === today) return m('Hôm nay', 'Today', '오늘')
+  if (day === dmy(new Date(now - DAY_MS).toISOString())) return m('Hôm qua', 'Yesterday', '어제')
   return day.endsWith(today.slice(-4)) ? dm(at) : day
 }
 
 type Item = { kind: 'day'; key: string; label: string } | { kind: 'row'; row: JourneyRow }
 
 /** Rows arrive newest first, so one day is always a run of neighbours. */
-function withDays(rows: JourneyRow[], now: number): Item[] {
+function withDays(rows: JourneyRow[], now: number, lang: Lang): Item[] {
   const items: Item[] = []
   let last: string | undefined
   for (const row of rows) {
-    const label = dayLabel(row.at, now)
+    const label = dayLabel(row.at, now, lang)
     if (label !== last) items.push({ kind: 'day', key: `day:${row.key}`, label })
     last = label
     items.push({ kind: 'row', row })
@@ -72,13 +75,13 @@ function withDays(rows: JourneyRow[], now: number): Item[] {
 
 /** A letter's subject is stored as its template. Each key shows its value, or
  *  its label when the row cannot know it; bold either way, so it reads as filled in. */
-function mergeParts(text: string, values: MergeValues) {
+function mergeParts(text: string, values: MergeValues, lang: Lang) {
   const parts: { text: string; merged: boolean }[] = []
   let last = 0
   for (const match of text.matchAll(new RegExp(MERGE_PATTERN, 'g'))) {
     const key = match[1] as MailMergeKey
     parts.push({ text: text.slice(last, match.index), merged: false })
-    parts.push({ text: values[key] || MERGE_LABEL[key], merged: true })
+    parts.push({ text: values[key] || mergeLabel(key, lang), merged: true })
     last = match.index + match[0].length
   }
   parts.push({ text: text.slice(last), merged: false })
@@ -86,6 +89,7 @@ function mergeParts(text: string, values: MergeValues) {
 }
 
 function Body({ row, open }: { row: JourneyRow; open: (() => void) | null }) {
+  const { t, lang } = useI18n()
   if (row.commState === 'empty') {
     return row.canFill && open ? (
       <button
@@ -96,13 +100,15 @@ function Body({ row, open }: { row: JourneyRow; open: (() => void) | null }) {
           COMM_FOCUS,
         )}
       >
-        Bổ sung thông tin
+        {t(message('Bổ sung thông tin', 'Add details', '정보 추가'))}
       </button>
     ) : (
-      <p className={NOTE}>Chưa có nội dung.</p>
+      <p className={NOTE}>
+        {t(message('Chưa có nội dung.', 'No content yet.', '내용이 아직 없습니다.'))}
+      </p>
     )
   }
-  const parts = mergeParts(row.title, row.merge)
+  const parts = mergeParts(row.title, row.merge, lang)
   /* One line: the card is a glance, the hover and the record give the rest. */
   const text = (
     <span
@@ -148,8 +154,9 @@ export function JourneyList({
   openOf: (row: JourneyRow) => (() => void) | null | undefined | false
   actionsOf: (row: JourneyRow) => ReactNode
 }) {
+  const { lang } = useI18n()
   const now = useMinuteClock()
-  const items = withDays(rows, now)
+  const items = withDays(rows, now, lang)
   return (
     <ol className="m-0 flex list-none flex-col p-0">
       {items.map((item, i) => {

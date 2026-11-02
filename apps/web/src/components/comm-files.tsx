@@ -5,6 +5,7 @@ import { COMM_MAX_AUDIO_BYTES, COMM_MAX_FILE_BYTES, type CommAttachment } from '
 import { isApiError, userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
 import { dmhm } from '@/lib/date'
+import { message, translate, useI18n, type Lang } from '@/app/i18n'
 import {
   COMM_FILE_EXTENSIONS,
   COMM_FILE_PICK_CAP,
@@ -26,22 +27,47 @@ import {
 
 const MB = 1024 * 1024
 
-const CAP_HINT = `Ghi âm tối đa ${COMM_MAX_AUDIO_BYTES / MB} MB, tệp khác tối đa ${COMM_MAX_FILE_BYTES / MB} MB.`
+const capHint = (lang: Lang) => {
+  const audio = COMM_MAX_AUDIO_BYTES / MB
+  const other = COMM_MAX_FILE_BYTES / MB
+  return translate(
+    message(
+      `Ghi âm tối đa ${audio} MB, tệp khác tối đa ${other} MB.`,
+      `Recordings up to ${audio} MB, other files up to ${other} MB.`,
+      `녹음은 최대 ${audio}MB, 다른 파일은 최대 ${other}MB입니다.`,
+    ),
+    lang,
+  )
+}
 
 export function CommFileDrop({ id }: { id: string }) {
+  const { t, lang } = useI18n()
   const attach = useAttachCommFile(id)
   const [problem, setProblem] = useState<string>()
 
   const pick = (file: File) => {
     setProblem(undefined)
-    const verdict = checkCommFile(file)
+    const verdict = checkCommFile(file, lang)
     if ('problem' in verdict) return setProblem(verdict.problem)
     attach.mutate(
       { file, mime: verdict.mime },
       {
-        onSuccess: () => toastDone(`Đã đính kèm ${file.name}`),
+        onSuccess: () =>
+          toastDone(
+            t(message(`Đã đính kèm ${file.name}`, `Attached ${file.name}`, `${file.name} 첨부됨`)),
+          ),
         onError: (error) =>
-          setProblem(isApiError(error) ? userMessage(error) : 'Không tải được tệp lên. Thử lại.'),
+          setProblem(
+            isApiError(error)
+              ? userMessage(error)
+              : t(
+                  message(
+                    'Không tải được tệp lên. Thử lại.',
+                    'Could not upload the file. Try again.',
+                    '파일을 업로드하지 못했습니다. 다시 시도해 주세요.',
+                  ),
+                ),
+          ),
       },
     )
   }
@@ -53,13 +79,14 @@ export function CommFileDrop({ id }: { id: string }) {
       onPick={pick}
       busy={attach.isPending}
       error={problem}
-      hint={CAP_HINT}
+      hint={capHint(lang)}
     />
   )
 }
 
 /** The files of a record in the owner's form, each deletable by them. */
 export function CommFileList({ id, canDelete }: { id: string; canDelete: boolean }) {
+  const { t } = useI18n()
   const { data, isPending, error } = useQuery(commFilesQuery(id))
   const remove = useDeleteCommFile(id)
   const [asking, setAsking] = useState<CommAttachment | null>(null)
@@ -68,7 +95,8 @@ export function CommFileList({ id, canDelete }: { id: string; canDelete: boolean
   if (error) {
     return (
       <p className="text-destructive-foreground text-[12.5px] leading-[1.6]">
-        Không đọc được tệp. {isApiError(error) ? userMessage(error) : ''}
+        {t(message('Không đọc được tệp.', 'Could not read the files.', '파일을 읽지 못했습니다.'))}{' '}
+        {isApiError(error) ? userMessage(error) : ''}
       </p>
     )
   }
@@ -94,7 +122,13 @@ export function CommFileList({ id, canDelete }: { id: string; canDelete: boolean
       </ul>
       {data.rows.some((file) => file.url === null) && (
         <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.6]">
-          Bạn chỉ xem được tên và dung lượng tệp.
+          {t(
+            message(
+              'Bạn chỉ xem được tên và dung lượng tệp.',
+              'You can only see file names and sizes.',
+              '파일 이름과 용량만 볼 수 있습니다.',
+            ),
+          )}
         </p>
       )}
       <DeleteConfirm
@@ -119,17 +153,18 @@ function DeleteConfirm({
   onCancel: () => void
   onConfirm: (file: CommAttachment) => void
 }) {
+  const { t } = useI18n()
   return (
     <Modal
       open={file !== null}
       onClose={onCancel}
       className="h-auto sm:h-auto sm:max-w-[480px]"
-      title="Xoá tệp này?"
+      title={t(message('Xoá tệp này?', 'Delete this file?', '이 파일을 삭제할까요?'))}
       subtitle={file?.name}
       footer={
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button size="lg" variant="ghost" type="button" onClick={onCancel}>
-            Huỷ
+            {t(message('Huỷ', 'Cancel', '취소'))}
           </Button>
           <Button
             size="lg"
@@ -138,13 +173,19 @@ function DeleteConfirm({
             disabled={busy}
             onClick={() => file && onConfirm(file)}
           >
-            Xoá tệp
+            {t(message('Xoá tệp', 'Delete file', '파일 삭제'))}
           </Button>
         </div>
       }
     >
       <p className="text-muted-foreground m-0 text-[13px] leading-[1.6]">
-        Xoá rồi không khôi phục được.
+        {t(
+          message(
+            'Xoá rồi không khôi phục được.',
+            'A deleted file cannot be restored.',
+            '삭제한 파일은 복구할 수 없습니다.',
+          ),
+        )}
       </p>
     </Modal>
   )
@@ -159,7 +200,8 @@ function FileRow({
   onDelete?: () => void
   busy: boolean
 }) {
-  const kind = commFileKindOf(file.mime)
+  const { t, lang } = useI18n()
+  const kind = commFileKindOf(file.mime, lang)
   const name =
     'text-foreground pointer-coarse:min-h-12 flex items-center truncate text-[12.5px] font-semibold'
   return (
@@ -194,7 +236,9 @@ function FileRow({
           type="button"
           size="sm"
           variant="ghost"
-          aria-label={`Xoá tệp ${file.name}`}
+          aria-label={t(
+            message(`Xoá tệp ${file.name}`, `Delete file ${file.name}`, `${file.name} 파일 삭제`),
+          )}
           className="pointer-coarse:size-12 size-10 px-0"
           disabled={busy}
           onClick={onDelete}

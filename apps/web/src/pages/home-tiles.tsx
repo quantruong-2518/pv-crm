@@ -146,9 +146,20 @@ const winRate = (f: SalesPerformanceResponse['current']) => rateOf(f.wonDeals, c
 
 /** The 80px ring: the arc draws in on first paint and eases when the rate moves. */
 function WinRing({ rate }: { rate: number }) {
+  const { t } = useI18n()
   return (
     <div className="relative size-20 shrink-0">
-      <svg viewBox="0 0 64 64" role="img" aria-label={`Tỷ lệ chốt đơn ${percent(rate)}`}>
+      <svg
+        viewBox="0 0 64 64"
+        role="img"
+        aria-label={t(
+          message(
+            `Tỷ lệ chốt đơn ${percent(rate)}`,
+            `Win rate ${percent(rate)}`,
+            `수주율 ${percent(rate)}`,
+          ),
+        )}
+      >
         <circle
           cx={32}
           cy={32}
@@ -203,14 +214,14 @@ export function WinRateTile({ data, className }: Figures) {
                     message(
                       'Chưa có cơ hội đóng trong kỳ',
                       'No opportunities closed in this period',
-                      '이번 기간에 종료된 영업 기회가 없습니다',
+                      '이번 기간에 종료된 기회가 없습니다',
                     ),
                   )
                 : t(
                     message(
                       `Tỷ lệ ký hợp đồng / cơ hội (${num(wonDeals)}/${num(closedOf(data.current))})`,
                       `Contracts signed / opportunities (${num(wonDeals)}/${num(closedOf(data.current))})`,
-                      `계약 체결 / 영업 기회 (${num(wonDeals)}/${num(closedOf(data.current))})`,
+                      `계약 체결 / 기회 (${num(wonDeals)}/${num(closedOf(data.current))})`,
                     ),
                   )}
             </span>
@@ -253,7 +264,7 @@ export function RunsTile({
     return (
       <GlassCard className={cn(TILE, 'rounded-3xl', className)}>
         <TileHead
-          title={t(message('Hành trình đã dừng', 'Stopped workstreams', '중지된 워크스트림'))}
+          title={t(message('Hành trình đã dừng', 'Stopped workstreams', '중지된 영업 건'))}
         />
         {failed ? (
           <div className="mt-auto flex flex-col items-start gap-2">
@@ -290,7 +301,7 @@ export function RunsTile({
         <IconTile icon={Route} className={warn ? ICON_TONE.warning : ICON_TONE.neutral} />
         <span className="flex min-w-0 flex-col gap-1">
           <h3 className={CARD_TITLE}>
-            {t(message('Hành trình đã dừng', 'Stopped workstreams', '중지된 워크스트림'))}
+            {t(message('Hành trình đã dừng', 'Stopped workstreams', '중지된 영업 건'))}
           </h3>
           <span className={cn(NOTE, 'tnum font-num flex flex-wrap items-center gap-x-1')}>
             {t(message('trên', 'out of', '중'))}
@@ -302,7 +313,7 @@ export function RunsTile({
                 message(
                   `${num(live)} hành trình đang chạy trong kỳ`,
                   `${num(live)} workstreams active in this period`,
-                  `이번 기간 활성 워크스트림 ${num(live)}개`,
+                  `이번 기간 활성 영업 건 ${num(live)}개`,
                 ),
               )}
             </Link>
@@ -317,7 +328,7 @@ export function RunsTile({
               message(
                 `${num(stopped)} hành trình đã dừng`,
                 `${num(stopped)} stopped workstreams`,
-                `중지된 워크스트림 ${num(stopped)}개`,
+                `중지된 영업 건 ${num(stopped)}개`,
               ),
             )}
             className={cn(TILE_LINK, 'underline-offset-4 hover:underline')}
@@ -328,7 +339,7 @@ export function RunsTile({
           <span className={CARD_BIG}>{num(stopped)}</span>
         )}
         <Link to={WORKSTREAM_BOOK_HREF} className={cn(PILL_LINK, 'whitespace-nowrap')}>
-          {t(message('Xem tất cả hành trình', 'View all workstreams', '모든 워크스트림 보기'))}
+          {t(message('Xem tất cả hành trình', 'View all workstreams', '모든 영업 건 보기'))}
           <Icon icon={ArrowRight} size={14} />
         </Link>
       </span>

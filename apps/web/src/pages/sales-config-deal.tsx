@@ -23,14 +23,20 @@ export function DealArea({ catalog }: AreaProps) {
         <ActivityFreshnessConfig />
       </Section>
 
-      <Section at="care-reasons" summary={<EntryCount rows={reasons} noun="lý do" />}>
+      <Section
+        at="care-reasons"
+        summary={<EntryCount rows={reasons} noun="lý do" />} // i18n-ignore
+      >
         <CareReasons rows={reasons} usage={catalog?.usage.LOSS_REASON ?? {}} />
         <AddLossReason />
       </Section>
 
       {/* 5.4d — why a waiting quotation round closed when a new round was
           recorded. Not `LOSS_REASON`: the deal carries on. */}
-      <Section at="quote-reasons" summary={<EntryCount rows={requotes} noun="lý do" />}>
+      <Section
+        at="quote-reasons"
+        summary={<EntryCount rows={requotes} noun="lý do" />} // i18n-ignore
+      >
         {requotes.length === 0 ? (
           <p className="text-muted-foreground text-[11.5px]">
             {t(message('Chưa có lý do nào.', 'No reasons yet.', '사유가 없습니다.'))}
@@ -44,7 +50,7 @@ export function DealArea({ catalog }: AreaProps) {
                     entry={r}
                     list="QUOTE_REVISION_REASON"
                     usage={catalog?.usage.QUOTE_REVISION_REASON[r.id] ?? 0}
-                    unit="lần báo giá"
+                    unit={message('lần báo giá', 'quotes', '견적')}
                   />
                 </li>
               ))}
@@ -61,7 +67,10 @@ export function DealArea({ catalog }: AreaProps) {
 
       {/* 5.4c — the only catalog with a real foreign key pointing at it. It
           starts EMPTY on purpose: the migration seeds no undeclared products. */}
-      <Section at="products" summary={<EntryCount rows={products} noun="mục" />}>
+      <Section
+        at="products"
+        summary={<EntryCount rows={products} noun="mục" />} // i18n-ignore
+      >
         {products.length === 0 ? (
           <p className="text-muted-foreground text-[11.5px]">
             {t(
@@ -81,14 +90,13 @@ export function DealArea({ catalog }: AreaProps) {
                     entry={p}
                     list="PRODUCT"
                     usage={catalog?.usage.PRODUCT[p.id] ?? 0}
-                    unit="cơ hội"
+                    unit={message('cơ hội', 'opportunities', '기회')}
                   />
                 </li>
               ))}
             </ul>
           </GlassCard>
         )}
-
         <AddProduct />
       </Section>
 
@@ -96,9 +104,13 @@ export function DealArea({ catalog }: AreaProps) {
           contract store the code, so a switched-off kind keeps its name. */}
       <Section
         at="contract-kinds"
-        summary={<EntryCount rows={catalog?.CONTRACT_KIND ?? []} noun="loại" />}
+        summary={<EntryCount rows={catalog?.CONTRACT_KIND ?? []} noun="loại" />} // i18n-ignore
       >
-        <FlatListConfig list="CONTRACT_KIND" unit="lần dùng" addLabel="Thêm loại hợp đồng" />
+        <FlatListConfig
+          list="CONTRACT_KIND"
+          unit={message('lần dùng', 'uses', '사용')}
+          addLabel={message('Thêm loại hợp đồng', 'Add a contract type', '계약 유형 추가')}
+        />
       </Section>
     </>
   )
@@ -138,7 +150,7 @@ function CareReasons({ rows, usage }: { rows: ConfigEntry[]; usage: Record<strin
   return (
     <>
       <SegmentedControl
-        label={t(message('Giai đoạn của cơ hội', 'Opportunity stage', '영업 기회 단계'))}
+        label={t(message('Giai đoạn của cơ hội', 'Opportunity stage', '기회 단계'))}
         hideLabel
         tone="quiet"
         options={tabs}
@@ -156,7 +168,7 @@ function CareReasons({ rows, usage }: { rows: ConfigEntry[]; usage: Record<strin
                   entry={r}
                   list="LOSS_REASON"
                   usage={usage[r.id] ?? 0}
-                  unit="cơ hội"
+                  unit={message('cơ hội', 'opportunities', '기회')}
                   extra={
                     r.doNotContact ? (
                       <Badge tone="warning">

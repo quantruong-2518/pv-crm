@@ -9,9 +9,10 @@ import type {
   KpiMetricDef,
   RoleId,
 } from '@pv/contracts'
+import { message, translate, useI18n, type Message } from '@/app/i18n'
 import { toast, toastDone } from '@/app/toast'
 import { useResolveKpiCounter } from '@/data/kpi-allocation'
-import { ROLE_LABEL } from '@/data/users'
+import { kpiRoleText } from '@/data/kpi-i18n'
 import { dmhm } from '@/lib/date'
 import { NOTE } from './home-tiles'
 import {
@@ -36,6 +37,38 @@ import { UNIT_WORD, parseTyped, printValue } from './kpi-model'
 
 const FIGURE = 'tnum font-num font-semibold'
 
+/** A change on an agreed package opens a new draft: the toast says so, and a team's leads to its page. */
+function toastReopened(
+  done: string,
+  team: KpiCounter['team'],
+  period: string,
+  navigate: (to: string) => void,
+  t: (copy: Message) => string,
+) {
+  if (!team) {
+    const detail = message(
+      'Bản nháp mới đã mở, gửi duyệt lại để áp dụng.',
+      'A new draft is open. Submit it again to apply the change.',
+      '새 초안이 열렸습니다. 적용하려면 다시 승인 요청을 보내세요.',
+    )
+    return toastDone(done, t(detail))
+  }
+  toast(done, {
+    tone: 'success',
+    detail: t(
+      message(
+        'Bản nháp mới đã mở. Trưởng nhóm chia lại rồi gửi duyệt.',
+        'A new draft is open. The team lead splits again, then submits for approval.',
+        '새 초안이 열렸습니다. 팀장이 다시 배분한 후 승인 요청을 보냅니다.',
+      ),
+    ),
+    action: {
+      label: t(message('Mở trang nhóm', 'Open team page', '팀 페이지 열기')),
+      onClick: () => navigate(teamPath(team.id, period)),
+    },
+  })
+}
+
 function Answers({
   period,
   counter,
@@ -47,6 +80,7 @@ function Answers({
   def: KpiMetricDef
   pkgStatus: KpiAllocationStatus | undefined
 }) {
+  const { t } = useI18n()
   const navigate = useNavigate()
   const resolve = useResolveKpiCounter(period)
   const [other, setOther] = useState('')
@@ -63,12 +97,7 @@ function Answers({
         onSuccess: () => {
           setOther('')
           if (!reopens || body.resolution === 'keep') return toastDone(done)
-          if (!team) return toastDone(done, 'Bản nháp mới đã mở, gửi duyệt lại để áp dụng.')
-          toast(done, {
-            tone: 'success',
-            detail: 'Bản nháp mới đã mở. Trưởng nhóm chia lại rồi gửi duyệt.',
-            action: { label: 'Mở trang nhóm', onClick: () => navigate(teamPath(team.id, period)) },
-          })
+          toastReopened(done, team, period, navigate, t)
         },
       },
     )
@@ -78,30 +107,68 @@ function Answers({
     <div className="flex flex-col gap-3">
       {reopens && (
         <p className={NOTE}>
-          {team
-            ? 'Gói đã duyệt: đổi mức sẽ mở bản nháp mới. Trưởng nhóm chia lại rồi gửi duyệt.'
-            : 'Gói đã duyệt: đổi mức sẽ mở bản nháp mới, bạn gửi duyệt lại.'}
+          {t(
+            team
+              ? message(
+                  'Gói đã duyệt: đổi mức sẽ mở bản nháp mới. Trưởng nhóm chia lại rồi gửi duyệt.',
+                  'This package is approved. Changing the value opens a new draft that the team lead splits again and submits.',
+                  '승인된 패키지입니다. 값을 변경하면 새 초안이 열리며 팀장이 다시 배분하고 승인 요청을 보냅니다.',
+                )
+              : message(
+                  'Gói đã duyệt: đổi mức sẽ mở bản nháp mới, bạn gửi duyệt lại.',
+                  'This package is approved. Changing the value opens a new draft that you submit again.',
+                  '승인된 패키지입니다. 값을 변경하면 새 초안이 열리며 다시 승인 요청을 보내야 합니다.',
+                ),
+          )}
         </p>
       )}
       <div className="flex flex-wrap items-center gap-3">
         <Button
           className="pointer-coarse:h-12"
           disabled={busy}
-          onClick={() => run({ resolution: 'accept' }, 'Đã đồng ý mức đề xuất')}
+          onClick={() =>
+            run(
+              { resolution: 'accept' },
+              t(
+                message(
+                  'Đã đồng ý mức đề xuất',
+                  'Accepted the proposed value',
+                  '제안된 값을 수락했습니다',
+                ),
+              ),
+            )
+          }
         >
-          Đồng ý {printValue(def.unit, counter.proposed, true)}
+          {t(
+            message(
+              `Đồng ý ${printValue(def.unit, counter.proposed, true)}`,
+              `Accept ${printValue(def.unit, counter.proposed, true)}`,
+              `${printValue(def.unit, counter.proposed, true)} 수락`,
+            ),
+          )}
         </Button>
         <Button
           variant="secondary"
           className="pointer-coarse:h-12"
           disabled={busy}
-          onClick={() => run({ resolution: 'keep' }, 'Đã giữ mức cũ')}
+          onClick={() =>
+            run(
+              { resolution: 'keep' },
+              t(message('Đã giữ mức cũ', 'Kept the current value', '현재 값을 유지했습니다')),
+            )
+          }
         >
-          Giữ {printValue(def.unit, counter.assigned, true)}
+          {t(
+            message(
+              `Giữ ${printValue(def.unit, counter.assigned, true)}`,
+              `Keep ${printValue(def.unit, counter.assigned, true)}`,
+              `${printValue(def.unit, counter.assigned, true)} 유지`,
+            ),
+          )}
         </Button>
       </div>
       <label htmlFor={otherId} className="text-[12.5px] font-semibold">
-        Mức khác
+        {t(message('Mức khác', 'Different value', '다른 값'))}
       </label>
       <div className="flex flex-wrap items-center gap-3">
         {/* The unit beside the box, not `suffix`: the suffix shell is fixed at 40px, under law 13's 48. */}
@@ -122,10 +189,19 @@ function Answers({
           disabled={busy || typeof otherValue !== 'number'}
           onClick={() =>
             typeof otherValue === 'number' &&
-            run({ resolution: 'counter', value: otherValue }, 'Đã gửi mức khác cho người nhận')
+            run(
+              { resolution: 'counter', value: otherValue },
+              t(
+                message(
+                  'Đã gửi mức khác cho người nhận',
+                  'Sent a different value to the recipient',
+                  '수신자에게 다른 값을 전달했습니다',
+                ),
+              ),
+            )
           }
         >
-          Đề nghị mức khác
+          {t(message('Đề nghị mức khác', 'Propose a different value', '다른 값 제안'))}
         </Button>
       </div>
       <FailLine error={resolve.error} conflict={MOVED} />
@@ -142,12 +218,43 @@ function lockedReason(
   me: string | undefined,
 ) {
   if (c.status !== 'open') {
-    const after = c.counterValue === null ? '' : ` · mức mới ${print(c.counterValue)}`
-    return c.resolvedAt ? `Xử lý lúc ${dmhm(c.resolvedAt)}${after}` : null
+    if (!c.resolvedAt) return null
+    const at = dmhm(c.resolvedAt)
+    const to = c.counterValue === null ? '' : print(c.counterValue)
+    const done = message(`Xử lý lúc ${at}`, `Resolved ${at}`, `${at} 처리`)
+    const after =
+      c.counterValue === null
+        ? message('', '', '')
+        : message(` · mức mới ${to}`, ` · new value ${to}`, ` · 새 값 ${to}`)
+    return translate(message(done.vi + after.vi, done.en + after.en, done.ko + after.ko))
   }
-  if (closed) return 'Tháng đã kết thúc, không xử lý được nữa.'
-  if (c.actorId === me) return 'Đề xuất của bạn cần quản lý khác xử lý.'
-  if (!canSet) return 'Bạn không có quyền xử lý đề xuất.'
+  if (closed) {
+    return translate(
+      message(
+        'Tháng đã kết thúc, không xử lý được nữa.',
+        'This month is closed. This proposal can no longer be resolved.',
+        '월이 마감되어 이 제안을 더 이상 처리할 수 없습니다.',
+      ),
+    )
+  }
+  if (c.actorId === me) {
+    return translate(
+      message(
+        'Đề xuất của bạn cần quản lý khác xử lý.',
+        'Your proposal needs another manager to resolve it.',
+        '내 제안은 다른 관리자가 처리해야 합니다.',
+      ),
+    )
+  }
+  if (!canSet) {
+    return translate(
+      message(
+        'Bạn không có quyền xử lý đề xuất.',
+        'You do not have permission to resolve proposals.',
+        '제안을 처리할 권한이 없습니다.',
+      ),
+    )
+  }
   return null
 }
 
@@ -169,6 +276,7 @@ function CounterDetail({
   canSet: boolean
   me: string | undefined
 }) {
+  const { t } = useI18n()
   const def = defOfCounter(counter)
   if (!def) return null
   const label = COUNTER_LABEL[counter.status]
@@ -182,7 +290,15 @@ function CounterDetail({
           <h3 className="tnum font-num text-[15px] font-semibold leading-6">
             {headlineOf(counter, def, false)}
           </h3>
-          <p className={cn(NOTE, 'tnum font-num')}>Gửi lúc {dmhm(counter.createdAt)}</p>
+          <p className={cn(NOTE, 'tnum font-num')}>
+            {t(
+              message(
+                `Gửi lúc ${dmhm(counter.createdAt)}`,
+                `Sent ${dmhm(counter.createdAt)}`,
+                `${dmhm(counter.createdAt)} 제출`,
+              ),
+            )}
+          </p>
         </div>
         <Badge tone={label.tone}>{label.text}</Badge>
       </div>
@@ -191,7 +307,9 @@ function CounterDetail({
       </blockquote>
       {lastMonth !== null && (
         <p className="flex flex-col gap-1">
-          <span className={NOTE}>Tháng trước đạt</span>
+          <span className={NOTE}>
+            {t(message('Tháng trước đạt', 'Last month’s actual', '지난달 달성'))}
+          </span>
           <span className={cn(FIGURE, 'text-[18px]')}>{print(lastMonth)}</span>
         </p>
       )}
@@ -250,6 +368,7 @@ export function CounterDrawer({
   canSet: boolean
   me: string | undefined
 }) {
+  const { t } = useI18n()
   const list = who ? ownedBy(counters, who) : []
   const pkg = who ? packages.find((a) => onPackage(a, who)) : undefined
   const lastMonthOf = (c: KpiCounter) =>
@@ -261,8 +380,18 @@ export function CounterDrawer({
     <Drawer
       open={first !== undefined}
       onClose={onClose}
-      title={first ? `Đề xuất của ${first.name}` : ''}
-      subtitle={first ? `${ROLE_LABEL[first.role]}${teamSuffix(first.team)}` : undefined}
+      title={
+        first
+          ? t(
+              message(
+                `Đề xuất của ${first.name}`,
+                `Proposals from ${first.name}`,
+                `${first.name}의 제안`,
+              ),
+            )
+          : ''
+      }
+      subtitle={first ? `${kpiRoleText(first.role)}${teamSuffix(first.team)}` : undefined}
     >
       {/* Plain sections, not cards: a white card on the white drawer of the light theme vanishes. */}
       <div className="divide-surface-ink/6 flex flex-col divide-y">

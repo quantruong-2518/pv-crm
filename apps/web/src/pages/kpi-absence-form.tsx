@@ -17,6 +17,28 @@ import { message, useI18n } from '@/app/i18n'
 const NONE = ''
 const LABEL = 'text-muted-foreground text-[11px]'
 
+/** The contract's own Vietnamese sentences, matched by their text to give them a translation. */
+const KNOWN = [
+  message('Ngày là bắt buộc.', 'A date is required.', '날짜를 입력하세요.'),
+  message(
+    'Ngày không đúng định dạng.',
+    'Enter the date in the correct format.',
+    '날짜 형식이 올바르지 않습니다.',
+  ),
+  message('Ngày không có trên lịch.', 'That date does not exist.', '달력에 없는 날짜입니다.'),
+  message('Chọn người làm thay.', 'Choose a stand-in.', '대행자를 선택하세요.'),
+  message(
+    'Ngày kết thúc không được trước ngày bắt đầu.',
+    'The end date must be on or after the start date.',
+    '종료일은 시작일보다 빠를 수 없습니다.',
+  ),
+  message(
+    'Chọn người khác làm thay.',
+    'Choose someone else as the stand-in.',
+    '다른 사람을 대행자로 선택하세요.',
+  ),
+]
+
 /** The first sentence the contract has against the form, or the missing field. */
 function hintOf(
   fromDay: string,
@@ -36,35 +58,8 @@ function hintOf(
   const parsed = KpiAbsenceCreate.safeParse({ actorId, fromDay, toDay, standInId })
   if (parsed.success) return ''
   const issue = parsed.error.issues[0]?.message ?? ''
-  const known: Record<string, ReturnType<typeof message>> = {
-    'Ngày là bắt buộc.': message('Ngày là bắt buộc.', 'A date is required.', '날짜를 입력하세요.'),
-    'Ngày không đúng định dạng.': message(
-      'Ngày không đúng định dạng.',
-      'Enter the date in the correct format.',
-      '날짜 형식이 올바르지 않습니다.',
-    ),
-    'Ngày không có trên lịch.': message(
-      'Ngày không có trên lịch.',
-      'That date does not exist.',
-      '달력에 없는 날짜입니다.',
-    ),
-    'Chọn người làm thay.': message(
-      'Chọn người làm thay.',
-      'Choose a stand-in.',
-      '대행자를 선택하세요.',
-    ),
-    'Ngày kết thúc không được trước ngày bắt đầu.': message(
-      'Ngày kết thúc không được trước ngày bắt đầu.',
-      'The end date must be on or after the start date.',
-      '종료일은 시작일보다 빠를 수 없습니다.',
-    ),
-    'Chọn người khác làm thay.': message(
-      'Chọn người khác làm thay.',
-      'Choose someone else as the stand-in.',
-      '다른 사람을 대행자로 선택하세요.',
-    ),
-  }
-  return known[issue] ? t(known[issue]) : issue
+  const known = KNOWN.find((copy) => copy.vi === issue)
+  return known ? t(known) : issue
 }
 
 export function AbsenceForm({

@@ -218,7 +218,7 @@ function EventFields({
                 message(
                   `Hoạt động đầu tiên chuyển cơ hội sang giai đoạn ${OPPORTUNITY_STAGE_LABEL.engaged}.`,
                   `The first activity moves the opportunity to ${OPPORTUNITY_STAGE_LABEL.engaged}.`,
-                  `첫 활동을 기록하면 영업 기회가 ${OPPORTUNITY_STAGE_LABEL.engaged} 단계로 이동합니다.`,
+                  `첫 활동을 기록하면 기회가 ${OPPORTUNITY_STAGE_LABEL.engaged} 단계로 이동합니다.`,
                 ),
               )
             : t(
@@ -339,7 +339,7 @@ function StepFollowUp({
               message(
                 'Cơ hội chưa có việc tiếp theo.',
                 'This opportunity has no next step.',
-                '이 영업 기회에 다음 단계가 없습니다.',
+                '이 기회에 다음 단계가 없습니다.',
               ),
             )}
       </p>

@@ -280,18 +280,60 @@ export function SourcesPage() {
     const run = await loadFile({ rows, motion, fileName, source: scope })
     const { report } = run
 
-    toast(run.failure ?? `Đã thêm ${report.rows.length} người nhận vào sổ lead`, {
-      tone: run.failure ? 'danger' : 'success',
-      detail: [
-        scope && `Gắn với nguồn dẫn ${scope}`,
-        report.duplicates > 0 && `${report.duplicates} dòng đã có trong sổ, vẫn nhập và đánh dấu`,
-        report.dupInFile > 0 && `${report.dupInFile} dòng trùng nhau trong tệp`,
-        report.errors.length > 0 && `${report.errors.length} dòng không nạp được`,
-      ]
-        .filter(Boolean)
-        .join(' · '),
-      action: { label: 'Xem sổ lead', onClick: () => navigate('/sales/leads') },
-    })
+    const n = report.rows.length
+    toast(
+      run.failure ??
+        t(
+          message(
+            `Đã thêm ${n} người nhận vào sổ lead`,
+            `${n} recipients added to the lead book`,
+            `수신자 ${n}명을 리드 목록에 추가했습니다`,
+          ),
+        ),
+      {
+        tone: run.failure ? 'danger' : 'success',
+        detail: [
+          scope &&
+            t(
+              message(
+                `Gắn với nguồn dẫn ${scope}`,
+                `Linked to source ${scope}`,
+                `출처 ${scope}에 연결됨`,
+              ),
+            ),
+          report.duplicates > 0 &&
+            t(
+              message(
+                `${report.duplicates} dòng đã có trong sổ, vẫn nhập và đánh dấu`,
+                `${report.duplicates} rows already in the book, imported and flagged`,
+                `${report.duplicates}행은 이미 목록에 있지만 가져와서 표시했습니다`,
+              ),
+            ),
+          report.dupInFile > 0 &&
+            t(
+              message(
+                `${report.dupInFile} dòng trùng nhau trong tệp`,
+                `${report.dupInFile} duplicate rows within the file`,
+                `파일 내 중복 ${report.dupInFile}행`,
+              ),
+            ),
+          report.errors.length > 0 &&
+            t(
+              message(
+                `${report.errors.length} dòng không nạp được`,
+                `${report.errors.length} rows could not be imported`,
+                `${report.errors.length}행을 가져오지 못했습니다`,
+              ),
+            ),
+        ]
+          .filter(Boolean)
+          .join(' · '),
+        action: {
+          label: t(message('Xem sổ lead', 'View lead book', '리드 목록 보기')),
+          onClick: () => navigate('/sales/leads'),
+        },
+      },
+    )
 
     return report
   }
@@ -426,7 +468,7 @@ export function SourcesPage() {
                     message(
                       `Hai tỷ lệ trên tính trên ${grouped(totals.sent)} email đã gửi. Chênh so với ${grouped(totals.audience)} lượt người nhận dự kiến là email bị chặn, bị trả lại hoặc gửi không thành công. ${totals.natural.count} nguồn tự nhiên với ${totals.natural.leads} lead tính ở Sổ lead. ${totals.ops}/${totals.opsBook} cơ hội trong kỳ đến từ các nguồn dẫn bên dưới.`,
                       `The rates above use ${grouped(totals.sent)} sent emails as the denominator. The gap from ${grouped(totals.audience)} expected recipients reflects blocked, bounced, or failed messages. ${totals.natural.count} organic sources and ${totals.natural.leads} leads are counted in the lead book. ${totals.ops} of ${totals.opsBook} opportunities this period came from the sources below.`,
-                      `위 비율은 발송 이메일 ${grouped(totals.sent)}개를 기준으로 합니다. 예상 수신자 ${grouped(totals.audience)}명과의 차이는 차단, 반송 또는 발송 실패입니다. 자연 유입 출처 ${totals.natural.count}개와 리드 ${totals.natural.leads}개는 리드 목록에서 집계합니다. 이번 기간 영업 기회 ${totals.opsBook}개 중 ${totals.ops}개가 아래 출처에서 발생했습니다.`,
+                      `위 비율은 발송 이메일 ${grouped(totals.sent)}개를 기준으로 합니다. 예상 수신자 ${grouped(totals.audience)}명과의 차이는 차단, 반송 또는 발송 실패입니다. 자연 유입 출처 ${totals.natural.count}개와 리드 ${totals.natural.leads}개는 리드 목록에서 집계합니다. 이번 기간 기회 ${totals.opsBook}개 중 ${totals.ops}개가 아래 출처에서 발생했습니다.`,
                     ),
                   )}
                 </p>
@@ -597,7 +639,7 @@ export function SourcesPage() {
                 sortKey: 'bounces',
               },
               {
-                header: t(message('Cơ hội tạo ra', 'Opportunities created', '생성된 영업 기회')),
+                header: t(message('Cơ hội tạo ra', 'Opportunities created', '생성된 기회')),
                 width: 'minmax(104px,0.7fr)',
                 align: 'right',
                 sortKey: 'ops',

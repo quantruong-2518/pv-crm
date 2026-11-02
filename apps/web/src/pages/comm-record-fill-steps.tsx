@@ -27,7 +27,7 @@ export function ContentStep({
   summary,
   onTitle,
   onSummary,
-  fileNote = 'không bắt buộc',
+  fileNote,
   aid,
 }: {
   record: DebriefView
@@ -104,7 +104,9 @@ export function ContentStep({
       <div className="flex min-w-0 flex-col gap-3">
         <span className={STEP_LABEL}>
           {t(message('Ghi âm và tệp đính kèm', 'Recording and attachments', '녹음 및 첨부 파일'))}{' '}
-          <span className="text-muted-foreground font-normal">· {fileNote}</span>
+          <span className="text-muted-foreground font-normal">
+            · {fileNote ?? t(message('không bắt buộc', 'optional', '선택 사항'))}
+          </span>
         </span>
         <CommFileDrop id={record.id} />
         <CommFileList id={record.id} canDelete />
@@ -157,6 +159,7 @@ export function NextStepStep({
   /** Over the step fields, and only while they show. */
   aid?: ReactNode
 }) {
+  const { t, lang } = useI18n()
   const { code } = record.subject
   return (
     <CommStepCard index={2} title={heading}>
@@ -174,8 +177,14 @@ export function NextStepStep({
         )
       ) : close.target.isPending ? null : (
         <p className="text-muted-foreground m-0 text-[13px] leading-[1.6]">
-          {subjectKindLabel(code)} <span className="font-mono">{code}</span> không nhận bước tiếp
-          theo từ lượt liên hệ này.
+          {subjectKindLabel(code, lang)} <span className="font-mono">{code}</span>
+          {t(
+            message(
+              ' không nhận bước tiếp theo từ lượt liên hệ này.',
+              ' does not accept a next step from this interaction.',
+              '에는 이 연락 기록에서 다음 단계를 설정할 수 없습니다.',
+            ),
+          )}
         </p>
       )}
     </CommStepCard>

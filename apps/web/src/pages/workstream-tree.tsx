@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { Badge, Button, Chip, GlassCard, Icon, Info, InfoTip, Minus, Plus, cn } from '@pv/ui'
-import { JOURNEY_BORN_BY_LABEL, JOURNEY_DEAL_OUTCOME_LABEL } from '@pv/contracts'
+import { JOURNEY_BORN_BY_LABEL } from '@pv/contracts'
 import { message, useI18n } from '@/app/i18n'
-import { DUE_LABEL } from '@/data/contracts'
+import { opportunityStatusLabel } from '@/data/sales-labels-i18n'
+import { dueLevelText } from '@/data/contract-copy'
 import {
   CARD,
   EDGE_OF,
@@ -48,9 +49,13 @@ const FRAME_SHARE = 0.75
  *  contract. Lane 4 fills from a parked lead or a growth journey, so it only
  *  states that nothing follows yet. */
 const LANE_WAIT = {
-  contract: 'Mở sau khi cơ hội thành hợp đồng.',
-  next: 'Chưa có bước tiếp nối.',
-} as const
+  contract: message(
+    'Mở sau khi cơ hội thành hợp đồng.',
+    'Opens once the opportunity becomes a contract.',
+    '기회가 계약이 되면 열립니다.',
+  ),
+  next: message('Chưa có bước tiếp nối.', 'No follow-up step yet.', '아직 후속 단계가 없습니다.'),
+}
 
 /* Every line is full ink, ≥ 3:1 on the lane band in both themes (non-text
    contrast); a lost deal differs from an open one by its dash alone — at 0.7
@@ -121,21 +126,24 @@ function useFrame(frame: RefObject<HTMLElement | null>) {
 const SMALL = 'pointer-coarse:size-12 size-8 px-0'
 
 export function TreeLegend() {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const dots = [
     { word: STATE_WORD.done, rung: { state: 'done', late: null } },
     { word: STATE_WORD.current, rung: { state: 'current', late: null } },
-    { word: DUE_LABEL.overdue, rung: { state: 'current', late: 'overdue' } },
+    { word: dueLevelText('overdue', lang), rung: { state: 'current', late: 'overdue' } },
     { word: STATE_WORD.stopped, rung: { state: 'stopped', late: null } },
     { word: STATE_WORD.upcoming, rung: { state: 'upcoming', late: null } },
     { word: STATE_WORD.skipped, rung: { state: 'skipped', late: null } },
   ] as const
   const edges = [
     ...(['won', 'open', 'lost'] as const).map((outcome) => ({
-      word: JOURNEY_DEAL_OUTCOME_LABEL[outcome],
+      word: opportunityStatusLabel(outcome, lang),
       tone: EDGE_OF[outcome],
     })),
-    { word: JOURNEY_BORN_BY_LABEL.growth, tone: 'born' as const },
+    {
+      word: t(message(JOURNEY_BORN_BY_LABEL.growth, 'Growth', '성장')),
+      tone: 'born' as const,
+    },
   ]
   const title = 'text-muted-foreground m-0 text-[11px] font-semibold uppercase tracking-wide'
   return (
@@ -238,6 +246,7 @@ export function TreeZoomBar({ ctl }: { ctl: TreeZoom }) {
 }
 
 function LaneBands({ journey, layout }: { journey: Journey; layout: TreeLayout }) {
+  const { t } = useI18n()
   const count: Partial<Record<(typeof LANES)[number]['key'], number>> = {
     deal: journey.deals.length,
     contract: journey.contracts.length,
@@ -249,9 +258,9 @@ function LaneBands({ journey, layout }: { journey: Journey; layout: TreeLayout }
     !waiting
       ? null
       : key === 'contract'
-        ? LANE_WAIT.contract
+        ? t(LANE_WAIT.contract)
         : key === 'next' && layout.doors.length === 0
-          ? LANE_WAIT.next
+          ? t(LANE_WAIT.next)
           : null
   return LANES.map((lane) => (
     <div
@@ -281,13 +290,28 @@ function LaneBands({ journey, layout }: { journey: Journey; layout: TreeLayout }
  *  With deals hidden by scope the lane is only empty for this reader, and
  *  says so. */
 function GhostDeal({ box, hidden }: { box: Box; hidden: boolean }) {
+  const { t } = useI18n()
   return (
     <div
       className="absolute flex items-center gap-3 px-3"
       style={{ left: CARD.deal.x, top: box.top, width: CARD.deal.w, height: GHOST_H }}
     >
       <span className="text-glass-foreground min-w-0 grow break-words text-[12px]">
-        {hidden ? 'Không có cơ hội nào trong phạm vi của bạn' : 'Chưa có cơ hội nào từ lead này'}
+        {hidden
+          ? t(
+              message(
+                'Không có cơ hội nào trong phạm vi của bạn',
+                'No opportunities within your scope',
+                '내 범위에 해당하는 기회가 없습니다',
+              ),
+            )
+          : t(
+              message(
+                'Chưa có cơ hội nào từ lead này',
+                'No opportunities from this lead yet',
+                '이 리드에서 만든 기회가 아직 없습니다',
+              ),
+            )}
       </span>
     </div>
   )
@@ -298,6 +322,7 @@ export function WorkstreamTree({
   zoomCtl,
   ...track
 }: Omit<Track, 'onPick'> & { journey: Journey; zoomCtl: TreeZoom }) {
+  const { t } = useI18n()
   const [opened, setOpened] = useState<string | null>(null)
   const cards = { ...track, onPick: setOpened }
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
@@ -330,7 +355,13 @@ export function WorkstreamTree({
     <GlassCard variant="b" className="flex min-w-0 flex-col gap-4 p-4 lg:p-6">
       {journey.hiddenDeals > 0 && (
         <p className="text-glass-foreground m-0 text-[12px]">
-          {journey.hiddenDeals} cơ hội ngoài phạm vi của bạn
+          {t(
+            message(
+              `${journey.hiddenDeals} cơ hội ngoài phạm vi của bạn`,
+              `${journey.hiddenDeals} opportunities outside your scope`,
+              `내 범위 밖의 기회 ${journey.hiddenDeals}개`,
+            ),
+          )}
         </p>
       )}
 

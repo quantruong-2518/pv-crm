@@ -1,5 +1,6 @@
 import { Input, SegmentedControl } from '@pv/ui'
 import { vnDayOf } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 import {
   RECONTACT_CHOICES,
   tomorrowOf,
@@ -20,20 +21,21 @@ export function RecontactField({
   onChange: (next: RecontactPick) => void
   disabled?: boolean
 }) {
+  const { t } = useI18n()
   return (
     <div className="flex flex-col gap-2">
       <SegmentedControl
-        label="Hẹn liên hệ lại"
+        label={t(message('Hẹn liên hệ lại', 'Follow up on', '재연락 예정'))}
         tone="quiet"
         className="flex-col items-start"
         value={value.choice}
-        options={RECONTACT_CHOICES.map((c) => ({ value: c.value, label: c.label, disabled }))}
+        options={RECONTACT_CHOICES.map((c) => ({ value: c.value, label: t(c.label), disabled }))}
         onChange={(choice) => onChange({ ...value, choice: choice as RecontactChoice })}
       />
       {value.choice === 'pick' && (
         <Input
           type="date"
-          aria-label="Ngày liên hệ lại"
+          aria-label={t(message('Ngày liên hệ lại', 'Follow-up date', '재연락 날짜'))}
           aria-required
           value={value.day}
           min={tomorrowOf(vnDayOf(new Date()))}

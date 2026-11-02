@@ -1,4 +1,6 @@
-import { LEAD_SIDE_LABEL, type LeadMotion, type LeadSourceStatsResponse } from '@pv/contracts'
+import type { LeadMotion, LeadSourceStatsResponse } from '@pv/contracts'
+import { getLang, message, translate, type Lang } from '@/app/i18n'
+import { leadSideText } from '@/data/lead-copy'
 
 /** The source-stats funnel as a tree: side → motion → origin → campaign.
  *
@@ -36,15 +38,29 @@ export const conversionOf = (f: Funnel): number => (f.leads > 0 ? f.won / f.lead
 type MotionLabel = (motion: LeadMotion) => string
 
 /** The four levels, each naming its key and its label for one flat row. */
-const levelsOf = (motionLabel: MotionLabel): Level[] => [
-  (r) => ({ key: r.side ?? '-', label: r.side ? LEAD_SIDE_LABEL[r.side] : 'Chưa rõ phía' }),
-  (r) => ({
-    key: r.motion ?? '-',
-    label: r.motion ? motionLabel(r.motion) : 'Chưa ghi phương án',
-  }),
-  (r) => ({ key: r.originId ?? '-', label: r.originName ?? 'Chưa ghi nguồn' }),
-  (r) => ({ key: r.campaignCode ?? '-', label: r.campaignName ?? 'Không thuộc chiến dịch' }),
-]
+const levelsOf = (motionLabel: MotionLabel, lang: Lang): Level[] => {
+  const m = (vi: string, en: string, ko: string) => translate(message(vi, en, ko), lang)
+  return [
+    (r) => ({
+      key: r.side ?? '-',
+      label: r.side ? leadSideText(r.side, lang) : m('Chưa rõ phía', 'Side unknown', '구분 미확인'),
+    }),
+    (r) => ({
+      key: r.motion ?? '-',
+      label: r.motion
+        ? motionLabel(r.motion)
+        : m('Chưa ghi phương án', 'No approach recorded', '접근 방식 미기록'),
+    }),
+    (r) => ({
+      key: r.originId ?? '-',
+      label: r.originName ?? m('Chưa ghi nguồn', 'No source recorded', '유입 경로 미기록'),
+    }),
+    (r) => ({
+      key: r.campaignCode ?? '-',
+      label: r.campaignName ?? m('Không thuộc chiến dịch', 'Not in a campaign', '캠페인 없음'),
+    }),
+  ]
+}
 
 type Level = (r: StatsRow) => { key: string; label: string }
 
@@ -79,8 +95,11 @@ function grow(
 
 /** `motionLabel` is the policy-aware one (`useMotionLabel`), so the tree names
  *  a motion exactly as the create form does. */
-export const statsTree = (rows: readonly StatsRow[], motionLabel: MotionLabel): StatsNode[] =>
-  grow(rows, levelsOf(motionLabel), 0, '')
+export const statsTree = (
+  rows: readonly StatsRow[],
+  motionLabel: MotionLabel,
+  lang: Lang = getLang(),
+): StatsNode[] => grow(rows, levelsOf(motionLabel, lang), 0, '')
 
 export const totalOf = (nodes: readonly StatsNode[]): Funnel =>
   nodes.reduce<Funnel>((sum, n) => add(sum, n.funnel), ZERO)

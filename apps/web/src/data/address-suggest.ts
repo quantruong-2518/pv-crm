@@ -7,6 +7,7 @@ import {
   type AddressSuggestion,
 } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
+import { message } from '@/app/i18n'
 
 /** The address picker's only door — `GET /geo/address-suggest`.
  *
@@ -49,11 +50,23 @@ const PROBE_STALE_MS = 30 * 60 * 1000
  *  runs the same search in a list of its own — two copies of a sentence are
  *  two sentences that will drift. Built from the contract's floor, so neither
  *  can promise a number the search does not use. */
-export const SUGGEST_EMPTY_TEXT = 'Không thấy địa chỉ. Thử gõ thêm số nhà, đường hoặc phường.'
+export const SUGGEST_EMPTY_TEXT = message(
+  'Không thấy địa chỉ. Thử gõ thêm số nhà, đường hoặc phường.',
+  'No address found. Try adding the house number, street or ward.',
+  '주소를 찾을 수 없습니다. 번지, 도로명 또는 동을 더 입력해 보세요.',
+)
 /** The search itself was refused or failed — most often the per-person or daily
  *  ceiling — and "not found" would send the typist hunting for a typo. */
-export const SUGGEST_FAILED_TEXT = 'Chưa tra được địa chỉ. Hãy nhập tay.'
-export const SUGGEST_TOO_SHORT_TEXT = `Gõ ít nhất ${ADDRESS_SUGGEST_MIN_CHARS} ký tự để tìm địa chỉ`
+export const SUGGEST_FAILED_TEXT = message(
+  'Chưa tra được địa chỉ. Hãy nhập tay.',
+  'Could not look up the address. Please type it in.',
+  '주소를 조회하지 못했습니다. 직접 입력하세요.',
+)
+export const SUGGEST_TOO_SHORT_TEXT = message(
+  `Gõ ít nhất ${ADDRESS_SUGGEST_MIN_CHARS} ký tự để tìm địa chỉ`,
+  `Type at least ${ADDRESS_SUGGEST_MIN_CHARS} characters to search for an address`,
+  `주소를 검색하려면 ${ADDRESS_SUGGEST_MIN_CHARS}자 이상 입력하세요`,
+)
 
 /** `keepPreviousData` so the menu does not flash empty between keystrokes; the
  *  app's no-retry default is what a picker needs: fall silent, not hammer. */

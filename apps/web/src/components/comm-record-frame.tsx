@@ -4,6 +4,7 @@ import { Button, Check, ChevronLeft, ContextRail, GlassCard, Icon, ScreenLayout,
 import type { DebriefView } from '@pv/contracts'
 import { COMMS_CHANNEL_ICON, COMMS_CHANNEL_LABEL } from '@/data/comms'
 import { commStepAnchor, subjectKindLabel, subjectPath } from '@/data/comm-record-detail'
+import { message, useI18n } from '@/app/i18n'
 import { CommStateBadge } from './comm-bits'
 
 /** The one-column frame of `/comms/:id`: the way back to the subject, the
@@ -92,9 +93,11 @@ export function CommRecordFrame({
 }
 
 function BackRow({ record, withLabel }: { record: DebriefView; withLabel: boolean }) {
+  const { t, lang } = useI18n()
   const navigate = useNavigate()
   const { code, label } = record.subject
   const path = subjectPath(code)
+  const kind = subjectKindLabel(code, lang).toLowerCase()
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2">
       <Button
@@ -104,7 +107,7 @@ function BackRow({ record, withLabel }: { record: DebriefView; withLabel: boolea
         onClick={() => (path ? navigate(path) : navigate(-1))}
       >
         <Icon icon={ChevronLeft} size={16} />
-        Quay lại {subjectKindLabel(code).toLowerCase()}
+        {t(message(`Quay lại ${kind}`, `Back to ${kind}`, `${kind}(으)로 돌아가기`))}
       </Button>
       <ContextRail
         objects={[{ code, source: true, ...(path ? { onOpen: () => navigate(path) } : {}) }]}
@@ -130,9 +133,10 @@ export function CommStepper({
   states: readonly CommStepState[]
   onGo?: (index: number) => void
 }) {
+  const { t } = useI18n()
   return (
     <GlassCard className="px-4 py-4 sm:px-6">
-      <nav aria-label="Các bước">
+      <nav aria-label={t(message('Các bước', 'Steps', '단계'))}>
         <ol className="m-0 flex list-none items-center gap-3 p-0">
           {labels.map((label, i) => {
             const state = states[i] ?? 'todo'

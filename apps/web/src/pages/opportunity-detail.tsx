@@ -48,7 +48,7 @@ export function OpportunityDetailPage() {
       message(
         'Tìm khách hàng, cơ hội, báo giá, hồ sơ…',
         'Search accounts, opportunities, quotes, and profiles…',
-        '고객사, 영업 기회, 견적 및 프로필 검색…',
+        '고객사, 기회, 견적 및 프로필 검색…',
       ),
     ),
   })
@@ -69,18 +69,18 @@ export function OpportunityDetailPage() {
               message(
                 `Không có cơ hội mã ${code} trong sổ của bạn.`,
                 `Opportunity ${code} is not in your book.`,
-                `영업 기회 ${code}이(가) 목록에 없습니다.`,
+                `기회 ${code}이(가) 목록에 없습니다.`,
               ),
             ),
             fallback: t(
               message(
                 'Không mở được hồ sơ cơ hội.',
                 'Could not open the opportunity profile.',
-                '영업 기회를 열 수 없습니다.',
+                '기회를 열 수 없습니다.',
               ),
             ),
             back: {
-              label: t(message('Về sổ cơ hội', 'Back to opportunities', '영업 기회 목록으로')),
+              label: t(message('Về sổ cơ hội', 'Back to opportunities', '기회 목록으로')),
               onClick: () => navigate('/sales/opportunities'),
             },
           }}
@@ -105,7 +105,7 @@ const TEXT = {
   interactionsQuotesContactsAndFiles: message(
     'Lịch sử liên hệ, báo giá, người liên hệ và tài liệu của cơ hội',
     'Interactions, quotes, contacts, and files for this opportunity',
-    '영업 기회의 연락 기록, 견적, 담당자 및 파일',
+    '기회의 연락 기록, 견적, 담당자 및 파일',
   ),
 }
 
@@ -200,7 +200,7 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
       actionBar={
         !final && (
           <ActionBar
-            label={t(message('Thao tác cơ hội', 'Opportunity actions', '영업 기회 작업'))}
+            label={t(message('Thao tác cơ hội', 'Opportunity actions', '기회 작업'))}
             subject={{ code: op.code, kind: 'opportunity' }}
             contacts={op.contacts.map((c) => ({
               ...c,

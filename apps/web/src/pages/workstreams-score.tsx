@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Activity, Ban, CircleCheck, Plus, StatCard, cn, percent, type IconGlyph } from '@pv/ui'
 import type { SalesDayRange, WorkstreamBookQuery, WorkstreamScorecard } from '@pv/contracts'
 import { compareLabel } from '@/data/period-pick'
+import { message, translate, useI18n, type Message } from '@/app/i18n'
 import { NARROWING_CLEARED } from '@/data/workstreams'
 import { deltaOf, rateOf, type Delta } from './home-model'
 
@@ -19,7 +20,7 @@ type Patch = (next: Partial<WorkstreamBookQuery>) => void
 
 type Card = {
   key: 'live' | 'opened' | 'won' | 'stopped'
-  label: string
+  label: Message
   icon: IconGlyph
   rows: (span: SalesDayRange) => Partial<WorkstreamBookQuery>
   on: (q: WorkstreamBookQuery, span: SalesDayRange) => boolean
@@ -31,28 +32,28 @@ const closedIn = (q: WorkstreamBookQuery, s: SalesDayRange) =>
 const CARDS: Card[] = [
   {
     key: 'live',
-    label: 'Đang chạy trong kỳ',
+    label: message('Đang chạy trong kỳ', 'Live in period', '기간 중 진행'),
     icon: Activity,
     rows: (s) => ({ status: 'all', liveFrom: s.first, liveTo: s.last }),
     on: (q, s) => q.liveFrom === s.first && q.liveTo === s.last,
   },
   {
     key: 'opened',
-    label: 'Mở mới',
+    label: message('Mở mới', 'Newly opened', '신규 개시'),
     icon: Plus,
     rows: (s) => ({ status: 'all', openedFrom: s.first, openedTo: s.last }),
     on: (q, s) => q.openedFrom === s.first && q.openedTo === s.last,
   },
   {
     key: 'won',
-    label: 'Thắng',
+    label: message('Thắng', 'Won', '수주'),
     icon: CircleCheck,
     rows: (s) => ({ status: 'closed', closeReason: 'WON', closedFrom: s.first, closedTo: s.last }),
     on: (q, s) => q.closeReason === 'WON' && closedIn(q, s),
   },
   {
     key: 'stopped',
-    label: 'Đã dừng',
+    label: message('Đã dừng', 'Stopped', '중단됨'),
     icon: Ban,
     rows: (s) => ({ status: 'closed', stopped: true, closedFrom: s.first, closedTo: s.last }),
     on: (q, s) => q.stopped === true && closedIn(q, s),
@@ -109,7 +110,15 @@ function faceOf(key: Card['key'], data: InPeriod): Face {
      comparison, so the four cards stay one height (a fourth line grew the row). */
   return {
     value: now.closed === 0 ? '—' : percent(now[key] / now.closed),
-    hint: delta ? undefined : `${now[key]} trên ${now.closed} hành trình đã đóng`,
+    hint: delta
+      ? undefined
+      : translate(
+          message(
+            `${now[key]} trên ${now.closed} hành trình đã đóng`,
+            `${now[key]} of ${now.closed} closed workstreams`,
+            `종료된 영업 건 ${now.closed}개 중 ${now[key]}개`,
+          ),
+        ),
     delta: delta && { ...delta, text: `${now[key]}/${now.closed} · ${delta.text}` },
   }
 }
@@ -128,6 +137,7 @@ function PressableCard({
   onPress: (() => void) | undefined
   children: ReactNode
 }) {
+  const { t } = useI18n()
   return (
     <div className="relative h-full">
       {children}
@@ -136,7 +146,7 @@ function PressableCard({
         type="button"
         disabled={onPress === undefined}
         aria-pressed={active}
-        aria-label={`Lọc: ${label}`}
+        aria-label={t(message(`Lọc: ${label}`, `Filter: ${label}`, `필터: ${label}`))}
         onClick={onPress}
         className={cn(
           'motion-std group absolute inset-0 rounded-lg',
@@ -161,10 +171,11 @@ export function WorkstreamScoreStrip({
   /** The figures belong to the previous period until the new read lands; no card presses then. */
   stale: boolean
 }) {
+  const { t } = useI18n()
   return (
     <div
       role="group"
-      aria-label="Thẻ điểm sổ hành trình"
+      aria-label={t(message('Thẻ điểm sổ hành trình', 'Workstream scorecard', '영업 건 점수판'))}
       aria-busy={stale}
       className="grid grid-cols-2 items-stretch gap-3 lg:grid-cols-4"
     >
@@ -174,7 +185,7 @@ export function WorkstreamScoreStrip({
         return (
           <PressableCard
             key={card.key}
-            label={card.label}
+            label={t(card.label)}
             active={active}
             onPress={
               data === undefined || stale
@@ -191,7 +202,7 @@ export function WorkstreamScoreStrip({
               size="compact"
               className="h-full"
               icon={card.icon}
-              label={card.label}
+              label={t(card.label)}
               value={face?.value ?? '—'}
               hint={face?.hint}
               delta={face?.delta}

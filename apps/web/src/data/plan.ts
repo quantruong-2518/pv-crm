@@ -19,6 +19,7 @@ import {
 } from '@pv/engines/fixtures/das-vina'
 import { bandText, costGap, rankSources, type SourceCost } from './source-cost'
 import { api } from '@/app/api'
+import { formatNumber, message, translate, type Lang } from '@/app/i18n'
 
 /** Module 5 · Số liệu & kế hoạch. Kịch bản 2 · DAS Vina.
  *
@@ -112,8 +113,19 @@ function rottingDeals(): OpenDeal[] {
   return OPEN_DEALS.filter(isRotting).sort((a, b) => b.daysInStage - a.daysInStage)
 }
 
-function overdueLine(deal: OpenDeal): string {
-  return `${deal.code} · ${deal.daysInStage} ngày ở cột ${STAGE_LABEL.get(deal.stage) ?? deal.stage}, hạn ${STAGE_LIMIT.get(deal.stage) ?? 0}`
+/** One line per language from three spellings; every builder below uses it. */
+const speak = (lang: Lang) => (vi: string, en: string, ko: string) =>
+  translate(message(vi, en, ko), lang)
+
+function overdueLine(deal: OpenDeal, lang: Lang): string {
+  const stage = STAGE_LABEL.get(deal.stage) ?? deal.stage
+  const limit = STAGE_LIMIT.get(deal.stage) ?? 0
+  const msg = speak(lang)
+  return msg(
+    `${deal.code} · ${deal.daysInStage} ngày ở cột ${stage}, hạn ${limit}`,
+    `${deal.code} · ${deal.daysInStage} days in column ${stage}, limit ${limit}`,
+    `${deal.code} · ${stage} 단계 ${deal.daysInStage}일 체류, 기준 ${limit}`,
+  )
 }
 
 type ExitTally = {
@@ -148,9 +160,11 @@ function exitTally(): { total: number; ranked: ExitTally[] } {
 
 /** Một chữ số sau dấu phẩy, chuẩn VN. Dùng cho số trung bình — số đếm thì không
  *  bao giờ có phần thập phân. */
-function avg(sum: number, n: number): string {
-  if (n === 0) return '0,0'
-  return (sum / n).toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+function avg(sum: number, n: number, lang: Lang): string {
+  return formatNumber(n === 0 ? 0 : sum / n, lang, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -163,8 +177,11 @@ function avg(sum: number, n: number): string {
 // mươi: mỗi đề xuất phải chỉ được vào một chỗ đã đo, không phải một linh cảm.
 // ---------------------------------------------------------------------------
 
-function buildProposals(): PlanProposal[] {
+function buildProposals(lang: Lang): PlanProposal[] {
+  const msg = speak(lang)
   const out: PlanProposal[] = []
+  const and = msg(' và ', ' and ', ' 및 ')
+  const addToPlan = msg('Thêm vào kế hoạch', 'Add to plan', '계획에 추가')
 
   // 1 · Đơn đang mục → người gật vào cuộc.
   const rotting = rottingDeals()
@@ -174,11 +191,19 @@ function buildProposals(): PlanProposal[] {
     const value = rotting.reduce((sum, d) => sum + d.amount, 0)
     out.push({
       id: 'rotting-deals',
-      suggestion: `Đưa ${HEAD_OF_SALES} vào xử lý ${rotting.length} đơn quá hạn cột. Bắt đầu từ ${head.map((d) => d.code).join(' và ')}.`,
-      basis: `${rotting.length}/${OPEN_DEALS.length} đơn quá hạn cột · ${billions(value)} đang treo · ${head.map(overdueLine).join(' · ')}`,
+      suggestion: msg(
+        `Đưa ${HEAD_OF_SALES} vào xử lý ${rotting.length} đơn quá hạn cột. Bắt đầu từ ${head.map((d) => d.code).join(and)}.`,
+        `Bring ${HEAD_OF_SALES} in to handle ${rotting.length} deals past their column limit. Start with ${head.map((d) => d.code).join(and)}.`,
+        `${HEAD_OF_SALES}님이 단계 기한을 넘긴 기회 ${rotting.length}건을 처리하도록 투입하세요. ${head.map((d) => d.code).join(and)}부터 시작합니다.`,
+      ),
+      basis: msg(
+        `${rotting.length}/${OPEN_DEALS.length} đơn quá hạn cột · ${billions(value)} đang treo · ${head.map((d) => overdueLine(d, 'vi')).join(' · ')}`,
+        `${rotting.length}/${OPEN_DEALS.length} deals past column limit · ${billions(value)} stuck · ${head.map((d) => overdueLine(d, 'en')).join(' · ')}`,
+        `단계 기한 초과 ${rotting.length}/${OPEN_DEALS.length}건 · ${billions(value)} 정체 · ${head.map((d) => overdueLine(d, 'ko')).join(' · ')}`,
+      ),
       owner: HEAD_OF_SALES,
       codes: head.map((d) => d.code),
-      confirmLabel: 'Thêm vào kế hoạch',
+      confirmLabel: addToPlan,
     })
   }
 
@@ -188,11 +213,19 @@ function buildProposals(): PlanProposal[] {
   if (top && top.count > 0) {
     out.push({
       id: 'touch-earlier',
-      suggestion: `Cho agent 1 liên hệ sớm hơn ở bậc Đầu mối. Lý do ra khỏi luồng nhiều nhất của kỳ là "${top.label}".`,
-      basis: `${top.count}/${exitedTotal} lead ra khỏi luồng vì lý do này · ${top.atFirstTier}/${top.count} ra ngay ở bậc Đầu mối · trung bình mới điền ${avg(top.filledSum, top.count)} trên ${REQUIRED_SLOTS} ô bắt buộc`,
+      suggestion: msg(
+        `Cho agent 1 liên hệ sớm hơn ở bậc Đầu mối. Lý do ra khỏi luồng nhiều nhất của kỳ là "${top.label}".`,
+        `Have agent 1 make contact earlier at the Prospect tier. The most common reason for leaving the flow this period is "${top.label}".`,
+        `에이전트 1이 '잠재 고객' 단계에서 더 일찍 연락하도록 하세요. 이번 기간 가장 많은 이탈 사유는 "${top.label}"입니다.`,
+      ),
+      basis: msg(
+        `${top.count}/${exitedTotal} lead ra khỏi luồng vì lý do này · ${top.atFirstTier}/${top.count} ra ngay ở bậc Đầu mối · trung bình mới điền ${avg(top.filledSum, top.count, 'vi')} trên ${REQUIRED_SLOTS} ô bắt buộc`,
+        `${top.count}/${exitedTotal} leads left the flow for this reason · ${top.atFirstTier}/${top.count} left right at the Prospect tier · on average only ${avg(top.filledSum, top.count, 'en')} of ${REQUIRED_SLOTS} required fields filled`,
+        `이 사유로 이탈한 리드 ${top.count}/${exitedTotal}건 · ${top.atFirstTier}/${top.count}건은 잠재 고객 단계에서 바로 이탈 · 필수 항목 ${REQUIRED_SLOTS}개 중 평균 ${avg(top.filledSum, top.count, 'ko')}개만 입력`,
+      ),
       owner: MARKETING,
       codes: top.codes.slice(0, 2),
-      confirmLabel: 'Thêm vào kế hoạch',
+      confirmLabel: addToPlan,
     })
   }
 
@@ -215,26 +248,50 @@ function buildProposals(): PlanProposal[] {
   const dear = byPrice[byPrice.length - 1]
   if (cheap && dear && cheap.code !== dear.code) {
     const gap = costGap(cheap, dear)
-    const bands = `${cheap.code} chi ${millions(cheap.cost)} ra ${cheap.good} lead tốt trên ${cheap.leads} lead · dải ${bandText(cheap.band)} mỗi lead tốt · ${dear.code} chi ${millions(dear.cost)} ra ${dear.good} lead tốt trên ${dear.leads} lead · dải ${bandText(dear.band)}`
+    const bands = (l: Lang) => {
+      const msg = speak(l)
+      return msg(
+        `${cheap.code} chi ${millions(cheap.cost)} ra ${cheap.good} lead tốt trên ${cheap.leads} lead · dải ${bandText(cheap.band, l)} mỗi lead tốt · ${dear.code} chi ${millions(dear.cost)} ra ${dear.good} lead tốt trên ${dear.leads} lead · dải ${bandText(dear.band, l)}`,
+        `${cheap.code} spent ${millions(cheap.cost)} for ${cheap.good} good leads out of ${cheap.leads} leads · range ${bandText(cheap.band, l)} per good lead · ${dear.code} spent ${millions(dear.cost)} for ${dear.good} good leads out of ${dear.leads} leads · range ${bandText(dear.band, l)}`,
+        `${cheap.code}: ${millions(cheap.cost)} 지출, 리드 ${cheap.leads}건 중 우수 리드 ${cheap.good}건 · 우수 리드당 범위 ${bandText(cheap.band, l)} · ${dear.code}: ${millions(dear.cost)} 지출, 리드 ${dear.leads}건 중 우수 리드 ${dear.good}건 · 범위 ${bandText(dear.band, l)}`,
+      )
+    }
 
     out.push({
       id: 'shift-budget',
       suggestion: gap
-        ? `Dồn ngân sách sang ${gap.cheap.code}, cắt ${gap.dear.code}. ${gap.dear.code} đắt hơn ít nhất ${gap.timesText} lần mỗi lead tốt.`
-        : `Giữ nguyên ngân sách của ${cheap.code} và ${dear.code} tháng tới, chạy thêm đợt để có thêm dữ liệu. Chưa nguồn nào chứng minh được là rẻ hơn.`,
+        ? msg(
+            `Dồn ngân sách sang ${gap.cheap.code}, cắt ${gap.dear.code}. ${gap.dear.code} đắt hơn ít nhất ${gap.timesText} lần mỗi lead tốt.`,
+            `Shift the budget to ${gap.cheap.code}, cut ${gap.dear.code}. ${gap.dear.code} costs at least ${gap.timesText}x more per good lead.`,
+            `예산을 ${gap.cheap.code}로 옮기고 ${gap.dear.code}는 줄이세요. ${gap.dear.code}는 우수 리드당 비용이 최소 ${gap.timesText}배 높습니다.`,
+          )
+        : msg(
+            `Giữ nguyên ngân sách của ${cheap.code} và ${dear.code} tháng tới, chạy thêm đợt để có thêm dữ liệu. Chưa nguồn nào chứng minh được là rẻ hơn.`,
+            `Keep the budgets of ${cheap.code} and ${dear.code} unchanged next month and run another wave to collect more data. No source has been shown to be cheaper yet.`,
+            `다음 달에도 ${cheap.code}와 ${dear.code}의 예산을 유지하고, 웨이브를 더 진행해 데이터를 모으세요. 아직 어느 출처가 더 저렴하다고 입증되지 않았습니다.`,
+          ),
       basis: gap
-        ? `${bands} · hai dải không chồng nhau, bội số tính từ hai đầu gần nhau nhất (${millions(gap.dear.band.lo)} chia ${millions(gap.cheap.band.hi ?? 0)})`
-        : `${bands} · hai dải chồng nhau, chưa tính được bội số`,
+        ? msg(
+            `${bands('vi')} · hai dải không chồng nhau, bội số tính từ hai đầu gần nhau nhất (${millions(gap.dear.band.lo)} chia ${millions(gap.cheap.band.hi ?? 0)})`,
+            `${bands('en')} · the two ranges do not overlap; the multiple uses the two nearest ends (${millions(gap.dear.band.lo)} divided by ${millions(gap.cheap.band.hi ?? 0)})`,
+            `${bands('ko')} · 두 범위가 겹치지 않으며, 배수는 서로 가장 가까운 두 끝값으로 계산 (${millions(gap.dear.band.lo)} ÷ ${millions(gap.cheap.band.hi ?? 0)})`,
+          )
+        : msg(
+            `${bands('vi')} · hai dải chồng nhau, chưa tính được bội số`,
+            `${bands('en')} · the two ranges overlap, so no multiple can be computed`,
+            `${bands('ko')} · 두 범위가 겹쳐 배수를 계산할 수 없음`,
+          ),
       owner: MARKETING,
       codes: [cheap.code, dear.code],
-      confirmLabel: 'Thêm vào kế hoạch',
+      confirmLabel: addToPlan,
     })
   }
 
   return out
 }
 
-function buildStats(): { stats: PlanStat[]; statsNote: string } {
+function buildStats(lang: Lang): { stats: PlanStat[]; statsNote: string } {
+  const msg = speak(lang)
   const rotting = rottingDeals()
   const rottingValue = rotting.reduce((sum, d) => sum + d.amount, 0)
   const overSla = LEADS.filter(isOverSla)
@@ -264,20 +321,36 @@ function buildStats(): { stats: PlanStat[]; statsNote: string } {
       {
         key: 'rotting',
         value: `${rotting.length}/${OPEN_DEALS.length}`,
-        label: 'Đơn đang mục',
-        hint: `${billions(rottingValue)} đang treo`,
+        label: msg('Đơn đang mục', 'Stale deals', '정체된 기회'),
+        hint: msg(
+          `${billions(rottingValue)} đang treo`,
+          `${billions(rottingValue)} stuck`,
+          `${billions(rottingValue)} 정체`,
+        ),
       },
       {
         key: 'over-sla',
         value: `${overSla.length}`,
-        label: 'Lead quá SLA',
-        hint: `Trên ${running.length} lead đang chạy`,
+        label: msg('Lead quá SLA', 'Leads over SLA', 'SLA 초과 리드'),
+        hint: msg(
+          `Trên ${running.length} lead đang chạy`,
+          `Out of ${running.length} active leads`,
+          `진행 중인 리드 ${running.length}건 중`,
+        ),
       },
       {
         key: 'good-leads',
         value: `${good.length}/${LEADS.length}`,
-        label: 'Lead tốt trên tổng lead',
-        hint: `Qua cổng ${REQUIRED_SLOTS} ô bắt buộc`,
+        label: msg(
+          'Lead tốt trên tổng lead',
+          'Good leads out of all leads',
+          '전체 리드 대비 우수 리드',
+        ),
+        hint: msg(
+          `Qua cổng ${REQUIRED_SLOTS} ô bắt buộc`,
+          `Passed the ${REQUIRED_SLOTS} required fields gate`,
+          `필수 항목 ${REQUIRED_SLOTS}개 기준 통과`,
+        ),
       },
       {
         key: 'good-lead-cost',
@@ -285,8 +358,12 @@ function buildStats(): { stats: PlanStat[]; statsNote: string } {
            đọc trên nguồn đã chạy đợt, màn Performance đọc trên nguồn của
            Marketing. Không nói ra tập nào thì ba con số trông như một. */
         value: spend.perGood === null ? '—' : millions(spend.perGood),
-        label: 'Giá mỗi lead tốt',
-        hint: `${paid.length} nguồn có tiêu tiền · ${millions(spend.cost)} ra ${spend.good} lead tốt · dải ${bandText(paidBand)}`,
+        label: msg('Giá mỗi lead tốt', 'Cost per good lead', '우수 리드당 비용'),
+        hint: msg(
+          `${paid.length} nguồn có tiêu tiền · ${millions(spend.cost)} ra ${spend.good} lead tốt · dải ${bandText(paidBand, 'vi')}`,
+          `${paid.length} paid sources · ${millions(spend.cost)} for ${spend.good} good leads · range ${bandText(paidBand, 'en')}`,
+          `비용 지출 출처 ${paid.length}곳 · ${millions(spend.cost)}으로 우수 리드 ${spend.good}건 · 범위 ${bandText(paidBand, 'ko')}`,
+        ),
       },
     ],
     /* Hai ô đầu NGHI là cùng một chỗ tắc, nhưng "hai số bằng nhau" không đủ để
@@ -294,8 +371,16 @@ function buildStats(): { stats: PlanStat[]; statsNote: string } {
        khẳng định quan hệ tập hợp từ hai phép đếm là kiểu bịa dữ liệu tinh vi
        nhất, vì nó đúng cho tới ngày fixture đổi. */
     statsNote: sameChokepoint
-      ? `Hai ô đầu cùng đếm một chỗ tắc: ${overSla.length} lead quá SLA chính là ${rotting.length} đơn đang mục.`
-      : `Hai ô đầu đo hai chỗ khác nhau: ${overSla.length} lead quá SLA và ${rotting.length} đơn đang mục không trùng mã đơn.`,
+      ? msg(
+          `Hai ô đầu cùng đếm một chỗ tắc: ${overSla.length} lead quá SLA chính là ${rotting.length} đơn đang mục.`,
+          `The first two tiles count the same bottleneck: the ${overSla.length} leads over SLA are the ${rotting.length} stale deals.`,
+          `처음 두 칸은 같은 병목을 셉니다. SLA 초과 리드 ${overSla.length}건이 곧 정체된 기회 ${rotting.length}건입니다.`,
+        )
+      : msg(
+          `Hai ô đầu đo hai chỗ khác nhau: ${overSla.length} lead quá SLA và ${rotting.length} đơn đang mục không trùng mã đơn.`,
+          `The first two tiles measure different things: the ${overSla.length} leads over SLA and the ${rotting.length} stale deals do not share deal codes.`,
+          `처음 두 칸은 서로 다른 것을 측정합니다. SLA 초과 리드 ${overSla.length}건과 정체된 기회 ${rotting.length}건은 거래 코드가 일치하지 않습니다.`,
+        ),
   }
 }
 
@@ -310,7 +395,13 @@ function buildStats(): { stats: PlanStat[]; statsNote: string } {
  *      dòng không ai còn nhớ để hỏi, mà 6 triệu vẫn đã tiêu thật.
  *   3. **Câu so sánh đi qua `costGap`.** Nó chỉ ra lò khi hai dải rời nhau; còn
  *      lại là câu trung tính đọc cả hai dải. */
-function buildRanking(): { ranking: SourceCost[]; rankingNote: string; rankingClaim: string } {
+function buildRanking(lang: Lang): {
+  ranking: SourceCost[]
+  rankingNote: string
+  rankingClaim: string
+} {
+  const msg = speak(lang)
+  const and = msg(' và ', ' and ', ' 및 ')
   const { ranked, cashless } = rankSources()
   const thin = ranked.filter((r) => !r.enough)
   const cheap = ranked[0]
@@ -318,12 +409,24 @@ function buildRanking(): { ranking: SourceCost[]; rankingNote: string; rankingCl
   const gap = cheap && dear && cheap.code !== dear.code ? costGap(cheap, dear) : null
 
   const note = [
-    `${ranked.length} nguồn có tiêu tiền, xếp rẻ nhất lên đầu. Xem dải bên cạnh khi so sánh.`,
+    msg(
+      `${ranked.length} nguồn có tiêu tiền, xếp rẻ nhất lên đầu. Xem dải bên cạnh khi so sánh.`,
+      `${ranked.length} paid sources, cheapest first. Check the range next to each when comparing.`,
+      `비용을 지출한 출처 ${ranked.length}곳, 저렴한 순서입니다. 비교할 때는 옆의 범위를 확인하세요.`,
+    ),
     cashless.length > 0
-      ? `${cashless.map((r) => r.code).join(' và ')} không tốn tiền mặt nên không có trong bảng so giá.`
+      ? msg(
+          `${cashless.map((r) => r.code).join(and)} không tốn tiền mặt nên không có trong bảng so giá.`,
+          `${cashless.map((r) => r.code).join(and)} cost no cash, so they are not in the price table.`,
+          `${cashless.map((r) => r.code).join(and)}은(는) 현금 지출이 없어 가격 비교표에 없습니다.`,
+        )
       : '',
     thin.length > 0
-      ? `${thin.map((r) => `${r.code} (${r.why})`).join(' · ')}: chưa đủ để so sánh.`
+      ? msg(
+          `${thin.map((r) => `${r.code} (${r.why})`).join(' · ')}: chưa đủ để so sánh.`,
+          `${thin.map((r) => `${r.code} (${r.why})`).join(' · ')}: not enough to compare.`,
+          `${thin.map((r) => `${r.code} (${r.why})`).join(' · ')}: 비교하기에 부족합니다.`,
+        )
       : '',
   ]
     .filter(Boolean)
@@ -333,32 +436,46 @@ function buildRanking(): { ranking: SourceCost[]; rankingNote: string; rankingCl
     ranking: ranked,
     rankingNote: note,
     rankingClaim: gap
-      ? `${gap.cheap.code} rẻ hơn ${gap.dear.code} ít nhất ${gap.timesText} lần mỗi lead tốt. Dải ${bandText(gap.cheap.band)} và dải ${bandText(gap.dear.band)} không chồng nhau.`
+      ? msg(
+          `${gap.cheap.code} rẻ hơn ${gap.dear.code} ít nhất ${gap.timesText} lần mỗi lead tốt. Dải ${bandText(gap.cheap.band, 'vi')} và dải ${bandText(gap.dear.band, 'vi')} không chồng nhau.`,
+          `${gap.cheap.code} is at least ${gap.timesText}x cheaper than ${gap.dear.code} per good lead. Range ${bandText(gap.cheap.band, 'en')} and range ${bandText(gap.dear.band, 'en')} do not overlap.`,
+          `우수 리드당 ${gap.cheap.code}가 ${gap.dear.code}보다 최소 ${gap.timesText}배 저렴합니다. 범위 ${bandText(gap.cheap.band, 'ko')}와 범위 ${bandText(gap.dear.band, 'ko')}는 겹치지 않습니다.`,
+        )
       : cheap && dear
-        ? `Chưa so sánh được hai đầu bảng: dải của ${cheap.code} (${bandText(cheap.band)}) và dải của ${dear.code} (${bandText(dear.band)}) chồng nhau.`
-        : 'Kỳ này chưa nguồn nào tiêu tiền.',
+        ? msg(
+            `Chưa so sánh được hai đầu bảng: dải của ${cheap.code} (${bandText(cheap.band, 'vi')}) và dải của ${dear.code} (${bandText(dear.band, 'vi')}) chồng nhau.`,
+            `Cannot compare the two ends of the table yet: the range of ${cheap.code} (${bandText(cheap.band, 'en')}) and the range of ${dear.code} (${bandText(dear.band, 'en')}) overlap.`,
+            `표의 양 끝을 아직 비교할 수 없습니다. ${cheap.code}의 범위(${bandText(cheap.band, 'ko')})와 ${dear.code}의 범위(${bandText(dear.band, 'ko')})가 겹칩니다.`,
+          )
+        : msg(
+            'Kỳ này chưa nguồn nào tiêu tiền.',
+            'No source has spent money this period.',
+            '이번 기간에는 비용을 지출한 출처가 없습니다.',
+          ),
   }
 }
 
-async function fetchPlanBoard(): Promise<PlanBoard> {
-  const { stats, statsNote } = buildStats()
-  const { ranking, rankingNote, rankingClaim } = buildRanking()
+async function fetchPlanBoard(lang: Lang): Promise<PlanBoard> {
+  const { stats, statsNote } = buildStats(lang)
+  const { ranking, rankingNote, rankingClaim } = buildRanking(lang)
   return {
     stats,
     statsNote,
     ranking,
     rankingNote,
     rankingClaim,
-    proposals: buildProposals(),
+    proposals: buildProposals(lang),
     approver: HEAD_OF_SALES,
   }
 }
 
-export const planBoardQuery = queryOptions({
-  queryKey: ['sales', 'plan-board'] as const,
-  queryFn: () =>
-    api.read('/sales/plan', {
-      need: { branch: 'Sales', permission: 'plan.view' },
-      load: fetchPlanBoard,
-    }),
-})
+/** Keyed by language: the board's sentences are built for one language. */
+export const planBoardQuery = (lang: Lang) =>
+  queryOptions({
+    queryKey: ['sales', 'plan-board', lang] as const,
+    queryFn: () =>
+      api.read('/sales/plan', {
+        need: { branch: 'Sales', permission: 'plan.view' },
+        load: () => fetchPlanBoard(lang),
+      }),
+  })

@@ -19,6 +19,7 @@ import {
 } from '@pv/ui'
 import { MailRunListQuery, MailRunSortKey, type MailRunRow, type MailRunState } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
+import { message, useI18n } from '@/app/i18n'
 import { searchHint } from '@/lib/search-box'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
@@ -28,8 +29,8 @@ import { dmhm } from '@/lib/date'
 import { useSalesPeople } from '@/data/directory'
 import { campaignFacetQuery } from '@/data/campaign-book'
 import {
-  MAIL_RUN_STATE_LABEL,
   MAIL_RUN_STATE_TONE,
+  mailRunStateLabel,
   mailRunListQuery,
   mailRunRoute,
   useMailRunCancel,
@@ -91,13 +92,15 @@ const STATES: MailRunState[] = ['DRAFT', 'SCHEDULED', 'SENDING', 'SENT', 'CANCEL
  *  control carries strings only, so it needs a stand-in value. */
 const ANY = 'all'
 
-const STATE_TABS: { value: string; label: string }[] = [
-  { value: ANY, label: 'Tất cả' },
-  ...STATES.map((state) => ({ value: state as string, label: MAIL_RUN_STATE_LABEL[state] })),
-]
+const STATE_TABS: string[] = [ANY, ...STATES]
 
 export function MailRunsPage() {
-  const chrome = useAppChrome({ searchPlaceholder: 'Tìm lô gửi, chiến dịch…' })
+  const { t, lang, number } = useI18n()
+  const chrome = useAppChrome({
+    searchPlaceholder: t(
+      message('Tìm lô gửi, chiến dịch…', 'Search mail runs, campaigns…', '발송 건, 캠페인 검색…'),
+    ),
+  })
   const navigate = useNavigate()
   const book = useBookQuery(MailRunListQuery, {
     size: PAGE_SIZE,
@@ -139,13 +142,20 @@ export function MailRunsPage() {
     queries: STATE_TABS.map((tab) =>
       mailRunListQuery({
         ...urlQuery,
-        state: tab.value === ANY ? undefined : (tab.value as MailRunState),
+        state: tab === ANY ? undefined : (tab as MailRunState),
         page: 1,
         size: 1,
       }),
     ),
   })
-  const tabs = STATE_TABS.map((tab, i) => ({ ...tab, count: tabCounts[i]?.data?.total }))
+  const tabs = STATE_TABS.map((tab, i) => ({
+    value: tab,
+    label:
+      tab === ANY
+        ? t(message('Tất cả', 'All', '전체'))
+        : mailRunStateLabel(tab as MailRunState, lang),
+    count: tabCounts[i]?.data?.total,
+  }))
 
   /* Campaign options come from the campaign book's own whole-book read, people
      from the directory — the lead book's creator filter does the same. */
@@ -174,7 +184,11 @@ export function MailRunsPage() {
     </ColumnFilter>
   )
   const dateFilter = (
-    <ColumnFilter label="Ngày tạo" iconOnly active={Boolean(query.createdFrom || query.createdTo)}>
+    <ColumnFilter
+      label={t(message('Ngày tạo', 'Created', '생성일'))}
+      iconOnly
+      active={Boolean(query.createdFrom || query.createdTo)}
+    >
       {(close) => (
         <ColumnFilterRange
           from={query.createdFrom}
@@ -224,16 +238,42 @@ export function MailRunsPage() {
       { id: run.id, route },
       {
         onSuccess: (res) => {
-          toast(`Đã dừng lô "${run.label}"`, {
-            tone: 'success',
-            detail: `Đã giữ lại ${res.held} email chưa gửi.`,
-          })
+          toast(
+            t(
+              message(
+                `Đã dừng lô "${run.label}"`,
+                `Stopped run "${run.label}"`,
+                `"${run.label}" 발송 건을 중단했습니다`,
+              ),
+            ),
+            {
+              tone: 'success',
+              detail: t(
+                message(
+                  `Đã giữ lại ${res.held} email chưa gửi.`,
+                  `${res.held} unsent emails held back.`,
+                  `보내지 않은 이메일 ${res.held}건을 보류했습니다.`,
+                ),
+              ),
+            },
+          )
         },
         onError: (err) => {
-          toast('Không dừng được lô', {
-            tone: 'danger',
-            detail: isApiError(err) ? userMessage(err) : 'Thử lại.',
-          })
+          toast(
+            t(
+              message(
+                'Không dừng được lô',
+                'Could not stop the run',
+                '발송 건을 중단하지 못했습니다',
+              ),
+            ),
+            {
+              tone: 'danger',
+              detail: isApiError(err)
+                ? userMessage(err)
+                : t(message('Thử lại.', 'Try again.', '다시 시도해 주세요.')),
+            },
+          )
         },
       },
     )
@@ -243,55 +283,81 @@ export function MailRunsPage() {
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <BookPage
-          title="Sổ lô gửi"
+          title={t(message('Sổ lô gửi', 'Mail runs', '발송 건 목록'))}
           nav={<Module1Books />}
           score={
             <ScreenScoreGrid>
               <StatCard
                 size="compact"
                 icon={Send}
-                value={page.sent.toLocaleString('vi-VN')}
-                label="Email đã gửi"
-                hint={`${rows.length} lô gửi trên trang này`}
+                value={number(page.sent)}
+                label={t(message('Email đã gửi', 'Emails sent', '발송한 이메일'))}
+                hint={t(
+                  message(
+                    `${rows.length} lô gửi trên trang này`,
+                    `${rows.length} mail runs on this page`,
+                    `이 페이지의 발송 건 ${rows.length}건`,
+                  ),
+                )}
               />
               <StatCard
                 size="compact"
                 icon={Mail}
-                value={page.delivered.toLocaleString('vi-VN')}
-                label="Đã đến hộp thư"
-                hint={
+                value={number(page.delivered)}
+                label={t(message('Đã đến hộp thư', 'Reached the inbox', '받은편지함 도착'))}
+                hint={t(
                   page.sent > 0
-                    ? `${percent(page.delivered / page.sent)} email đã gửi · trang này`
-                    : 'Chưa có email đã gửi trên trang này'
-                }
+                    ? message(
+                        `${percent(page.delivered / page.sent)} email đã gửi · trang này`,
+                        `${percent(page.delivered / page.sent)} of emails sent · this page`,
+                        `발송 이메일의 ${percent(page.delivered / page.sent)} · 이 페이지`,
+                      )
+                    : message(
+                        'Chưa có email đã gửi trên trang này',
+                        'No emails sent on this page yet',
+                        '이 페이지에 발송한 이메일이 없습니다',
+                      ),
+                )}
               />
               <StatCard
                 size="compact"
                 icon={MailOpen}
-                value={page.opened.toLocaleString('vi-VN')}
-                label="Email đã mở"
-                hint={
+                value={number(page.opened)}
+                label={t(message('Email đã mở', 'Emails opened', '열어 본 이메일'))}
+                hint={t(
                   page.delivered > 0
-                    ? `${percent(page.opened / page.delivered)} email đã đến hộp thư · trang này`
-                    : 'Chưa có email nào đến hộp thư trên trang này'
-                }
+                    ? message(
+                        `${percent(page.opened / page.delivered)} email đã đến hộp thư · trang này`,
+                        `${percent(page.opened / page.delivered)} of emails in the inbox · this page`,
+                        `받은편지함 도착 이메일의 ${percent(page.opened / page.delivered)} · 이 페이지`,
+                      )
+                    : message(
+                        'Chưa có email nào đến hộp thư trên trang này',
+                        'No emails have reached the inbox on this page yet',
+                        '이 페이지에 받은편지함에 도착한 이메일이 없습니다',
+                      ),
+                )}
               />
               <StatCard
                 size="compact"
                 icon={CircleAlert}
-                value={page.bounced.toLocaleString('vi-VN')}
-                label="Email bị trả lại"
-                hint={
+                value={number(page.bounced)}
+                label={t(message('Email bị trả lại', 'Emails bounced', '반송된 이메일'))}
+                hint={t(
                   page.sent > 0
-                    ? `${percent(page.bounced / page.sent)} email đã gửi · ngưỡng 4%`
-                    : 'Ngưỡng cảnh báo 4%'
-                }
+                    ? message(
+                        `${percent(page.bounced / page.sent)} email đã gửi · ngưỡng 4%`,
+                        `${percent(page.bounced / page.sent)} of emails sent · 4% limit`,
+                        `발송 이메일의 ${percent(page.bounced / page.sent)} · 기준 4%`,
+                      )
+                    : message('Ngưỡng cảnh báo 4%', '4% warning threshold', '경고 기준 4%'),
+                )}
               />
             </ScreenScoreGrid>
           }
           tabs={
             <SegmentedControl
-              label="Trạng thái lô"
+              label={t(message('Trạng thái lô', 'Run status', '발송 상태'))}
               hideLabel
               tone="quiet"
               value={query.state ?? ANY}
@@ -301,11 +367,23 @@ export function MailRunsPage() {
               }
             />
           }
-          count={<BookCount total={total} noun="lô gửi" hidden={hidden} />}
+          count={
+            <BookCount
+              total={total}
+              noun={t(message('lô gửi', 'mail runs', '발송 건'))}
+              hidden={hidden}
+            />
+          }
           tools={
             <>
               <SearchField
-                placeholder="Tìm theo tên lô hoặc tiêu đề email…"
+                placeholder={t(
+                  message(
+                    'Tìm theo tên lô hoặc tiêu đề email…',
+                    'Search by run name or email subject…',
+                    '발송 건 이름 또는 이메일 제목으로 검색…',
+                  ),
+                )}
                 value={book.text}
                 meta={searchHint(book.text)}
                 onChange={book.setText}
@@ -318,7 +396,7 @@ export function MailRunsPage() {
                   className="pointer-coarse:h-12"
                   onClick={book.clear}
                 >
-                  Bỏ hết bộ lọc
+                  {t(message('Bỏ hết bộ lọc', 'Clear filters', '필터 지우기'))}
                 </Button>
               )}
             </>
@@ -327,9 +405,13 @@ export function MailRunsPage() {
           failure={
             error
               ? {
-                  message: `Không tải được danh sách lô gửi. ${
-                    isApiError(error) ? userMessage(error) : 'Thử lại.'
-                  }`,
+                  message: `${t(
+                    message(
+                      'Không tải được danh sách lô gửi.',
+                      'Could not load the mail runs.',
+                      '발송 건 목록을 불러오지 못했습니다.',
+                    ),
+                  )} ${isApiError(error) ? userMessage(error) : t(message('Thử lại.', 'Try again.', '다시 시도해 주세요.'))}`,
                   onRetry: () => void refetch(),
                 }
               : undefined
@@ -337,11 +419,26 @@ export function MailRunsPage() {
           empty={
             rows.length === 0
               ? {
-                  message: book.dirty ? 'Không có lô gửi nào khớp bộ lọc.' : 'Chưa có lô gửi nào.',
+                  message: t(
+                    book.dirty
+                      ? message(
+                          'Không có lô gửi nào khớp bộ lọc.',
+                          'No mail runs match the filters.',
+                          '필터에 맞는 발송 건이 없습니다.',
+                        )
+                      : message(
+                          'Chưa có lô gửi nào.',
+                          'No mail runs yet.',
+                          '발송 건이 아직 없습니다.',
+                        ),
+                  ),
                   action: book.dirty
-                    ? { label: 'Bỏ hết bộ lọc', onClick: book.clear }
+                    ? {
+                        label: t(message('Bỏ hết bộ lọc', 'Clear filters', '필터 지우기')),
+                        onClick: book.clear,
+                      }
                     : {
-                        label: 'Xem sổ chiến dịch',
+                        label: t(message('Xem sổ chiến dịch', 'View campaigns', '캠페인 보기')),
                         onClick: () => navigate('/sales/campaigns'),
                       },
                 }
@@ -353,24 +450,48 @@ export function MailRunsPage() {
             onSort,
             columns: [
               {
-                header: listFilter('Chiến dịch', 'campaign', campaignOptions),
+                header: listFilter(
+                  t(message('Chiến dịch', 'Campaign', '캠페인')),
+                  'campaign',
+                  campaignOptions,
+                ),
                 width: '2fr',
               },
-              { header: 'Trạng thái', width: '1fr' },
+              { header: t(message('Trạng thái', 'Status', '상태')), width: '1fr' },
               {
-                header: listFilter('Người tạo', 'createdBy', creatorOptions),
+                header: listFilter(
+                  t(message('Người tạo', 'Created by', '작성자')),
+                  'createdBy',
+                  creatorOptions,
+                ),
                 width: '140px',
                 align: 'center',
               },
-              { header: 'Ngày tạo', width: '1fr', sortKey: 'createdAt', filter: dateFilter },
-              { header: 'Thời gian gửi', width: '1.1fr' },
-              { header: 'Người nhận', width: '0.8fr', align: 'right', sortKey: 'audienceCount' },
-              { header: 'Đã gửi', width: '0.8fr', align: 'right' },
-              { header: 'Đã đến', width: '0.8fr', align: 'right' },
-              { header: 'Đã mở', width: '0.7fr', align: 'right' },
-              { header: 'Bị trả lại', width: '0.8fr', align: 'right' },
               {
-                header: <span className="sr-only">Thao tác</span>,
+                header: t(message('Ngày tạo', 'Created', '생성일')),
+                width: '1fr',
+                sortKey: 'createdAt',
+                filter: dateFilter,
+              },
+              { header: t(message('Thời gian gửi', 'Sent at', '발송 시각')), width: '1.1fr' },
+              {
+                header: t(message('Người nhận', 'Recipients', '수신자')),
+                width: '0.8fr',
+                align: 'right',
+                sortKey: 'audienceCount',
+              },
+              { header: t(message('Đã gửi', 'Sent', '발송')), width: '0.8fr', align: 'right' },
+              { header: t(message('Đã đến', 'Delivered', '도착')), width: '0.8fr', align: 'right' },
+              { header: t(message('Đã mở', 'Opened', '열람')), width: '0.7fr', align: 'right' },
+              {
+                header: t(message('Bị trả lại', 'Bounced', '반송')),
+                width: '0.8fr',
+                align: 'right',
+              },
+              {
+                header: (
+                  <span className="sr-only">{t(message('Thao tác', 'Actions', '작업'))}</span>
+                ),
                 width: '112px',
                 align: 'center',
               },
@@ -380,9 +501,15 @@ export function MailRunsPage() {
               cells: [
                 <RunLabel key="l" run={r} />,
                 <Badge key="s" tone={MAIL_RUN_STATE_TONE[r.state]}>
-                  {MAIL_RUN_STATE_LABEL[r.state]}
+                  {mailRunStateLabel(r.state, lang)}
                 </Badge>,
-                <AvatarCell key="by" name={r.createdBy.name} empty="Chưa ghi nhận người tạo" />,
+                <AvatarCell
+                  key="by"
+                  name={r.createdBy.name}
+                  empty={t(
+                    message('Chưa ghi nhận người tạo', 'Creator not recorded', '작성자 미기록'),
+                  )}
+                />,
                 <span key="at" className="tnum font-num">
                   {dmhm(r.createdAt)}
                 </span>,
@@ -390,7 +517,7 @@ export function MailRunsPage() {
                 <RunAudience key="a" run={r} />,
                 <RunSent key="sent" run={r} />,
                 <span key="d" className="tnum font-num">
-                  {r.delivered.toLocaleString('vi-VN')}
+                  {number(r.delivered)}
                 </span>,
                 /* A group letter records no open (owner decision), so 0 would
                    read as "nobody opened it". */
@@ -398,13 +525,19 @@ export function MailRunsPage() {
                   <span
                     key="o"
                     className="text-muted-foreground"
-                    title="Thư nhóm không ghi lượt mở"
+                    title={t(
+                      message(
+                        'Thư nhóm không ghi lượt mở',
+                        'Group letters do not record opens',
+                        '그룹 메일은 열람을 기록하지 않습니다',
+                      ),
+                    )}
                   >
                     —
                   </span>
                 ) : (
                   <span key="o" className="tnum font-num">
-                    {r.opened.toLocaleString('vi-VN')}
+                    {number(r.opened)}
                   </span>
                 ),
                 /* Bounce tô cảnh báo NGAY TỪ MỘT dòng khi lô đủ mẫu, không
@@ -415,7 +548,7 @@ export function MailRunsPage() {
                   className={r.bounced > 0 ? 'tnum font-num text-warning' : 'tnum font-num'}
                   title={r.sent > 0 ? percent(r.bounced / r.sent) : undefined}
                 >
-                  {r.bounced.toLocaleString('vi-VN')}
+                  {number(r.bounced)}
                 </span>,
                 <RunActions
                   key="x"
@@ -437,8 +570,13 @@ export function MailRunsPage() {
                 onPage={book.goPage}
               />
               <p className="text-muted-foreground m-0 px-5 pb-4 text-[11.5px] leading-[1.5]">
-                Sửa khi lô còn Hẹn giờ. Dừng khi lô còn Hẹn giờ hoặc Đang gửi. Chỉ người tạo lô hoặc
-                người có quyền phát chiến dịch được Sửa, Dừng.
+                {t(
+                  message(
+                    'Sửa khi lô còn Hẹn giờ. Dừng khi lô còn Hẹn giờ hoặc Đang gửi. Chỉ người tạo lô hoặc người có quyền phát chiến dịch được Sửa, Dừng.',
+                    'Edit while the run is Scheduled. Stop while it is Scheduled or Sending. Only the run creator or someone allowed to broadcast campaigns can Edit or Stop.',
+                    '예약됨 상태에서만 수정할 수 있고, 예약됨 또는 발송 중 상태에서만 중단할 수 있습니다. 발송 건 작성자 또는 캠페인 발송 권한이 있는 사람만 수정·중단할 수 있습니다.',
+                  ),
+                )}
               </p>
             </>
           }

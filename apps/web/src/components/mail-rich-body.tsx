@@ -18,7 +18,8 @@ import { Text } from '@tiptap/extension-text'
 import { Placeholder, UndoRedo } from '@tiptap/extensions'
 import { Bold, Button, Icon, Italic, List, Plus, cn, type IconGlyph } from '@pv/ui'
 import type { MailMergeKey } from '@pv/contracts'
-import { MERGE_LABEL } from '@/data/mail-hints'
+import { message, useI18n } from '@/app/i18n'
+import { mergeLabel } from '@/data/mail-hints'
 import {
   MERGE_NODE,
   MERGE_PATTERN,
@@ -62,7 +63,7 @@ const MergeChip = Node.create({
       class:
         'bg-primary/24 text-accent-foreground rounded-sm px-1 [&.ProseMirror-selectednode]:shadow-[0_0_0_2px_color-mix(in_srgb,var(--ring)_55%,transparent)]',
     }),
-    MERGE_LABEL[node.attrs['key'] as MailMergeKey],
+    mergeLabel(node.attrs['key'] as MailMergeKey),
   ],
   renderText: ({ node }) => `{{${node.attrs['key'] as string}}}`,
   addInputRules() {
@@ -110,6 +111,8 @@ export function MailRichBody({
 }) {
   /* What this box last handed up. A `value` equal to it is our own echo; any
      other value came from outside (reset on open) and replaces the doc. */
+  const { t, lang } = useI18n()
+  const bodyLabel = t(message('Nội dung', 'Body', '내용'))
   const emitted = useRef(value)
   const [extensions] = useState(() => extensionsFor(placeholder))
   const [content] = useState(() => markdownToDoc(value))
@@ -119,11 +122,11 @@ export function MailRichBody({
         class: SURFACE,
         role: 'textbox',
         'aria-multiline': 'true',
-        'aria-label': 'Nội dung',
+        'aria-label': bodyLabel,
         'aria-invalid': String(invalid),
       },
     }),
-    [invalid],
+    [invalid, bodyLabel],
   )
 
   const editor = useEditor({
@@ -166,23 +169,25 @@ export function MailRichBody({
       <div className="flex flex-wrap items-center gap-1">
         <ToolButton
           icon={Bold}
-          label="Đậm (Ctrl+B)"
+          label={t(message('Đậm (Ctrl+B)', 'Bold (Ctrl+B)', '굵게 (Ctrl+B)'))}
           active={active.bold}
           onPress={() => editor.chain().focus().toggleBold().run()}
         />
         <ToolButton
           icon={Italic}
-          label="Nghiêng (Ctrl+I)"
+          label={t(message('Nghiêng (Ctrl+I)', 'Italic (Ctrl+I)', '기울임 (Ctrl+I)'))}
           active={active.italic}
           onPress={() => editor.chain().focus().toggleItalic().run()}
         />
         <ToolButton
           icon={List}
-          label="Danh sách chấm đầu dòng"
+          label={t(message('Danh sách chấm đầu dòng', 'Bulleted list', '글머리 기호 목록'))}
           active={active.list}
           onPress={() => editor.chain().focus().toggleBulletList().run()}
         />
-        <span className="text-muted-foreground ml-2 text-[11px]">Chèn</span>
+        <span className="text-muted-foreground ml-2 text-[11px]">
+          {t(message('Chèn', 'Insert', '삽입'))}
+        </span>
         {QUICK_INSERT.map((key) => (
           <Button
             key={key}
@@ -196,7 +201,7 @@ export function MailRichBody({
             }
           >
             <Icon icon={Plus} size={14} />
-            {MERGE_LABEL[key]}
+            {mergeLabel(key, lang)}
           </Button>
         ))}
       </div>

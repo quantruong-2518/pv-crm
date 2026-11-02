@@ -3,7 +3,9 @@ import type { LeadAttachment, WorkstreamDocumentStep } from '@pv/contracts'
 import { Button, Drawer, FileText, FileUp, Icon, Skeleton, Trash2, cn } from '@pv/ui'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { toastFail } from '@/app/toast'
+import { dm } from '@/lib/date'
 import { fileSizeLabel } from '@/data/comm-record-detail'
 import {
   DOCUMENT_EXTENSIONS,
@@ -49,12 +51,13 @@ function Documents({
   writable: boolean
   contractCode?: string
 }) {
+  const { t } = useI18n()
   const { data, isPending, error } = useWorkstreamDocuments(code)
   const [all, setAll] = useState(false)
   const rows = [...(data?.rows ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 
   return (
-    <RunBlock title="Tài liệu">
+    <RunBlock title={t(message('Tài liệu', 'Documents', '문서'))}>
       {writable && (
         <DropZone
           code={code}
@@ -65,11 +68,20 @@ function Documents({
         <Skeleton className="h-16 w-full" />
       ) : error ? (
         <p className="text-destructive-foreground m-0 text-[12.5px] leading-[1.6]">
-          Không đọc được tài liệu. {isApiError(error) ? userMessage(error) : 'Thử lại.'}
+          {t(
+            message(
+              'Không đọc được tài liệu.',
+              'Could not read the documents.',
+              '문서를 불러오지 못했습니다.',
+            ),
+          )}{' '}
+          {isApiError(error)
+            ? userMessage(error)
+            : t(message('Thử lại.', 'Try again.', '다시 시도해 주세요.'))}
         </p>
       ) : rows.length === 0 ? (
         <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-          Chưa có tài liệu nào.
+          {t(message('Chưa có tài liệu nào.', 'No documents yet.', '아직 문서가 없습니다.'))}
         </p>
       ) : (
         <>
@@ -81,7 +93,13 @@ function Documents({
               className="pointer-coarse:h-12 self-start"
               onClick={() => setAll(true)}
             >
-              Xem thêm ({rows.length - NEWEST})
+              {t(
+                message(
+                  `Xem thêm (${rows.length - NEWEST})`,
+                  `Show more (${rows.length - NEWEST})`,
+                  `더 보기 (${rows.length - NEWEST})`,
+                ),
+              )}
             </Button>
           )}
         </>
@@ -90,8 +108,14 @@ function Documents({
         open={all}
         onClose={() => setAll(false)}
         width="lg"
-        title="Tài liệu của hành trình"
-        subtitle={`${code} · ${rows.length} tài liệu, mới nhất trước`}
+        title={t(message('Tài liệu của hành trình', 'Journey documents', '진행 문서'))}
+        subtitle={t(
+          message(
+            `${code} · ${rows.length} tài liệu, mới nhất trước`,
+            `${code} · ${rows.length} documents, newest first`,
+            `${code} · 문서 ${rows.length}건, 최신순`,
+          ),
+        )}
       >
         <DocList code={code} rows={rows} canRemove={writable} />
       </Drawer>
@@ -108,6 +132,7 @@ export function DocList({
   rows: LeadAttachment[]
   canRemove?: boolean
 }) {
+  const { t } = useI18n()
   const remove = useDeleteDocument(code)
   const me = useSession((st) => st.actor?.id)
   const [openId, setOpenId] = useState<string | null>(null)
@@ -137,13 +162,25 @@ export function DocList({
             <Button
               size="sm"
               variant="ghost"
-              aria-label={`Xoá ${file.name}`}
-              title="Xoá tài liệu"
+              aria-label={t(
+                message(`Xoá ${file.name}`, `Delete ${file.name}`, `${file.name} 삭제`),
+              )}
+              title={t(message('Xoá tài liệu', 'Delete document', '문서 삭제'))}
               className="pointer-coarse:size-12 size-8 shrink-0 px-0"
               disabled={remove.isPending}
               onClick={() =>
                 remove.mutate(file.id, {
-                  onError: (e) => toastFail('Không xoá được tài liệu.', userMessage(e)),
+                  onError: (e) =>
+                    toastFail(
+                      t(
+                        message(
+                          'Không xoá được tài liệu.',
+                          'Could not delete the document.',
+                          '문서를 삭제하지 못했습니다.',
+                        ),
+                      ),
+                      userMessage(e),
+                    ),
                 })
               }
             >
@@ -162,11 +199,12 @@ export function DocList({
 }
 
 const metaOf = (file: LeadAttachment) =>
-  `${fileSizeLabel(file.bytes)} · ${file.createdBy.name} · ${dayOf(file.createdAt)}`
+  `${fileSizeLabel(file.bytes)} · ${file.createdBy.name} · ${dm(file.createdAt)}`
 
 /** Many files, one at a time: the contract has no batch door, and a failure
  *  names its own file instead of sinking the rest. `step` tags every upload. */
 export function DropZone({ code, step }: { code: string; step?: WorkstreamDocumentStep }) {
+  const { t } = useI18n()
   const upload = useUploadDocument(code)
   const refresh = useRefreshDocuments(code)
   const [problems, setProblems] = useState<string[]>([])
@@ -179,7 +217,9 @@ export function DropZone({ code, step }: { code: string; step?: WorkstreamDocume
     const { ok, problems: failed } = checkFiles(picked)
     for (const file of ok) {
       await upload.mutateAsync({ file, step }).catch((e: unknown) => {
-        failed.push(`“${file.name}”: ${isApiError(e) ? userMessage(e) : 'không tải lên được.'}`)
+        failed.push(
+          `“${file.name}”: ${isApiError(e) ? userMessage(e) : t(message('không tải lên được.', 'could not be uploaded.', '업로드하지 못했습니다.'))}`,
+        )
       })
     }
     await refresh()
@@ -200,6 +240,7 @@ export function DropArea({
   problems: string[]
   onPick: (list: FileList | null) => void
 }) {
+  const { t } = useI18n()
   const picker = useRef<HTMLInputElement>(null)
   const depth = useRef(0)
   const [over, setOver] = useState(false)
@@ -233,7 +274,17 @@ export function DropArea({
       >
         <Icon icon={FileUp} size={24} className="text-muted-foreground" />
         <p className="m-0 text-[13px] font-semibold">
-          {busy ? 'Đang tải lên…' : over ? 'Thả để tải lên' : 'Kéo thả tài liệu vào đây'}
+          {busy
+            ? t(message('Đang tải lên…', 'Uploading…', '업로드 중…'))
+            : over
+              ? t(message('Thả để tải lên', 'Drop to upload', '놓으면 업로드됩니다'))
+              : t(
+                  message(
+                    'Kéo thả tài liệu vào đây',
+                    'Drag documents here',
+                    '여기로 문서를 끌어 놓으세요',
+                  ),
+                )}
         </p>
         <Button
           size="sm"
@@ -245,10 +296,16 @@ export function DropArea({
             picker.current?.click()
           }}
         >
-          Chọn tệp
+          {t(message('Chọn tệp', 'Choose files', '파일 선택'))}
         </Button>
         <p className="text-muted-foreground m-0 text-[11.5px]">
-          PDF, Word, Excel, ảnh, ghi âm, văn bản · ghi âm tối đa 50 MB, tệp khác 5 MB
+          {t(
+            message(
+              'PDF, Word, Excel, ảnh, ghi âm, văn bản · ghi âm tối đa 50 MB, tệp khác 5 MB',
+              'PDF, Word, Excel, images, recordings, text · recordings up to 50 MB, other files 5 MB',
+              'PDF, Word, Excel, 이미지, 녹음, 텍스트 · 녹음 최대 50 MB, 기타 파일 5 MB',
+            ),
+          )}
         </p>
         <input
           ref={picker}
@@ -270,9 +327,4 @@ export function DropArea({
       ))}
     </div>
   )
-}
-
-const dayOf = (iso: string) => {
-  const d = new Date(iso)
-  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
 }

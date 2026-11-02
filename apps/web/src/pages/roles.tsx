@@ -6,8 +6,9 @@ import type { Permission, RoleId } from '@pv/contracts'
 import { SettingsShell } from '@/components/settings-shell'
 import { useSession } from '@/app/auth'
 import { isApiError, userMessage } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
-import { ROLE_LABEL } from '@/data/users'
+import { kpiRoleText } from '@/data/kpi-i18n'
 import {
   FIRST_ROLE,
   dirtyRoles,
@@ -58,7 +59,46 @@ import { RoleMatrix, RoleSheet } from './roles-parts'
 const NO_ROLES: RoleId[] = []
 const FAILED_INK = 'text-destructive-foreground'
 
+const SAVE_FAILED = message(
+  'Không lưu được bảng phân quyền. Thử lại.',
+  'Could not save the permission matrix. Try again.',
+  '권한 표를 저장하지 못했습니다. 다시 시도하세요.',
+)
+const savedSome = (saved: number, said: string) =>
+  message(
+    `Đã lưu ${saved} vai trò. ${said}`,
+    `${saved} role(s) saved. ${said}`,
+    `역할 ${saved}개를 저장했습니다. ${said}`,
+  )
+const SAVED_TITLE = message(
+  'Đã lưu bảng phân quyền',
+  'Permission matrix saved',
+  '권한 표를 저장했습니다',
+)
+const SAVED_DETAIL = message(
+  'Quyền mới có hiệu lực từ thao tác tiếp theo.',
+  'The new permissions apply from the next action.',
+  '새 권한은 다음 작업부터 적용됩니다.',
+)
+const loadRefused = (said: string | null) =>
+  message(
+    `Không tải được bảng phân quyền. ${said ?? 'Thử lại.'}`,
+    `Could not load the permission matrix. ${said ?? 'Try again.'}`,
+    `권한 표를 불러오지 못했습니다. ${said ?? '다시 시도하세요.'}`,
+  )
+const LOADING = message(
+  'Đang tải bảng phân quyền…',
+  'Loading the permission matrix…',
+  '권한 표를 불러오는 중…',
+)
+const LOAD_FAILED = message(
+  'Không tải được bảng phân quyền.',
+  'Could not load the permission matrix.',
+  '권한 표를 불러오지 못했습니다.',
+)
+
 export function RolesPage() {
+  const { t, lang } = useI18n()
   const me = useSession((s) => s.actor)
 
   const { data, isPending, error, refetch } = useQuery(roleMatrixQuery)
@@ -111,29 +151,23 @@ export function RolesPage() {
            refusal on the third one leaves the first two stored; a message
            carrying only the refusal reads as "nothing was saved", and the next
            thing the reader does is redo work the server already accepted. */
-        const said = isApiError(refusal)
-          ? userMessage(refusal)
-          : 'Không lưu được bảng phân quyền. Thử lại.'
-        setFailure(saved > 0 ? `Đã lưu ${saved} vai trò. ${said}` : said)
+        const said = isApiError(refusal) ? userMessage(refusal) : t(SAVE_FAILED)
+        setFailure(saved > 0 ? t(savedSome(saved, said)) : said)
         return
       }
     }
 
     setEdited(null)
-    toastDone('Đã lưu bảng phân quyền', 'Quyền mới có hiệu lực từ thao tác tiếp theo.')
+    toastDone(t(SAVED_TITLE), t(SAVED_DETAIL))
   }
 
   const unread = !isPending && (error || !grants)
-  const summary = isPending
-    ? 'Đang tải bảng phân quyền…'
-    : error || !grants
-      ? 'Không tải được bảng phân quyền.'
-      : matrixLine(grants)
+  const summary = isPending ? t(LOADING) : error || !grants ? t(LOAD_FAILED) : matrixLine(grants)
 
   return (
     <SettingsShell>
       <ScreenHeader
-        title="Vai trò"
+        title={t(message('Vai trò', 'Roles', '역할'))}
         description={<span className={cn('tnum', unread && FAILED_INK)}>{summary}</span>}
         /* BOTH, never one instead of the other. A refusal that replaced the
              unsaved list left the reader with a sentence about one role and no
@@ -152,7 +186,8 @@ export function RolesPage() {
               ) : null}
               {dirty.length > 0 ? (
                 <MetaPill tone="warning">
-                  Chưa lưu thay đổi cho: {dirty.map((id) => ROLE_LABEL[id]).join(' · ')}
+                  {t(message('Chưa lưu thay đổi cho', 'Unsaved changes for', '저장되지 않은 변경'))}
+                  : {dirty.map((id) => kpiRoleText(id, lang)).join(' · ')}
                 </MetaPill>
               ) : null}
             </span>
@@ -175,7 +210,7 @@ export function RolesPage() {
               }}
             >
               <Icon icon={RotateCcw} size={16} />
-              Hoàn tác
+              {t(message('Hoàn tác', 'Undo', '되돌리기'))}
             </Button>
             <Button
               size="lg"
@@ -184,7 +219,9 @@ export function RolesPage() {
               onClick={() => void saveDirty()}
             >
               <Icon icon={Save} size={16} />
-              {save.isPending ? 'Đang lưu…' : 'Lưu thay đổi'}
+              {save.isPending
+                ? t(message('Đang lưu…', 'Saving…', '저장 중…'))
+                : t(message('Lưu thay đổi', 'Save changes', '변경 사항 저장'))}
             </Button>
           </>
         }
@@ -207,10 +244,11 @@ export function RolesPage() {
             <EmptyState
               tone="danger"
               icon={TriangleAlert}
-              message={`Không tải được bảng phân quyền. ${
-                isApiError(error) ? userMessage(error) : 'Thử lại.'
-              }`}
-              action={{ label: 'Thử lại', onClick: () => void refetch() }}
+              message={t(loadRefused(isApiError(error) ? userMessage(error) : null))}
+              action={{
+                label: t(message('Thử lại', 'Try again', '다시 시도')),
+                onClick: () => void refetch(),
+              }}
               className="py-12"
             />
           ) : (

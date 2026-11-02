@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Plus, Trash2 } from '@pv/ui'
 import { Button, Icon, Input, cn } from '@pv/ui'
 import { CONTRACT_INSTALLMENTS_MAX, type CurrencyCode, type InstallmentEdit } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 import { vnDayOf } from '@/data/quotations-write'
 import { momentOfDay, PAY_TEXT_MAX } from '@/data/contracts-write'
 import { symbolOf } from '@/components/deal-money/money'
@@ -19,6 +20,20 @@ function Cell({ label, children }: { label: string; children: ReactNode }) {
 
 const ROW_GRID =
   'grid grid-cols-2 items-end gap-3 sm:grid-cols-[24px_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_48px]'
+
+function HeaderRow() {
+  const { t } = useI18n()
+  return (
+    <li aria-hidden className={cn(ROW_GRID, 'text-muted-foreground hidden text-[11px] sm:grid')}>
+      <span />
+      <span>{t(message('Tên đợt', 'Installment name', '회차 이름'))}</span>
+      <span>{t(message('Tỉ lệ', 'Share', '비율'))}</span>
+      <span>{t(message('Số tiền', 'Amount', '금액'))}</span>
+      <span>{t(message('Hạn thu', 'Due date', '수금 기한'))}</span>
+      <span />
+    </li>
+  )
+}
 
 /** A controlled list of instalment lines. A typed share fills the amount from
  *  the contract's value and a typed amount fills the share; whatever is still
@@ -38,7 +53,13 @@ export function ScheduleEditor({
   onChange: (next: InstallmentEdit[]) => void
   settled?: ScheduleSettled
 }) {
+  const { t } = useI18n()
   const symbol = symbolOf(currency)
+  const colName = t(message('Tên đợt', 'Installment name', '회차 이름'))
+  const colShare = t(message('Tỉ lệ', 'Share', '비율'))
+  const colAmount = t(message('Số tiền', 'Amount', '금액'))
+  const colDue = t(message('Hạn thu', 'Due date', '수금 기한'))
+  const rowNo = (i: number) => t(message(`dòng ${i + 1}`, `row ${i + 1}`, `${i + 1}행`))
   const summary = scheduleSummary(value, amount, currency, settled)
   const edit = (index: number, patch: Partial<InstallmentEdit>) =>
     onChange(value.map((row, i) => (i === index ? { ...row, ...patch } : row)))
@@ -66,30 +87,22 @@ export function ScheduleEditor({
   return (
     <div className="flex flex-col gap-4">
       {value.length === 0 ? (
-        <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">Chưa có đợt nào.</p>
+        <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
+          {t(message('Chưa có đợt nào.', 'No installments yet.', '등록된 회차가 없습니다.'))}
+        </p>
       ) : (
         <ul className="m-0 flex list-none flex-col gap-4 p-0">
-          <li
-            aria-hidden
-            className={cn(ROW_GRID, 'text-muted-foreground hidden text-[11px] sm:grid')}
-          >
-            <span />
-            <span>Tên đợt</span>
-            <span>Tỉ lệ</span>
-            <span>Số tiền</span>
-            <span>Hạn thu</span>
-            <span />
-          </li>
+          <HeaderRow />
           {value.map((row, i) => (
             <li key={i} className={ROW_GRID}>
               <span className="text-muted-foreground tnum col-span-2 self-center text-[12px] sm:col-span-1">
-                <span className="sm:hidden">Dòng </span>
+                <span className="sm:hidden">{t(message('Dòng', 'Row', '행'))} </span>
                 {i + 1}
               </span>
               <div className="col-span-2 sm:col-span-1">
-                <Cell label="Tên đợt">
+                <Cell label={colName}>
                   <Input
-                    aria-label={`Tên đợt, dòng ${i + 1}`}
+                    aria-label={`${colName}, ${rowNo(i)}`}
                     className="pointer-coarse:h-12"
                     maxLength={PAY_TEXT_MAX.label}
                     value={row.label}
@@ -97,27 +110,27 @@ export function ScheduleEditor({
                   />
                 </Cell>
               </div>
-              <Cell label="Tỉ lệ">
+              <Cell label={colShare}>
                 <NumberBox
-                  label={`Tỉ lệ, dòng ${i + 1}`}
+                  label={`${colShare}, ${rowNo(i)}`}
                   unit="%"
                   max={FULL_SHARE}
                   value={row.share === 0 ? null : row.share}
                   onChange={(n) => setShare(i, n ?? 0)}
                 />
               </Cell>
-              <Cell label="Số tiền">
+              <Cell label={colAmount}>
                 <NumberBox
-                  label={`Số tiền, dòng ${i + 1}`}
+                  label={`${colAmount}, ${rowNo(i)}`}
                   unit={symbol}
                   value={row.amount === 0 ? null : row.amount}
                   onChange={(n) => setAmount(i, n ?? 0)}
                 />
               </Cell>
-              <Cell label="Hạn thu">
+              <Cell label={colDue}>
                 <Input
                   type="date"
-                  aria-label={`Hạn thu, dòng ${i + 1}`}
+                  aria-label={`${colDue}, ${rowNo(i)}`}
                   className="pointer-coarse:h-12"
                   value={row.due === '' ? '' : vnDayOf(row.due)}
                   onChange={(e) =>
@@ -128,8 +141,10 @@ export function ScheduleEditor({
               <Button
                 size="sm"
                 variant="ghost"
-                aria-label={`Xoá dòng ${i + 1}`}
-                title="Xoá dòng"
+                aria-label={t(
+                  message(`Xoá dòng ${i + 1}`, `Delete row ${i + 1}`, `${i + 1}행 삭제`),
+                )}
+                title={t(message('Xoá dòng', 'Delete row', '행 삭제'))}
                 className="pointer-coarse:size-12 size-8 justify-self-end px-0"
                 onClick={() => onChange(value.filter((_, j) => j !== i))}
               >
@@ -143,11 +158,17 @@ export function ScheduleEditor({
         {value.length < CONTRACT_INSTALLMENTS_MAX ? (
           <Button size="md" variant="secondary" className="pointer-coarse:h-12" onClick={add}>
             <Icon icon={Plus} size={16} />
-            Thêm đợt
+            {t(message('Thêm đợt', 'Add installment', '회차 추가'))}
           </Button>
         ) : (
           <span className="text-muted-foreground text-[12px]">
-            Tối đa {CONTRACT_INSTALLMENTS_MAX} đợt.
+            {t(
+              message(
+                `Tối đa ${CONTRACT_INSTALLMENTS_MAX} đợt.`,
+                `At most ${CONTRACT_INSTALLMENTS_MAX} installments.`,
+                `회차는 최대 ${CONTRACT_INSTALLMENTS_MAX}개입니다.`,
+              ),
+            )}
           </span>
         )}
         {(value.length > 0 || settled !== undefined) && (

@@ -7,16 +7,17 @@ import {
   type OpportunityOwner,
 } from '@pv/contracts'
 import { dmy } from '@/lib/date'
-import { useI18n } from '@/app/i18n'
+import { message, translate, useI18n, type Message } from '@/app/i18n'
 import { opportunityStageLabel, salesLabel } from '@/data/sales-labels-i18n'
-import { DUE_LABEL, lateLevel } from '@/data/contracts'
+import { dueLevelText } from '@/data/contract-copy'
+import { lateLevel } from '@/data/contracts'
 import {
   activityAgo,
   amountVndOf,
   BADGE_INK,
   isLateClose,
-  NO_SALE,
-  OVERDUE_WORD,
+  NO_SALE_COPY,
+  OVERDUE_COPY,
   saleOwnersOf,
   stageClockOf,
   standingLabel,
@@ -35,7 +36,7 @@ import { ROW_ICON } from '@/components/table-bits'
  *  a glyph and words for whoever cannot see the colour. Rows are a fixed 56px,
  *  so every cell is at most two lines. */
 
-const PENDING_SIGN_WORD = 'chờ duyệt ký'
+const PENDING_SIGN_WORD = message('chờ duyệt ký', 'awaiting signature approval', '서명 승인 대기')
 
 /** Freshness ink and its spoken word: `fresh` keeps the row's own colour. */
 const FRESHNESS_INK: Record<ActivityFreshnessLevel, string | undefined> = {
@@ -43,10 +44,14 @@ const FRESHNESS_INK: Record<ActivityFreshnessLevel, string | undefined> = {
   warn: 'text-warning',
   alert: 'text-destructive-foreground',
 }
-const FRESHNESS_WORD: Record<ActivityFreshnessLevel, string | undefined> = {
+const FRESHNESS_WORD: Record<ActivityFreshnessLevel, Message | undefined> = {
   fresh: undefined,
-  warn: 'lâu chưa có hoạt động',
-  alert: 'quá lâu chưa có hoạt động',
+  warn: message('lâu chưa có hoạt động', 'no activity for a while', '한동안 활동 없음'),
+  alert: message(
+    'quá lâu chưa có hoạt động',
+    'no activity for too long',
+    '활동 없는 기간이 너무 김',
+  ),
 }
 
 /** The non-colour half of a warning: a glyph, and words a screen reader says. */
@@ -66,6 +71,7 @@ const stop = (event: SyntheticEvent) => event.stopPropagation()
  *  deal and stops the click, or the row would open as well; without it the
  *  name is plain text. The address itself rides in the tooltip. */
 export function DealCell({ op, onEmail }: { op: OpportunityBookRow; onEmail?: () => void }) {
+  const { t } = useI18n()
   const contact = op.primaryContact
   return (
     <span className="flex min-w-0 flex-col gap-1" title={`${op.code} · ${op.account} — ${op.name}`}>
@@ -74,11 +80,19 @@ export function DealCell({ op, onEmail }: { op: OpportunityBookRow; onEmail?: ()
         <span className="min-w-0 truncate">{op.account}</span>
         <span aria-hidden>·</span>
         {!contact ? (
-          <span className="max-w-[45%] shrink-0 truncate">Chưa có người liên hệ</span>
+          <span className="max-w-[45%] shrink-0 truncate">
+            {t(message('Chưa có người liên hệ', 'No contact yet', '연락처 없음'))}
+          </span>
         ) : onEmail && contact.email ? (
           <button
             type="button"
-            title={`Soạn email gửi ${contact.email}`}
+            title={t(
+              message(
+                `Soạn email gửi ${contact.email}`,
+                `Write an email to ${contact.email}`,
+                `${contact.email}에게 이메일 작성`,
+              ),
+            )}
             onClick={(event) => {
               stop(event)
               onEmail()
@@ -91,7 +105,10 @@ export function DealCell({ op, onEmail }: { op: OpportunityBookRow; onEmail?: ()
             <span className="block truncate">{contact.name}</span>
           </button>
         ) : (
-          <span className="max-w-[45%] shrink-0 truncate" title={contact.email ?? 'Chưa có email'}>
+          <span
+            className="max-w-[45%] shrink-0 truncate"
+            title={contact.email ?? t(message('Chưa có email', 'No email yet', '이메일 없음'))}
+          >
             {contact.name}
           </span>
         )}
@@ -103,15 +120,11 @@ export function DealCell({ op, onEmail }: { op: OpportunityBookRow; onEmail?: ()
 /** The stage pill (law 16). Overdue wins the suffix over a pending signature:
  *  overdue is the seller's to fix, the signature is the approver's. */
 export function StageCell({ op }: { op: OpportunityBookRow }) {
-  const { lang } = useI18n()
+  const { t, lang } = useI18n()
   const clock = stageClockOf(op)
   const overdue = clock?.overdue ?? false
   const stage = op.stage === null ? null : opportunityStageLabel(op.stage, lang)
-  const suffix = overdue
-    ? salesLabel(OVERDUE_WORD, lang)
-    : op.pendingSign
-      ? salesLabel(PENDING_SIGN_WORD, lang)
-      : null
+  const suffix = overdue ? t(OVERDUE_COPY) : op.pendingSign ? t(PENDING_SIGN_WORD) : null
 
   return (
     <Badge
@@ -120,8 +133,8 @@ export function StageCell({ op }: { op: OpportunityBookRow }) {
       className={cn('min-w-0 max-w-full', BADGE_INK)}
       title={
         stage && clock
-          ? `${salesLabel('Giai đoạn', lang)} "${stage}" · ${salesLabel(clock.label, lang)}`
-          : salesLabel('Cơ hội đã kết thúc', lang)
+          ? `${t(message('Giai đoạn', 'Stage', '단계'))} "${stage}" · ${salesLabel(clock.label, lang)}`
+          : t(message('Cơ hội đã kết thúc', 'Opportunity closed', '기회 종료'))
       }
     >
       <span className="min-w-0 truncate">
@@ -135,15 +148,22 @@ export function StageCell({ op }: { op: OpportunityBookRow }) {
 /** The deal's figure in VND, full digits; a foreign currency keeps its own
  *  figure in `title`. */
 export function AmountCell({ op }: { op: OpportunityBookRow }) {
+  const { t, number } = useI18n()
   const amountVnd = amountVndOf(op)
   return (
     <MoneyCell
       amount={amountVnd}
-      missing="Chưa có giá trị dự kiến"
+      missing={t(message('Chưa có giá trị dự kiến', 'No expected value yet', '예상 금액 없음'))}
       title={
         amountVnd === null || op.amount === null || op.currency === 'VND'
           ? undefined
-          : `${op.amount.toLocaleString('vi-VN')} ${op.currency} quy ra đồng`
+          : t(
+              message(
+                `${number(op.amount)} ${op.currency} quy ra đồng`,
+                `${number(op.amount)} ${op.currency} converted to VND`,
+                `${number(op.amount)} ${op.currency}를 동으로 환산`,
+              ),
+            )
       }
     />
   )
@@ -152,35 +172,53 @@ export function AmountCell({ op }: { op: OpportunityBookRow }) {
 /** A closed deal prints the day it closed; an open one its expected day, in
  *  warning once that day has passed. */
 export function CloseCell({ op }: { op: OpportunityBookRow }) {
+  const { t } = useI18n()
   const closed = op.stage === null
   const day = closed ? op.closedAt : op.expectedClose
   const late = isLateClose(op)
-  const empty = closed ? 'Chưa ghi ngày kết thúc' : 'Chưa đặt ngày dự kiến chốt'
+  const empty = t(
+    closed
+      ? message('Chưa ghi ngày kết thúc', 'No end date recorded', '종료일 미기록')
+      : message('Chưa đặt ngày dự kiến chốt', 'No expected close date set', '예상 마감일 미설정'),
+  )
   if (day === null) return <DateCell day={day} empty={empty} />
   return (
     <span
       className={cn('flex items-center gap-1', late && 'text-warning')}
-      title={
+      title={t(
         closed
-          ? 'Ngày kết thúc thực tế'
+          ? message('Ngày kết thúc thực tế', 'Actual end date', '실제 종료일')
           : late
-            ? 'Cơ hội đã quá ngày dự kiến chốt'
-            : 'Ngày dự kiến chốt'
-      }
+            ? message(
+                'Cơ hội đã quá ngày dự kiến chốt',
+                'The opportunity is past its expected close date',
+                '예상 마감일이 지났습니다',
+              )
+            : message('Ngày dự kiến chốt', 'Expected close date', '예상 마감일'),
+      )}
     >
-      {late && <Flag icon={TriangleAlert} word={OVERDUE_WORD} />}
+      {late && <Flag icon={TriangleAlert} word={t(OVERDUE_COPY)} />}
       <DateCell day={day} empty={empty} />
     </span>
   )
 }
 
 /** Each owner as the shared PIC cell reads them: the lane's word, the primary flag. */
-const LANE_WORD: Record<OpportunityOwner['role'], string> = { BD: 'BD', SALE: 'Sale' }
+const LANE_WORD: Record<OpportunityOwner['role'], Message> = {
+  BD: message('BD', 'BD', 'BD'),
+  SALE: message('Sale', 'Sales', '영업'),
+}
 const picsOf = (owners: readonly OpportunityOwner[]) =>
-  owners.map((o) => ({ id: o.id, name: o.name, role: LANE_WORD[o.role], primary: o.primary }))
+  owners.map((o) => ({
+    id: o.id,
+    name: o.name,
+    role: translate(LANE_WORD[o.role]),
+    primary: o.primary,
+  }))
 
 /** A lane's owners. Also the nurturing deal tab's Sale cell. */
 export function PeopleCell({ owners, missing }: { owners: OpportunityOwner[]; missing: string }) {
+  useI18n()
   return <PicCell people={picsOf(owners)} empty={missing} />
 }
 
@@ -188,6 +226,7 @@ export function PeopleCell({ owners, missing }: { owners: OpportunityOwner[]; mi
  *  `LeadPicCell`: accept on a `new` deal, assign on one with no seller (ADR
  *  0071). The assign verdict is the server's (`canAssign`). */
 export function SaleCell({ op, canAccept }: { op: OpportunityBookRow; canAccept: boolean }) {
+  const { t } = useI18n()
   const owners = saleOwnersOf(op)
   /* Mounted for every open row so the modal outlives the accept that moves it. */
   const accept = canAccept && op.state === 'open'
@@ -215,7 +254,12 @@ export function SaleCell({ op, canAccept }: { op: OpportunityBookRow; canAccept:
   /* Bare: the dash stands alone and the hidden accept box rides beside it. */
   return (
     <span className="flex min-w-0 items-center gap-2">
-      <PicCell people={picsOf(owners)} empty={NO_SALE} max={2} action={bare ? undefined : acts} />
+      <PicCell
+        people={picsOf(owners)}
+        empty={t(NO_SALE_COPY)}
+        max={2}
+        action={bare ? undefined : acts}
+      />
       {bare && acts}
     </span>
   )
@@ -224,10 +268,17 @@ export function SaleCell({ op, canAccept }: { op: OpportunityBookRow; canAccept:
 /** Open deals: days since the last customer-facing activity, inked by the
  *  server's verdict. Closed deals: the day they closed. */
 export function LastActivityCell({ op }: { op: OpportunityBookRow }) {
+  const { t } = useI18n()
   if (op.state !== 'open') {
     return (
-      <span className="text-muted-foreground" title="Ngày kết thúc cơ hội">
-        <DateCell day={op.closedAt} empty="Chưa ghi ngày kết thúc" />
+      <span
+        className="text-muted-foreground"
+        title={t(message('Ngày kết thúc cơ hội', 'Opportunity end date', '기회 종료일'))}
+      >
+        <DateCell
+          day={op.closedAt}
+          empty={t(message('Chưa ghi ngày kết thúc', 'No end date recorded', '종료일 미기록'))}
+        />
       </span>
     )
   }
@@ -239,10 +290,22 @@ export function LastActivityCell({ op }: { op: OpportunityBookRow }) {
         'flex min-w-0 items-center gap-1',
         op.activityFreshness && FRESHNESS_INK[op.activityFreshness],
       )}
-      title={at ? `Hoạt động cuối ${dmy(at)}` : 'Chưa có hoạt động nào'}
+      title={
+        at
+          ? t(
+              message(
+                `Hoạt động cuối ${dmy(at)}`,
+                `Last activity ${dmy(at)}`,
+                `마지막 활동 ${dmy(at)}`,
+              ),
+            )
+          : t(message('Chưa có hoạt động nào', 'No activity yet', '활동 없음'))
+      }
     >
-      {word && <Flag icon={Timer} word={word} />}
-      <span className="truncate">{at ? activityAgo(at) : 'Chưa có'}</span>
+      {word && <Flag icon={Timer} word={t(word)} />}
+      <span className="truncate">
+        {at ? activityAgo(at) : t(message('Chưa có', 'None yet', '없음'))}
+      </span>
     </span>
   )
 }
@@ -250,13 +313,27 @@ export function LastActivityCell({ op }: { op: OpportunityBookRow }) {
 /** The last column, "title · due" on one line: the title truncates, the due
  *  day never does. The accept and assign acts sit in the Sale column. */
 export function NextStepCell({ op }: { op: OpportunityBookRow }) {
+  const { t, lang } = useI18n()
   const step = op.nextStep
-  if (!step) return <Missing why="Chưa đặt việc tiếp theo" />
+  if (!step) {
+    return (
+      <Missing
+        why={t(message('Chưa đặt việc tiếp theo', 'No next step set', '다음 단계 미설정'))}
+      />
+    )
+  }
   const late = lateLevel(step.dueLevel)
+  const lateTag = late ? ` · ${dueLevelText(late, lang)}` : ''
   return (
     <span
       className="flex min-w-0"
-      title={`${step.text} · hạn ${dmy(step.due)}${late ? ` · ${DUE_LABEL[late]}` : ''}`}
+      title={t(
+        message(
+          `${step.text} · hạn ${dmy(step.due)}${lateTag}`,
+          `${step.text} · due ${dmy(step.due)}${lateTag}`,
+          `${step.text} · 기한 ${dmy(step.due)}${lateTag}`,
+        ),
+      )}
     >
       <span className="truncate">{step.text}</span>
       <span className="shrink-0 whitespace-pre">
@@ -267,7 +344,7 @@ export function NextStepCell({ op }: { op: OpportunityBookRow }) {
             late && 'text-destructive-foreground',
           )}
         >
-          {late && <Flag icon={TriangleAlert} word={DUE_LABEL[late]} />}
+          {late && <Flag icon={TriangleAlert} word={dueLevelText(late, lang)} />}
           {dmy(step.due)}
         </span>
       </span>

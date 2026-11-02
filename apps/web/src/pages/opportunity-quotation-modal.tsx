@@ -17,6 +17,7 @@ import {
 } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { message, translate, useI18n } from '@/app/i18n'
 import { toastDone, toastFail } from '@/app/toast'
 import { dmy } from '@/lib/date'
 import { fileSizeLabel } from '@/data/comm-record-detail'
@@ -49,23 +50,44 @@ import { DropArea } from '@/components/run/run-documents'
  *  these forms mirror a few only to keep the button honest, and print its
  *  sentence when it refuses. */
 
-const NOT_CLOSED = QUOTATION_OUTCOME_LABEL['not-closed']
+const msg = (vi: string, en: string, ko: string) => translate(message(vi, en, ko))
+const NOT_CLOSED = message(QUOTATION_OUTCOME_LABEL['not-closed'], 'Not closed', '미체결')
+const OTHER = message(OPPORTUNITY_STOP_REASON_OTHER_LABEL, 'Other', '기타')
+const uploadFailed = (name: string) =>
+  message(
+    `Không tải lên được “${name}”.`,
+    `Could not upload “${name}”.`,
+    `“${name}”을(를) 업로드하지 못했습니다.`,
+  )
+const recordedNote = (n: number) =>
+  message(
+    `Đã ghi báo giá lần ${n}.`,
+    `Quotation round ${n} recorded.`,
+    `견적서 ${n}차를 기록했습니다.`,
+  )
+const roundText = (n: number) => msg(`Lần ${n}`, `Round ${n}`, `${n}차`)
 
 const CURRENCY_OPTIONS = CURRENCIES.map((c) => ({ value: c.code as string, label: c.label }))
 
 const range = (min: string | undefined) =>
-  min === undefined ? 'Không sau hôm nay.' : `Từ ${dmy(min)} đến hôm nay.`
+  min === undefined
+    ? msg('Không sau hôm nay.', 'Not after today.', '오늘 이후는 선택할 수 없습니다.')
+    : msg(`Từ ${dmy(min)} đến hôm nay.`, `From ${dmy(min)} to today.`, `${dmy(min)}부터 오늘까지.`)
 
 /** What the press does to the round still waiting, as a sentence. */
 function closesText(negotiation: OpportunityMoneyNegotiation): string {
   const round = negotiation.rounds.find((r) => r.id === negotiation.pendingId)
   const head = [
-    round && `Lần ${round.roundNo}`,
+    round && roundText(round.roundNo),
     negotiation.amount !== null && compactMoney(negotiation.amount, negotiation.currency),
   ]
     .filter(Boolean)
     .join(' · ')
-  return `${head || 'Báo giá đang chờ'} sẽ đóng là ${NOT_CLOSED}`
+  return msg(
+    `${head || 'Báo giá đang chờ'} sẽ đóng là ${NOT_CLOSED.vi}`, // i18n-ignore
+    `${head || 'The waiting quotation'} will be closed as ${NOT_CLOSED.en}`,
+    `${head || '대기 중인 견적서'}은(는) ${NOT_CLOSED.ko}(으)로 종료됩니다`,
+  )
 }
 
 /** What the press will record, once the boxes are filled: the round it
@@ -78,7 +100,7 @@ function summaryOf(
   if (form.amount === null || form.kind === '') return ''
   const round = waiting?.rounds.find((r) => r.id === waiting.pendingId)
   return [
-    round && `Lần ${round.roundNo + 1}`,
+    round && roundText(round.roundNo + 1),
     compactMoney(form.amount, form.currency),
     resolveKind(form.kind),
   ]
@@ -112,9 +134,17 @@ const NO_REASON: Reason = { reasonId: '', note: '' }
 
 const reasonBlocker = (r: Reason) =>
   r.reasonId === ''
-    ? `Chọn lý do ${NOT_CLOSED.toLowerCase()}.`
+    ? msg(
+        `Chọn lý do ${NOT_CLOSED.vi.toLowerCase()}.`,
+        'Choose a reason for not closing.',
+        `${NOT_CLOSED.ko} 사유를 선택하세요.`,
+      )
     : r.reasonId === OPPORTUNITY_STOP_REASON_OTHER && r.note.trim() === ''
-      ? `Chọn "${OPPORTUNITY_STOP_REASON_OTHER_LABEL}" thì phải nhập ghi chú.`
+      ? msg(
+          `Chọn "${OTHER.vi}" thì phải nhập ghi chú.`,
+          `Add a note when you choose "${OTHER.en}".`,
+          `"${OTHER.ko}"을(를) 선택하면 메모를 입력해야 합니다.`,
+        )
       : ''
 
 const reasonBody = (r: Reason): QuotationReason => ({
@@ -123,19 +153,26 @@ const reasonBody = (r: Reason): QuotationReason => ({
 })
 
 function ReasonFields({ value, onChange }: { value: Reason; onChange: (next: Reason) => void }) {
+  const { t } = useI18n()
   const { data } = useQuery(quotationReasonsQuery)
   const noteNeeded = value.reasonId === OPPORTUNITY_STOP_REASON_OTHER
   const options = [
-    { value: '', label: 'Chọn lý do…' },
+    { value: '', label: t(message('Chọn lý do…', 'Choose a reason…', '사유 선택…')) },
     ...(data?.rows ?? []).map((r) => ({ value: r.id as string, label: r.name })),
-    { value: OPPORTUNITY_STOP_REASON_OTHER, label: OPPORTUNITY_STOP_REASON_OTHER_LABEL },
+    { value: OPPORTUNITY_STOP_REASON_OTHER, label: t(OTHER) },
   ]
 
   return (
     <>
-      <Field label="Lý do" required plain>
+      <Field label={t(message('Lý do', 'Reason', '사유'))} required plain>
         <Select
-          label={`Lý do ${NOT_CLOSED.toLowerCase()}`}
+          label={t(
+            message(
+              `Lý do ${NOT_CLOSED.vi.toLowerCase()}`,
+              'Reason for not closing',
+              `${NOT_CLOSED.ko} 사유`,
+            ),
+          )}
           hideLabel
           size="lg"
           value={value.reasonId}
@@ -144,12 +181,12 @@ function ReasonFields({ value, onChange }: { value: Reason; onChange: (next: Rea
           className="w-full"
         />
       </Field>
-      <Field label="Ghi chú" required={noteNeeded}>
+      <Field label={t(message('Ghi chú', 'Note', '메모'))} required={noteNeeded}>
         <Textarea
           autoGrow
           rows={2}
           value={value.note}
-          aria-label="Ghi chú về lý do"
+          aria-label={t(message('Ghi chú về lý do', 'Note on the reason', '사유 메모'))}
           aria-required={noteNeeded}
           maxLength={OPPORTUNITY_STOP_NOTE_MAX}
           onChange={(e) => onChange({ ...value, note: e.target.value })}
@@ -170,19 +207,21 @@ function AmountRow({
   onAmount: (next: number | null) => void
   onCurrency: (next: CurrencyCode) => void
 }) {
+  const { t } = useI18n()
+  const valueLabel = t(message('Giá trị báo giá', 'Quotation value', '견적 금액'))
   return (
-    <Field label="Giá trị báo giá" required plain>
+    <Field label={valueLabel} required plain>
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <NumberBox
-            label="Giá trị báo giá"
+            label={valueLabel}
             unit={symbolOf(currency)}
             value={amount}
             onChange={onAmount}
           />
         </div>
         <Select
-          label="Đồng tiền"
+          label={t(message('Đồng tiền', 'Currency', '통화'))}
           hideLabel
           size="lg"
           value={currency}
@@ -206,6 +245,7 @@ function StagedFiles({
   busy: boolean
   onChange: (next: File[]) => void
 }) {
+  const { t } = useI18n()
   const [problems, setProblems] = useState<string[]>([])
 
   const stage = (list: FileList | null) => {
@@ -233,8 +273,10 @@ function StagedFiles({
               <Button
                 size="sm"
                 variant="ghost"
-                aria-label={`Bỏ ${file.name}`}
-                title="Bỏ tệp"
+                aria-label={t(
+                  message(`Bỏ ${file.name}`, `Remove ${file.name}`, `${file.name} 제거`),
+                )}
+                title={t(message('Bỏ tệp', 'Remove file', '파일 제거'))}
                 className="pointer-coarse:size-12 size-8 shrink-0 px-0"
                 disabled={busy}
                 onClick={() => onChange(files.filter((_, j) => j !== i))}
@@ -270,6 +312,13 @@ const seedOf = (op: OpportunityProfileResponse, negotiation: OpportunityMoneyNeg
     reason: NO_REASON,
   }) satisfies Form
 
+const sendBeforeValid = () =>
+  msg(
+    'Hiệu lực đến không được trước ngày gửi.',
+    'Valid-until date cannot be before the send date.',
+    '유효 기한은 발송일보다 빠를 수 없습니다.',
+  )
+
 /** What still stops the press, in the order the boxes stand; '' = ready. */
 function blockerOf(
   op: OpportunityProfileResponse,
@@ -281,15 +330,15 @@ function blockerOf(
   return (
     refusalOf(op.acts.quotation) ??
     (amount === null || amount <= 0
-      ? 'Nhập giá trị báo giá.'
+      ? msg('Nhập giá trị báo giá.', 'Enter the quotation value.', '견적 금액을 입력하세요.')
       : kind === ''
-        ? 'Chọn loại hợp đồng.'
+        ? msg('Chọn loại hợp đồng.', 'Choose a contract type.', '계약 유형을 선택하세요.')
         : day === ''
-          ? 'Chọn ngày gửi.'
+          ? msg('Chọn ngày gửi.', 'Choose the send date.', '발송일을 선택하세요.')
           : day > vnToday() || (min !== undefined && day < min)
             ? range(min)
             : validUntil !== '' && validUntil < day
-              ? 'Hiệu lực đến không được trước ngày gửi.'
+              ? sendBeforeValid()
               : needsReason
                 ? reasonBlocker(form.reason)
                 : '')
@@ -307,6 +356,7 @@ export function QuotationModal({
   open: boolean
   onClose: () => void
 }) {
+  const { t } = useI18n()
   const resolveKind = useContractKindLabel()
   const seed = useMemo(() => seedOf(op, negotiation), [op, negotiation])
   const [form, setForm] = useState<Form>(seed)
@@ -349,7 +399,7 @@ export function QuotationModal({
     for (const file of form.files) {
       const job: DocumentUpload = { file, step: { kind: 'quotation', quotationId } }
       await upload.mutateAsync(job).catch((e: unknown) => {
-        toastFail(`Không tải lên được “${file.name}”.`, isApiError(e) ? userMessage(e) : undefined)
+        toastFail(t(uploadFailed(file.name)), isApiError(e) ? userMessage(e) : undefined)
       })
     }
     await refresh()
@@ -370,7 +420,7 @@ export function QuotationModal({
       },
       {
         onSuccess: async (row) => {
-          toastDone(`Đã ghi báo giá lần ${row.roundNo}.`)
+          toastDone(t(recordedNote(row.roundNo)))
           if (canFiles && form.files.length > 0) await send(row.id)
           onClose()
         },
@@ -382,7 +432,7 @@ export function QuotationModal({
     <FormModal
       open={open}
       onClose={onClose}
-      title="Ghi báo giá"
+      title={t(message('Ghi báo giá', 'Record quotation', '견적서 기록'))}
       subtitle={
         <>
           <span className="font-mono">{op.code}</span> · {op.account}
@@ -391,8 +441,12 @@ export function QuotationModal({
       line={blocker || summaryOf(form, waiting, resolveKind)}
       error={record.error}
       busy={record.isPending || uploading}
-      busyLabel={uploading ? 'Đang tải tệp…' : 'Đang ghi…'}
-      submitLabel="Ghi báo giá"
+      busyLabel={
+        uploading
+          ? t(message('Đang tải tệp…', 'Uploading files…', '파일 업로드 중…'))
+          : t(message('Đang ghi…', 'Recording…', '기록 중…'))
+      }
+      submitLabel={t(message('Ghi báo giá', 'Record quotation', '견적서 기록'))}
       icon={FileText}
       ready={blocker === ''}
       onSubmit={submit}
@@ -407,10 +461,10 @@ export function QuotationModal({
         onCurrency={(next) => set('currency', next)}
       />
       <ContractKindField value={kind} locked={locked} onChange={(v) => set('kind', v)} />
-      <Field label="Ngày gửi" required hint={range(min)}>
+      <Field label={t(message('Ngày gửi', 'Send date', '발송일'))} required hint={range(min)}>
         <Input
           type="date"
-          aria-label="Ngày gửi"
+          aria-label={t(message('Ngày gửi', 'Send date', '발송일'))}
           className="pointer-coarse:h-12"
           value={day}
           min={min}
@@ -418,10 +472,10 @@ export function QuotationModal({
           onChange={(e) => set('day', e.target.value)}
         />
       </Field>
-      <Field label="Hiệu lực đến">
+      <Field label={t(message('Hiệu lực đến', 'Valid until', '유효 기한'))}>
         <Input
           type="date"
-          aria-label="Hiệu lực đến"
+          aria-label={t(message('Hiệu lực đến', 'Valid until', '유효 기한'))}
           className="pointer-coarse:h-12"
           value={validUntil}
           min={day}
@@ -451,11 +505,20 @@ export function CloseNegotiationDialog({
   open: boolean
   onClose: () => void
 }) {
+  const { t } = useI18n()
   const [reason, setReason] = useState<Reason>(NO_REASON)
   const close = useCloseQuotation(op.code)
   const pendingId = negotiation.pendingId
   const blocker =
-    pendingId === null ? 'Vòng này không còn báo giá nào chờ khách.' : reasonBlocker(reason)
+    pendingId === null
+      ? t(
+          message(
+            'Vòng này không còn báo giá nào chờ khách.',
+            'This round has no quotation waiting on the customer.',
+            '이 차수에는 고객 회신을 기다리는 견적서가 없습니다.',
+          ),
+        )
+      : reasonBlocker(reason)
 
   useEffect(() => {
     if (open) setReason(NO_REASON)
@@ -465,7 +528,7 @@ export function CloseNegotiationDialog({
     <FormModal
       open={open}
       onClose={onClose}
-      title="Đóng vòng báo giá"
+      title={t(message('Đóng vòng báo giá', 'Close quotation round', '견적 차수 종료'))}
       subtitle={
         <>
           <span className="font-mono">{op.code}</span> · {op.account}
@@ -474,8 +537,8 @@ export function CloseNegotiationDialog({
       line={blocker}
       error={close.error}
       busy={close.isPending}
-      busyLabel="Đang đóng…"
-      submitLabel="Đóng vòng báo giá"
+      busyLabel={t(message('Đang đóng…', 'Closing…', '종료 중…'))}
+      submitLabel={t(message('Đóng vòng báo giá', 'Close quotation round', '견적 차수 종료'))}
       icon={CircleX}
       ready={blocker === ''}
       onSubmit={() => {
@@ -484,7 +547,15 @@ export function CloseNegotiationDialog({
           { id: pendingId, body: reasonBody(reason) },
           {
             onSuccess: () => {
-              toastDone('Đã đóng vòng báo giá.')
+              toastDone(
+                t(
+                  message(
+                    'Đã đóng vòng báo giá.',
+                    'Quotation round closed.',
+                    '견적 차수를 종료했습니다.',
+                  ),
+                ),
+              )
               onClose()
             },
           },
@@ -508,6 +579,7 @@ export function QuotationPatchDialog({
   open: boolean
   onClose: () => void
 }) {
+  const { t } = useI18n()
   const [kind, setKind] = useState('')
   const [amount, setAmount] = useState<number | null>(null)
   const [currency, setCurrency] = useState<CurrencyCode>(round.currency ?? op.currency ?? 'VND')
@@ -535,29 +607,47 @@ export function QuotationPatchDialog({
     validUntil: missing.validUntil && validUntil !== '',
   }
   const blocker = !Object.values(missing).some(Boolean)
-    ? 'Báo giá này đã đủ thông tin.'
+    ? t(
+        message(
+          'Báo giá này đã đủ thông tin.',
+          'This quotation is already complete.',
+          '이 견적서는 이미 정보가 모두 입력되어 있습니다.',
+        ),
+      )
     : !Object.values(filled).some(Boolean)
-      ? 'Nhập thông tin còn thiếu.'
+      ? t(
+          message(
+            'Nhập thông tin còn thiếu.',
+            'Enter the missing information.',
+            '누락된 정보를 입력하세요.',
+          ),
+        )
       : filled.validUntil && validUntil < sentDay
-        ? 'Hiệu lực đến không được trước ngày gửi.'
+        ? sendBeforeValid()
         : ''
 
   return (
     <FormModal
       open={open}
       onClose={onClose}
-      title="Bổ sung báo giá"
+      title={t(message('Bổ sung báo giá', 'Complete quotation', '견적서 보완'))}
       subtitle={
         <>
-          <span className="font-mono">{op.code}</span> · lần {round.roundNo}, gửi{' '}
-          {dmy(round.sentAt)}
+          <span className="font-mono">{op.code}</span> ·{' '}
+          {t(
+            message(
+              `lần ${round.roundNo}, gửi ${dmy(round.sentAt)}`,
+              `round ${round.roundNo}, sent ${dmy(round.sentAt)}`,
+              `${round.roundNo}차, ${dmy(round.sentAt)} 발송`,
+            ),
+          )}
         </>
       }
       line={blocker}
       error={patch.error}
       busy={patch.isPending}
-      busyLabel="Đang lưu…"
-      submitLabel="Lưu"
+      busyLabel={t(message('Đang lưu…', 'Saving…', '저장 중…'))}
+      submitLabel={t(message('Lưu', 'Save', '저장'))}
       icon={FileText}
       ready={blocker === ''}
       onSubmit={() =>
@@ -572,7 +662,9 @@ export function QuotationPatchDialog({
           },
           {
             onSuccess: () => {
-              toastDone('Đã bổ sung báo giá.')
+              toastDone(
+                t(message('Đã bổ sung báo giá.', 'Quotation completed.', '견적서를 보완했습니다.')),
+              )
               onClose()
             },
           },
@@ -589,10 +681,10 @@ export function QuotationPatchDialog({
       )}
       {missing.kind && <ContractKindField value={kind} onChange={setKind} />}
       {missing.validUntil && (
-        <Field label="Hiệu lực đến">
+        <Field label={t(message('Hiệu lực đến', 'Valid until', '유효 기한'))}>
           <Input
             type="date"
-            aria-label="Hiệu lực đến"
+            aria-label={t(message('Hiệu lực đến', 'Valid until', '유효 기한'))}
             className="pointer-coarse:h-12"
             value={validUntil}
             min={sentDay}

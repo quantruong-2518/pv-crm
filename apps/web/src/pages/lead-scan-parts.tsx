@@ -15,6 +15,7 @@ import {
   type RailObject,
 } from '@pv/ui'
 import type { LeadScanResponse } from '@pv/contracts'
+import { message, translate, useI18n, type Message } from '@/app/i18n'
 import { toastOf } from '@/app/toast'
 import { ACCEPT_ATTR, CAPTURE_ACCEPT_ATTR, screenPicked } from '@/data/lead-scan-prep'
 import { useReplaceScanFile, useScanReplaces, type ReplaceJob } from '@/data/lead-scan-replace'
@@ -55,6 +56,7 @@ export function ScanHeader({
   cancel?: CancelProps
 }) {
   const navigate = useNavigate()
+  const { t } = useI18n()
   const [asking, setAsking] = useState(false)
   return (
     <GlassCard variant="b" className="flex flex-col gap-3 p-4">
@@ -71,7 +73,7 @@ export function ScanHeader({
                 className="pointer-coarse:h-12"
                 onClick={() => setAsking(true)}
               >
-                Huỷ lô
+                {t(message('Huỷ lô', 'Cancel batch', '묶음 취소'))}
               </Button>
             )}
             <Button
@@ -81,7 +83,7 @@ export function ScanHeader({
               onClick={() => navigate(BOOK_PATH)}
             >
               <Icon icon={ArrowLeft} size={16} />
-              Quay lại sổ lead
+              {t(message('Quay lại sổ lead', 'Back to leads', '리드 목록으로'))}
             </Button>
           </>
         }
@@ -96,9 +98,18 @@ export function ScanHeader({
  *  `window.confirm`, which sits outside the design system and blocks the tab.
  *  Its own row: inside the header's shrink-0 actions it squeezes the title at tablet widths. */
 function CancelConfirm({ onConfirm, pending, onKeep }: CancelProps & { onKeep: () => void }) {
+  const { t } = useI18n()
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <span className="text-foreground text-[12.5px]">Huỷ lô này? Chưa lead nào được tạo.</span>
+      <span className="text-foreground text-[12.5px]">
+        {t(
+          message(
+            'Huỷ lô này? Chưa lead nào được tạo.',
+            'Cancel this batch? No lead has been created yet.',
+            '이 묶음을 취소할까요? 아직 생성된 리드가 없습니다.',
+          ),
+        )}
+      </span>
       <Button
         size="md"
         variant="destructive"
@@ -106,7 +117,9 @@ function CancelConfirm({ onConfirm, pending, onKeep }: CancelProps & { onKeep: (
         className="pointer-coarse:h-12"
         onClick={onConfirm}
       >
-        {pending ? 'Đang huỷ…' : 'Huỷ lô'}
+        {pending
+          ? t(message('Đang huỷ…', 'Cancelling…', '취소하는 중…'))
+          : t(message('Huỷ lô', 'Cancel batch', '묶음 취소'))}
       </Button>
       <Button
         size="md"
@@ -115,7 +128,7 @@ function CancelConfirm({ onConfirm, pending, onKeep }: CancelProps & { onKeep: (
         className="pointer-coarse:h-12"
         onClick={onKeep}
       >
-        Giữ lô
+        {t(message('Giữ lô', 'Keep batch', '묶음 유지'))}
       </Button>
     </div>
   )
@@ -132,8 +145,9 @@ export function Moving({ children }: { children: ReactNode }) {
 }
 
 export function StatusCell({ status }: { status: RowStatus }) {
-  if ('moving' in status) return <Moving>{status.moving}</Moving>
-  return <Badge tone={status.tone}>{status.text}</Badge>
+  const { t } = useI18n()
+  if ('moving' in status) return <Moving>{t(status.moving)}</Moving>
+  return <Badge tone={status.tone}>{t(status.text)}</Badge>
 }
 
 export function FailureLine({ children, action }: { children: ReactNode; action?: ReactNode }) {
@@ -151,19 +165,19 @@ export function FailureLine({ children, action }: { children: ReactNode; action?
 const COUNT_PILLS: {
   key: 'read' | 'reading' | 'queued' | 'failed'
   tone: BadgeTone
-  text: string
+  text: Message
 }[] = [
-  { key: 'read', tone: 'success', text: 'đã đọc' },
-  { key: 'reading', tone: 'running', text: 'đang đọc' },
-  { key: 'queued', tone: 'draft', text: 'chờ' },
-  { key: 'failed', tone: 'danger', text: 'không đọc được' },
+  { key: 'read', tone: 'success', text: message('đã đọc', 'read', '읽음') },
+  { key: 'reading', tone: 'running', text: message('đang đọc', 'reading', '읽는 중') },
+  { key: 'queued', tone: 'draft', text: message('chờ', 'waiting', '대기') },
+  { key: 'failed', tone: 'danger', text: message('không đọc được', 'unreadable', '읽지 못함') },
 ]
 
 const FILE_COLUMNS = [
-  { header: 'Tệp', width: 'minmax(0,2fr)' },
-  { header: 'Loại', width: 'minmax(0,1fr)' },
-  { header: 'Trạng thái', width: 'minmax(0,1.3fr)' },
-  { header: 'Kết quả', width: 'minmax(0,1.6fr)' },
+  { header: message('Tệp', 'File', '파일'), width: 'minmax(0,2fr)' },
+  { header: message('Loại', 'Type', '유형'), width: 'minmax(0,1fr)' },
+  { header: message('Trạng thái', 'Status', '상태'), width: 'minmax(0,1.3fr)' },
+  { header: message('Kết quả', 'Result', '결과'), width: 'minmax(0,1.6fr)' },
 ]
 
 /** The error line, plus the replace-file picker on a row that read FAILED and is not already being replaced. */
@@ -204,7 +218,14 @@ function useRowReplace(batch: LeadScanResponse | undefined) {
   /* Screened exactly as a step-1 drop, so a replacement meets the same caps. */
   const onReplace = (id: string, file: File) => {
     const { accepted, rejected } = screenPicked([file])
-    if (rejected.length > 0) toastWarn('Có tệp không nhận', rejected.join(' · '))
+    if (rejected.length > 0) {
+      const title = message(
+        'Có tệp không nhận',
+        'Some files were not accepted',
+        '일부 파일은 받을 수 없습니다',
+      )
+      toastWarn(translate(title), rejected.join(' · '))
+    }
     const picked = accepted[0]
     if (batch && picked) replace(batch.code, id, picked)
   }
@@ -212,23 +233,26 @@ function useRowReplace(batch: LeadScanResponse | undefined) {
 }
 
 const FAILED_COLUMNS = [
-  { header: 'Tệp', width: 'minmax(0,1.3fr)' },
-  { header: 'Trạng thái', width: 'minmax(0,1fr)' },
-  { header: 'Lý do', width: 'minmax(0,2fr)' },
+  { header: message('Tệp', 'File', '파일'), width: 'minmax(0,1.3fr)' },
+  { header: message('Trạng thái', 'Status', '상태'), width: 'minmax(0,1fr)' },
+  { header: message('Lý do', 'Reason', '사유'), width: 'minmax(0,2fr)' },
 ]
 
 /** Step 3 — the files that read FAILED, each replaceable in place. Starting a
  *  replace puts the batch back to READING, which returns the page to step 2. */
 export function FailedFiles({ batch }: { batch: LeadScanResponse }) {
+  const { t } = useI18n()
   const { jobs, onReplace } = useRowReplace(batch)
   const rows = failedRows(batch)
   if (rows.length === 0) return null
   return (
     <GlassCard variant="b" className="flex flex-col gap-3 overflow-hidden pt-4">
-      <h3 className="px-5 text-[13px] font-semibold">Tệp không đọc được</h3>
+      <h3 className="px-5 text-[13px] font-semibold">
+        {t(message('Tệp không đọc được', 'Files that could not be read', '읽지 못한 파일'))}
+      </h3>
       <DataTable
         flush
-        columns={FAILED_COLUMNS}
+        columns={FAILED_COLUMNS.map((c) => ({ ...c, header: t(c.header) }))}
         rows={rows.map((row) => ({
           id: row.key,
           cells: [
@@ -257,6 +281,7 @@ export function ReadingStep({
   cancel?: CancelProps
 }) {
   const navigate = useNavigate()
+  const { t } = useI18n()
   const { jobs, onReplace } = useRowReplace(batch)
   const rows = fileRows(batch, run)
   const counts = countRows(rows)
@@ -268,22 +293,40 @@ export function ReadingStep({
   return (
     <>
       <ScanHeader
-        title={`Đang đọc ${rows.length} tệp`}
+        title={t(
+          message(
+            `Đang đọc ${rows.length} tệp`,
+            `Reading ${rows.length} ${rows.length === 1 ? 'file' : 'files'}`,
+            `파일 ${rows.length}개 읽는 중`,
+          ),
+        )}
         description={
           uploading
-            ? 'Đang tải tệp lên. Giữ trang mở tới khi xong.'
-            : 'Có thể đóng trang, lô vẫn chạy.'
+            ? t(
+                message(
+                  'Đang tải tệp lên. Giữ trang mở tới khi xong.',
+                  'Uploading files. Keep this page open until it finishes.',
+                  '파일을 업로드하는 중입니다. 끝날 때까지 이 페이지를 열어 두세요.',
+                ),
+              )
+            : t(
+                message(
+                  'Có thể đóng trang, lô vẫn chạy.',
+                  'You can close this page; the batch keeps running.',
+                  '페이지를 닫아도 묶음은 계속 진행됩니다.',
+                ),
+              )
         }
         rail={batch && scanRail(batch, navigate)}
         cancel={cancel}
       />
 
       <GlassCard className="flex flex-col gap-4 p-5">
-        <Progress value={progress.value} label={progress.label} />
+        <Progress value={progress.value} label={t(progress.label)} />
         <div className="flex flex-wrap gap-2">
           {COUNT_PILLS.map((pill) => (
             <Badge key={pill.key} tone={pill.tone} className="tnum">
-              {counts[pill.key]} {pill.text}
+              {counts[pill.key]} {t(pill.text)}
             </Badge>
           ))}
         </div>
@@ -291,7 +334,7 @@ export function ReadingStep({
           <FailureLine
             action={
               <Button size="sm" variant="ghost" className="pointer-coarse:h-12" onClick={onRestart}>
-                Chọn lại tệp
+                {t(message('Chọn lại tệp', 'Choose files again', '파일 다시 선택'))}
               </Button>
             }
           >
@@ -303,7 +346,7 @@ export function ReadingStep({
       <GlassCard variant="b" className="overflow-hidden">
         <DataTable
           flush
-          columns={FILE_COLUMNS}
+          columns={FILE_COLUMNS.map((c) => ({ ...c, header: t(c.header) }))}
           rows={rows.map((row) => ({
             id: row.key,
             cells: [
@@ -311,7 +354,7 @@ export function ReadingStep({
                 {row.name}
               </span>,
               <span key="type" className="text-muted-foreground">
-                {row.type}
+                {t(row.type)}
               </span>,
               <StatusCell key="status" status={rowStatus(row, jobs[row.key])} />,
               <ResultCell key="result" row={row} job={jobs[row.key]} onFile={onReplace} />,
@@ -327,6 +370,7 @@ export function ReadingStep({
  *  only for a commit made in this tab, so a reopened batch stays readable. */
 export function ResultView({ batch, redirect }: { batch: LeadScanResponse; redirect: boolean }) {
   const navigate = useNavigate()
+  const { t } = useI18n()
   const result = batch.state === 'DONE' ? batch.result : undefined
 
   useEffect(() => {
@@ -341,25 +385,49 @@ export function ResultView({ batch, redirect }: { batch: LeadScanResponse; redir
         <>
           <h2 className="font-display tnum text-[26px] font-semibold tracking-[-.4px]">
             {result.created.length > 0
-              ? `Đã tạo ${result.created.length} lead`
-              : `Đã nhập vào ${result.mergedInto.length} lead có sẵn`}
+              ? t(
+                  message(
+                    `Đã tạo ${result.created.length} lead`,
+                    `Created ${result.created.length} ${result.created.length === 1 ? 'lead' : 'leads'}`,
+                    `리드 ${result.created.length}개를 생성했습니다`,
+                  ),
+                )
+              : t(
+                  message(
+                    `Đã nhập vào ${result.mergedInto.length} lead có sẵn`,
+                    `Merged into ${result.mergedInto.length} existing ${result.mergedInto.length === 1 ? 'lead' : 'leads'}`,
+                    `기존 리드 ${result.mergedInto.length}개에 병합했습니다`,
+                  ),
+                )}
           </h2>
           <p className="text-muted-foreground max-w-[560px] text-[12.5px] leading-[1.65]">
-            Ảnh và hồ sơ nằm trong mục Tệp đính kèm của từng lead.
+            {t(
+              message(
+                'Ảnh và hồ sơ nằm trong mục Tệp đính kèm của từng lead.',
+                'Images and files are in the Attachments section of each lead.',
+                '이미지와 파일은 각 리드의 첨부 파일 항목에 있습니다.',
+              ),
+            )}
           </p>
           <ContextRail objects={scanRail(batch, navigate)} className="justify-center" />
           {redirect && (
             <p className="text-muted-foreground tnum text-[12px]">
-              Tự chuyển về sổ lead sau {REDIRECT_MS / 1000} giây
+              {t(
+                message(
+                  `Tự chuyển về sổ lead sau ${REDIRECT_MS / 1000} giây`,
+                  `Returning to the leads list in ${REDIRECT_MS / 1000} seconds`,
+                  `${REDIRECT_MS / 1000}초 후 리드 목록으로 이동합니다`,
+                ),
+              )}
             </p>
           )}
           <Button size="lg" onClick={() => navigate(BOOK_PATH)}>
-            Về sổ lead
+            {t(message('Về sổ lead', 'Back to leads', '리드 목록으로'))}
           </Button>
         </>
       ) : (
         <p className="font-display text-[20px] font-semibold">
-          <Moving>Đang tạo…</Moving>
+          <Moving>{t(message('Đang tạo…', 'Creating…', '생성 중…'))}</Moving>
         </p>
       )}
     </GlassCard>

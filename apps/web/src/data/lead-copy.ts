@@ -1,6 +1,14 @@
-import { LEAD_NUM, MOTION_LABEL, type LeadMotion, type LeadState } from '@pv/contracts'
+import {
+  LEAD_NUM,
+  MOTION_ASKS_MISSING,
+  MOTION_LABEL,
+  type LeadMotion,
+  type LeadSide,
+  type LeadState,
+  type MotionAsks,
+} from '@pv/contracts'
 import { PIPELINE_STAGES } from '@pv/engines/fixtures/das-vina'
-import { message, translate, type Lang, type Message } from '@/app/i18n'
+import { getLang, message, translate, type Lang, type Message } from '@/app/i18n'
 import type { FormField } from '@/data/lead-form'
 
 /** Product copy for the lead book and profile. Names entered by staff stay as entered. */
@@ -127,14 +135,14 @@ export const LEAD_COPY = {
   ),
   saving: message('Đang lưu…', 'Saving…', '저장 중…'),
   saved: message('Đã lưu thay đổi', 'Changes saved', '변경 사항이 저장되었습니다'),
-  openOpportunity: message('Mở cơ hội', 'Open opportunity', '영업 기회 만들기'),
+  openOpportunity: message('Mở cơ hội', 'Open opportunity', '기회 만들기'),
   disabledSince: message('Lead đã vô hiệu hóa từ', 'Lead disabled since', '리드 비활성화 날짜'),
   restore: message('Khôi phục', 'Restore', '복원'),
   rungs: message('Các bậc của lead', 'Lead stages', '리드 단계'),
   scorecard: message('Thẻ điểm sổ lead', 'Lead summary', '리드 요약'),
   total: message('Tổng lead', 'Total leads', '전체 리드'),
   firstContact: message('Đã liên hệ lần đầu', 'First contact made', '첫 연락 완료'),
-  converted: message('Thành cơ hội', 'Converted to opportunity', '영업 기회로 전환'),
+  converted: message('Thành cơ hội', 'Converted to opportunity', '기회로 전환'),
   signed: message('Đã ký hợp đồng', 'Contract signed', '계약 체결'),
   noRate: message(
     'Chưa có lead để tính tỷ lệ',
@@ -218,6 +226,42 @@ const MOTION: Record<LeadMotion, Message> = {
   RECYCLE: message('Đánh thức lại', 'Re-engagement', '재접촉'),
 }
 
+const SIDE: Record<LeadSide, Message> = {
+  PASSIVE: message('Bị động', 'Passive', '수동적'),
+  ACTIVE: message('Chủ động', 'Active', '능동적'),
+}
+
+export const leadSideText = (side: LeadSide, lang: Lang) => translate(SIDE[side], lang)
+
+const ASKS: Record<MotionAsks, Message> = {
+  ORIGIN: message('Nguồn chi tiết', 'Source detail', '세부 유입 경로'),
+  CAMPAIGN: message('Chiến dịch', 'Campaign', '캠페인'),
+  REFERRER: message('Mã giới thiệu', 'Referral code', '소개 코드'),
+}
+
+const ASKS_MISSING: Record<MotionAsks, Message> = {
+  ORIGIN: message(
+    MOTION_ASKS_MISSING.ORIGIN,
+    'Choose a source detail.',
+    '세부 유입 경로를 선택하세요.',
+  ),
+  CAMPAIGN: message(
+    MOTION_ASKS_MISSING.CAMPAIGN,
+    'Attach a running campaign.',
+    '진행 중인 캠페인을 연결하세요.',
+  ),
+  REFERRER: message(
+    MOTION_ASKS_MISSING.REFERRER,
+    'A referral code is required.',
+    '소개 코드가 필요합니다.',
+  ),
+}
+
+export const leadAsksMissing = (asks: MotionAsks, lang: Lang = getLang()) =>
+  translate(ASKS_MISSING[asks], lang)
+
+export const leadAsksText = (asks: MotionAsks, lang: Lang) => translate(ASKS[asks], lang)
+
 export function leadMotionText(motion: LeadMotion, storedLabel: string, lang: Lang): string {
   return storedLabel === MOTION_LABEL[motion] ? translate(MOTION[motion], lang) : storedLabel
 }
@@ -237,7 +281,7 @@ export function leadScoreHint(
     converted: message(
       `${done}/${total} lead đã thành cơ hội`,
       `${done} of ${total} leads converted`,
-      `전체 ${total}개 중 ${done}개 리드가 영업 기회로 전환`,
+      `전체 ${total}개 중 ${done}개 리드가 기회로 전환`,
     ),
     signed: message(
       `${done}/${total} lead đã ký hợp đồng`,
@@ -369,7 +413,7 @@ const FIELD: Partial<
   currency: { label: message('Đồng tiền', 'Currency', '통화') },
   deadline: { label: message('Thời hạn mong muốn', 'Target date', '희망 기한') },
   code: { label: message('Mã lead', 'Lead code', '리드 코드') },
-  stage: { label: message('Cột trong sổ cơ hội', 'Opportunity stage', '영업 기회 단계') },
+  stage: { label: message('Cột trong sổ cơ hội', 'Opportunity stage', '기회 단계') },
   owner: {
     label: LEAD_COPY.owner,
     people: message(
@@ -424,12 +468,17 @@ const OPTION: Partial<Record<FormField['key'], Record<string, Message>>> = {
     'in-app': message('Trong app', 'In app', '앱 내'),
   },
   stage: {
-    '': message('Chưa vào sổ cơ hội', 'No opportunity yet', '영업 기회 없음'),
+    '': message('Chưa vào sổ cơ hội', 'No opportunity yet', '기회 없음'),
     new: message('Khởi tạo', 'New', '신규'),
     assigned: message('Đang phân công', 'Assigning', '배정 중'),
     engaged: message('Chăm sóc', 'Engaged', '상담 중'),
     quotation: message('Báo giá', 'Quotation', '견적'),
   },
+}
+
+export function leadTierText(tier: string, lang: Lang): string {
+  const copy = OPTION.tier?.[tier]
+  return copy ? translate(copy, lang) : tier
 }
 
 export function localizeLeadField(field: FormField, lang: Lang): FormField {
@@ -451,15 +500,12 @@ export function localizeLeadField(field: FormField, lang: Lang): FormField {
       if (stage && label) {
         const name = translate(label, lang)
         const days = stage.limitDays
-        return {
-          ...option,
-          label:
-            lang === 'vi'
-              ? `${name} · hạn ${days} ngày`
-              : lang === 'en'
-                ? `${name} · ${days}-day limit`
-                : `${name} · ${days}일 기한`,
-        }
+        const limit = message(
+          `${name} · hạn ${days} ngày`,
+          `${name} · ${days}-day limit`,
+          `${name} · ${days}일 기한`,
+        )
+        return { ...option, label: translate(limit, lang) }
       }
       if (option.value === '' && !label) {
         return { ...option, label: translate(message('— chưa có —', '— none —', '— 없음 —'), lang) }

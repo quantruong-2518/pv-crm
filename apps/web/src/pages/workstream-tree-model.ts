@@ -15,7 +15,9 @@ import {
   type WorkstreamJourneyResponse,
 } from '@pv/contracts'
 import { billions, millions } from '@pv/ui'
-import { DUE_LABEL, lateLevel, overdue } from '@/data/contracts'
+import { message, translate, type Message } from '@/app/i18n'
+import { lateLevel, overdue } from '@/data/contracts'
+import { dueLevelText } from '@/data/contract-copy'
 import { STATE_TONE } from '@/data/opportunities'
 import { stepLabel } from '@/data/workstreams'
 
@@ -33,7 +35,7 @@ export type Journey = WorkstreamJourneyResponse
 export type PickKind = 'lead' | 'deal' | 'contract'
 
 /** The chain kind each ladder's object opens under — the chain kinds `pathOf` takes. */
-export const CHAIN_KIND = { lead: 'LD', deal: 'OP', contract: 'HĐ' } as const
+export const CHAIN_KIND = { lead: 'LD', deal: 'OP', contract: 'HĐ' } as const // i18n-ignore
 
 /** Where a code's profile opens — from its code chip, or from the footer of a
  *  rung's step drawer; undefined = the reader has no door to it. */
@@ -58,18 +60,53 @@ const FAN_GAP = 8
 /** Height of the empty deal lane's line; it once held a 48px button. */
 export const GHOST_H = 64
 
+const msg = (vi: string, en: string, ko: string) => translate(message(vi, en, ko))
+
 /** Phase names are the handoff's grouping labels (not states); the object
- *  word under each comes from the product's own tables. */
+ *  word under each comes from the product's own tables. Getters keep the words
+ *  in the language on screen. */
 export const LANES = [
-  { key: 'lead', x: 0, w: 280, phase: 'Presale', object: stepLabel('lead') },
-  { key: 'deal', x: 288, w: 304, phase: 'Sale', object: stepLabel('opportunity') },
-  { key: 'contract', x: 600, w: 320, phase: 'Postsale', object: stepLabel('contract') },
+  {
+    key: 'lead',
+    x: 0,
+    w: 280,
+    phase: 'Presale',
+    get object() {
+      return msg(stepLabel('lead'), 'Lead', '리드')
+    },
+  },
+  {
+    key: 'deal',
+    x: 288,
+    w: 304,
+    phase: 'Sale',
+    get object() {
+      return msg(stepLabel('opportunity'), 'Opportunity', '기회')
+    },
+  },
+  {
+    key: 'contract',
+    x: 600,
+    w: 320,
+    phase: 'Postsale',
+    get object() {
+      return msg(stepLabel('contract'), 'Contract', '계약')
+    },
+  },
   {
     key: 'next',
     x: 928,
     w: 248,
-    phase: 'Tiếp nối',
-    object: `${JOURNEY_STATUS_LABEL.growth} · ${LEAD_STATE_LABEL.nurturing}`,
+    get phase() {
+      return msg('Tiếp nối', 'Next', '후속')
+    },
+    get object() {
+      return msg(
+        `${JOURNEY_STATUS_LABEL.growth} · ${LEAD_STATE_LABEL.nurturing}`,
+        'Growth · Nurturing',
+        '성장 · 육성 대기',
+      )
+    },
   },
 ] as const
 
@@ -107,18 +144,27 @@ type AnyRung = { key: JourneyRungKey; state: JourneyRungState; at: string | null
 export const POOL = 'Kho chung'
 
 /** One word per rung state, read by the rail's aria-labels AND the legend. A
- *  late rung says its due level instead (`DUE_LABEL`). */
-export const STATE_WORD: Record<JourneyRungState, string> = {
-  done: 'Xong',
-  current: 'Đang ở',
-  stopped: JOURNEY_DEAL_OUTCOME_LABEL.lost,
-  skipped: 'Bỏ qua',
-  upcoming: 'Chưa tới',
+ *  late rung says its due level instead (`dueLevelText`). */
+const STATE_WORD_COPY: Record<JourneyRungState, Message> = {
+  done: message('Xong', 'Done', '완료'),
+  current: message('Đang ở', 'Current', '현재'),
+  stopped: message(JOURNEY_DEAL_OUTCOME_LABEL.lost, 'Closed', '종료'),
+  skipped: message('Bỏ qua', 'Skipped', '건너뜀'),
+  upcoming: message('Chưa tới', 'Upcoming', '예정'),
 }
+export const STATE_WORD: Record<JourneyRungState, string> = Object.defineProperties(
+  {} as Record<JourneyRungState, string>,
+  Object.fromEntries(
+    Object.entries(STATE_WORD_COPY).map(([key, copy]) => [
+      key,
+      { get: () => translate(copy), enumerable: true },
+    ]),
+  ),
+)
 
 /** The badge word for one rung: its due level when late, else its state word. */
 export function rungStatus(state: JourneyRungState, late: DueLevel | null): Status {
-  if (late) return { label: DUE_LABEL[late], tone: 'danger' }
+  if (late) return { label: dueLevelText(late), tone: 'danger' }
   const tone = state === 'current' ? 'warning' : state === 'done' ? 'success' : 'draft'
   return { label: STATE_WORD[state], tone }
 }
@@ -221,7 +267,7 @@ export function leadStatus(lead: Journey['lead']): Status | null {
   return { label, tone: 'success' }
 }
 
-export const STOPPED_AT = 'Dừng ở'
+export const STOPPED_AT = message('Dừng ở', 'Stopped at', '중단 단계')
 
 /** The stage a lost deal's fail log stands on — its `stopped` rung. */
 export function stoppedRungLabel(deal: JourneyDeal): string | null {
@@ -250,10 +296,13 @@ export function dealStatus(deal: JourneyDeal): Status {
   // The server sends a sub-step's final wording (quote round n, sign decision).
   const name = running ? running.label : OPPORTUNITY_STAGE_LABEL[r.key]
   const late = dealLate(deal)
-  if (late) return { label: `${name} · ${DUE_LABEL[late]}`, tone: 'danger' }
+  if (late) return { label: `${name} · ${dueLevelText(late)}`, tone: 'danger' }
   if (r.days === null) return { label: name, tone }
   const limit = r.limitDays === null ? '' : `/${r.limitDays}`
-  return { label: `${name} · ngày ${r.days}${limit}`, tone }
+  return {
+    label: `${name} · ${msg(`ngày ${r.days}${limit}`, `day ${r.days}${limit}`, `${r.days}일째${limit}`)}`,
+    tone,
+  }
 }
 
 /** A contract rung is late only by the sub-items that belong to it: deploy
@@ -280,7 +329,7 @@ export function contractStatus(c: JourneyContract): Status {
   const at = standOf(c.rungs)
   const label = at ? CONTRACT_RUNG_LABEL[at.key] : CONTRACT_RUNG_LABEL.signed
   const late = contractLate(c)
-  if (late) return { label: `${label} · ${DUE_LABEL[late]}`, tone: 'danger' }
+  if (late) return { label: `${label} · ${dueLevelText(late)}`, tone: 'danger' }
   return { label, tone: at?.state === 'current' ? 'warning' : 'success' }
 }
 

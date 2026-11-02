@@ -9,6 +9,7 @@ import {
   type PartnerCreate,
 } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 import { contactBookQuery } from '@/data/contacts'
 import { leadOriginsQuery, pickableCampaignsQuery, useOriginNames } from '@/data/lead-origins'
 import { partnerLabel, partnersQuery, useCreatePartner } from '@/data/partners'
@@ -44,10 +45,12 @@ export type OriginChoice = { id?: string; name: string }
 
 const NEW_VALUE = '__new'
 
-const optionOf = (origin: LeadOrigin): ComboboxOption => ({
+const HIDDEN = message('đã ẩn', 'hidden', '숨김')
+
+const optionOf = (origin: LeadOrigin, hidden: string): ComboboxOption => ({
   value: origin.id,
   label: origin.name,
-  hint: origin.active ? undefined : 'đã ẩn',
+  hint: origin.active ? undefined : hidden,
 })
 
 export function OriginPicker({
@@ -60,7 +63,7 @@ export function OriginPicker({
   allowCreate = true,
   invalid,
   hideLabel,
-  placeholder = 'Gõ để tìm, ví dụ LinkedIn',
+  placeholder,
 }: {
   label: string
   value: OriginChoice | null
@@ -76,6 +79,7 @@ export function OriginPicker({
   hideLabel?: boolean
   placeholder?: string
 }) {
+  const { t } = useI18n()
   const [query, setQuery] = useState('')
   const q = useSettled(query.trim())
   const { data, isFetching } = useQuery(leadOriginsQuery({ motion, q: q === '' ? undefined : q }))
@@ -96,25 +100,67 @@ export function OriginPicker({
         size="lg"
         className="flex-1"
         value={value ? (value.id ?? NEW_VALUE) : ''}
-        valueLabel={value ? (value.id ? value.name : `${value.name} · nguồn mới`) : undefined}
+        valueLabel={
+          value
+            ? value.id
+              ? value.name
+              : t(
+                  message(
+                    `${value.name} · nguồn mới`,
+                    `${value.name} · new source`,
+                    `${value.name} · 새 유입 경로`,
+                  ),
+                )
+            : undefined
+        }
         query={query}
         onQueryChange={setQuery}
-        options={rows.map(optionOf)}
-        suggestions={similar.map(optionOf)}
+        options={rows.map((o) => optionOf(o, t(HIDDEN)))}
+        suggestions={similar.map((o) => optionOf(o, t(HIDDEN)))}
         onSelect={(option) => {
           const origin = all.find((o) => o.id === option.value)
           if (origin) onChange({ id: origin.id, name: origin.name })
         }}
-        createLabel={creatable ? (text) => `Tạo nguồn mới “${text}” khi lưu` : undefined}
+        createLabel={
+          creatable
+            ? (text) =>
+                t(
+                  message(
+                    `Tạo nguồn mới “${text}” khi lưu`,
+                    `Create new source “${text}” on save`,
+                    `저장할 때 새 유입 경로 “${text}” 생성`,
+                  ),
+                )
+            : undefined
+        }
         onCreate={creatable ? (text) => onChange({ name: text }) : undefined}
-        placeholder={placeholder}
-        emptyText={q === '' ? 'Chưa có nguồn nào' : 'Không có nguồn nào khớp'}
+        placeholder={
+          placeholder ??
+          t(
+            message(
+              'Gõ để tìm, ví dụ LinkedIn',
+              'Type to search, e.g. LinkedIn',
+              '검색어 입력, 예: LinkedIn',
+            ),
+          )
+        }
+        emptyText={
+          q === ''
+            ? t(message('Chưa có nguồn nào', 'No sources yet', '유입 경로가 없습니다'))
+            : t(
+                message(
+                  'Không có nguồn nào khớp',
+                  'No matching source',
+                  '일치하는 유입 경로가 없습니다',
+                ),
+              )
+        }
         loading={isFetching}
         invalid={invalid}
       />
       {value && onClear && (
         <Button size="lg" variant="ghost" onClick={onClear}>
-          Bỏ chọn
+          {t(message('Bỏ chọn', 'Clear', '선택 해제'))}
         </Button>
       )}
     </div>
@@ -139,6 +185,7 @@ export function CampaignPicker({
   invalid?: boolean
   hideLabel?: boolean
 }) {
+  const { t } = useI18n()
   const [query, setQuery] = useState('')
   const q = useSettled(query.trim())
   const { data, isFetching } = useQuery(pickableCampaignsQuery(searchableText(q)))
@@ -159,17 +206,37 @@ export function CampaignPicker({
         options={rows.map((c) => ({
           value: c.code,
           label: c.name,
-          hint: c.endsOn ? `${c.code} · đến ${dm(c.endsOn)}` : c.code,
+          hint: c.endsOn
+            ? t(
+                message(
+                  `${c.code} · đến ${dm(c.endsOn)}`,
+                  `${c.code} · until ${dm(c.endsOn)}`,
+                  `${c.code} · ${dm(c.endsOn)}까지`,
+                ),
+              )
+            : c.code,
         }))}
         onSelect={(option) => onChange({ code: option.value, name: option.label })}
-        placeholder="Gõ tên hoặc mã chiến dịch"
-        emptyText="Không có chiến dịch nào còn nhận lead"
+        placeholder={t(
+          message(
+            'Gõ tên hoặc mã chiến dịch',
+            'Type a campaign name or code',
+            '캠페인 이름 또는 코드 입력',
+          ),
+        )}
+        emptyText={t(
+          message(
+            'Không có chiến dịch nào còn nhận lead',
+            'No campaign is accepting leads',
+            '리드를 받는 캠페인이 없습니다',
+          ),
+        )}
         loading={isFetching}
         invalid={invalid}
       />
       {value && !required && (
         <Button size="lg" variant="ghost" onClick={() => onChange(null)}>
-          Bỏ chọn
+          {t(message('Bỏ chọn', 'Clear', '선택 해제'))}
         </Button>
       )}
     </div>
@@ -207,6 +274,7 @@ export function PartnerPicker({
   invalid?: boolean
   hideLabel?: boolean
 }) {
+  const { t } = useI18n()
   const [query, setQuery] = useState('')
   const [pending, setPending] = useState<PendingReferrer | null>(null)
   const q = useSettled(query.trim())
@@ -244,7 +312,13 @@ export function PartnerPicker({
           value
             ? partnerLabel(value.code, value.name)
             : pending
-              ? `${pending.name} · chưa có mã`
+              ? t(
+                  message(
+                    `${pending.name} · chưa có mã`,
+                    `${pending.name} · no code yet`,
+                    `${pending.name} · 코드 없음`,
+                  ),
+                )
               : undefined
         }
         query={query}
@@ -258,7 +332,7 @@ export function PartnerPicker({
           ...people.map((c) => ({
             value: `${CONTACT_PREFIX}${c.code}`,
             label: `${c.name} · ${c.accountName ?? c.company}`,
-            hint: 'Chưa có mã',
+            hint: t(message('Chưa có mã', 'No code yet', '코드 없음')),
           })),
         ]}
         onSelect={(option) => {
@@ -273,10 +347,33 @@ export function PartnerPicker({
             })
           } else if (contact) awaitCode({ name: contact.name, contactCode: contact.code })
         }}
-        createLabel={creatable ? (text) => `Tạo người giới thiệu mới “${text}”` : undefined}
+        createLabel={
+          creatable
+            ? (text) =>
+                t(
+                  message(
+                    `Tạo người giới thiệu mới “${text}”`,
+                    `Create new referrer “${text}”`,
+                    `새 소개자 “${text}” 생성`,
+                  ),
+                )
+            : undefined
+        }
         onCreate={creatable ? (text) => awaitCode({ name: text }) : undefined}
-        placeholder="Gõ mã REF hoặc tên người giới thiệu"
-        emptyText="Không có người giới thiệu nào khớp"
+        placeholder={t(
+          message(
+            'Gõ mã REF hoặc tên người giới thiệu',
+            'Type a REF code or referrer name',
+            'REF 코드 또는 소개자 이름 입력',
+          ),
+        )}
+        emptyText={t(
+          message(
+            'Không có người giới thiệu nào khớp',
+            'No matching referrer',
+            '일치하는 소개자가 없습니다',
+          ),
+        )}
         loading={isFetching || contacts.isFetching}
         invalid={invalid}
       />
@@ -313,6 +410,7 @@ function ReferrerCodeStep({
   onCancel: () => void
   onDone: (partner: Partner) => void
 }) {
+  const { t } = useI18n()
   const [picked, setPicked] = useState('')
   const create = useCreatePartner()
   const motions = motion ? [motion] : []
@@ -329,7 +427,13 @@ function ReferrerCodeStep({
   if (loaded && offered.length === 0) {
     return (
       <span role="alert" className="text-destructive-foreground text-[11.5px] leading-[1.5]">
-        Phương án tiếp cận này chưa có nguồn. Thêm ở trang Nguồn lead.
+        {t(
+          message(
+            'Phương án tiếp cận này chưa có nguồn. Thêm ở trang Nguồn lead.',
+            'This approach has no source yet. Add one on the Lead sources page.',
+            '이 접근 방식에는 아직 유입 경로가 없습니다. 리드 유입 경로 페이지에서 추가하세요.',
+          ),
+        )}
       </span>
     )
   }
@@ -340,11 +444,11 @@ function ReferrerCodeStep({
         {/* The floor is what lets the buttons wrap instead of crushing the select. */}
         <div className="min-w-[200px] flex-1">
           <OriginSelect
-            label="Nguồn của người giới thiệu"
+            label={t(message('Nguồn của người giới thiệu', 'Referrer source', '소개자 유입 경로'))}
             value={originId}
             onChange={setPicked}
             motions={motions}
-            emptyLabel="— chọn nguồn —"
+            emptyLabel={t(message('— chọn nguồn —', '— pick a source —', '— 유입 경로 선택 —'))}
             className="w-full"
           />
         </div>
@@ -353,10 +457,12 @@ function ReferrerCodeStep({
           disabled={originId === '' || create.isPending}
           onClick={() => create.mutate({ ...referrer, originId }, { onSuccess: onDone })}
         >
-          {create.isPending ? 'Đang cấp mã…' : 'Cấp mã giới thiệu'}
+          {create.isPending
+            ? t(message('Đang cấp mã…', 'Issuing code…', '코드 발급 중…'))
+            : t(message('Cấp mã giới thiệu', 'Issue referral code', '소개 코드 발급'))}
         </Button>
         <Button size="lg" variant="ghost" onClick={onCancel}>
-          Bỏ chọn
+          {t(message('Bỏ chọn', 'Clear', '선택 해제'))}
         </Button>
       </div>
       {isApiError(create.error) && (
@@ -406,8 +512,14 @@ export function OriginSelect({
   emptyLabel: string
   hideLabel?: boolean
 }) {
+  const { t } = useI18n()
   const { rows } = useOfferedOrigins(motions, value)
-  const options = rows.map((o) => ({ value: o.id, label: o.active ? o.name : `${o.name} · đã ẩn` }))
+  const options = rows.map((o) => ({
+    value: o.id,
+    label: o.active
+      ? o.name
+      : t(message(`${o.name} · đã ẩn`, `${o.name} · hidden`, `${o.name} · 숨김`)),
+  }))
 
   return (
     <Select

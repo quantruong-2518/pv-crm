@@ -3,6 +3,7 @@ import { Badge, Button, GlassCard, Icon, Input, Pencil, Select, cn, metaPillVari
 import { LEAD_NUM, type ConfigBundle, type ConfigEntry, type ConfigEntryPatch } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import { useSalesPeople } from '@/data/directory'
 import { useProposeConfigCreate } from '@/data/industries'
@@ -11,7 +12,7 @@ import { useMyConfigProposals, useProposeConfigPatch } from '@/data/sales-config
 import { AddIndustry, IndustryActions } from './sales-config-industry-actions'
 import { addsWaiting, byOrd, entryWaiting, industryAddsWaiting } from './sales-config-model'
 import { EntryCount, Section, WaitingNote } from './sales-config-section'
-import { SENT } from './sales-config-copy'
+import { sentCopy } from './sales-config-copy'
 
 /** 5.20 · categories and their industries (approved canvas, artboard 1). One
  *  card per category: its Sale, its lead count, its
@@ -21,14 +22,17 @@ import { SENT } from './sales-config-copy'
 
 const NOTE = 'text-muted-foreground m-0 text-[11.5px]'
 
+const UNGROUPED = message('Chưa xếp nhóm', 'Ungrouped', '그룹 미지정')
+
 export function IndustriesSection({ catalog }: { catalog: ConfigBundle | undefined }) {
+  const { t, number } = useI18n()
   const categories = [...(catalog?.CATEGORY ?? [])].sort(byOrd)
   const industries = [...(catalog?.INDUSTRY ?? [])].sort(byOrd)
   const loose = industries.filter((i) => (i.parentId ?? null) === null)
   const [open, setOpen] = useState<string | null>(null)
   const looseAdds = industryAddsWaiting(useMyConfigProposals(), null)
   const nameOf = (id: string | null | undefined) =>
-    categories.find((c) => c.id === id)?.name ?? 'Chưa xếp nhóm'
+    categories.find((c) => c.id === id)?.name ?? t(UNGROUPED)
   /* A grouped industry folds only into its own category; an ungrouped one into any. */
   const targets = (row: ConfigEntry) =>
     industries
@@ -58,8 +62,14 @@ export function IndustriesSection({ catalog }: { catalog: ConfigBundle | undefin
   return (
     <Section
       at="industries"
-      hint={`Lead chọn một nhóm ngành và tối đa ${LEAD_NUM.industriesMax} ngành trong nhóm đó. AI chỉ chọn trong danh sách này.`}
-      summary={<EntryCount rows={categories} noun="nhóm" />}
+      hint={t(
+        message(
+          `Lead chọn một nhóm ngành và tối đa ${LEAD_NUM.industriesMax} ngành trong nhóm đó. AI chỉ chọn trong danh sách này.`,
+          `A lead picks one industry group and up to ${LEAD_NUM.industriesMax} industries in it. AI only picks from this list.`,
+          `리드는 산업 분야 1개와 그 안에서 최대 ${LEAD_NUM.industriesMax}개의 업종을 선택합니다. AI도 이 목록에서만 선택합니다.`,
+        ),
+      )}
+      summary={<EntryCount rows={categories} noun="nhóm" />} // i18n-ignore
     >
       <AddCategory />
       {categories.map((c) => (
@@ -86,14 +96,20 @@ export function IndustriesSection({ catalog }: { catalog: ConfigBundle | undefin
         <GlassCard
           variant="b"
           role="group"
-          aria-label="Chưa xếp nhóm"
+          aria-label={t(UNGROUPED)}
           className="flex flex-col gap-3 p-4"
         >
           <div className="flex flex-wrap items-center gap-3">
-            <span className="text-[13px] font-semibold">Chưa xếp nhóm</span>
-            <Badge tone="warning">Cần dọn</Badge>
+            <span className="text-[13px] font-semibold">{t(UNGROUPED)}</span>
+            <Badge tone="warning">{t(message('Cần dọn', 'Needs sorting', '정리 필요'))}</Badge>
             <span className="text-muted-foreground tnum font-num text-[11.5px]">
-              {loose.length} ngành
+              {t(
+                message(
+                  `${number(loose.length)} ngành`,
+                  `${number(loose.length)} ${loose.length === 1 ? 'industry' : 'industries'}`,
+                  `업종 ${number(loose.length)}개`,
+                ),
+              )}
             </span>
           </div>
           {pills(loose, true)}
@@ -101,7 +117,13 @@ export function IndustriesSection({ catalog }: { catalog: ConfigBundle | undefin
             <WaitingNote key={`${at}/${s}`} words={s} />
           ))}
           <p className={NOTE}>
-            Bấm một ngành để chuyển vào nhóm, đổi tên, hoặc gộp vào ngành khác.
+            {t(
+              message(
+                'Bấm một ngành để chuyển vào nhóm, đổi tên, hoặc gộp vào ngành khác.',
+                'Press an industry to move it into a group, rename it, or merge it into another.',
+                '업종을 누르면 그룹 이동, 이름 변경, 다른 업종과 병합을 할 수 있습니다.',
+              ),
+            )}
           </p>
         </GlassCard>
       )}
@@ -125,9 +147,15 @@ function IndustryPills({
   loose: boolean
   actions: (row: ConfigEntry) => ReactNode
 }) {
+  const { t } = useI18n()
   const canPropose = useCan('config.propose')
   const opened = rows.find((r) => r.id === open)
-  if (rows.length === 0) return <p className={NOTE}>Chưa có ngành nào.</p>
+  if (rows.length === 0)
+    return (
+      <p className={NOTE}>
+        {t(message('Chưa có ngành nào.', 'No industries yet.', '등록된 업종이 없습니다.'))}
+      </p>
+    )
   return (
     <>
       <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
@@ -149,7 +177,7 @@ function IndustryPills({
               >
                 {usage[r.id] ?? 0}
               </b>
-              {!r.active && <span>· đã tắt</span>}
+              {!r.active && <span>· {t(message('đã tắt', 'off', '꺼짐'))}</span>}
             </>
           )
           return (
@@ -190,16 +218,17 @@ function CategoryHead({
   /** Active industries still in it: switching it off is refused, so the button is hidden. */
   inUse: boolean
 }) {
+  const { t, number } = useI18n()
   const canPropose = useCan('config.propose')
   const sales = useSalesPeople()
   const waiting = entryWaiting(useMyConfigProposals(), 'CATEGORY', c.id)
   const patch = useProposeConfigPatch()
   const [draft, setDraft] = useState<{ name: string; ownerId: string } | null>(null)
-  const owner = sales.find((a) => a.id === c.ownerId)?.name ?? 'chưa có'
+  const owner = sales.find((a) => a.id === c.ownerId)?.name ?? t(message('chưa có', 'none', '없음'))
   const send = (body: ConfigEntryPatch) =>
     patch.mutate(
       { list: 'CATEGORY', id: c.id, patch: body },
-      { onSuccess: () => (setDraft(null), toastDone(SENT)) },
+      { onSuccess: () => (setDraft(null), toastDone(sentCopy())) },
     )
 
   if (draft !== null) {
@@ -210,7 +239,9 @@ function CategoryHead({
     return (
       <div className="flex flex-wrap items-end gap-3">
         <Input
-          aria-label={`Tên mới cho ${c.name}`}
+          aria-label={t(
+            message(`Tên mới cho ${c.name}`, `New name for ${c.name}`, `${c.name} 새 이름`),
+          )}
           value={draft.name}
           onChange={(e) => setDraft({ ...draft, name: e.target.value })}
           className="pointer-coarse:h-12 min-w-40 flex-1"
@@ -225,7 +256,7 @@ function CategoryHead({
           disabled={patch.isPending || draft.name.trim() === '' || Object.keys(body).length === 0}
           onClick={() => send(body)}
         >
-          Gửi đề nghị
+          {t(message('Gửi đề nghị', 'Submit proposal', '변경 제안'))}
         </Button>
         <Button
           size="md"
@@ -233,7 +264,7 @@ function CategoryHead({
           className="pointer-coarse:h-12"
           onClick={() => setDraft(null)}
         >
-          Huỷ
+          {t(message('Huỷ', 'Cancel', '취소'))}
         </Button>
         {patch.error && (
           <p role="alert" className="text-destructive-foreground m-0 w-full text-[11.5px]">
@@ -250,11 +281,17 @@ function CategoryHead({
         <span className="min-w-0 flex-1 break-words text-[13px] font-semibold">{c.name}</span>
         {!c.active && (
           <Badge tone="draft" className={BADGE_INK}>
-            Đã tắt
+            {t(message('Đã tắt', 'Off', '꺼짐'))}
           </Badge>
         )}
         <span className="text-muted-foreground tnum font-num text-[11.5px]">
-          {usage} lead · Sale phụ trách: {owner}
+          {t(
+            message(
+              `${number(usage)} lead · Sale phụ trách: ${owner}`,
+              `${number(usage)} ${usage === 1 ? 'lead' : 'leads'} · Salesperson in charge: ${owner}`,
+              `리드 ${number(usage)}건 · 담당 영업: ${owner}`,
+            ),
+          )}
         </span>
         {canPropose && (
           <>
@@ -265,7 +302,7 @@ function CategoryHead({
               onClick={() => setDraft({ name: c.name, ownerId: c.ownerId ?? '' })}
             >
               <Icon icon={Pencil} size={16} />
-              Sửa
+              {t(message('Sửa', 'Edit', '수정'))}
             </Button>
             {!(c.active && inUse) && (
               <Button
@@ -275,7 +312,9 @@ function CategoryHead({
                 disabled={patch.isPending}
                 onClick={() => send({ active: !c.active })}
               >
-                {c.active ? 'Tắt' : 'Bật'}
+                {c.active
+                  ? t(message('Tắt', 'Turn off', '끄기'))
+                  : t(message('Bật', 'Turn on', '켜기'))}
               </Button>
             )}
           </>
@@ -287,15 +326,19 @@ function CategoryHead({
 }
 
 function OwnerSelect({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+  const { t } = useI18n()
   const sales = useSalesPeople()
   return (
     <Select
-      label="Sale phụ trách"
+      label={t(message('Sale phụ trách', 'Salesperson in charge', '담당 영업'))}
       size="lg"
       value={value}
       onChange={onChange}
       options={[
-        { value: '', label: 'Chưa có Sale phụ trách' },
+        {
+          value: '',
+          label: t(message('Chưa có Sale phụ trách', 'No salesperson in charge', '담당 영업 없음')),
+        },
         ...sales.map((a) => ({ value: a.id, label: a.name })),
       ]}
     />
@@ -304,6 +347,7 @@ function OwnerSelect({ value, onChange }: { value: string; onChange: (id: string
 
 /** Add a category: its name and, optionally, its Sale. */
 function AddCategory() {
+  const { t } = useI18n()
   const canPropose = useCan('config.propose')
   const propose = useProposeConfigCreate()
   const adds = addsWaiting(useMyConfigProposals(), 'CATEGORY')
@@ -318,13 +362,15 @@ function AddCategory() {
           className="pointer-coarse:h-12 self-start"
           onClick={() => setDraft({ name: '', ownerId: '' })}
         >
-          Thêm nhóm ngành
+          {t(message('Thêm nhóm ngành', 'Add industry group', '산업 분야 추가'))}
         </Button>
       ) : (
         <div className="flex flex-wrap items-end gap-3">
           <Input
-            aria-label="Tên nhóm ngành mới"
-            placeholder="Tên nhóm ngành"
+            aria-label={t(
+              message('Tên nhóm ngành mới', 'New industry group name', '새 산업 분야 이름'),
+            )}
+            placeholder={t(message('Tên nhóm ngành', 'Industry group name', '산업 분야 이름'))}
             value={draft.name}
             onChange={(e) => setDraft({ ...draft, name: e.target.value })}
             className="pointer-coarse:h-12 min-w-40 flex-1"
@@ -346,11 +392,11 @@ function AddCategory() {
                     ...(draft.ownerId ? { ownerId: draft.ownerId } : {}),
                   },
                 },
-                { onSuccess: () => (setDraft(null), toastDone(SENT)) },
+                { onSuccess: () => (setDraft(null), toastDone(sentCopy())) },
               )
             }
           >
-            Gửi đề nghị
+            {t(message('Gửi đề nghị', 'Submit proposal', '변경 제안'))}
           </Button>
           <Button
             size="md"
@@ -358,7 +404,7 @@ function AddCategory() {
             className="pointer-coarse:h-12"
             onClick={() => setDraft(null)}
           >
-            Huỷ
+            {t(message('Huỷ', 'Cancel', '취소'))}
           </Button>
         </div>
       )}

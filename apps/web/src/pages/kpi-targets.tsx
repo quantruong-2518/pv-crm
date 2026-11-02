@@ -218,7 +218,12 @@ export function KpiTargetsPage() {
                 )}
 
                 {tiered ? (
-                  <TieredNote to={statusHref(t.period)} label="Mở Tình trạng giao" />
+                  <TieredNote
+                    to={statusHref(t.period)}
+                    label={tx(
+                      message('Mở Tình trạng giao', 'Open assignment status', '배정 현황 열기'),
+                    )}
+                  />
                 ) : shown ? (
                   <RoleSteps
                     catalog={defs}

@@ -31,10 +31,7 @@ const VIEW_ICON: Record<ConfigView, IconGlyph> = {
   kpi: Target,
 }
 
-const ENTRIES = [
-  { key: OVERVIEW, label: 'Tổng quan', step: null, sections: [] },
-  ...CONFIG_AREAS,
-] as const
+const ENTRIES = [{ key: OVERVIEW, step: null, sections: [] }, ...CONFIG_AREAS] as const
 
 const TAB =
   'motion-std pointer-coarse:h-12 flex h-10 items-center gap-2 whitespace-nowrap rounded-sm px-3 text-[12px] font-semibold'

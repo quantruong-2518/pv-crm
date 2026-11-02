@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { MailSubjectKind } from '@pv/contracts'
+import { useLang } from '@/app/i18n'
 import { useDirectory } from '@/data/directory'
 import { useLetterContacts, useLetterPreflight } from '@/data/mail-letters'
 import { seedTo, toCell } from './letter-model'
@@ -13,6 +14,7 @@ export function useLetterRecipients(
   leadCode: string,
   contactCode?: string | null,
 ) {
+  const lang = useLang()
   const contacts = useLetterContacts(leadCode)
   const directory = useDirectory()
   /* `null` until the contact book lands, then seeded ONCE. */
@@ -38,7 +40,7 @@ export function useLetterRecipients(
     toCodes,
     addressing,
     preflight,
-    cells: toCodes.map((c) => toCell(c, pool, verdicts.get(c), preflight.checking)),
+    cells: toCodes.map((c) => toCell(c, pool, verdicts.get(c), preflight.checking, lang)),
     ccIds,
     cc: ccIds.flatMap((id) => directory.filter((person) => person.id === id)),
     addCc: (id: string) => setCcIds((ids) => [...ids, id]),

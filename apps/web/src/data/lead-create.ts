@@ -1,12 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import {
-  LeadCreate,
-  MOTION_ASKS_MISSING,
-  type LeadCreateResponse,
-  type MotionAsks,
-} from '@pv/contracts'
+import { LeadCreate, type LeadCreateResponse, type MotionAsks } from '@pv/contracts'
 import type { CurrencyCode, LeadTier } from '@pv/engines/fixtures/das-vina'
 import { api, type ApiError, type ApiNeed, type FieldErrors } from '@/app/api'
+import { leadAsksMissing } from '@/data/lead-copy'
 import {
   createWireOf,
   CREATE_FIELDS,
@@ -183,7 +179,7 @@ export const emptyDraft = (): FormValues => ({
  *  Same string the server uses (`zod.pipe.ts` and `db-error.ts` both fall back
  *  to it) so the form has ONE convention to render, whether the refusal came
  *  from the copy of the contract running here or the copy running there. */
-export const ROOT_FIELD = '(gốc)'
+export const ROOT_FIELD = '(gốc)' // i18n-ignore
 
 export type BuildResult = { ok: true; body: LeadCreate } | { ok: false; errors: FieldErrors }
 
@@ -271,7 +267,7 @@ export function buildLeadCreate(values: FormValues, asks: MotionAsks): BuildResu
   const parsed = LeadCreate.safeParse(candidate)
   const errors = parsed.success ? {} : fieldErrorsOf(parsed.error.issues)
   /* zod cannot word this: which box is required is motion-policy DATA. */
-  if (candidate[asked] === undefined) errors[asked] = [MOTION_ASKS_MISSING[asks]]
+  if (candidate[asked] === undefined) errors[asked] = [leadAsksMissing(asks)]
   if (parsed.success && Object.keys(errors).length === 0) return { ok: true, body: parsed.data }
   return { ok: false, errors }
 }

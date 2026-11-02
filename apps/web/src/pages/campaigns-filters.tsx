@@ -14,7 +14,7 @@ import { message, useI18n } from '@/app/i18n'
  *  Owners come from the people directory, never from a sample of rows. */
 
 /** Why a campaign shows no owner: the dash's tooltip and the filter's "nobody" option. */
-export const NO_OWNER = 'Chưa có người phụ trách'
+export const NO_OWNER = 'Chưa có người phụ trách' // i18n-ignore
 
 export function useCampaignFilters(book: ReturnType<typeof useBookQuery<CampaignBookQuery>>) {
   const { t } = useI18n()

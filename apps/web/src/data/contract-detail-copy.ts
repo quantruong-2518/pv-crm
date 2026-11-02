@@ -20,7 +20,7 @@ export const CONTRACT_DETAIL_COPY = {
   backToBook: message('Về sổ hợp đồng', 'Back to contracts', '계약 목록으로'),
   aiEmpty: message('Chưa soạn thư.', 'No email drafted yet.', '아직 작성한 메일이 없습니다.'),
   draftMail: message('Soạn thư', 'Draft email', '메일 작성'),
-  openInstallment: message('Mở đợt', 'Open payment', '납부 내역 열기'),
+  openInstallment: message('Mở đợt', 'Open installment', '납부 회차 열기'),
   rail: message(
     'Liên hệ, người liên hệ và tài liệu của hợp đồng',
     'Contract activity, contacts and documents',
@@ -61,7 +61,7 @@ export const CONTRACT_DETAIL_COPY = {
     'Could not load contract milestones.',
     '계약 단계를 불러오지 못했습니다.',
   ),
-  nextPayment: message('Đợt thu sắp tới', 'Next payment', '다음 수금'),
+  nextPayment: message('Đợt thu sắp tới', 'Next installment', '다음 납부 회차'),
   paymentDue: message('Hạn', 'Due', '기한'),
   rungSigned: message('Đã ký', 'Signed', '서명 완료'),
   rungDeploy: message('Triển khai', 'Delivery', '이행'),
@@ -77,36 +77,45 @@ export function contractReadOnlyText(
 ) {
   if (collects) return translate(CONTRACT_DETAIL_COPY.onlyCollector, lang)
   const canEdit = holder
-    ? lang === 'ko'
-      ? `${holder}, 영업 관리자 또는 임원만 수정할 수 있습니다.`
-      : lang === 'en'
-        ? `${holder}, a sales manager or a director can edit it.`
-        : `${holder}, trưởng phòng hoặc giám đốc mới sửa được.`
+    ? translate(
+        message(
+          `${holder}, trưởng phòng hoặc giám đốc mới sửa được.`,
+          `${holder}, a sales manager or a director can edit it.`,
+          `${holder}, 영업 관리자 또는 임원만 수정할 수 있습니다.`,
+        ),
+        lang,
+      )
     : translate(CONTRACT_DETAIL_COPY.managerEdits, lang)
   return holder ? `${translate(CONTRACT_DETAIL_COPY.onlyView, lang)} ${canEdit}` : canEdit
 }
 
 export function installmentNoText(no: number, lang: Lang) {
   const n = formatNumber(no, lang)
-  if (lang === 'ko') return `${n}차 납부`
-  if (lang === 'en') return `Payment ${n}`
-  return `Đợt ${n}`
+  return translate(message(`Đợt ${n}`, `Installment ${n}`, `납부 회차 ${n}`), lang)
 }
 
 export function aiSuggestionText(contact: string, what: string, no: number, lang: Lang) {
   const payment = installmentNoText(no, lang)
-  if (lang === 'ko')
-    return `${contact}에게 ${what} 완료와 ${payment} 송금일을 요청하는 메일을 작성할까요?`
-  if (lang === 'en')
-    return `Draft an email asking ${contact} to complete ${what} and confirm the transfer date for ${payment.toLowerCase()}?`
-  return `Soạn thư nhắc ${contact} hoàn tất ${what} và cho biết ngày chuyển tiền ${payment.toLowerCase()}?`
+  return translate(
+    message(
+      `Soạn thư nhắc ${contact} hoàn tất ${what} và cho biết ngày chuyển tiền ${payment.toLowerCase()}?`,
+      `Draft an email asking ${contact} to complete ${what} and confirm the transfer date for ${payment.toLowerCase()}?`,
+      `${contact}에게 ${what} 완료와 ${payment} 송금일을 요청하는 메일을 작성할까요?`,
+    ),
+    lang,
+  )
 }
 
 export function blockedLateText(what: string, days: number, lang: Lang) {
   const n = formatNumber(Math.max(0, days), lang)
-  if (lang === 'ko') return `"${what}" 조건 ${n}일 지남`
-  if (lang === 'en') return `"${what}" is ${n} days late`
-  return `điều kiện "${what}" trễ ${n} ngày`
+  return translate(
+    message(
+      `điều kiện "${what}" trễ ${n} ngày`,
+      `"${what}" is ${n} days late`,
+      `"${what}" 조건 ${n}일 지남`,
+    ),
+    lang,
+  )
 }
 
 export function paymentBasisText(no: number, days: number, lang: Lang) {
@@ -115,9 +124,7 @@ export function paymentBasisText(no: number, days: number, lang: Lang) {
 
 export function elapsedDaysText(days: number, lang: Lang) {
   const n = formatNumber(days, lang)
-  if (lang === 'ko') return `${n}일 경과`
-  if (lang === 'en') return `${n} days elapsed`
-  return `đã ${n} ngày`
+  return translate(message(`đã ${n} ngày`, `${n} days elapsed`, `${n}일 경과`), lang)
 }
 
 export const contractRungText = (
@@ -134,7 +141,8 @@ export const contractRungText = (
 export function paymentDueText(day: string, days: number, lang: Lang) {
   const date = formatDate(day, lang)
   const relative = daysUntilText(days, lang)
-  if (lang === 'ko') return `${date} 기한 · ${relative}`
-  if (lang === 'en') return `Due ${date} · ${relative}`
-  return `Hạn ${date} · ${relative}`
+  return translate(
+    message(`Hạn ${date} · ${relative}`, `Due ${date} · ${relative}`, `${date} 기한 · ${relative}`),
+    lang,
+  )
 }

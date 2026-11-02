@@ -23,6 +23,7 @@ import {
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { dmhm } from '@/lib/date'
+import { message, useI18n } from '@/app/i18n'
 import { ChannelPill, CommStateBadge } from '@/components/comm-bits'
 import { Field } from '@/components/field-bits'
 import { COMMS_CHANNEL_ICON, COMMS_CHANNEL_LABEL } from '@/data/comms'
@@ -67,6 +68,7 @@ export function StepDone({
   value: ReactNode
   onEdit: () => void
 }) {
+  const { t } = useI18n()
   return (
     <GlassCard className="flex min-h-12 items-center gap-3 p-3">
       <StepNo no={no} done />
@@ -75,7 +77,7 @@ export function StepDone({
         <span className="truncate text-[12.5px] font-medium">{value}</span>
       </span>
       <Button size="sm" variant="ghost" className="pointer-coarse:h-12" onClick={onEdit}>
-        Sửa
+        {t(message('Sửa', 'Edit', '수정'))}
       </Button>
     </GlassCard>
   )
@@ -119,6 +121,7 @@ export function StepCard({
 // ---------------------------------------------------------------------------
 
 export function PickWorkstream({ onPick }: { onPick: (ws: WorkstreamRow) => void }) {
+  const { t } = useI18n()
   const canRead = useCan('workstream.view')
   const [typed, setTyped] = useState('')
   const [q, setQ] = useState('')
@@ -140,7 +143,13 @@ export function PickWorkstream({ onPick }: { onPick: (ws: WorkstreamRow) => void
   if (!canRead) {
     return (
       <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-        Vai của bạn không xem được sổ lượt bán.
+        {t(
+          message(
+            'Vai của bạn không xem được sổ lượt bán.',
+            'Your role cannot view the workstream book.',
+            '현재 역할로는 영업 건 목록을 볼 수 없습니다.',
+          ),
+        )}
       </p>
     )
   }
@@ -151,17 +160,37 @@ export function PickWorkstream({ onPick }: { onPick: (ws: WorkstreamRow) => void
         size="page"
         value={typed}
         onChange={setTyped}
-        placeholder="Tìm công ty, mã lượt bán"
+        placeholder={t(
+          message(
+            'Tìm công ty, mã lượt bán',
+            'Search company or workstream code',
+            '회사, 영업 건 코드 검색',
+          ),
+        )}
       />
       {isPending ? (
         <Skeleton className="h-24 w-full" />
       ) : error ? (
         <p role="alert" className="text-destructive-foreground m-0 text-[12px]">
-          {isApiError(error) ? userMessage(error) : 'Không tải được sổ lượt bán.'}
+          {isApiError(error)
+            ? userMessage(error)
+            : t(
+                message(
+                  'Không tải được sổ lượt bán.',
+                  'Could not load the workstream book.',
+                  '영업 건 목록을 불러오지 못했습니다.',
+                ),
+              )}
         </p>
       ) : data.rows.length === 0 ? (
         <p className="text-muted-foreground m-0 text-[12.5px]">
-          Không có lượt bán đang mở nào khớp.
+          {t(
+            message(
+              'Không có lượt bán đang mở nào khớp.',
+              'No open workstream matches.',
+              '일치하는 진행 중인 영업 건이 없습니다.',
+            ),
+          )}
         </p>
       ) : (
         <ul className="flex flex-col gap-2">
@@ -201,6 +230,7 @@ export function PickChannel({
   onNew: (channel: CommActionChannel) => void
   onJoin: (row: PendingDebriefRow) => void
 }) {
+  const { t } = useI18n()
   const { data } = useQuery(pendingCommsQuery(workstreamCode))
   const pending = data?.rows ?? []
 
@@ -229,7 +259,13 @@ export function PickChannel({
       {pending.length > 0 && (
         <div className="flex flex-col gap-2">
           <span className="text-muted-foreground text-[11.5px]">
-            Liên hệ đang chờ của lượt bán này
+            {t(
+              message(
+                'Liên hệ đang chờ của lượt bán này',
+                'Pending interactions on this workstream',
+                '이 영업 건의 대기 중인 연락',
+              ),
+            )}
           </span>
           {pending.map((row) => (
             <button
@@ -266,6 +302,7 @@ export function ContentFields({
   files: PickedFile[]
   onFiles: (files: PickedFile[]) => void
 }) {
+  const { t, lang } = useI18n()
   const input = useRef<HTMLInputElement>(null)
   const [problem, setProblem] = useState<string>()
 
@@ -273,7 +310,7 @@ export function ContentFields({
     const next: PickedFile[] = []
     const refused: string[] = []
     for (const file of Array.from(list ?? [])) {
-      const verdict = checkCommFile(file)
+      const verdict = checkCommFile(file, lang)
       if ('problem' in verdict) refused.push(verdict.problem)
       else
         next.push({
@@ -290,14 +327,23 @@ export function ContentFields({
     <div className="flex flex-col gap-3">
       {/* No hard stop at the summary cap: a pasted long text is shortened by
           the person, and the page says by how much (`contentBlockerOf`). */}
-      <Field label="Nội dung" note={`${text.length}/${DEBRIEF_SUMMARY_MAX}`}>
+      <Field
+        label={t(message('Nội dung', 'Content', '내용'))}
+        note={`${text.length}/${DEBRIEF_SUMMARY_MAX}`}
+      >
         <Textarea
           value={text}
           rows={5}
           autoGrow
           maxLength={MESSAGE_BODY_MAX}
-          aria-label="Nội dung đã trao đổi"
-          placeholder="Hai bên đã trao đổi gì, khách cần gì tiếp theo."
+          aria-label={t(message('Nội dung đã trao đổi', 'What was discussed', '논의한 내용'))}
+          placeholder={t(
+            message(
+              'Hai bên đã trao đổi gì, khách cần gì tiếp theo.',
+              'What was discussed and what the customer needs next.',
+              '논의한 내용과 고객이 다음에 필요한 것을 적어 주세요.',
+            ),
+          )}
           onChange={(e) => onText(e.target.value)}
         />
       </Field>
@@ -319,7 +365,13 @@ export function ContentFields({
         onClick={() => input.current?.click()}
       >
         <Icon icon={Paperclip} size={16} />
-        Đính kèm ghi âm, biên bản, ảnh chat
+        {t(
+          message(
+            'Đính kèm ghi âm, biên bản, ảnh chat',
+            'Attach recordings, minutes, chat screenshots',
+            '녹음, 회의록, 채팅 캡처 첨부',
+          ),
+        )}
       </Button>
       {problem && (
         <p role="alert" className="text-destructive-foreground m-0 text-[12px] leading-[1.6]">
@@ -340,7 +392,13 @@ export function ContentFields({
               <Button
                 size="sm"
                 variant="ghost"
-                aria-label={`Bỏ tệp ${f.file.name}`}
+                aria-label={t(
+                  message(
+                    `Bỏ tệp ${f.file.name}`,
+                    `Remove file ${f.file.name}`,
+                    `${f.file.name} 파일 제거`,
+                  ),
+                )}
                 className="size-12 px-0"
                 onClick={() => onFiles(files.filter((x) => x.key !== f.key))}
               >

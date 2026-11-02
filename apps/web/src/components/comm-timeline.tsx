@@ -2,6 +2,7 @@ import { useEffect, useRef, type MouseEvent, type PointerEvent, type ReactNode }
 import { Button, ChevronLeft, ChevronRight, Icon, StatusDot, cn } from '@pv/ui'
 import type { CommRecordState, DebriefStepCopy, ThreadChannel } from '@pv/contracts'
 import { dm } from '@/lib/date'
+import { message, useI18n } from '@/app/i18n'
 import { COMM_CARD_SURFACE, COMM_FOCUS, COMM_STATE_DOT } from '@/data/comm-record-detail'
 import {
   ChannelPill,
@@ -53,6 +54,7 @@ export function CommTimelineTrack({
   onSelect: (id: string) => void
   caption?: ReactNode
 }) {
+  const { t } = useI18n()
   const pan = useDragPan(items.length)
 
   return (
@@ -64,7 +66,7 @@ export function CommTimelineTrack({
         <Button
           size="sm"
           variant="ghost"
-          aria-label="Liên hệ cũ hơn"
+          aria-label={t(message('Liên hệ cũ hơn', 'Older interactions', '이전 연락 기록'))}
           className="pointer-coarse:size-12 size-10 px-0"
           onClick={() => pan.page(-1)}
         >
@@ -73,7 +75,7 @@ export function CommTimelineTrack({
         <Button
           size="sm"
           variant="ghost"
-          aria-label="Liên hệ mới hơn"
+          aria-label={t(message('Liên hệ mới hơn', 'Newer interactions', '이후 연락 기록'))}
           className="pointer-coarse:size-12 size-10 px-0"
           onClick={() => pan.page(1)}
         >
@@ -87,7 +89,7 @@ export function CommTimelineTrack({
         className="cursor-grab select-none overflow-x-auto pb-3 active:cursor-grabbing"
       >
         <ol
-          aria-label="Tiến trình liên lạc"
+          aria-label={t(message('Tiến trình liên lạc', 'Interaction timeline', '연락 진행 내역'))}
           className="m-0 grid w-max list-none auto-cols-[272px] grid-flow-col grid-rows-[auto_auto_auto] gap-x-8 gap-y-3 px-4 py-3"
         >
           {items.map((item, index) => (

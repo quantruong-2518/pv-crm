@@ -21,7 +21,7 @@ import { boardOf, printTile, printValue } from './kpi-model'
 import { ReadingTile } from './kpi-parts'
 import { counterActors, isClosed, packageOf, sharedRoles } from './kpi-team-model'
 import { WeeklyChart } from './kpi-weekly-chart'
-import { message, useI18n } from '@/app/i18n'
+import { message, translate, useI18n, type Lang, type Message } from '@/app/i18n'
 import { kpiMetricText } from '@/data/kpi-i18n'
 
 /** The blocks the personal KPI screen adds to the role board for ADR 0098: the
@@ -89,16 +89,17 @@ export function TeamLeadLink({
 }
 
 /** A side read failed: one line with its own retry, the board stays up. */
-export function SideFailure({ what, retry }: { what: string; retry: () => void }) {
+export function SideFailure({ what, retry }: { what: string | Message; retry: () => void }) {
   const { t } = useI18n()
+  const subject = typeof what === 'object' ? t(what) : what
   return (
     <p className={cn(NOTE, 'text-destructive-foreground flex flex-wrap items-center gap-2')}>
       <Icon icon={TriangleAlert} size={16} className="text-destructive-foreground shrink-0" />
       {t(
         message(
-          `Không tải được ${what}.`,
-          `Could not load ${what}.`,
-          `${what}을(를) 불러오지 못했습니다.`,
+          `Không tải được ${subject}.`,
+          `Could not load ${subject}.`,
+          `${subject}을(를) 불러오지 못했습니다.`,
         ),
       )}
       <Button variant="ghost" size="sm" className="pointer-coarse:h-12" onClick={retry}>
@@ -108,25 +109,25 @@ export function SideFailure({ what, retry }: { what: string; retry: () => void }
   )
 }
 
-function flagSentence(f: KpiForecast, unit: KpiUnit, lang: 'vi' | 'en' | 'ko'): string {
+function flagSentence(f: KpiForecast, unit: KpiUnit, lang: Lang): string {
   const label = kpiMetricText(f.metricKey, lang)
   if (f.flag === 'hit' && f.value !== null && f.target) {
-    return lang === 'vi'
-      ? `${label}: đã đạt ${percent(f.value / f.target)} chỉ tiêu.`
-      : lang === 'en'
-        ? `${label}: ${percent(f.value / f.target)} of target reached.`
-        : `${label}: 목표의 ${percent(f.value / f.target)} 달성.`
+    const done = percent(f.value / f.target)
+    return translate(
+      message(
+        `${label}: đã đạt ${done} chỉ tiêu.`,
+        `${label}: ${done} of target reached.`,
+        `${label}: 목표의 ${done} 달성.`,
+      ),
+      lang,
+    )
   }
+  const goal = f.target === null ? '' : printValue(unit, f.target, true)
   const target =
     f.target === null
       ? ''
-      : lang === 'vi'
-        ? ` / chỉ tiêu ${printValue(unit, f.target, true)}`
-        : lang === 'en'
-          ? ` / target ${printValue(unit, f.target, true)}`
-          : ` / 목표 ${printValue(unit, f.target, true)}`
-  const projected =
-    lang === 'vi' ? 'dự báo cuối tháng' : lang === 'en' ? 'month-end forecast' : '월말 예상'
+      : translate(message(` / chỉ tiêu ${goal}`, ` / target ${goal}`, ` / 목표 ${goal}`), lang)
+  const projected = translate(message('dự báo cuối tháng', 'month-end forecast', '월말 예상'), lang)
   return `${label}: ${projected} ${printTile(unit, f.projected)}${target}.`
 }
 

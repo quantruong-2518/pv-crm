@@ -195,7 +195,7 @@ export function CampaignsPage() {
                           onClick: () => setCreating(true),
                         }
                       : {
-                          label: t(message('Xem sổ lô gửi', 'View mail runs', '발송 내역 보기')),
+                          label: t(message('Xem sổ lô gửi', 'View mail runs', '발송 건 목록 보기')),
                           onClick: () => navigate('/sales/campaigns/mail-runs'),
                         },
                 }

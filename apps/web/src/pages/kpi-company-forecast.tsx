@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Badge, GlassCard, Icon, TrendingDown, TrendingUp, cn, percent } from '@pv/ui'
 import { type KpiForecastResponse } from '@pv/contracts'
+import { message, useI18n, type Message } from '@/app/i18n'
 import { StackTable, type StackColumn } from '@/components/stack-table'
 import type { KpiCatalog } from '@/data/kpi-catalog'
 import {
@@ -31,21 +32,31 @@ const TWO_LINES = 'flex min-w-0 flex-col gap-1'
 
 type Flag = ForecastFlag
 
-const FACE: Record<Flag, { title: string; icon: typeof TrendingUp; tone: string; empty: string }> =
-  {
-    slip: {
-      title: 'Sắp trượt',
-      icon: TrendingDown,
-      tone: 'text-warning',
-      empty: 'Không ai sắp trượt chỉ tiêu.',
-    },
-    hit: {
-      title: 'Sắp đạt',
-      icon: TrendingUp,
-      tone: 'text-success',
-      empty: 'Chưa ai sắp đạt chỉ tiêu.',
-    },
-  }
+const FACE: Record<
+  Flag,
+  { title: Message; icon: typeof TrendingUp; tone: string; empty: Message }
+> = {
+  slip: {
+    title: message('Sắp trượt', 'About to miss', '미달 임박'),
+    icon: TrendingDown,
+    tone: 'text-warning',
+    empty: message(
+      'Không ai sắp trượt chỉ tiêu.',
+      'No one is about to miss their target.',
+      '목표 미달이 임박한 사람이 없습니다.',
+    ),
+  },
+  hit: {
+    title: message('Sắp đạt', 'About to hit', '달성 임박'),
+    icon: TrendingUp,
+    tone: 'text-success',
+    empty: message(
+      'Chưa ai sắp đạt chỉ tiêu.',
+      'No one is about to hit their target yet.',
+      '목표 달성이 임박한 사람이 아직 없습니다.',
+    ),
+  },
+}
 
 /** The rule behind a flag, in the config's own numbers. */
 export function FlagRule({
@@ -55,25 +66,52 @@ export function FlagRule({
   flag: Flag
   thresholds: KpiForecastResponse['thresholds']
 }) {
-  return flag === 'slip'
-    ? `Dự báo cuối tháng dưới ${percent(thresholds.slipRatio)} chỉ tiêu.`
-    : `Đã đạt từ ${percent(thresholds.hitRatio)} chỉ tiêu.`
+  const { t } = useI18n()
+  const slip = percent(thresholds.slipRatio)
+  const hit = percent(thresholds.hitRatio)
+  return t(
+    flag === 'slip'
+      ? message(
+          `Dự báo cuối tháng dưới ${slip} chỉ tiêu.`,
+          `Month-end forecast below ${slip} of target.`,
+          `월말 예상치가 목표의 ${slip} 미만입니다.`,
+        )
+      : message(
+          `Đã đạt từ ${hit} chỉ tiêu.`,
+          `${hit} of target already reached.`,
+          `목표의 ${hit} 이상 달성했습니다.`,
+        ),
+  )
 }
 
 export function FlagBadge({ flag }: { flag: Flag }) {
-  return <Badge tone={flag === 'slip' ? 'warning' : 'success'}>{FACE[flag].title}</Badge>
+  const { t } = useI18n()
+  return <Badge tone={flag === 'slip' ? 'warning' : 'success'}>{t(FACE[flag].title)}</Badge>
 }
 
-function columnsOf(flag: Flag): StackColumn[] {
+function columnsOf(flag: Flag, t: (copy: Message) => string): StackColumn[] {
   return [
-    { header: 'Người', width: 'minmax(0,1.3fr)' },
-    { header: 'Chỉ số', width: 'minmax(0,1.4fr)' },
-    { header: 'Hiện có', width: 'minmax(0,.9fr)', align: 'right' },
-    { header: flag === 'slip' ? 'Dự báo' : 'Đã đạt', width: 'minmax(0,1fr)', align: 'right' },
+    { header: t(message('Người', 'Person', '담당자')), width: 'minmax(0,1.3fr)' },
+    { header: t(message('Chỉ số', 'Metric', '지표')), width: 'minmax(0,1.4fr)' },
+    { header: t(message('Hiện có', 'Current', '현재')), width: 'minmax(0,.9fr)', align: 'right' },
+    {
+      header: t(
+        flag === 'slip'
+          ? message('Dự báo', 'Forecast', '예상')
+          : message('Đã đạt', 'Reached', '달성'),
+      ),
+      width: 'minmax(0,1fr)',
+      align: 'right',
+    },
   ]
 }
 
-function cellsOf(flag: Flag, { def, forecast }: ForecastItem, period: string) {
+function cellsOf(
+  flag: Flag,
+  { def, forecast }: ForecastItem,
+  period: string,
+  t: (copy: Message) => string,
+) {
   const reached = reachedOf(forecast)
   const outcome =
     flag === 'slip'
@@ -94,7 +132,15 @@ function cellsOf(flag: Flag, { def, forecast }: ForecastItem, period: string) {
     </span>,
     <span key="outcome" className={cn(TWO_LINES, 'items-end')}>
       <span className={cn(FIGURE, 'font-semibold')}>{outcome}</span>
-      <span className={cn(NOTE, FIGURE)}>Chỉ tiêu {printShort(def.unit, forecast.target)}</span>
+      <span className={cn(NOTE, FIGURE)}>
+        {t(
+          message(
+            `Chỉ tiêu ${printShort(def.unit, forecast.target)}`,
+            `Target ${printShort(def.unit, forecast.target)}`,
+            `목표 ${printShort(def.unit, forecast.target)}`,
+          ),
+        )}
+      </span>
     </span>,
   ]
 }
@@ -108,6 +154,7 @@ function FlagCard({
   items: ForecastItem[]
   data: KpiForecastResponse
 }) {
+  const { t } = useI18n()
   const face = FACE[flag]
   const rows = flagged(items, flag)
   return (
@@ -115,7 +162,7 @@ function FlagCard({
       <div className="flex flex-col gap-1 px-5">
         <h3 className="font-display flex items-center gap-2 text-[14px] font-semibold">
           <Icon icon={face.icon} size={16} className={cn('shrink-0', face.tone)} />
-          {face.title}
+          {t(face.title)}
           {rows.length > 0 && (
             <span className={cn(NOTE, FIGURE, 'font-normal')}>· {num(rows.length)}</span>
           )}
@@ -125,17 +172,17 @@ function FlagCard({
         </p>
       </div>
       {rows.length === 0 ? (
-        <p className="px-5 text-[12.5px] leading-5">{face.empty}</p>
+        <p className="px-5 text-[12.5px] leading-5">{t(face.empty)}</p>
       ) : (
         <StackTable
           from="md"
           flush
           rowHeight="min-h-12 py-2"
           tableClassName="min-w-lg"
-          columns={columnsOf(flag)}
+          columns={columnsOf(flag, t)}
           rows={rows.map((item) => ({
             id: `${item.forecast.actorId}/${item.forecast.role}/${item.def.key}`,
-            cells: cellsOf(flag, item, data.period),
+            cells: cellsOf(flag, item, data.period, t),
           }))}
         />
       )}

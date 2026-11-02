@@ -6,6 +6,7 @@ import type {
 } from '@pv/contracts'
 import type { LeadMotion } from '@pv/engines'
 import { api, isApiError, userMessage, type ApiNeed } from '@/app/api'
+import { message, translate } from '@/app/i18n'
 import {
   buildLeadImportBody,
   toPanelReport,
@@ -180,7 +181,12 @@ function refused(message: string, rows: readonly ImportableRow[]): LeadImportRun
 export async function runLeadImport(input: LeadImportInput): Promise<LeadImportRun> {
   const motion = WIRE_MOTION[input.motion]
   if (motion === undefined) {
-    return refused(`Phương án "${input.motion}" không nạp từ tệp được.`, input.rows)
+    const text = message(
+      `Phương án "${input.motion}" không nạp từ tệp được.`,
+      `The "${input.motion}" approach cannot be imported from a file.`,
+      `"${input.motion}" 방식은 파일로 가져올 수 없습니다.`,
+    )
+    return refused(translate(text), input.rows)
   }
 
   const body = buildLeadImportBody(input.rows, {
@@ -194,7 +200,13 @@ export async function runLeadImport(input: LeadImportInput): Promise<LeadImportR
   if (!body.success) {
     /* The schema running here is the same one the server runs, so its first
        complaint is word for word the one the server would have raised. */
-    return refused(body.error.issues[0]?.message ?? 'Lô này không hợp lệ.', input.rows)
+    return refused(
+      body.error.issues[0]?.message ??
+        translate(
+          message('Lô này không hợp lệ.', 'This batch is not valid.', '유효하지 않은 묶음입니다.'),
+        ),
+      input.rows,
+    )
   }
 
   try {
@@ -218,7 +230,12 @@ export async function runLeadImport(input: LeadImportInput): Promise<LeadImportR
   } catch (error) {
     /* `dispatch` guarantees `ApiError`; the `isApiError` guard is what keeps a
        genuinely unexpected throw from being read as one. */
-    return refused(isApiError(error) ? userMessage(error) : 'Không nạp được lô này.', input.rows)
+    const failed = message(
+      'Không nạp được lô này.',
+      'Could not import this batch.',
+      '이 묶음을 가져오지 못했습니다.',
+    )
+    return refused(isApiError(error) ? userMessage(error) : translate(failed), input.rows)
   }
 }
 

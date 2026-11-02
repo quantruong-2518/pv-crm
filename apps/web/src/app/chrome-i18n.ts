@@ -76,11 +76,11 @@ export const CHROME_ENTRY_COPY: Record<string, { label: Message; description?: M
     description: m('Lead chờ liên hệ lại', 'Leads to contact again', '재연락할 리드'),
   },
   '/sales/opportunities': {
-    label: m('Cơ hội', 'Opportunities', '영업 기회'),
+    label: m('Cơ hội', 'Opportunities', '기회'),
     description: m(
       'Theo dõi cơ hội đến khi ký',
       'Track opportunities through signing',
-      '계약 체결까지 영업 기회 추적',
+      '계약 체결까지 기회 추적',
     ),
   },
   '/sales/holds': {
@@ -88,7 +88,7 @@ export const CHROME_ENTRY_COPY: Record<string, { label: Message; description?: M
     description: m(
       'Lead và cơ hội đang tạm hoãn',
       'Leads and opportunities on hold',
-      '보류 중인 리드와 영업 기회',
+      '보류 중인 리드와 기회',
     ),
   },
   '/sales/contracts': {
@@ -152,7 +152,7 @@ export const CHROME_MISC = {
   search: m(
     'Tìm khách hàng, cơ hội, báo giá, hồ sơ…',
     'Search customers, opportunities, quotes, records…',
-    '고객, 영업 기회, 견적, 기록 검색…',
+    '고객, 기회, 견적, 기록 검색…',
   ),
   whatsNew: m('Có gì mới', "What's new", '새 소식'),
   signOut: m('Đăng xuất', 'Sign out', '로그아웃'),

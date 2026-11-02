@@ -16,8 +16,6 @@ import {
   cn,
 } from '@pv/ui'
 import {
-  LEAD_SIDE_LABEL,
-  MOTION_ASKS_LABEL,
   MOTION_LABEL,
   MOTION_SIDE,
   MotionAsks,
@@ -26,9 +24,11 @@ import {
 } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
+import { leadAsksText, leadMotionText, leadSideText } from '@/data/lead-copy'
 import { motionLabelOf, salesMotionsQuery, useProposeMotion } from '@/data/sales-motions'
-import { SENT } from './sales-config-copy'
+import { sentCopy } from './sales-config-copy'
 
 /** Level 1 of a lead's origin — the six motions, as the create form offers them.
  *
@@ -42,6 +42,7 @@ import { SENT } from './sales-config-copy'
  *  `bare` drops the heading only: the config screen wraps the list in its
  *  own `Section`, the lead-origins screen has no such frame. */
 export function MotionPickerSection({ bare = false }: { bare?: boolean }) {
+  const { t } = useI18n()
   const { data: rows, isPending, error, refetch } = useQuery(salesMotionsQuery())
 
   const body = isPending ? (
@@ -50,17 +51,29 @@ export function MotionPickerSection({ bare = false }: { bare?: boolean }) {
     <EmptyState
       tone="danger"
       icon={TriangleAlert}
-      message={`Không tải được phương án tiếp cận. ${
-        isApiError(error) ? userMessage(error) : 'Thử lại.'
-      }`}
-      action={{ label: 'Thử lại', onClick: () => void refetch() }}
+      message={`${t(
+        message(
+          'Không tải được phương án tiếp cận.',
+          'Could not load approaches.',
+          '접근 방식을 불러오지 못했습니다.',
+        ),
+      )} ${isApiError(error) ? userMessage(error) : t(message('Thử lại.', 'Try again.', '다시 시도하세요.'))}`}
+      action={{
+        label: t(message('Thử lại', 'Retry', '다시 시도')),
+        onClick: () => void refetch(),
+      }}
       className="py-12"
     />
   ) : (
     <div className="flex flex-col gap-2">
       <MotionHead
         cols={PICKER_COLS}
-        labels={['Phương án', 'Tên hiện', 'Đang dùng', 'Hỏi gì sau khi chọn']}
+        labels={[
+          t(message('Phương án', 'Approach', '접근 방식')),
+          t(message('Tên hiện', 'Display name', '표시 이름')),
+          t(message('Đang dùng', 'In use', '사용 중')),
+          t(message('Hỏi gì sau khi chọn', 'Asked after choosing', '선택 후 질문')),
+        ]}
       />
       <ul className="flex flex-col gap-2">
         {[...rows]
@@ -82,9 +95,21 @@ export function MotionPickerSection({ bare = false }: { bare?: boolean }) {
   }
 
   return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-5" aria-label="Phương án tiếp cận">
-      <SectionTitle hint="Đổi gì cũng thành một đề nghị chờ duyệt.">
-        Phương án tiếp cận
+    <GlassCard
+      variant="b"
+      className="flex flex-col gap-4 p-5"
+      aria-label={t(message('Phương án tiếp cận', 'Approach', '접근 방식'))}
+    >
+      <SectionTitle
+        hint={t(
+          message(
+            'Đổi gì cũng thành một đề nghị chờ duyệt.',
+            'Every change becomes a proposal awaiting approval.',
+            '모든 변경은 승인 대기 중인 제안이 됩니다.',
+          ),
+        )}
+      >
+        {t(message('Phương án tiếp cận', 'Approach', '접근 방식'))}
       </SectionTitle>
       {body}
     </GlassCard>
@@ -143,6 +168,7 @@ export function MotionSend({
   failure: string | null
   onSend: () => void
 }) {
+  const { t } = useI18n()
   if (changed === 0 && !failure) return null
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -150,10 +176,16 @@ export function MotionSend({
         <>
           <Button size="sm" className="pointer-coarse:h-12" disabled={blocked} onClick={onSend}>
             <Icon icon={Send} size={16} />
-            Gửi đề nghị
+            {t(message('Gửi đề nghị', 'Send proposal', '제안 보내기'))}
           </Button>
           <span className="text-muted-foreground tnum text-[11.5px]">
-            {changed} thay đổi · chưa gửi
+            {t(
+              message(
+                `${changed} thay đổi · chưa gửi`,
+                `${changed} ${changed === 1 ? 'change' : 'changes'} · not sent`,
+                `변경 ${changed}건 · 미전송`,
+              ),
+            )}
           </span>
         </>
       )}
@@ -167,6 +199,7 @@ export function MotionSend({
 }
 
 function MotionPickerRow({ row }: { row: MotionPolicy }) {
+  const { t, lang } = useI18n()
   const canPropose = useCan('config.propose')
   const [label, setLabel] = useState(row.label ?? '')
   const [active, setActive] = useState(row.active)
@@ -178,7 +211,7 @@ function MotionPickerRow({ row }: { row: MotionPolicy }) {
     setLabel(row.label ?? '')
     setActive(row.active)
     setAsks(row.asks)
-    toastDone(SENT)
+    toastDone(sentCopy())
   }
 
   /* Only what differs travels — the approver reads the request as a claim. */
@@ -195,31 +228,47 @@ function MotionPickerRow({ row }: { row: MotionPolicy }) {
         className={cn(MOTION_LINE, PICKER_COLS)}
       >
         <div className={MOTION_NAME}>
-          <span className="text-[12.5px] font-semibold">{motionLabelOf(row)}</span>
-          <MetaPill>{LEAD_SIDE_LABEL[MOTION_SIDE[row.motion]]}</MetaPill>
+          <span className="text-[12.5px] font-semibold">
+            {leadMotionText(row.motion, motionLabelOf(row), lang)}
+          </span>
+          <MetaPill>{leadSideText(MOTION_SIDE[row.motion], lang)}</MetaPill>
           <MetaPill mono>{row.motion}</MetaPill>
         </div>
-        <MotionCell label="Tên hiện">
+        <MotionCell label={t(message('Tên hiện', 'Display name', '표시 이름'))}>
           <Input
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            placeholder={MOTION_LABEL[row.motion]}
-            aria-label={`Tên hiện: ${row.motion}`}
+            placeholder={leadMotionText(row.motion, MOTION_LABEL[row.motion], lang)}
+            aria-label={t(
+              message(
+                `Tên hiện: ${row.motion}`,
+                `Display name: ${row.motion}`,
+                `표시 이름: ${row.motion}`,
+              ),
+            )}
             className="pointer-coarse:h-12"
           />
         </MotionCell>
         <Checkbox
           checked={active}
           onChange={setActive}
-          label={<span className="lg:sr-only">Đang dùng</span>}
+          label={<span className="lg:sr-only">{t(message('Đang dùng', 'In use', '사용 중'))}</span>}
           className="pointer-coarse:min-h-12"
         />
-        <MotionCell label="Hỏi gì sau khi chọn">
+        <MotionCell
+          label={t(message('Hỏi gì sau khi chọn', 'Asked after choosing', '선택 후 질문'))}
+        >
           <SegmentedControl
-            label={`Hỏi gì sau khi chọn: ${row.motion}`}
+            label={t(
+              message(
+                `Hỏi gì sau khi chọn: ${row.motion}`,
+                `Asked after choosing: ${row.motion}`,
+                `선택 후 질문: ${row.motion}`,
+              ),
+            )}
             hideLabel
             value={asks}
-            options={MotionAsks.options.map((a) => ({ value: a, label: MOTION_ASKS_LABEL[a] }))}
+            options={MotionAsks.options.map((a) => ({ value: a, label: leadAsksText(a, lang) }))}
             onChange={(v) => setAsks(v as MotionAsks)}
           />
         </MotionCell>

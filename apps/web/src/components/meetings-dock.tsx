@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Button, CalendarClock, Drawer, Icon, Plus } from '@pv/ui'
+import { message, useI18n } from '@/app/i18n'
 import { dmhm } from '@/lib/date'
 import { meetingsQuery, type MeetingSubject } from '@/data/meetings'
 import { useMinuteClock } from '@/data/minute-clock'
@@ -15,6 +16,7 @@ import { upcomingOf } from '@/data/meeting-upcoming'
  *  lost deal, a switched-off lead) the page puts this row in its main column,
  *  read-only, so past meetings stay reachable. */
 export function MeetingsDock({ subject, canEdit }: { subject: MeetingSubject; canEdit: boolean }) {
+  const { t } = useI18n()
   const { data } = useQuery(meetingsQuery(subject))
   const now = useMinuteClock()
   const [listing, setListing] = useState(false)
@@ -31,7 +33,7 @@ export function MeetingsDock({ subject, canEdit }: { subject: MeetingSubject; ca
     <div
       ref={setRow}
       role="group"
-      aria-label="Lịch gặp"
+      aria-label={t(message('Lịch gặp', 'Meetings', '미팅 일정'))}
       className="bg-surface-ink/9 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-md py-1 pl-3 pr-1"
     >
       <Icon icon={CalendarClock} size={16} className="text-accent-foreground shrink-0" />
@@ -41,12 +43,30 @@ export function MeetingsDock({ subject, canEdit }: { subject: MeetingSubject; ca
             <span className="font-semibold">{dmhm(next.at).replace(' ', ' · ')}</span> ·{' '}
             {next.title}
             {next.guests.length > 0 && (
-              <span className="text-muted-foreground"> · {next.guests.length} khách mời</span>
+              <span className="text-muted-foreground">
+                {' '}
+                ·{' '}
+                {t(
+                  message(
+                    `${next.guests.length} khách mời`,
+                    `${next.guests.length} ${next.guests.length === 1 ? 'guest' : 'guests'}`,
+                    `게스트 ${next.guests.length}명`,
+                  ),
+                )}
+              </span>
             )}
           </>
         ) : (
           <span className="text-muted-foreground">
-            {rows.length === 0 ? 'Chưa có lịch họp' : 'Không còn buổi nào sắp tới'}
+            {rows.length === 0
+              ? t(message('Chưa có lịch họp', 'No meetings yet', '예정된 미팅 없음'))
+              : t(
+                  message(
+                    'Không còn buổi nào sắp tới',
+                    'No upcoming meetings left',
+                    '남은 예정 미팅 없음',
+                  ),
+                )}
           </span>
         )}
       </span>
@@ -57,7 +77,7 @@ export function MeetingsDock({ subject, canEdit }: { subject: MeetingSubject; ca
           className="pointer-coarse:h-12"
           onClick={() => setListing(true)}
         >
-          Xem lịch
+          {t(message('Xem lịch', 'View meetings', '일정 보기'))}
         </Button>
       )}
       {canEdit && (
@@ -68,14 +88,14 @@ export function MeetingsDock({ subject, canEdit }: { subject: MeetingSubject; ca
           onClick={() => setBooking(true)}
         >
           <Icon icon={Plus} size={16} />
-          Đặt lịch
+          {t(message('Đặt lịch', 'Book a meeting', '미팅 예약'))}
         </Button>
       )}
 
       <Drawer
         open={listing}
         onClose={() => setListing(false)}
-        title="Lịch gặp"
+        title={t(message('Lịch gặp', 'Meetings', '미팅 일정'))}
         subtitle={<span className="font-mono">{subject.code}</span>}
         width="lg"
       >

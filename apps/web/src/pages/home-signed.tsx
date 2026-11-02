@@ -8,15 +8,9 @@ import { bucketViews, periodLabel, type BucketView } from '@/data/period-pick'
 import { CARD_SHELL, DeltaLine, IconTile, NOTE, PILL_LINK } from './home-tiles'
 import { ICON_TONE, MARK_EASE, WASH_HERO, staggerMs } from './home-look'
 import { BUCKET_UNIT } from './home-revenue-model'
-import { message, translate } from '@/app/i18n'
+import { message, translate, type Message } from '@/app/i18n'
 
 const tr = (vi: string, en: string, ko: string) => translate(message(vi, en, ko))
-const unitLabel = (unit: string) =>
-  unit === 'tuần'
-    ? tr('tuần', 'week', '주')
-    : unit === 'tháng'
-      ? tr('tháng', 'month', '월')
-      : tr('ngày', 'day', '일')
 
 /** The hero tile of the overview: contracts signed in the period beside the
  *  open book, in one chart. Each column is the open deals expected to close in
@@ -183,14 +177,14 @@ function Labels({ views }: { views: BucketView[] }) {
 }
 
 /** The chart's numbers for a screen reader: the plot above it is drawn only. */
-function FiguresTable({ views, unit }: { views: BucketView[]; unit: string }) {
+function FiguresTable({ views, unit }: { views: BucketView[]; unit: Message }) {
   return (
     <table className="sr-only">
       <caption>
         {tr(
-          `Giá trị hợp đồng đã ký và cơ hội đang mở theo ${unitLabel(unit)}`,
-          `Signed contract value and open opportunities by ${unitLabel(unit)}`,
-          `${unitLabel(unit)}별 계약 체결 금액 및 진행 중 영업 기회`,
+          `Giá trị hợp đồng đã ký và cơ hội đang mở theo ${unit.vi}`,
+          `Signed contract value and open opportunities by ${unit.en}`,
+          `${unit.ko}별 계약 체결 금액 및 진행 중 기회`,
         )}
       </caption>
       <thead>
@@ -243,7 +237,7 @@ function Legend({ future }: { future: boolean }) {
         label={tr(
           'Cơ hội mở, dự kiến chốt',
           'Open opportunities expected to close',
-          '계약 성사 예상 영업 기회',
+          '계약 성사 예상 기회',
         )}
       />
       {future && (
@@ -279,7 +273,6 @@ export function SignedTile({
   data: SalesPerformanceResponse
   className?: string
 }) {
-  const unitText = unitLabel(BUCKET_UNIT[salesGrainOf(data.period)])
   const canViewContracts = useCan('contract.view')
   const canViewDeals = useCan('opportunity.view')
   const { current, compare, open } = data
@@ -297,7 +290,7 @@ export function SignedTile({
               {tr(
                 'Hợp đồng đã ký và cơ hội đang mở',
                 'Signed contracts and open opportunities',
-                '체결된 계약 및 진행 중인 영업 기회',
+                '체결된 계약 및 진행 중인 기회',
               )}
             </h3>
             <span className={NOTE}>{periodLabel(data.period)}</span>
@@ -315,7 +308,7 @@ export function SignedTile({
           )}
           {canViewDeals && open.count > 0 && (
             <Link to={dealsHref('open')} className={PILL_LINK}>
-              {tr('Xem cơ hội', 'View opportunities', '영업 기회 보기')}
+              {tr('Xem cơ hội', 'View opportunities', '기회 보기')}
               <Icon icon={ArrowRight} size={14} />
             </Link>
           )}
@@ -350,7 +343,7 @@ export function SignedTile({
           label={tr(
             'Cơ hội đang mở, tính đến hôm nay',
             'Open opportunities as of today',
-            '오늘 기준 진행 중인 영업 기회',
+            '오늘 기준 진행 중인 기회',
           )}
           value={money(open.amountVnd)}
         >
@@ -359,7 +352,7 @@ export function SignedTile({
               {tr(
                 `${num(open.count)} cơ hội`,
                 `${num(open.count)} opportunities`,
-                `영업 기회 ${num(open.count)}건`,
+                `기회 ${num(open.count)}건`,
               )}
             </strong>
             {open.blank > 0 &&
@@ -376,9 +369,9 @@ export function SignedTile({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span className={NOTE}>
             {tr(
-              `Theo ${unitText} · triệu đồng · trên: mở, dưới: ký`,
-              `By ${unitText} · VND millions · open above, signed below`,
-              `${unitText}별 · 백만 VND · 위: 진행 중, 아래: 체결`,
+              `Theo ${unit.vi} · triệu đồng · trên: mở, dưới: ký`,
+              `By ${unit.en} · VND millions · open above, signed below`,
+              `${unit.ko}별 · 백만 VND · 위: 진행 중, 아래: 체결`,
             )}
           </span>
           <Legend future={views.some((v) => !hasData(v))} />
@@ -394,7 +387,7 @@ export function SignedTile({
               {tr(
                 `${num(open.unplaced.count)} cơ hội`,
                 `${num(open.unplaced.count)} opportunities`,
-                `영업 기회 ${num(open.unplaced.count)}건`,
+                `기회 ${num(open.unplaced.count)}건`,
               )}
             </strong>
             {open.unplaced.amountVnd > 0 && ` (${money(open.unplaced.amountVnd)})`}{' '}

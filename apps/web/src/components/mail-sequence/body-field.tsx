@@ -1,7 +1,8 @@
 import { useId, useRef } from 'react'
 import { Button, Icon, Info, Plus, Textarea } from '@pv/ui'
 import type { MailMergeKey } from '@pv/contracts'
-import { MERGE_LABEL } from '@/data/mail-hints'
+import { message, useI18n } from '@/app/i18n'
+import { mergeLabel } from '@/data/mail-hints'
 
 /** The letter's body box with its quick-insert row (G-Bulk · G-Compose).
  *
@@ -21,6 +22,7 @@ export function BodyField({
   /** The campaign drawer's own `?`; the MAS modal floats its own instead. */
   onOpenGuide?: () => void
 }) {
+  const { t, lang } = useI18n()
   const id = useId()
   const box = useRef<HTMLTextAreaElement>(null)
   /* Remembered on blur: pressing a button moves focus away, and a box never
@@ -45,7 +47,7 @@ export function BodyField({
           button inside a label re-focuses the textarea on every click. */}
       <div className="flex flex-wrap items-center gap-2">
         <label htmlFor={id} className="text-muted-foreground flex-1 text-[11px]">
-          Nội dung
+          {t(message('Nội dung', 'Content', '내용'))}
         </label>
         {onOpenGuide && (
           <Button
@@ -56,10 +58,12 @@ export function BodyField({
             onClick={onOpenGuide}
           >
             <Icon icon={Info} size={14} />
-            Cách viết nội dung
+            {t(message('Cách viết nội dung', 'How to write the content', '내용 작성 방법'))}
           </Button>
         )}
-        <span className="text-muted-foreground text-[11px]">Chèn nhanh</span>
+        <span className="text-muted-foreground text-[11px]">
+          {t(message('Chèn nhanh', 'Quick insert', '빠른 삽입'))}
+        </span>
         {QUICK_INSERT.map((key) => (
           <Button
             key={key}
@@ -70,7 +74,7 @@ export function BodyField({
             onClick={() => insert(key)}
           >
             <Icon icon={Plus} size={14} />
-            {MERGE_LABEL[key]}
+            {mergeLabel(key, lang)}
           </Button>
         ))}
       </div>
@@ -83,7 +87,13 @@ export function BodyField({
           caret.current = { start: e.target.selectionStart, end: e.target.selectionEnd }
         }}
         rows={7}
-        placeholder="Nội dung thư. **đậm**, _nghiêng_, `- ` đầu dòng thành danh sách."
+        placeholder={t(
+          message(
+            'Nội dung thư. **đậm**, _nghiêng_, `- ` đầu dòng thành danh sách.',
+            'Letter content. **bold**, _italic_, `- ` at the start of a line makes a list.',
+            '편지 내용. **굵게**, _기울임_, 줄 앞의 `- `는 목록이 됩니다.',
+          ),
+        )}
       />
     </div>
   )

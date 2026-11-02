@@ -170,15 +170,23 @@ function withMatchedTemplate(
 
 /** The step part once it cannot change here: as it was set, and where it now lives. */
 function StandingStep({ record, form }: { record: DebriefView; form: CommForm }) {
+  const { t, lang } = useI18n()
   const code = form.close.target.data?.customer?.leadCode ?? record.subject.code
   const path = subjectPath(code)
+  const kind = subjectKindLabel(code, lang).toLowerCase()
   return (
     <CommStepCard index={2} title={form.titles[2]}>
       {record.step ? (
         <>
           <StepRow step={record.step} />
           <p className="text-muted-foreground m-0 text-[13px] leading-[1.6]">
-            Bước tiếp theo sửa tại {subjectKindLabel(code).toLowerCase()}{' '}
+            {t(
+              message(
+                `Bước tiếp theo sửa tại ${kind}`,
+                `Edit the next step on ${kind}`,
+                `다음 단계 수정 위치: ${kind}`,
+              ),
+            )}{' '}
             {path ? (
               <Link
                 to={path}
@@ -196,7 +204,15 @@ function StandingStep({ record, form }: { record: DebriefView; form: CommForm })
           </p>
         </>
       ) : (
-        <p className="text-muted-foreground m-0 text-[13px]">Không đặt bước tiếp theo.</p>
+        <p className="text-muted-foreground m-0 text-[13px]">
+          {t(
+            message(
+              'Không đặt bước tiếp theo.',
+              'No next step set.',
+              '다음 단계가 설정되지 않았습니다.',
+            ),
+          )}
+        </p>
       )}
     </CommStepCard>
   )

@@ -7,7 +7,13 @@ import { useSalesPeople } from '@/data/directory'
 import { FilterMenu } from '@/components/table-bits'
 import { FilterSection } from '@/components/book-cards'
 import { noop } from '@/components/book-view'
-import { message, useI18n } from '@/app/i18n'
+import {
+  dayRangeChip,
+  listChip,
+  personNameOf,
+  type ActiveFilter,
+} from '@/components/active-filters'
+import { message, useI18n, type Message } from '@/app/i18n'
 
 /** The contact book's column filters, built once per render from the address.
  *  Company options are the companies that hold a contact this reader can see,
@@ -15,7 +21,63 @@ import { message, useI18n } from '@/app/i18n'
 
 const csvOf = (v?: string) => (v ? v.split(',') : [])
 
-export function useContactFilters(book: ReturnType<typeof useBookQuery<ContactBookQuery>>) {
+const NO_OWNER = message('Chưa có người phụ trách', 'No owner assigned', '담당자 미지정')
+const PRIMARY_ONLY = message('Chỉ người liên hệ chính', 'Primary contacts only', '주 연락처만')
+const PRESENCE = {
+  hasEmail: {
+    '1': message('Đã có email', 'Has email', '이메일 있음'),
+    '0': message('Chưa có email', 'No email', '이메일 없음'),
+  },
+  hasPhone: {
+    '1': message('Đã có số điện thoại', 'Has phone number', '전화번호 있음'),
+    '0': message('Chưa có số điện thoại', 'No phone number', '전화번호 없음'),
+  },
+}
+
+type Book = ReturnType<typeof useBookQuery<ContactBookQuery>>
+
+/** One removable chip per narrowed filter, each dropping only its own keys. */
+function contactChips(
+  book: Book,
+  names: { company: string; owner: string; created: string },
+  companyName: (code: string) => string,
+  ownerName: (id: string) => string,
+  t: (copy: Message) => string,
+): ActiveFilter[] {
+  const { query, patch } = book
+  return [
+    ...(query.primary
+      ? [{ id: 'primary', label: t(PRIMARY_ONLY), onDrop: () => patch({ primary: undefined }) }]
+      : []),
+    ...listChip('account', names.company, query.account, companyName, () =>
+      patch({ account: undefined }),
+    ),
+    ...listChip('owner', names.owner, query.owner, ownerName, () => patch({ owner: undefined })),
+    ...(query.hasEmail
+      ? [
+          {
+            id: 'hasEmail',
+            label: t(PRESENCE.hasEmail[query.hasEmail]),
+            onDrop: () => patch({ hasEmail: undefined }),
+          },
+        ]
+      : []),
+    ...(query.hasPhone
+      ? [
+          {
+            id: 'hasPhone',
+            label: t(PRESENCE.hasPhone[query.hasPhone]),
+            onDrop: () => patch({ hasPhone: undefined }),
+          },
+        ]
+      : []),
+    ...dayRangeChip('created', names.created, query.createdFrom, query.createdTo, () =>
+      patch({ createdFrom: undefined, createdTo: undefined }),
+    ),
+  ]
+}
+
+export function useContactFilters(book: Book) {
   const { t } = useI18n()
   const { query, patch } = book
   const { data: facets } = useQuery(contactFacetsQuery(query))
@@ -31,7 +93,7 @@ export function useContactFilters(book: ReturnType<typeof useBookQuery<ContactBo
   const ownerOptions = [
     {
       value: OWNER_NONE,
-      label: t(message('Chưa có người phụ trách', 'No owner assigned', '담당자 미지정')),
+      label: t(NO_OWNER),
     },
     ...salesPeople.map((a) => ({ value: a.id, label: a.name })),
   ]
@@ -49,24 +111,12 @@ export function useContactFilters(book: ReturnType<typeof useBookQuery<ContactBo
       />
     )
   /* Two answers, so picking both (or neither) means "no filter". */
-  const presenceBody = (key: 'hasEmail' | 'hasPhone', noun: string) => (close: () => void) => (
+  const presenceBody = (key: 'hasEmail' | 'hasPhone') => (close: () => void) => (
     <ColumnFilterList
       searchable={false}
       options={[
-        {
-          value: '1',
-          label:
-            noun === 'email'
-              ? t(message('Đã có email', 'Has email', '이메일 있음'))
-              : t(message('Đã có số điện thoại', 'Has phone number', '전화번호 있음')),
-        },
-        {
-          value: '0',
-          label:
-            noun === 'email'
-              ? t(message('Chưa có email', 'No email', '이메일 없음'))
-              : t(message('Chưa có số điện thoại', 'No phone number', '전화번호 없음')),
-        },
+        { value: '1', label: t(PRESENCE[key]['1']) },
+        { value: '0', label: t(PRESENCE[key]['0']) },
       ]}
       selected={query[key] ? [query[key]] : []}
       close={close}
@@ -76,12 +126,7 @@ export function useContactFilters(book: ReturnType<typeof useBookQuery<ContactBo
   const primaryBody = (close: () => void) => (
     <ColumnFilterList
       searchable={false}
-      options={[
-        {
-          value: '1',
-          label: t(message('Chỉ người liên hệ chính', 'Primary contacts only', '주 연락처만')),
-        },
-      ]}
+      options={[{ value: '1', label: t(PRIMARY_ONLY) }]}
       selected={query.primary ? ['1'] : []}
       close={close}
       onApply={(v) => patch({ primary: v.length ? '1' : undefined })}
@@ -112,11 +157,11 @@ export function useContactFilters(book: ReturnType<typeof useBookQuery<ContactBo
       on: query.owner !== undefined,
       body: listBody('owner', ownerOptions),
     },
-    { title: 'Email', on: query.hasEmail !== undefined, body: presenceBody('hasEmail', 'email') },
+    { title: 'Email', on: query.hasEmail !== undefined, body: presenceBody('hasEmail') },
     {
       title: t(message('Điện thoại', 'Phone', '전화번호')),
       on: query.hasPhone !== undefined,
-      body: presenceBody('hasPhone', 'phone'),
+      body: presenceBody('hasPhone'),
     },
     {
       title: t(message('Ngày tạo', 'Created', '생성일')),
@@ -124,6 +169,13 @@ export function useContactFilters(book: ReturnType<typeof useBookQuery<ContactBo
       body: dateBody,
     },
   ]
+  const chips = contactChips(
+    book,
+    { company: sections[1]!.title, owner: sections[2]!.title, created: sections[5]!.title },
+    (v) => accounts.find((a) => a.value === v)?.label ?? v,
+    personNameOf(salesPeople, t(NO_OWNER)),
+    t,
+  )
   const [primary, account, owner, email, phone, date] = sections
   const column = (f: (typeof sections)[number], iconOnly?: boolean) => (
     <ColumnFilter label={f.title} active={f.on} iconOnly={iconOnly}>
@@ -151,5 +203,6 @@ export function useContactFilters(book: ReturnType<typeof useBookQuery<ContactBo
     email: column(email!),
     phone: column(phone!),
     menu,
+    chips,
   }
 }

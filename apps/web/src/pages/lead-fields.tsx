@@ -4,7 +4,7 @@ import { AiFillField, Combobox, Input, PillOverflow, Select, Textarea, billions,
 import { LEAD_NUM } from '@pv/contracts'
 import { toMoneyVnd, type CurrencyCode } from '@pv/engines/fixtures/das-vina'
 import { AddressField, type AddressBoxKey } from '@/components/address-field'
-import { LOCALE_TAG, useI18n, type Lang } from '@/app/i18n'
+import { LOCALE_TAG, message, useI18n, type Lang } from '@/app/i18n'
 import { peopleRoleOptions, useSalesPeople } from '@/data/directory'
 import {
   categoryOptions,
@@ -513,6 +513,7 @@ function IndustriesControl({
   onChange: (ids: string[]) => void
   onDone: () => void
 }) {
+  const { t } = useI18n()
   const { data } = useQuery(leadIndustryOptionsQuery)
   const [query, setQuery] = useState('')
   const items = ids.map((id) => ({ id, label: configName(data, id) }))
@@ -521,10 +522,23 @@ function IndustriesControl({
   const needle = query.trim().toLowerCase()
   const left = industryChoices(data, categoryId, ids)
   const choices = left.filter((i) => i.name.toLowerCase().includes(needle))
+  const max = LEAD_NUM.industriesMax
   const note = !group
-    ? 'Chọn nhóm ngành trước.'
+    ? t(
+        message(
+          'Chọn nhóm ngành trước.',
+          'Choose an industry group first.',
+          '먼저 산업 분야를 선택하세요.',
+        ),
+      )
     : full
-      ? `Đã đủ ${LEAD_NUM.industriesMax} ngành. Bỏ bớt để thêm ngành khác.`
+      ? t(
+          message(
+            `Đã đủ ${max} ngành. Bỏ bớt để thêm ngành khác.`,
+            `The limit of ${max} industries is reached. Remove one to add another.`,
+            `업종이 ${max}개로 가득 찼습니다. 하나를 삭제하면 다른 업종을 추가할 수 있습니다.`,
+          ),
+        )
       : undefined
 
   if (readOnly && items.length === 0) {
@@ -534,11 +548,31 @@ function IndustriesControl({
     <PillOverflow
       items={items}
       max={2}
-      label="Các ngành của lead"
-      moreLabel={(n) => `Xem cả ${n} ngành`}
+      label={t(message('Các ngành của lead', 'Industries of the lead', '리드의 업종'))}
+      moreLabel={(n) =>
+        t(message(`Xem cả ${n} ngành`, `View all ${n} industries`, `업종 ${n}개 모두 보기`))
+      }
       className="min-h-11"
-      heading={group ? `${ids.length} ngành · nhóm ${group}` : `${ids.length} ngành`}
-      editLabel={readOnly ? undefined : ids.length === 0 ? 'Thêm ngành' : 'Sửa ngành'}
+      heading={t(
+        group
+          ? message(
+              `${ids.length} ngành · nhóm ${group}`,
+              `${ids.length} ${ids.length === 1 ? 'industry' : 'industries'} · group ${group}`,
+              `업종 ${ids.length}개 · ${group} 분야`,
+            )
+          : message(
+              `${ids.length} ngành`,
+              `${ids.length} ${ids.length === 1 ? 'industry' : 'industries'}`,
+              `업종 ${ids.length}개`,
+            ),
+      )}
+      editLabel={
+        readOnly
+          ? undefined
+          : ids.length === 0
+            ? t(message('Thêm ngành', 'Add industry', '업종 추가'))
+            : t(message('Sửa ngành', 'Edit industries', '업종 수정'))
+      }
       onRemove={readOnly ? undefined : (id) => onChange(ids.filter((x) => x !== id))}
       /* Also fires when the box unmounts with the popover open, so an edit is not lost. */
       onClose={onDone}
@@ -546,7 +580,7 @@ function IndustriesControl({
         !readOnly && (
           <div className="flex flex-col gap-2">
             <Combobox
-              label="Thêm ngành"
+              label={t(message('Thêm ngành', 'Add industry', '업종 추가'))}
               hideLabel
               value=""
               query={query}
@@ -556,8 +590,34 @@ function IndustriesControl({
                 onChange([...ids, o.value])
                 setQuery('')
               }}
-              placeholder={group ? `Tìm ngành trong nhóm ${group}` : 'Tìm ngành'}
-              emptyText={left.length > 0 ? 'Không có ngành khớp' : 'Không còn ngành nào để thêm'}
+              placeholder={
+                group
+                  ? t(
+                      message(
+                        `Tìm ngành trong nhóm ${group}`,
+                        `Search industries in ${group}`,
+                        `${group} 분야의 업종 검색`,
+                      ),
+                    )
+                  : t(message('Tìm ngành', 'Search industries', '업종 검색'))
+              }
+              emptyText={
+                left.length > 0
+                  ? t(
+                      message(
+                        'Không có ngành khớp',
+                        'No matching industry',
+                        '일치하는 업종이 없습니다',
+                      ),
+                    )
+                  : t(
+                      message(
+                        'Không còn ngành nào để thêm',
+                        'No industries left to add',
+                        '추가할 업종이 없습니다',
+                      ),
+                    )
+              }
               disabled={!group || full}
               className="[&_input]:pointer-coarse:h-12"
             />

@@ -1,4 +1,5 @@
 import type { CurrencyCode, InstallmentDraft } from '@pv/contracts'
+import { message, translate } from '@/app/i18n'
 import { compactMoney } from '@/components/deal-money/money'
 
 /** The part of a contract the list below cannot touch (instalments already
@@ -26,19 +27,44 @@ export function scheduleIssue(error: {
   const issue = error.issues[0]
   if (!issue) return ''
   const row = issue.path.find((step): step is number => typeof step === 'number')
-  return row === undefined ? issue.message : `Dòng ${row + 1}: ${issue.message}`
+  return row === undefined
+    ? issue.message
+    : `${translate(message(`Dòng ${row + 1}`, `Row ${row + 1}`, `${row + 1}행`))}: ${issue.message}`
 }
 
 function gapText(gap: ReturnType<typeof scheduleGap>, currency: CurrencyCode | null): string {
-  const dir = (n: number) => (n > 0 ? 'Còn thiếu' : 'Thừa')
-  const money = Math.abs(gap.amount)
+  const short = (n: number) => n > 0
+  const money = compactMoney(Math.abs(gap.amount), currency)
   const share = Math.abs(gap.share)
-  if (gap.share !== 0 && gap.amount !== 0 && Math.sign(gap.share) === Math.sign(gap.amount)) {
-    return `${dir(gap.share)} ${share}% · ${compactMoney(money, currency)}`
+  const both = gap.share !== 0 && gap.amount !== 0
+  if (both && Math.sign(gap.share) === Math.sign(gap.amount)) {
+    return translate(
+      short(gap.share)
+        ? message(
+            `Còn thiếu ${share}% · ${money}`,
+            `Short ${share}% · ${money}`,
+            `부족 ${share}% · ${money}`,
+          )
+        : message(
+            `Thừa ${share}% · ${money}`,
+            `Over ${share}% · ${money}`,
+            `초과 ${share}% · ${money}`,
+          ),
+    )
   }
   return [
-    gap.share !== 0 && `Tỉ lệ ${dir(gap.share).toLowerCase()} ${share}%`,
-    gap.amount !== 0 && `Tiền ${dir(gap.amount).toLowerCase()} ${compactMoney(money, currency)}`,
+    gap.share !== 0 &&
+      translate(
+        short(gap.share)
+          ? message(`Tỉ lệ còn thiếu ${share}%`, `Share short by ${share}%`, `비율 ${share}% 부족`)
+          : message(`Tỉ lệ thừa ${share}%`, `Share over by ${share}%`, `비율 ${share}% 초과`),
+      ),
+    gap.amount !== 0 &&
+      translate(
+        short(gap.amount)
+          ? message(`Tiền còn thiếu ${money}`, `Amount short by ${money}`, `금액 ${money} 부족`)
+          : message(`Tiền thừa ${money}`, `Amount over by ${money}`, `금액 ${money} 초과`),
+      ),
   ]
     .filter(Boolean)
     .join(' · ')
@@ -54,6 +80,15 @@ export function scheduleSummary(
   const gap = scheduleGap(value, amount, settled)
   const text = gapText(gap, currency)
   return text === ''
-    ? { text: 'Đủ 100% và khớp giá trị hợp đồng.', balanced: true }
+    ? {
+        text: translate(
+          message(
+            'Đủ 100% và khớp giá trị hợp đồng.',
+            'Adds up to 100% and matches the contract value.',
+            '100%이며 계약 금액과 일치합니다.',
+          ),
+        ),
+        balanced: true,
+      }
     : { text, balanced: false }
 }

@@ -1,9 +1,11 @@
 import { Check, FileText } from '@pv/ui'
 import { Button, Icon } from '@pv/ui'
 import type { OpportunityProfileResponse } from '@pv/contracts'
+import { useI18n } from '@/app/i18n'
+import { QUOTE_LABEL_COPY } from '@/components/deal-money/money'
 import { AcceptDealButton } from '@/components/opportunity-accept'
 import { AssignSaleButton } from '@/components/opportunity-assign'
-import { QUOTE_LABEL, SIGN_LABEL, type DealPrimaryState } from './opportunity-model'
+import { SIGN_LABEL, type DealPrimaryState } from './opportunity-model'
 
 /** Module 3 · the deal's moves, drawn in the header's action slot (ADR 0078
  *  §1, moved from the todo card 14/10): the stage move picked by
@@ -24,6 +26,7 @@ export function DealPrimary({
   onSign: () => void
   onQuote: () => void
 }) {
+  const { t } = useI18n()
   const { move, quote, sign } = state
 
   return (
@@ -37,7 +40,7 @@ export function DealPrimary({
       {quote && (
         <Button size="lg" variant={move === 'quote' ? 'default' : 'secondary'} onClick={onQuote}>
           <Icon icon={FileText} size={16} />
-          {QUOTE_LABEL}
+          {t(QUOTE_LABEL_COPY)}
         </Button>
       )}
       {sign && (

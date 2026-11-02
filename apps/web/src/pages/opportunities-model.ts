@@ -9,7 +9,7 @@ import {
 import type { TableColumn } from '@pv/ui'
 import type { MasRecipient } from '@/data/mas-mail-draft'
 import { COL } from '@/components/book-columns'
-import { message, translate, type Lang } from '@/app/i18n'
+import { getLang, message, translate, type Lang, type Message } from '@/app/i18n'
 import { opportunityStatusLabel } from '@/data/sales-labels-i18n'
 
 /** Module 3 · the deal book's logic without JSX: the address as the filter's
@@ -37,11 +37,24 @@ export const closeDayOf = (query: Pick<OpportunityBookQuery, 'state' | 'pinned'>
 export const bookColumns = (
   filters: Record<'account' | 'stage' | 'amount' | 'closed' | 'bd' | 'sale', ReactNode | undefined>,
   closedTab: boolean,
+  lang: Lang = getLang(),
 ): TableColumn[] => [
-  { header: 'Cơ hội / Khách hàng', width: COL.name, sortKey: 'name', filter: filters.account },
-  { header: 'Giai đoạn', width: COL.status, filter: filters.stage },
   {
-    header: 'Giá trị (₫)',
+    header: translate(
+      message('Cơ hội / Khách hàng', 'Opportunity / Customer', '기회 / 고객'),
+      lang,
+    ),
+    width: COL.name,
+    sortKey: 'name',
+    filter: filters.account,
+  },
+  {
+    header: translate(message('Giai đoạn', 'Stage', '단계'), lang),
+    width: COL.status,
+    filter: filters.stage,
+  },
+  {
+    header: translate(message('Giá trị (₫)', 'Value (₫)', '금액 (₫)'), lang),
     width: COL.money,
     align: 'right',
     sortKey: 'amount',
@@ -51,16 +64,30 @@ export const bookColumns = (
      picks which range the filter drives (none on "all"). The header is kept short:
      a longer one overflows 112px beside the sort arrow and the filter funnel. */
   {
-    header: 'Ngày chốt',
+    header: translate(message('Ngày chốt', 'Close date', '마감일'), lang),
     width: COL.date,
     /* A closed tab prints `closedAt`, which the server cannot sort by. */
     sortKey: closedTab ? undefined : 'expectedClose',
     filter: filters.closed,
   },
-  { header: 'BD phụ trách', width: COL.person, filter: filters.bd },
-  { header: 'Sale phụ trách', width: COL.person, filter: filters.sale },
-  { header: 'Tương tác gần nhất', width: COL.status },
-  { header: 'Việc tiếp theo', width: COL.text },
+  {
+    header: translate(message('BD phụ trách', 'BD in charge', '담당 BD'), lang),
+    width: COL.person,
+    filter: filters.bd,
+  },
+  {
+    header: translate(message('Sale phụ trách', 'Salesperson in charge', '담당 영업'), lang),
+    width: COL.person,
+    filter: filters.sale,
+  },
+  {
+    header: translate(message('Tương tác gần nhất', 'Last interaction', '최근 상호작용'), lang),
+    width: COL.status,
+  },
+  {
+    header: translate(message('Việc tiếp theo', 'Next step', '다음 단계'), lang),
+    width: COL.text,
+  },
 ]
 
 /** The deal column stays put while the book scrolls sideways to the row acts.
@@ -118,17 +145,19 @@ export function emptyOf(opts: {
   onSeeLeads: () => void
   lang?: Lang
 }) {
-  const lang = opts.lang ?? 'vi'
-  const t = (vi: string, en: string, ko: string) => translate(message(vi, en, ko), lang)
+  const lang = opts.lang ?? getLang()
+  const t = (copy: Message) => translate(copy, lang)
   if (opts.pinnedView) {
     return {
       message: t(
-        'Chưa ghim cơ hội nào. Ghim từ cột cuối của sổ.',
-        'No pinned opportunities yet. Pin one from the last column in the book.',
-        '고정한 영업 기회가 없습니다. 목록의 마지막 열에서 고정하세요.',
+        message(
+          'Chưa ghim cơ hội nào. Ghim từ cột cuối của sổ.',
+          'No pinned opportunities yet. Pin one from the last column in the book.',
+          '고정한 기회가 없습니다. 목록의 마지막 열에서 고정하세요.',
+        ),
       ),
       action: {
-        label: t('Xem tất cả cơ hội', 'View all opportunities', '모든 영업 기회 보기'),
+        label: t(message('Xem tất cả cơ hội', 'View all opportunities', '모든 기회 보기')),
         onClick: opts.onClear,
       },
     }
@@ -136,22 +165,29 @@ export function emptyOf(opts: {
   return opts.dirty
     ? {
         message: t(
-          'Không có cơ hội nào khớp bộ lọc.',
-          'No opportunities match these filters.',
-          '필터와 일치하는 영업 기회가 없습니다.',
+          message(
+            'Không có cơ hội nào khớp bộ lọc.',
+            'No opportunities match these filters.',
+            '필터와 일치하는 기회가 없습니다.',
+          ),
         ),
         action: {
-          label: t('Bỏ hết bộ lọc', 'Clear all filters', '필터 모두 지우기'),
+          label: t(message('Bỏ hết bộ lọc', 'Clear all filters', '필터 모두 지우기')),
           onClick: opts.onClear,
         },
       }
     : {
         message: t(
-          'Chưa có cơ hội nào. Mở cơ hội từ một lead tiềm năng.',
-          'No opportunities yet. Create one from a lead.',
-          '아직 영업 기회가 없습니다. 리드에서 새 기회를 만드세요.',
+          message(
+            'Chưa có cơ hội nào. Mở cơ hội từ một lead tiềm năng.',
+            'No opportunities yet. Create one from a lead.',
+            '아직 기회가 없습니다. 리드에서 새 기회를 만드세요.',
+          ),
         ),
-        action: { label: t('Xem sổ lead', 'View leads', '리드 보기'), onClick: opts.onSeeLeads },
+        action: {
+          label: t(message('Xem sổ lead', 'View leads', '리드 보기')),
+          onClick: opts.onSeeLeads,
+        },
       }
 }
 
@@ -238,6 +274,17 @@ export function mailTally(
 ): string {
   const sending = [...selected].filter((code) => Boolean(recipients.get(code)?.email)).length
   const skipped = selected.size - sending
-  const head = `Sẽ gửi ${sending} email`
-  return skipped === 0 ? head : `${head} · bỏ qua ${skipped} cơ hội chưa có địa chỉ email`
+  const head = message(
+    `Sẽ gửi ${sending} email`,
+    `Will send ${sending} emails`,
+    `이메일 ${sending}건 발송 예정`,
+  )
+  const skip = message(
+    ` · bỏ qua ${skipped} cơ hội chưa có địa chỉ email`,
+    ` · skipping ${skipped} opportunities with no email address`,
+    ` · 이메일 주소가 없는 기회 ${skipped}건 제외`,
+  )
+  return translate(
+    skipped === 0 ? head : message(head.vi + skip.vi, head.en + skip.en, head.ko + skip.ko),
+  )
 }

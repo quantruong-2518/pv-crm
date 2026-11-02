@@ -9,7 +9,7 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { useDirectory, useSalesPeople } from '@/data/directory'
 import { configName, leadIndustryOptionsQuery } from '@/data/industries'
-import { NO_CREATOR_TITLE, NO_OWNER_TITLE } from '@/data/leads'
+import { NO_CREATOR_COPY, NO_OWNER_COPY } from '@/data/leads'
 import { useMotionLabel } from '@/data/sales-motions'
 import { useI18n } from '@/app/i18n'
 import { LEAD_COPY, leadStateText, sourceKindText } from '@/data/lead-copy'
@@ -79,7 +79,7 @@ export function useLeadFilters(
     creator: (
       <ListFilter
         label={t(LEAD_COPY.creator)}
-        options={peopleOptions(staff, NO_CREATOR_TITLE)}
+        options={peopleOptions(staff, t(NO_CREATOR_COPY))}
         value={query.createdBy}
         onChange={(createdBy) => patch({ createdBy })}
       />
@@ -87,7 +87,7 @@ export function useLeadFilters(
     owner: (
       <ListFilter
         label={t(LEAD_COPY.owner)}
-        options={peopleOptions(sales, NO_OWNER_TITLE)}
+        options={peopleOptions(sales, t(NO_OWNER_COPY))}
         value={query.owner}
         onChange={(owner) => patch({ owner })}
       />
@@ -139,14 +139,14 @@ export function useLeadFilterChips(
       'owner',
       t(LEAD_COPY.owner),
       query.owner,
-      personNameOf(staff, NO_OWNER_TITLE),
+      personNameOf(staff, t(NO_OWNER_COPY)),
       drop('owner'),
     ),
     ...listChip(
       'createdBy',
       t(LEAD_COPY.creator),
       query.createdBy,
-      personNameOf(staff, NO_CREATOR_TITLE),
+      personNameOf(staff, t(NO_CREATOR_COPY)),
       drop('createdBy'),
     ),
     ...listChip(

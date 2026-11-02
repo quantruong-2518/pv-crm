@@ -2,13 +2,14 @@ import type { ReactNode } from 'react'
 import { Badge, ChannelTag, Icon, MetaPill, cn, type BadgeProps, type IconGlyph } from '@pv/ui'
 import {
   COMM_CONFIRM_WITHIN_HOURS,
-  COMM_RECORD_STATE_LABEL,
   type CommRecordState,
   type DebriefStepCopy,
   type ThreadChannel,
 } from '@pv/contracts'
 import { dmy } from '@/lib/date'
+import { message, useI18n } from '@/app/i18n'
 import { COMMS_CHANNEL_ICON, COMMS_CHANNEL_LABEL } from '@/data/comms'
+import { commStateLabel } from '@/data/comm-record-detail'
 
 /** Small pieces every comm-record screen draws the same way: the state pill,
  *  the late mark, the channel and the answer chip.
@@ -31,19 +32,42 @@ const STATE_TONE: Record<CommRecordState, BadgeProps['tone']> = {
 }
 
 export function CommStateBadge({ state }: { state: CommRecordState }) {
-  return <Badge tone={STATE_TONE[state]}>{COMM_RECORD_STATE_LABEL[state]}</Badge>
+  const { lang } = useI18n()
+  return <Badge tone={STATE_TONE[state]}>{commStateLabel(state, lang)}</Badge>
 }
 
 /** The server's `late` flag, never a clock on this side (ADR 0075 §6). */
 export function CommLateMark({ late }: { late: boolean }) {
+  const { t } = useI18n()
   if (!late) return null
-  return <MetaPill tone="warning">Quá {COMM_CONFIRM_WITHIN_HOURS} giờ chưa xác nhận</MetaPill>
+  return (
+    <MetaPill tone="warning">
+      {t(
+        message(
+          `Quá ${COMM_CONFIRM_WITHIN_HOURS} giờ chưa xác nhận`,
+          `Unconfirmed after ${COMM_CONFIRM_WITHIN_HOURS} hr`,
+          `${COMM_CONFIRM_WITHIN_HOURS}시간 넘게 미확인`,
+        ),
+      )}
+    </MetaPill>
+  )
 }
 
 /** A booked meeting past its end, not yet closed out (`meetingOverdue`). */
 export function CommOverdueMark({ overdue }: { overdue: boolean }) {
+  const { t } = useI18n()
   if (!overdue) return null
-  return <MetaPill tone="warning">Quá giờ · chờ Họp xong</MetaPill>
+  return (
+    <MetaPill tone="warning">
+      {t(
+        message(
+          'Quá giờ · chờ Họp xong',
+          'Past time · waiting for Meeting held',
+          '시간 초과 · 회의 완료 대기',
+        ),
+      )}
+    </MetaPill>
+  )
 }
 
 /** Tinted per channel so the eye finds the call among the mail; each channel
@@ -107,13 +131,16 @@ export function ChoiceChip({
 /** A step as the record kept it: kind, text, due. No fill of its own — it sits
  *  inside a card that already has one, and two stacked fills cost law 13. */
 export function StepCopyLine({ step }: { step: DebriefStepCopy }) {
+  const { t } = useI18n()
   return (
     <span className="flex min-w-0 flex-wrap items-center gap-2">
       <MetaPill>{step.kind.name}</MetaPill>
       <span className="text-foreground min-w-0 flex-1 break-words text-[12px] leading-[1.5]">
         {step.text}
       </span>
-      <span className="text-muted-foreground tnum text-[11.5px]">hạn {dmy(step.due)}</span>
+      <span className="text-muted-foreground tnum text-[11.5px]">
+        {t(message(`hạn ${dmy(step.due)}`, `due ${dmy(step.due)}`, `기한 ${dmy(step.due)}`))}
+      </span>
     </span>
   )
 }

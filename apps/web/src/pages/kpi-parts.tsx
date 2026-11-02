@@ -15,7 +15,7 @@ import {
 } from '@pv/ui'
 import { type KpiReading, type KpiUnit, type KpiVerdict, type RoleId } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
-import { message, useI18n } from '@/app/i18n'
+import { message, translate, useI18n, type Lang, type Message } from '@/app/i18n'
 import type { BlockQuery, KpiCatalog } from '@/data/kpi-catalog'
 import { keyOf, periodLabel, type PeriodPick } from './home-model'
 import { ACK_LABEL } from './kpi-allocate-model'
@@ -141,12 +141,17 @@ function PaceBar({ item }: { item: KpiItem }) {
 
 /** Target and, while pace applies, what it asks for by today. A
  *  lower-is-better target is a ceiling, so it is not called a target. */
-function targetLine({ def, reading }: KpiItem, lang: 'vi' | 'en' | 'ko'): string | null {
+const TARGET_WORD = message('Chỉ tiêu', 'Target', '목표')
+const MAX_WORD = message('Tối đa', 'Maximum', '최대')
+
+function targetLine({ def, reading }: KpiItem, lang: Lang): string | null {
   if (reading.target === null) return null
-  const target = `${lang === 'vi' ? (def.higherIsBetter ? 'Chỉ tiêu' : 'Tối đa') : lang === 'en' ? (def.higherIsBetter ? 'Target' : 'Maximum') : def.higherIsBetter ? '목표' : '최대'} ${printValue(def.unit, reading.target, true)}`
+  const word = translate(def.higherIsBetter ? TARGET_WORD : MAX_WORD, lang)
+  const target = `${word} ${printValue(def.unit, reading.target, true)}`
   const paced = def.paced && reading.expected !== null && reading.expected < reading.target
+  const needed = message('cần đạt đến hôm nay', 'needed by today', '오늘까지 필요한 값')
   return paced
-    ? `${target} · ${lang === 'vi' ? 'cần đạt đến hôm nay' : lang === 'en' ? 'needed by today' : '오늘까지 필요한 값'} ${printTile(def.unit, reading.expected)}`
+    ? `${target} · ${translate(needed, lang)} ${printTile(def.unit, reading.expected)}`
     : target
 }
 
@@ -283,26 +288,18 @@ export function Scoreboard({
 
 /** What the strip prints under the bar: the tick's meaning, a ceiling, and
  *  whether the figure is a snapshot. The target itself sits beside the value. */
-function stripNote({ def, reading }: KpiItem, lang: 'vi' | 'en' | 'ko'): string | null {
+function stripNote({ def, reading }: KpiItem, lang: Lang): string | null {
   const { target, expected } = reading
   const paced = def.paced && target !== null && expected !== null && expected < target
   return (
     [
       paced &&
-        (lang === 'vi'
-          ? `Cần đạt đến hôm nay ${printTile(def.unit, expected)}`
-          : lang === 'en'
-            ? `Needed by today ${printTile(def.unit, expected)}`
-            : `오늘까지 필요한 값 ${printTile(def.unit, expected)}`),
+        `${translate(message('Cần đạt đến hôm nay', 'Needed by today', '오늘까지 필요한 값'), lang)} ${printTile(def.unit, expected)}`,
       !def.higherIsBetter &&
         target !== null &&
-        `${lang === 'vi' ? 'Tối đa' : lang === 'en' ? 'Maximum' : '최대'} ${printValue(def.unit, target, true)}`,
+        `${translate(MAX_WORD, lang)} ${printValue(def.unit, target, true)}`,
       def.snapshot &&
-        (lang === 'vi'
-          ? 'Số tại thời điểm hiện tại'
-          : lang === 'en'
-            ? 'Current snapshot'
-            : '현재 기준값'),
+        translate(message('Số tại thời điểm hiện tại', 'Current snapshot', '현재 기준값'), lang),
     ]
       .filter(Boolean)
       .join(' · ') || null
@@ -365,6 +362,8 @@ export function CompanyStrip({
   )
 }
 
+const retryLabel = message('Thử lại', 'Retry', '다시 시도')
+
 /** A read's states in one place: skeleton, failure with a retry, data — and
  *  data kept from an earlier load after a failed refetch, which is named.
  *  `variant` follows what the data will sit on (law 8: tables on `.glass-b`). */
@@ -377,13 +376,15 @@ export function QueryBlock<T>({
 }: {
   query: BlockQuery<T>
   /** Names the block in the failure sentence, lower case. */
-  what: string
+  what: string | Message
   variant?: 'a' | 'b'
   /** A second block on the same read: the first one carries the failure card. */
   quiet?: boolean
   children: (data: T) => ReactNode
 }) {
+  const { t } = useI18n()
   const retry = () => void query.refetch()
+  const subject = typeof what === 'object' ? t(what) : what
 
   if (query.data !== undefined) {
     return (
@@ -391,9 +392,15 @@ export function QueryBlock<T>({
         {query.isRefetchError && !quiet && (
           <p className={cn(NOTE, 'text-destructive-foreground flex flex-wrap items-center gap-2')}>
             <Icon icon={TriangleAlert} size={16} className="text-destructive-foreground shrink-0" />
-            Không tải lại được, đang hiện số lần trước.
+            {t(
+              message(
+                'Không tải lại được, đang hiện số lần trước.',
+                'Could not reload. Showing the previous figures.',
+                '다시 불러오지 못했습니다. 이전 수치를 표시합니다.',
+              ),
+            )}
             <Button variant="ghost" size="sm" className="pointer-coarse:h-12" onClick={retry}>
-              Thử lại
+              {t(retryLabel)}
             </Button>
           </p>
         )}
@@ -405,20 +412,34 @@ export function QueryBlock<T>({
   if (query.error && quiet) {
     return (
       <p className={cn(NOTE, 'text-destructive-foreground')}>
-        Không tải được {what}. Bấm Thử lại ở mục phía trên.
+        {t(
+          message(
+            `Không tải được ${subject}. Bấm Thử lại ở mục phía trên.`,
+            `Could not load ${subject}. Press Retry in the section above.`,
+            `${subject}을(를) 불러오지 못했습니다. 위 항목의 다시 시도를 눌러 주세요.`,
+          ),
+        )}
       </p>
     )
   }
 
   if (query.error) {
-    const detail = isApiError(query.error) ? userMessage(query.error) : 'Thử lại.'
+    const detail = isApiError(query.error)
+      ? userMessage(query.error)
+      : t(message('Thử lại.', 'Try again.', '다시 시도해 주세요.'))
     return (
       <GlassCard variant={variant} className={TILE}>
         <EmptyState
           tone="danger"
           icon={TriangleAlert}
-          message={`Không tải được ${what}. ${detail}`}
-          action={{ label: 'Thử lại', onClick: retry }}
+          message={t(
+            message(
+              `Không tải được ${subject}. ${detail}`,
+              `Could not load ${subject}. ${detail}`,
+              `${subject}을(를) 불러오지 못했습니다. ${detail}`,
+            ),
+          )}
+          action={{ label: t(retryLabel), onClick: retry }}
           className="py-8"
         />
       </GlassCard>

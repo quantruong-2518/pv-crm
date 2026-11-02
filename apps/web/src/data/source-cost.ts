@@ -2,6 +2,7 @@ import { millions } from '@pv/ui'
 import { costBand, separableCost, wilson, type CostBandValue } from '@pv/engines'
 import { CostKind, type SourceCostLine } from '@pv/contracts'
 import { sourceStats, sourcesPaid, SOURCES } from '@pv/engines/fixtures/das-vina'
+import { formatNumber, getLang, message, translate, type Lang, type Message } from '@/app/i18n'
 
 /** Tiền của một nguồn lead — dải giá, xếp hạng, phân rã theo loại, phép cắt kỳ.
  *  Kịch bản 2 · DAS Vina. Nền toán ở `@pv/engines` (`stats.ts`), số ở fixture;
@@ -36,13 +37,16 @@ import { sourceStats, sourcesPaid, SOURCES } from '@pv/engines/fixtures/das-vina
  *
  *  `Record<CostKind, …>` là exhaustive: thêm loại thứ sáu vào fixture mà quên
  *  đặt nhãn thì `pnpm typecheck` đỏ, không phải một ô trống trên bảng. */
-export const COST_KIND_LABEL: Record<CostKind, string> = {
-  DATA: 'Dữ liệu',
-  CHANNEL: 'Kênh',
-  CONTENT: 'Nội dung',
-  EVENT: 'Sự kiện',
-  TOOL: 'Công cụ',
+export const COST_KIND_LABEL: Record<CostKind, Message> = {
+  DATA: message('Dữ liệu', 'Data', '데이터'),
+  CHANNEL: message('Kênh', 'Channel', '채널'),
+  CONTENT: message('Nội dung', 'Content', '콘텐츠'),
+  EVENT: message('Sự kiện', 'Event', '이벤트'),
+  TOOL: message('Công cụ', 'Tools', '도구'),
 }
+
+export const costKindLabel = (kind: CostKind, lang: Lang = getLang()) =>
+  translate(COST_KIND_LABEL[kind], lang)
 
 /** Thứ tự đọc L1…L5 — dữ liệu trước, công cụ sau.
  *
@@ -64,8 +68,8 @@ export const ENOUGH_GATE = { minGood: 3, minLeads: 5, maxStretch: 3 } as const
 
 /** Một chữ số thập phân, dấu phẩy kiểu VN. Số đếm thì không có phần thập phân,
  *  nên helper này chỉ dùng cho bội số và độ giãn. */
-function oneDecimal(value: number): string {
-  return value.toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+function oneDecimal(value: number, lang: Lang = getLang()): string {
+  return formatNumber(value, lang, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 }
 
 /** Làm tròn XUỐNG một chữ số thập phân. Câu "ít nhất N lần" mà làm tròn LÊN thì
@@ -104,6 +108,29 @@ function stretchOf(x: number, n: number): number {
   return w.lo > 0 ? w.p / w.lo : Number.POSITIVE_INFINITY
 }
 
+/** Why a band is too thin to stand beside a claim; empty when it is firm enough.
+ *  A function of the counts so a screen can re-read it in the current language. */
+export function whyText(good: number, leads: number, lang: Lang = getLang()): string {
+  const m = (vi: string, en: string, ko: string) => translate(message(vi, en, ko), lang)
+  const stretch = stretchOf(good, leads)
+  const why: string[] = []
+  if (good < ENOUGH_GATE.minGood) {
+    why.push(m(`mới ${good} lead tốt`, `only ${good} good leads`, `우수 리드 ${good}건뿐`))
+  }
+  if (leads < ENOUGH_GATE.minLeads) {
+    why.push(m(`mới ${leads} lead`, `only ${leads} leads`, `리드 ${leads}건뿐`))
+  }
+  if (!(stretch <= ENOUGH_GATE.maxStretch)) {
+    const times = oneDecimal(stretch, lang)
+    why.push(
+      Number.isFinite(stretch)
+        ? m(`dải giãn ${times} lần`, `band stretches ${times}x`, `범위가 ${times}배로 넓음`)
+        : m('chưa có lead tốt nào', 'no good leads yet', '우수 리드 아직 없음'),
+    )
+  }
+  return why.join(' · ')
+}
+
 /** A source's price band for the cost PASSED IN, never read from `Source.cost`:
  *  the caller decides which spend counts, and this function only divides. */
 export function costOf(
@@ -112,15 +139,7 @@ export function costOf(
   leads: number,
   good: number,
 ): SourceCost {
-  const stretch = stretchOf(good, leads)
-  const why: string[] = []
-  if (good < ENOUGH_GATE.minGood) why.push(`mới ${good} lead tốt`)
-  if (leads < ENOUGH_GATE.minLeads) why.push(`mới ${leads} lead`)
-  if (!(stretch <= ENOUGH_GATE.maxStretch)) {
-    why.push(
-      Number.isFinite(stretch) ? `dải giãn ${oneDecimal(stretch)} lần` : 'chưa có lead tốt nào',
-    )
-  }
+  const why = whyText(good, leads)
 
   return {
     code: src.code,
@@ -129,8 +148,8 @@ export function costOf(
     leads,
     good,
     band: costBand(cost, good, leads),
-    enough: why.length === 0,
-    why: why.join(' · '),
+    enough: why === '',
+    why,
     cashless: cost === 0,
   }
 }
@@ -149,12 +168,22 @@ export function sourceCost(code: string): SourceCost | null {
  *  Đầu đắt `null` (nguồn chưa có lead tốt nào) in thành "chưa có cận trên" chứ
  *  KHÔNG in vô cực và cũng không im lặng bỏ đầu đó đi: một dải mất đầu phải nói
  *  ra là nó mất đầu. */
-export function bandText(band: CostBandValue): string {
+export function bandText(band: CostBandValue, lang: Lang = getLang()): string {
+  const m = (vi: string, en: string, ko: string) => translate(message(vi, en, ko), lang)
   /* Dải rỗng — không lead nào trong kỳ. "từ 0,0 tr trở lên" là khẳng định một
      sàn giá bằng 0 cho thứ chưa đo được; cùng lỗi mà `CostBand` chặn ở tầng vẽ,
      chặn lại ở tầng chữ vì hai tầng này không gọi lẫn nhau. */
-  if (band.point === null && band.lo === 0 && band.hi === null) return 'chưa đo được trong kỳ này'
-  if (band.hi === null) return `từ ${millions(band.lo)}, chưa có cận trên`
+  if (band.point === null && band.lo === 0 && band.hi === null) {
+    return m(
+      'chưa đo được trong kỳ này',
+      'not measurable in this period',
+      '이번 기간에는 측정 불가',
+    )
+  }
+  if (band.hi === null) {
+    const lo = millions(band.lo)
+    return m(`từ ${lo}, chưa có cận trên`, `from ${lo}, no upper bound yet`, `${lo}부터, 상한 없음`)
+  }
   return `${millions(band.lo)} – ${millions(band.hi)}`
 }
 
@@ -232,7 +261,7 @@ export type CostBreakdown = {
   /** Loại nguồn này KHÔNG tiêu đồng nào. Nói tên chúng ra một dòng còn hơn vẽ
    *  năm dòng trong đó ba dòng bằng 0 — bảng đọc bằng mắt, số 0 lặp lại chỉ làm
    *  loãng ba dòng có tiền thật. */
-  absent: string[]
+  absent: CostKind[]
 }
 
 /** Tiền của một nguồn đi đâu — năm loại L1…L5, số và tỉ trọng.
@@ -240,23 +269,26 @@ export type CostBreakdown = {
  *  Nguồn tự nhiên trả mảng rỗng và `total = 0`. Đó là NỘI DUNG chứ không phải
  *  lỗi: GT và TM không tốn đồng tiền mặt nào. Màn phải nói câu đó bằng chữ, đừng
  *  vẽ một cái bảng rỗng. */
-export function costBreakdown(lines: readonly SourceCostLine[]): CostBreakdown {
+export function costBreakdown(
+  lines: readonly SourceCostLine[],
+  lang: Lang = getLang(),
+): CostBreakdown {
   const total = lines.reduce((sum, l) => sum + l.amount, 0)
 
   const rows: CostSlice[] = []
-  const absent: string[] = []
+  const absent: CostKind[] = []
 
   for (const kind of COST_KINDS) {
     const amount = lines.filter((l) => l.kind === kind).reduce((sum, l) => sum + l.amount, 0)
     if (amount > 0) {
       rows.push({
         kind,
-        label: COST_KIND_LABEL[kind],
+        label: costKindLabel(kind, lang),
         amount,
         share: total > 0 ? amount / total : 0,
       })
     } else {
-      absent.push(COST_KIND_LABEL[kind])
+      absent.push(kind)
     }
   }
 

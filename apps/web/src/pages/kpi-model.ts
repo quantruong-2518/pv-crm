@@ -1,7 +1,6 @@
 import { useSearchParams } from 'react-router-dom'
 import { PlusMinus, billions, millions } from '@pv/ui'
 import {
-  KPI_VERDICT_LABEL,
   KpiLayer,
   KpiPeriodKey,
   RoleId,
@@ -16,8 +15,17 @@ import {
   type KpiVerdict,
 } from '@pv/contracts'
 import { primaryOf, type KpiCatalog } from '@/data/kpi-catalog'
+import { kpiVerdictText } from '@/data/kpi-i18n'
 import { dmhm } from '@/lib/date'
-import { formatCurrency, formatNumber } from '@/app/i18n'
+import {
+  formatCurrency,
+  formatNumber,
+  getLang,
+  message,
+  translate,
+  type Lang,
+  type Message,
+} from '@/app/i18n'
 import { VN_OFFSET_MS, currentPick, keyOf, num, stepPick, type PeriodPick } from './home-model'
 
 /** Calculation behind the KPI screens: how a reading prints, what is
@@ -31,8 +39,11 @@ import { VN_OFFSET_MS, currentPick, keyOf, num, stepPick, type PeriodPick } from
 
 /** The personal screen opens on what a verdict is measured against. The
  *  company screen prints the day of the month instead, its figures speak first. */
-export const DESCRIPTION =
-  'Số tự tính, cập nhật mỗi lần mở. Trạng thái so với mức cần đạt đến hôm nay. Chỉ số tỷ lệ và thời gian so với chỉ tiêu cả tháng.'
+export const DESCRIPTION = message(
+  'Số tự tính, cập nhật mỗi lần mở. Trạng thái so với mức cần đạt đến hôm nay. Chỉ số tỷ lệ và thời gian so với chỉ tiêu cả tháng.',
+  'Track your monthly performance against assigned targets.',
+  '월간 실적과 배정된 목표를 확인하세요.',
+)
 
 /** KPI is agreed per month, so the overview's picker is pinned to that grain. */
 export const monthPick = (): PeriodPick => ({ ...currentPick(), grain: 'month' })
@@ -89,7 +100,25 @@ export function monthText(period: string, today = new Date()): string {
 
 /** Once per screen on a closed month whose lists and weekly series read the copy
  *  frozen at close; later changes land in the running month (ADR 0115). */
-export const FROZEN_NOTE = 'Theo số lúc chốt. Thay đổi sau đó tính vào tháng đang chạy.'
+export const FROZEN_NOTE = message(
+  'Theo số lúc chốt. Thay đổi sau đó tính vào tháng đang chạy.',
+  'Figures as of the close. Later changes count toward the running month.',
+  '마감 시점의 수치입니다. 이후 변경은 진행 중인 달에 반영됩니다.',
+)
+
+/** The month as a phrase in the reader's language: vi "month 9", en "month 9/2025", ko year and month. */
+export function monthWord(period: string, today = new Date()): string {
+  const month = Number(period.slice(5))
+  const year = period.slice(0, 4)
+  const text = monthText(period, today)
+  return translate(
+    message(
+      `tháng ${text}`,
+      `month ${text}`,
+      text === String(month) ? `${month}월` : `${year}년 ${month}월`,
+    ),
+  )
+}
 
 /** Day of month over days in month, for the running month only: in any other
  *  month today is not inside it, so the line is left out. */
@@ -97,7 +126,8 @@ export function dayOfMonth(period: string, today = new Date()): string | null {
   if (period !== currentPick(today).month) return null
   const vn = new Date(today.getTime() + VN_OFFSET_MS)
   const days = new Date(Date.UTC(vn.getUTCFullYear(), vn.getUTCMonth() + 1, 0)).getUTCDate()
-  return `Ngày ${vn.getUTCDate()}/${days}`
+  const day = `${vn.getUTCDate()}/${days}`
+  return translate(message(`Ngày ${day}`, `Day ${day}`, `${day}일`))
 }
 
 /** `stepPick`, reaching ONE month past the running one: a month's targets are
@@ -142,6 +172,8 @@ const oneDecimal = (value: number) =>
   formatNumber(value, undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 
 const BILLION = 1_000_000_000
+const UNIT_HOURS = message('giờ', 'h', '시간')
+const UNIT_DAYS = message('ngày', 'days', '일')
 
 /** `compact` is for a tile; tables print every dong. */
 export function printValue(unit: KpiUnit, value: number, compact = false): string {
@@ -151,8 +183,8 @@ export function printValue(unit: KpiUnit, value: number, compact = false): strin
     return (Math.abs(value) >= BILLION ? billions(value, 1) : millions(value)).replace(',0 ', ' ')
   }
   if (unit === 'ratio') return `${num(value * 100)}%`
-  if (unit === 'hours') return `${oneDecimal(value)} giờ`
-  if (unit === 'days') return `${oneDecimal(value)} ngày`
+  if (unit === 'hours') return `${oneDecimal(value)} ${translate(UNIT_HOURS)}`
+  if (unit === 'days') return `${oneDecimal(value)} ${translate(UNIT_DAYS)}`
   return num(value)
 }
 
@@ -160,7 +192,7 @@ export const DASH = '—'
 
 /** A tile has room for the words; a table cell has the badge beside it. */
 export const printTile = (unit: KpiUnit, value: number | null) =>
-  value === null ? KPI_VERDICT_LABEL['no-data'] : printValue(unit, value, true)
+  value === null ? kpiVerdictText('no-data') : printValue(unit, value, true)
 
 export const printCell = (unit: KpiUnit, value: number | null) =>
   value === null ? DASH : printValue(unit, value)
@@ -199,36 +231,57 @@ export function adjustmentLine(
 ): string | null {
   const compact = form !== 'cell'
   if (afterAdjustments !== null) {
-    return `Sau điều chỉnh: ${printValue(unit, afterAdjustments, compact)}`
+    const after = printValue(unit, afterAdjustments, compact)
+    return translate(
+      message(`Sau điều chỉnh: ${after}`, `After adjustment: ${after}`, `조정 후: ${after}`),
+    )
   }
   if (adjustedBy === null) return null
   const signed = printSigned(unit, adjustedBy, compact)
-  return form === 'heat' ? `Điều chỉnh ${signed}` : `Gồm điều chỉnh ${signed} từ tháng đã chốt`
+  return translate(
+    form === 'heat'
+      ? message(`Điều chỉnh ${signed}`, `Adjusted ${signed}`, `조정 ${signed}`)
+      : message(
+          `Gồm điều chỉnh ${signed} từ tháng đã chốt`,
+          `Includes ${signed} adjustment from a closed month`,
+          `마감된 달의 조정 ${signed} 포함`,
+        ),
+  )
 }
 
 /* A meeting row's code cell already names the kind, so its sentence starts at the cause. */
-const KIND_WORD: Record<KpiContributionKind, string | null> = {
-  lead: 'Lead',
-  opportunity: 'Cơ hội',
-  contract: 'Hợp đồng',
-  installment: 'Đợt thanh toán',
+const KIND_WORD: Record<KpiContributionKind, Message | null> = {
+  lead: message('Lead', 'Lead', '리드'),
+  opportunity: message('Cơ hội', 'Opportunity', '기회'),
+  contract: message('Hợp đồng', 'Contract', '계약'),
+  installment: message('Đợt thanh toán', 'Installment', '납부 회차'),
   meeting: null,
 }
 
-const CAUSE_WORDS: Record<KpiAdjustmentCause, string> = {
-  appeared: 'thêm vào',
-  vanished: 'bị loại khỏi',
-  changed: 'đổi giá trị ở',
-}
+/** The cause with its source month, per language; ko puts the month first so it builds there. */
+const causeClause = (cause: KpiAdjustmentCause, month: string): Record<Lang, string> =>
+  ({
+    appeared: message(`thêm vào tháng ${month}`, `added to month ${month}`, '추가됨'),
+    vanished: message(`bị loại khỏi tháng ${month}`, `removed from month ${month}`, '제외됨'),
+    changed: message(
+      `đổi giá trị ở tháng ${month}`,
+      `changed value in month ${month}`,
+      '값 변경됨',
+    ),
+  })[cause]
 
 /** What happened to an adjustment row's record: its kind, the cause, the source month. */
 export function adjustmentSentence(
   kind: KpiContributionKind,
   { cause, sourcePeriod }: NonNullable<KpiContribution['adjustment']>,
 ): string {
-  const what = `${CAUSE_WORDS[cause]} tháng ${monthText(sourcePeriod)}`
-  const head = KIND_WORD[kind]
-  return head === null ? what.charAt(0).toUpperCase() + what.slice(1) : `${head} ${what}`
+  const lang = getLang()
+  const kindWord = KIND_WORD[kind]
+  const head = kindWord === null ? null : translate(kindWord, lang)
+  const clause = causeClause(cause, monthText(sourcePeriod))[lang]
+  if (lang === 'ko') return [monthWord(sourcePeriod), head, clause].filter(Boolean).join(' ')
+  const sentence = head === null ? clause : `${head} ${clause}`
+  return head === null ? sentence.charAt(0).toUpperCase() + sentence.slice(1) : sentence
 }
 
 /** The figure as a share of its target, unclamped, for "% done". Null for a
@@ -241,13 +294,18 @@ export function shareOf({ def, reading }: KpiItem): number | null {
   return value / target
 }
 
-/** What the unit is called beside a field a manager types a target into. */
+/** What the unit is called beside a field a manager types a target into. The
+ *  words are getters so the table follows the language without callers changing. */
 export const UNIT_WORD: Record<KpiUnit, string> = {
   count: '',
   money: '₫',
   ratio: '%',
-  hours: 'giờ',
-  days: 'ngày',
+  get hours() {
+    return translate(UNIT_HOURS)
+  },
+  get days() {
+    return translate(UNIT_DAYS)
+  },
 }
 
 /** A typed target as the wire value: `undefined` for an empty field, `null`
@@ -298,13 +356,31 @@ export function shortfallOf({ def, reading }: KpiItem, compact = false): string 
     def.unit === 'count'
       ? num(Math.ceil(gap))
       : def.unit === 'ratio'
-        ? `${num(gap * 100)} điểm`
+        ? `${num(gap * 100)} ${translate(message('điểm', 'pts', '%p'))}`
         : printValue(def.unit, gap, compact)
 
-  if (!def.higherIsBetter) return `Đang vượt mức tối đa ${size}.`
-  return def.paced
-    ? `Còn thiếu ${size} so với mức cần đạt đến hôm nay.`
-    : `Còn thiếu ${size} so với chỉ tiêu.`
+  if (!def.higherIsBetter) {
+    return translate(
+      message(
+        `Đang vượt mức tối đa ${size}.`,
+        `${size} over the maximum.`,
+        `최대치를 ${size} 초과했습니다.`,
+      ),
+    )
+  }
+  return translate(
+    def.paced
+      ? message(
+          `Còn thiếu ${size} so với mức cần đạt đến hôm nay.`,
+          `${size} short of the pace needed by today.`,
+          `오늘까지 필요한 진도보다 ${size} 부족합니다.`,
+        )
+      : message(
+          `Còn thiếu ${size} so với chỉ tiêu.`,
+          `${size} short of the target.`,
+          `목표보다 ${size} 부족합니다.`,
+        ),
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -321,15 +397,54 @@ export type Acknowledgement = {
 export function acknowledgementOf(card: KpiScorecard): Acknowledgement {
   if (card.acknowledgedAt !== null && !card.acknowledgementStale) {
     return card.acceptedByDefault
-      ? { state: 'by-default', text: 'Có chỉ tiêu nhận mặc định' }
-      : { state: 'done', text: `Đã nhận chỉ tiêu lúc ${dmhm(card.acknowledgedAt)}` }
+      ? {
+          state: 'by-default',
+          text: translate(
+            message(
+              'Có chỉ tiêu nhận mặc định',
+              'Target accepted by default',
+              '목표가 기본값으로 수락됨',
+            ),
+          ),
+        }
+      : {
+          state: 'done',
+          text: translate(
+            message(
+              `Đã nhận chỉ tiêu lúc ${dmhm(card.acknowledgedAt)}`,
+              `Target received at ${dmhm(card.acknowledgedAt)}`,
+              `${dmhm(card.acknowledgedAt)}에 목표 수령`,
+            ),
+          ),
+        }
   }
   if (!card.readings.some((r) => r.target !== null)) {
-    return { state: 'no-target', text: 'Tháng này chưa có chỉ tiêu nào được duyệt' }
+    return {
+      state: 'no-target',
+      text: translate(
+        message(
+          'Tháng này chưa có chỉ tiêu nào được duyệt',
+          'No target has been approved for this month',
+          '이번 달에는 승인된 목표가 없습니다',
+        ),
+      ),
+    }
   }
   return card.acknowledgedAt === null
-    ? { state: 'missing', text: 'Chưa nhận chỉ tiêu' }
-    : { state: 'stale', text: 'Chỉ tiêu đã đổi sau lần nhận gần nhất, cần nhận lại' }
+    ? {
+        state: 'missing',
+        text: translate(message('Chưa nhận chỉ tiêu', 'Target not received', '목표 미수령')),
+      }
+    : {
+        state: 'stale',
+        text: translate(
+          message(
+            'Chỉ tiêu đã đổi sau lần nhận gần nhất, cần nhận lại',
+            'The target changed after you last received it; receive it again',
+            '마지막 수령 이후 목표가 변경되어 다시 수령해야 합니다',
+          ),
+        ),
+      }
 }
 
 export const needsAcknowledgement = (ack: Acknowledgement) =>

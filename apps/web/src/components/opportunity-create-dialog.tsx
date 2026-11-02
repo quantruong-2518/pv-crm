@@ -4,6 +4,7 @@ import { TriangleAlert, X } from '@pv/ui'
 import { Button, Drawer, EmptyState, Icon, Skeleton } from '@pv/ui'
 import type { LeadRow, OpportunityCreateResponse } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 import { leadProfileQuery } from '@/data/lead-profile'
 import { LeadPickList } from './lead-picker'
 import { ConvertDialog } from './convert-dialog'
@@ -73,6 +74,7 @@ function LeadPicker({
   onClose: () => void
   onPick: (lead: LeadRow) => void
 }) {
+  const { t } = useI18n()
   return (
     <Drawer
       open={open}
@@ -81,13 +83,19 @@ function LeadPicker({
          other with no animation in between, so a narrower step one would read
          as the panel jerking wider rather than as one form moving on. */
       width="lg"
-      title="Mở cơ hội"
-      subtitle="Chọn lead để mở cơ hội."
+      title={t(message('Mở cơ hội', 'Create opportunity', '기회 만들기'))}
+      subtitle={t(
+        message(
+          'Chọn lead để mở cơ hội.',
+          'Choose a lead to create an opportunity from.',
+          '기회를 만들 리드를 선택하세요.',
+        ),
+      )}
       footer={
         <div className="flex justify-end">
           <Button size="md" variant="ghost" onClick={onClose}>
             <Icon icon={X} size={16} />
-            Huỷ
+            {t(message('Huỷ', 'Cancel', '취소'))}
           </Button>
         </div>
       }
@@ -112,6 +120,7 @@ function ConvertStep({
   onClose: () => void
   onCreated: (row: OpportunityCreateResponse) => void
 }) {
+  const { t } = useI18n()
   const { data: profile, error, refetch } = useQuery(leadProfileQuery(lead.code))
 
   if (profile !== undefined) {
@@ -123,7 +132,7 @@ function ConvertStep({
       open={open}
       onClose={onClose}
       width="lg"
-      title="Mở cơ hội"
+      title={t(message('Mở cơ hội', 'Create opportunity', '기회 만들기'))}
       subtitle={
         <>
           <span className="font-mono">{lead.code}</span> · {lead.company}
@@ -133,7 +142,7 @@ function ConvertStep({
         <div className="flex justify-end">
           <Button size="md" variant="ghost" onClick={onClose}>
             <Icon icon={X} size={16} />
-            Huỷ
+            {t(message('Huỷ', 'Cancel', '취소'))}
           </Button>
         </div>
       }
@@ -142,10 +151,23 @@ function ConvertStep({
         <EmptyState
           tone="danger"
           icon={TriangleAlert}
-          message={`Không mở được hồ sơ lead ${lead.code}. ${
-            isApiError(error) ? userMessage(error) : 'Thử lại.'
-          }`}
-          action={{ label: 'Thử lại', onClick: () => void refetch() }}
+          message={t(
+            message(
+              `Không mở được hồ sơ lead ${lead.code}. ${
+                isApiError(error) ? userMessage(error) : 'Thử lại.'
+              }`,
+              `Could not open lead ${lead.code}. ${
+                isApiError(error) ? userMessage(error) : 'Try again.'
+              }`,
+              `리드 ${lead.code}을(를) 열 수 없습니다. ${
+                isApiError(error) ? userMessage(error) : '다시 시도하세요.'
+              }`,
+            ),
+          )}
+          action={{
+            label: t(message('Thử lại', 'Try again', '다시 시도')),
+            onClick: () => void refetch(),
+          }}
           className="py-12"
         />
       ) : (

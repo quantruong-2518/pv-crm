@@ -1,7 +1,8 @@
 import { Avatar, Check, Drawer, Icon, Skeleton, cn } from '@pv/ui'
 import { userMessage } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
-import { useCollectorCandidates, NO_COLLECTOR } from '@/data/contract-collector'
+import { noCollectorText, useCollectorCandidates } from '@/data/contract-collector'
 import type { Contract } from '@/data/contracts'
 import { useChangeCollector } from '@/data/contracts-write'
 
@@ -19,6 +20,7 @@ export function ChangeCollectorDrawer({
   open: boolean
   onClose: () => void
 }) {
+  const { t } = useI18n()
   const candidates = useCollectorCandidates(open)
   const change = useChangeCollector(contract.code)
   const busy = change.isPending
@@ -28,7 +30,15 @@ export function ChangeCollectorDrawer({
       { collectorId },
       {
         onSuccess: () => {
-          toastDone('Đã đổi người thu tiền.')
+          toastDone(
+            t(
+              message(
+                'Đã đổi người thu tiền.',
+                'Payment collector changed.',
+                '수금 담당자를 변경했습니다.',
+              ),
+            ),
+          )
           onClose()
         },
       },
@@ -44,7 +54,7 @@ export function ChangeCollectorDrawer({
     <Drawer
       open={open}
       onClose={close}
-      title="Đổi người thu tiền"
+      title={t(message('Đổi người thu tiền', 'Change payment collector', '수금 담당자 변경'))}
       subtitle={
         <>
           <span className="font-mono">{contract.code}</span> · {contract.customer}
@@ -61,10 +71,18 @@ export function ChangeCollectorDrawer({
           <Skeleton height={120} />
         ) : candidates.isError ? (
           <p className="text-destructive-foreground m-0 text-[12.5px] leading-[1.6]" role="alert">
-            Không tải được danh sách người thu tiền.
+            {t(
+              message(
+                'Không tải được danh sách người thu tiền.',
+                'Could not load the list of payment collectors.',
+                '수금 담당자 목록을 불러오지 못했습니다.',
+              ),
+            )}
           </p>
         ) : candidates.data.length === 0 ? (
-          <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">{NO_COLLECTOR}</p>
+          <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
+            {noCollectorText()}
+          </p>
         ) : (
           <ul className="m-0 flex list-none flex-col gap-1 p-0">
             {candidates.data.map((person) => {
@@ -85,7 +103,15 @@ export function ChangeCollectorDrawer({
                     <span className="flex min-w-0 flex-1 flex-col gap-1">
                       <span className="truncate text-[13px] font-semibold">{person.name}</span>
                       <span className="text-muted-foreground truncate text-[11.5px] leading-[1.5]">
-                        {current ? 'Đang thu tiền hợp đồng này' : person.role}
+                        {current
+                          ? t(
+                              message(
+                                'Đang thu tiền hợp đồng này',
+                                'Currently collecting for this contract',
+                                '현재 이 계약의 수금 담당',
+                              ),
+                            )
+                          : person.role}
                       </span>
                     </span>
                     {current && <Icon icon={Check} size={16} />}

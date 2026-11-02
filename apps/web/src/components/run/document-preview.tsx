@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { LeadAttachment } from '@pv/contracts'
 import { Button, Download, Icon, Modal, Skeleton } from '@pv/ui'
+import { message, useI18n } from '@/app/i18n'
 import { loadPdfjs } from '@/data/lead-scan-prep'
 import { documentBlobQuery } from '@/data/workstream-documents'
 
@@ -44,6 +45,7 @@ export function DocumentPreview({
 }
 
 function SaveButton({ file }: { file: LeadAttachment }) {
+  const { t } = useI18n()
   const client = useQueryClient()
   const [busy, setBusy] = useState(false)
   const save = async () => {
@@ -65,12 +67,13 @@ function SaveButton({ file }: { file: LeadAttachment }) {
       onClick={() => void save()}
     >
       <Icon icon={Download} size={16} />
-      Tải xuống
+      {t(message('Tải xuống', 'Download', '다운로드'))}
     </Button>
   )
 }
 
 function Viewer({ file }: { file: LeadAttachment }) {
+  const { t } = useI18n()
   const { mime } = file
   const {
     data: blob,
@@ -96,9 +99,31 @@ function Viewer({ file }: { file: LeadAttachment }) {
       </div>
     )
   if (mime === 'application/msword')
-    return <Note>Tệp Word đời cũ (.doc) chưa xem trước được. Bấm Tải xuống để mở trên máy.</Note>
+    return (
+      <Note>
+        {t(
+          message(
+            'Tệp Word đời cũ (.doc) chưa xem trước được. Bấm Tải xuống để mở trên máy.',
+            'Legacy Word files (.doc) cannot be previewed yet. Press Download to open it on your device.',
+            '구형 Word 파일(.doc)은 아직 미리 볼 수 없습니다. 다운로드를 눌러 기기에서 여세요.',
+          ),
+        )}
+      </Note>
+    )
   if (isPending) return <Skeleton className="h-96 w-full" />
-  if (isError || !blob) return <Note>Không mở được tệp này. Bấm Tải xuống để xem trên máy.</Note>
+  if (isError || !blob) {
+    return (
+      <Note>
+        {t(
+          message(
+            'Không mở được tệp này. Bấm Tải xuống để xem trên máy.',
+            'Could not open this file. Press Download to view it on your device.',
+            '이 파일을 열 수 없습니다. 다운로드를 눌러 기기에서 확인하세요.',
+          ),
+        )}
+      </Note>
+    )
+  }
   if (mime === 'application/pdf') return <Painted blob={blob} paint={paintPdf} />
   if (mime === WORD_MIME) return <Painted blob={blob} paint={paintDocx} />
   if (SHEET_MIME.has(mime))
@@ -109,13 +134,24 @@ function Viewer({ file }: { file: LeadAttachment }) {
     )
   if (mime === 'text/plain' || mime === 'text/markdown')
     return <TextView blob={blob} markdown={mime === 'text/markdown'} />
-  return <Note>Loại tệp này chưa xem trước được. Bấm Tải xuống để xem trên máy.</Note>
+  return (
+    <Note>
+      {t(
+        message(
+          'Loại tệp này chưa xem trước được. Bấm Tải xuống để xem trên máy.',
+          'This file type cannot be previewed yet. Press Download to view it on your device.',
+          '이 파일 형식은 아직 미리 볼 수 없습니다. 다운로드를 눌러 기기에서 확인하세요.',
+        ),
+      )}
+    </Note>
+  )
 }
 
 type Paint = (blob: Blob, into: HTMLElement, alive: () => boolean) => Promise<unknown>
 
 /** Both libraries write into a DOM node of their own rather than return JSX. */
 function Painted({ blob, paint }: { blob: Blob; paint: Paint }) {
+  const { t } = useI18n()
   const host = useRef<HTMLDivElement>(null)
   const [failed, setFailed] = useState(false)
 
@@ -130,7 +166,19 @@ function Painted({ blob, paint }: { blob: Blob; paint: Paint }) {
     }
   }, [blob, paint])
 
-  if (failed) return <Note>Không đọc được nội dung tệp. Bấm Tải xuống để xem trên máy.</Note>
+  if (failed) {
+    return (
+      <Note>
+        {t(
+          message(
+            'Không đọc được nội dung tệp. Bấm Tải xuống để xem trên máy.',
+            'Could not read the file content. Press Download to view it on your device.',
+            '파일 내용을 읽을 수 없습니다. 다운로드를 눌러 기기에서 확인하세요.',
+          ),
+        )}
+      </Note>
+    )
+  }
   return (
     <div
       ref={host}

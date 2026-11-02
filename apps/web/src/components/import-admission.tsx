@@ -1,4 +1,5 @@
-import { ADMISSION_VERDICT_LABEL } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
+import { admissionVerdictText } from '@/data/import-admission-copy'
 import { MARKED_VERDICTS, admissionMarkOf } from '@/data/import-admission'
 import type { BuiltRow } from '@/data/intake'
 
@@ -9,15 +10,16 @@ import type { BuiltRow } from '@/data/intake'
 
 /** The cell: the verdict's own label, and the company the new lead hangs on. */
 export function AdmissionMark({ row }: { row: BuiltRow }) {
+  useI18n()
   const mark = admissionMarkOf(row)
   if (!mark) return <span className="text-muted-foreground">—</span>
   const code = mark === 'returning-account' ? row.accountCode : undefined
   return (
     <span
       className="block truncate leading-[1.6]"
-      title={[ADMISSION_VERDICT_LABEL[mark], code].filter(Boolean).join(' · ')}
+      title={[admissionVerdictText(mark), code].filter(Boolean).join(' · ')}
     >
-      {ADMISSION_VERDICT_LABEL[mark]}
+      {admissionVerdictText(mark)}
       {code && (
         <>
           {' '}
@@ -30,6 +32,7 @@ export function AdmissionMark({ row }: { row: BuiltRow }) {
 
 /** One line under the tallies: how many of the rows that went in are which. */
 export function AdmissionTally({ rows }: { rows: readonly BuiltRow[] }) {
+  const { t } = useI18n()
   const counts = MARKED_VERDICTS.map((verdict) => ({
     verdict,
     count: rows.filter((row) => row.admission === verdict).length,
@@ -38,13 +41,20 @@ export function AdmissionTally({ rows }: { rows: readonly BuiltRow[] }) {
 
   return (
     <p className="text-glass-foreground tnum text-[11.5px] leading-[1.7]">
-      Dòng vào sổ:{' '}
+      {t(message('Dòng vào sổ', 'Rows added', '등록된 행'))}:{' '}
       {counts.map((entry, i) => (
         <span key={entry.verdict}>
           {i > 0 && ' · '}
-          {ADMISSION_VERDICT_LABEL[entry.verdict]}:{' '}
+          {admissionVerdictText(entry.verdict)}:{' '}
           <span className="font-num font-semibold">{entry.count}</span>
-          {entry.verdict === 'returning-account' && ' (lead mới trên công ty đã có)'}
+          {entry.verdict === 'returning-account' &&
+            ` (${t(
+              message(
+                'lead mới trên công ty đã có',
+                'new lead on an existing company',
+                '기존 회사의 새 리드',
+              ),
+            )})`}
         </span>
       ))}
     </p>

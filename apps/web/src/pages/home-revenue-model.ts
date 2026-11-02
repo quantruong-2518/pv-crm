@@ -7,6 +7,7 @@ import {
   type SalesPenaltyFigure,
   type SalesPerformanceResponse,
 } from '@pv/contracts'
+import { message, type Message } from '@/app/i18n'
 import { bucketViews, rangeLabel, type BucketView } from '@/data/period-pick'
 import { money, num } from './home-model'
 
@@ -94,13 +95,17 @@ export const millions = (vnd: number) => num(vnd / 1_000_000)
 export const signedMoney = (vnd: number) => (vnd < 0 ? `−${money(-vnd)}` : money(vnd))
 
 /** A popover section's name for each figure. */
-export const KIND_TITLE: Record<SalesMoneyFigureKind, string> = {
-  collected: 'Đã thu',
-  'due-unpaid': 'Đến hạn chưa thu',
-  settled: 'Đến hạn trong kỳ, đã thu',
-  upcoming: 'Sắp đến hạn',
-  'penalty-in': 'Khách thanh toán',
-  'penalty-out': 'Mình thanh toán',
+export const KIND_TITLE: Record<SalesMoneyFigureKind, Message> = {
+  collected: message('Đã thu', 'Collected', '수금'),
+  'due-unpaid': message('Đến hạn chưa thu', 'Due and unpaid', '기한 초과 미수금'),
+  settled: message(
+    'Đến hạn trong kỳ, đã thu',
+    'Due this period, collected',
+    '기간 내 만기, 수금 완료',
+  ),
+  upcoming: message('Sắp đến hạn', 'Upcoming', '예정'),
+  'penalty-in': message('Khách thanh toán', 'Customer pays', '고객 지급'),
+  'penalty-out': message('Mình thanh toán', 'We pay', '당사 지급'),
 }
 
 /** A column's name in a popover title: a week's day by its date, the rest by label. */
@@ -108,11 +113,14 @@ export const columnName = (perf: SalesPerformanceResponse, view: BucketView) =>
   salesGrainOf(perf.period) === 'week' ? rangeLabel(view.bucket) : view.label
 
 /** What one column of the chart covers, by the grain of the picked period. */
-export const BUCKET_UNIT: Record<SalesGrain, string> = {
-  week: 'ngày',
-  month: 'tuần',
-  quarter: 'tháng',
-  year: 'tháng',
+const DAY = message('ngày', 'day', '일')
+const WEEK = message('tuần', 'week', '주')
+const MONTH = message('tháng', 'month', '월')
+export const BUCKET_UNIT: Record<SalesGrain, Message> = {
+  week: DAY,
+  month: WEEK,
+  quarter: MONTH,
+  year: MONTH,
 }
 
 /** The figure's ink, the same as its mark on the chart. */

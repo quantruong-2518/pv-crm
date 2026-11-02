@@ -1,8 +1,9 @@
-import { useMemo, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { Input, cn } from '@pv/ui'
 import { OPPORTUNITY_NAME_MAX } from '@pv/contracts'
 import type { OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import type { FieldErrors } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 import { closeChips } from '@/data/opportunity-open'
 import { AmountField } from './deal-fields'
 import { Field, type SetDraft } from './ops-fields'
@@ -36,18 +37,24 @@ export function BasicsSection({
   errors: FieldErrors
   onSet: SetDraft
 }) {
+  const { t } = useI18n()
   const fromBudget =
     seed.amount !== null && draft.amount === seed.amount && draft.currency === seed.currency
 
   return (
-    <section className="flex flex-col gap-4" aria-label="Cơ hội">
-      <SectionHead>Cơ hội</SectionHead>
+    <section
+      className="flex flex-col gap-4"
+      aria-label={t(message('Cơ hội', 'Opportunity', '기회'))}
+    >
+      <SectionHead>{t(message('Cơ hội', 'Opportunity', '기회'))}</SectionHead>
 
       <Field
         label={
           <>
-            Tên cơ hội
-            {draft.name === seed.name && <SeedTag>từ lead</SeedTag>}
+            {t(message('Tên cơ hội', 'Opportunity name', '기회 이름'))}
+            {draft.name === seed.name && (
+              <SeedTag>{t(message('từ lead', 'from lead', '리드에서'))}</SeedTag>
+            )}
           </>
         }
         required
@@ -55,7 +62,7 @@ export function BasicsSection({
       >
         <Input
           value={draft.name}
-          aria-label="Tên cơ hội"
+          aria-label={t(message('Tên cơ hội', 'Opportunity name', '기회 이름'))}
           aria-required
           maxLength={OPPORTUNITY_NAME_MAX}
           className="pointer-coarse:h-12"
@@ -69,7 +76,9 @@ export function BasicsSection({
           draft={draft}
           onSet={onSet}
           errors={errors.amount}
-          tag={fromBudget && <SeedTag>từ ngân sách</SeedTag>}
+          tag={
+            fromBudget && <SeedTag>{t(message('từ ngân sách', 'from budget', '예산에서'))}</SeedTag>
+          }
           onCurrency={(code) => onSet('currency', code)}
         />
         <CloseDate value={draft.closedDate} errors={errors.closedDate} onChange={onSet} />
@@ -90,20 +99,26 @@ function CloseDate({
   errors?: string[]
   onChange: SetDraft
 }) {
-  const chips = useMemo(() => closeChips(new Date()), [])
+  const { t } = useI18n()
+  const chips = closeChips(new Date())
+  const closeLabel = t(message('Ngày chốt dự kiến', 'Expected close date', '예상 마감일'))
 
   return (
-    <Field label="Ngày chốt dự kiến" required plain errors={errors}>
+    <Field label={closeLabel} required plain errors={errors}>
       <Input
         type="date"
         value={value}
-        aria-label="Ngày chốt dự kiến"
+        aria-label={closeLabel}
         aria-required
         className="pointer-coarse:h-12"
         invalid={Boolean(errors?.length)}
         onChange={(e) => onChange('closedDate', e.target.value)}
       />
-      <div role="group" aria-label="Chọn nhanh ngày chốt" className="flex flex-wrap gap-2">
+      <div
+        role="group"
+        aria-label={t(message('Chọn nhanh ngày chốt', 'Quick-pick close date', '마감일 빠른 선택'))}
+        className="flex flex-wrap gap-2"
+      >
         {chips.map((chip) => {
           const on = chip.day === value
           return (

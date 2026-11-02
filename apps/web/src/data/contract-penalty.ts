@@ -1,4 +1,5 @@
 import type { ContractPenalty, ContractPenaltyDirection, ContractPenaltyInput } from '@pv/contracts'
+import { message, translate } from '@/app/i18n'
 import { vnToday } from '@/data/opportunities'
 
 /** The penalty form's state and checks (ADR 0124), kept off the component file
@@ -26,17 +27,22 @@ export const penaltyDayWrong = (draft: PenaltyDraft): boolean =>
  *  is a prompt; a future day is the refusal (`penaltyDayWrong`). */
 export function penaltyProblem(draft: PenaltyDraft): string | null {
   if (draft.direction === null) return null
-  if (!draft.amount) return 'Nhập số tiền phạt.'
-  if (penaltyDayWrong(draft)) return 'Ngày không được sau hôm nay.'
+  if (!draft.amount) {
+    return translate(
+      message('Nhập số tiền phạt.', 'Enter the penalty amount.', '위약금 금액을 입력하세요.'),
+    )
+  }
+  if (penaltyDayWrong(draft)) {
+    return translate(
+      message(
+        'Ngày không được sau hôm nay.',
+        'The date cannot be after today.',
+        '날짜는 오늘 이후일 수 없습니다.',
+      ),
+    )
+  }
   return null
 }
-
-/** Where the money stands, by direction: the one place these four words live. */
-export const PENALTY_STATE_WORD: Record<ContractPenaltyDirection, { done: string; wait: string }> =
-  {
-    'customer-pays': { done: 'Đã thu', wait: 'Chưa thu' },
-    'company-pays': { done: 'Đã trả', wait: 'Chưa trả' },
-  }
 
 /** The body's penalty; `undefined` when none is chosen or the form is wrong. */
 export function penaltyInputOf(draft: PenaltyDraft): ContractPenaltyInput | undefined {

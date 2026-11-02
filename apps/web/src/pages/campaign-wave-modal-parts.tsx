@@ -24,7 +24,7 @@ import { MailPreviewCard } from '@/components/mail-compose-bits'
 import { WaveComposer } from '@/components/mail-sequence/wave-composer'
 import type { ComposerState } from '@/components/mail-sequence/wave-draft'
 import { overlapNote } from './campaign-model'
-import { tr } from './campaign-wave-modal-text'
+import { msg } from './campaign-wave-modal-text'
 
 /** Module 1 · the pieces of `WaveModal` that only draw — each step's body, the
  *  header count and the review list. The firing logic stays in the modal. */
@@ -84,7 +84,7 @@ export function StepBody({
       <LetterPreview
         ready={letterReady}
         preview={preview}
-        to={tr(
+        to={msg(
           `${people} người nhận của ${campaign.code}`,
           `${people} recipients for ${campaign.code}`,
           `${campaign.code} 수신자 ${people}명`,
@@ -108,7 +108,7 @@ function LetterPreview({
   if (!ready)
     return (
       <p className="text-muted-foreground m-0 px-1 text-[12px] leading-[1.6]">
-        {tr(
+        {msg(
           'Nhập tiêu đề và nội dung để xem trước.',
           'Enter a subject and message to preview the email.',
           '미리 보려면 제목과 내용을 입력하세요.',
@@ -122,12 +122,12 @@ function LetterPreview({
       error={preview.error}
       envelope={[
         {
-          label: tr('Từ', 'From', '보낸 사람'),
+          label: msg('Từ', 'From', '보낸 사람'),
           value: preview.letter?.from ?? 'noreply · Pebble Vina',
         },
-        { label: tr('Tới', 'To', '받는 사람'), value: to },
+        { label: msg('Tới', 'To', '받는 사람'), value: to },
       ]}
-      caption={tr(
+      caption={msg(
         'Tên và công ty trong bản xem trước chỉ là ví dụ. Mỗi người nhận sẽ thấy thông tin của họ.',
         'Names and company details in this preview are examples. Each recipient will see their own.',
         '미리 보기의 이름과 회사는 예시입니다. 각 수신자에게는 본인의 정보가 표시됩니다.',
@@ -149,17 +149,17 @@ export function AudienceStep({
     <section className="flex min-w-0 flex-col gap-5">
       <div className="flex flex-col gap-2">
         <SectionTitle size="md">
-          {tr(
+          {msg(
             'Ai sẽ nhận đợt này?',
             'Who will receive this wave?',
-            '이번 차수의 수신자는 누구인가요?',
+            '이번 웨이브의 수신자는 누구인가요?',
           )}
         </SectionTitle>
         <p className="text-muted-foreground m-0 max-w-[720px] text-[12.5px] leading-[1.65]">
-          {tr(
+          {msg(
             'Đợt gửi tới toàn bộ danh sách trong tab Người nhận. Để thêm hoặc bớt người, đóng cửa sổ và chỉnh danh sách ở tab đó.',
             'This wave goes to everyone in the Recipients tab. Close this window to add or remove people from that list.',
-            '이 차수는 수신자 탭의 전체 목록으로 발송됩니다. 수신자를 추가하거나 삭제하려면 창을 닫고 해당 탭에서 목록을 수정하세요.',
+            '이 웨이브는 수신자 탭의 전체 목록으로 발송됩니다. 수신자를 추가하거나 삭제하려면 창을 닫고 해당 탭에서 목록을 수정하세요.',
           )}
         </p>
       </div>
@@ -180,12 +180,12 @@ export function ReachBadge({
   campaign: CampaignProfile
 }) {
   if (!preflight && !failed)
-    return <Badge tone="draft">{tr('Đang kiểm tra…', 'Checking…', '확인 중…')}</Badge>
+    return <Badge tone="draft">{msg('Đang kiểm tra…', 'Checking…', '확인 중…')}</Badge>
   if (!preflight)
     return (
       <Badge tone="draft">
         <span className="tnum">
-          {tr(
+          {msg(
             `${formatNumber(campaign.audienceCount)} người nhận`,
             `${formatNumber(campaign.audienceCount)} recipients`,
             `수신자 ${formatNumber(campaign.audienceCount)}명`,
@@ -196,7 +196,7 @@ export function ReachBadge({
   return (
     <Badge tone={preflight.blocked ? 'warning' : 'success'}>
       <span className="tnum">
-        {tr(
+        {msg(
           `${formatNumber(preflight.sendable)} người sẽ nhận`,
           `${formatNumber(preflight.sendable)} will receive this`,
           `${formatNumber(preflight.sendable)}명에게 발송됩니다`,
@@ -223,37 +223,37 @@ export function WaveReview({
   const one = waves.length === 1 ? waves[0] : undefined
   const rows = [
     {
-      label: tr('Người nhận', 'Recipients', '수신자'),
-      value: tr(`${people} người`, `${people} recipients`, `${people}명`),
+      label: msg('Người nhận', 'Recipients', '수신자'),
+      value: msg(`${people} người`, `${people} recipients`, `${people}명`),
       step: 0,
     },
     {
-      label: tr('Đợt', 'Wave', '차수'),
+      label: msg('Đợt', 'Wave', '웨이브'),
       value: one
-        ? tr(
+        ? msg(
             `Đợt ${firstWave} · ${one.label}`,
             `Wave ${firstWave} · ${one.label}`,
-            `${firstWave}차 · ${one.label}`,
+            `웨이브 ${firstWave} · ${one.label}`,
           )
-        : tr(
+        : msg(
             `${waves.length} đợt, từ Đợt ${firstWave}`,
             `${waves.length} waves, starting with ${firstWave}`,
-            `${firstWave}차부터 총 ${waves.length}개 차수`,
+            `웨이브 ${firstWave}부터 총 ${waves.length}개 웨이브`,
           ),
       step: 1,
     },
     {
-      label: tr('Tiêu đề', 'Subject', '제목'),
-      value: one?.subject ?? waves[0]?.subject ?? tr('Chưa có', 'Not set', '미설정'),
+      label: msg('Tiêu đề', 'Subject', '제목'),
+      value: one?.subject ?? waves[0]?.subject ?? msg('Chưa có', 'Not set', '미설정'),
       step: 1,
     },
     {
-      label: tr('Thời gian gửi', 'Send time', '발송 시간'),
+      label: msg('Thời gian gửi', 'Send time', '발송 시간'),
       value: !one
-        ? tr('Theo lịch của từng đợt', 'Each wave schedule', '각 차수 일정에 따름')
+        ? msg('Theo lịch của từng đợt', 'Each wave schedule', '각 웨이브 일정에 따름')
         : one.scheduledAt
           ? dmhm(one.scheduledAt)
-          : tr('Gửi ngay', 'Send now', '지금 발송'),
+          : msg('Gửi ngay', 'Send now', '지금 발송'),
       step: 1,
     },
   ]
@@ -261,7 +261,7 @@ export function WaveReview({
   return (
     <section className="flex min-w-0 flex-col gap-5">
       <SectionTitle size="md">
-        {tr('Kiểm tra lại trước khi gửi', 'Review before sending', '발송 전 내용을 확인하세요')}
+        {msg('Kiểm tra lại trước khi gửi', 'Review before sending', '발송 전 내용을 확인하세요')}
       </SectionTitle>
       <GlassCard variant="b" className="min-w-0 p-4">
         <ul className="m-0 flex list-none flex-col gap-2 p-0">
@@ -279,7 +279,7 @@ export function WaveReview({
                 onClick={() => onEdit(row.step)}
               >
                 <Icon icon={Pencil} size={14} />
-                {tr('Sửa', 'Edit', '수정')}
+                {msg('Sửa', 'Edit', '수정')}
               </Button>
             </li>
           ))}
@@ -306,15 +306,15 @@ function WavePreflight({ report }: { report: CampaignPreflightResponse }) {
     <GlassCard variant="b" className="flex min-w-0 flex-col gap-5 p-5">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
         <span className="text-[13px] font-semibold">
-          {tr('Kết quả kiểm tra người nhận', 'Recipient check results', '수신자 확인 결과')}
+          {msg('Kết quả kiểm tra người nhận', 'Recipient check results', '수신자 확인 결과')}
         </span>
         <span className="text-muted-foreground text-[12px]">
           <span className="tnum text-card-foreground font-semibold">
             {formatNumber(report.sendable)}
           </span>{' '}
-          {tr('có thể nhận', 'can receive', '수신 가능')} ·{' '}
+          {msg('có thể nhận', 'can receive', '수신 가능')} ·{' '}
           <span className="tnum">{formatNumber(report.blocked)}</span>{' '}
-          {tr('bị bỏ qua', 'skipped', '건너뜀')}
+          {msg('bị bỏ qua', 'skipped', '건너뜀')}
         </span>
       </div>
       {overlap && (
@@ -324,7 +324,7 @@ function WavePreflight({ report }: { report: CampaignPreflightResponse }) {
         </p>
       )}
       <RecipientGroup
-        title={tr(
+        title={msg(
           `Sẽ nhận thư (${sendable.length})`,
           `Will receive (${sendable.length})`,
           `수신 예정 (${sendable.length})`,
@@ -357,7 +357,7 @@ function localizedBlockLabel(reason: RecipientBlock) {
     ],
   }
   const [vi, en, ko] = labels[reason]
-  return tr(vi, en, ko)
+  return msg(vi, en, ko)
 }
 
 /** One reason and the people it applies to, NAMED rather than counted: a row
@@ -395,7 +395,7 @@ function RecipientGroup({
               <span className="text-muted-foreground truncate text-[11px]">{r.company}</span>
             </span>
             <span className="text-muted-foreground min-w-0 truncate font-mono text-[11px]">
-              {r.email ?? tr('Chưa có email', 'No email', '이메일 없음')}
+              {r.email ?? msg('Chưa có email', 'No email', '이메일 없음')}
             </span>
           </li>
         ))}

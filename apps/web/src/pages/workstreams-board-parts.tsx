@@ -3,11 +3,11 @@ import { Link } from 'react-router-dom'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { Badge, GlassCard, Icon, Lock, Skeleton, cn, initialsOf } from '@pv/ui'
 import type { WorkstreamBoardColumn, WorkstreamBookQuery, WorkstreamRow } from '@pv/contracts'
-import { message, useI18n } from '@/app/i18n'
-import { salesLabel } from '@/data/sales-labels-i18n'
+import { message, useI18n, type Message } from '@/app/i18n'
 import { dm } from '@/lib/date'
 import {
   STAND_TONE,
+  boardLabel,
   footprintTotal,
   workstreamColumnQuery,
   type BoardStepGroup,
@@ -45,10 +45,10 @@ const STEP_BAR: Record<StepPhase, string> = {
 
 /** Where a step stands, for the ear: the 3px bar and the badge colour say it to
  *  the eye only, and both are `aria-hidden` or colour alone. */
-const PHASE_NOTE: Record<StepPhase, string> = {
-  current: 'đang xem',
-  done: 'đã qua',
-  upcoming: 'chưa tới',
+const PHASE_NOTE: Record<StepPhase, Message> = {
+  current: message('đang xem', 'current', '현재'),
+  done: message('đã qua', 'completed', '완료'),
+  upcoming: message('chưa tới', 'upcoming', '예정'),
 }
 
 const STEP_BADGE: Record<StepPhase, string> = {
@@ -121,7 +121,7 @@ function StepCard({
     group.total === null
       ? ''
       : ` · ${t(message(`${number(group.total)} hành trình`, `${number(group.total)} workstreams`, `영업 건 ${number(group.total)}개`))}`
-  const stepLabel = salesLabel(group.step.label, lang)
+  const stepLabel = boardLabel(group.step.label, lang)
   return (
     <div
       ref={box}
@@ -133,9 +133,9 @@ function StepCard({
         aria-pressed={current}
         aria-label={t(
           message(
-            `Bước ${index + 1} · ${stepLabel} · ${bookless ? 'chưa dùng được' : PHASE_NOTE[phase]}${group.closedOnly ? ' · chỉ đếm hành trình đã đóng' : ''}${counted}`,
-            `Step ${index + 1} · ${stepLabel} · ${bookless ? 'unavailable' : ({ current: 'current', done: 'completed', upcoming: 'upcoming' } as const)[phase]}${group.closedOnly ? ' · counts closed workstreams only' : ''}${counted}`,
-            `${index + 1}단계 · ${stepLabel} · ${bookless ? '사용할 수 없음' : ({ current: '현재', done: '완료', upcoming: '예정' } as const)[phase]}${group.closedOnly ? ' · 종료된 영업 건만 집계' : ''}${counted}`,
+            `Bước ${index + 1} · ${stepLabel} · ${bookless ? 'chưa dùng được' : PHASE_NOTE[phase].vi}${group.closedOnly ? ' · chỉ đếm hành trình đã đóng' : ''}${counted}`,
+            `Step ${index + 1} · ${stepLabel} · ${bookless ? 'unavailable' : PHASE_NOTE[phase].en}${group.closedOnly ? ' · counts closed workstreams only' : ''}${counted}`,
+            `${index + 1}단계 · ${stepLabel} · ${bookless ? '사용할 수 없음' : PHASE_NOTE[phase].ko}${group.closedOnly ? ' · 종료된 영업 건만 집계' : ''}${counted}`,
           ),
         )}
         onClick={onSelect}
@@ -165,12 +165,15 @@ function StepCard({
             current ? 'text-foreground' : 'text-muted-foreground',
           )}
         >
-          {group.step.label}
+          {stepLabel}
           {/* This step counts closed runs whatever status the view is on, so
               the six totals on the rail do not add up to one book. Said here,
               not only in the report. */}
           {group.closedOnly && (
-            <span className="text-muted-foreground font-normal"> · đã đóng</span>
+            <span className="text-muted-foreground font-normal">
+              {' · '}
+              {t(message('đã đóng', 'closed', '종료'))}
+            </span>
           )}
         </span>
         <span
@@ -262,9 +265,9 @@ function ColumnNote({
  *  `WORKSTREAM_JOURNEY_STEPS`; the server sends no column to draw it from. */
 export function LockedColumn({ label }: { label: string }) {
   const { t, lang } = useI18n()
-  const stepLabel = salesLabel(label, lang)
+  const stepLabel = boardLabel(label, lang)
   return (
-    <ColumnShell label={label} count={DASH} dim>
+    <ColumnShell label={stepLabel} count={DASH} dim>
       <div className={COLUMN_BODY}>
         <ColumnNote icon={Lock}>
           {t(
@@ -311,6 +314,7 @@ export function BoardColumn({
   base: WorkstreamBookQuery
   column: WorkstreamBoardColumn
 }) {
+  const { t, lang } = useI18n()
   const { data, isPending, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
     useInfiniteQuery(workstreamColumnQuery(base, column))
   const sentinel = useRef<HTMLSpanElement>(null)
@@ -335,14 +339,20 @@ export function BoardColumn({
 
   return (
     <ColumnShell
-      label={column.label}
+      label={boardLabel(column.label, lang)}
       count={column.total}
       footer={
         /* No count: the door's `hidden` cannot be added up on this side — see
            `WorkstreamColumnCards`. The cut is still declared, in words. */
         data?.anyHidden && (
           <footer className="bg-surface-ink/5 text-muted-foreground shrink-0 px-3 py-2 text-[11px]">
-            Một số hành trình ở cột này nằm ngoài phạm vi của bạn
+            {t(
+              message(
+                'Một số hành trình ở cột này nằm ngoài phạm vi của bạn',
+                'Some workstreams in this column are outside your scope',
+                '이 열의 일부 영업 건은 권한 범위 밖에 있습니다',
+              ),
+            )}
           </footer>
         )
       }
@@ -352,9 +362,19 @@ export function BoardColumn({
           {isPending ? (
             <CardSkeletons delay={0} />
           ) : error ? (
-            <ColumnNote failed>Không lấy được cột này. Thử lại sau.</ColumnNote>
+            <ColumnNote failed>
+              {t(
+                message(
+                  'Không lấy được cột này. Thử lại sau.',
+                  'Could not load this column. Try again later.',
+                  '이 열을 불러오지 못했습니다. 나중에 다시 시도해 주세요.',
+                ),
+              )}
+            </ColumnNote>
           ) : rows.length === 0 ? (
-            <ColumnNote>Cột này trống</ColumnNote>
+            <ColumnNote>
+              {t(message('Cột này trống', 'This column is empty', '이 열이 비어 있습니다'))}
+            </ColumnNote>
           ) : (
             <>
               {rows.map((row) => (

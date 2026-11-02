@@ -7,6 +7,7 @@ import {
   stepInputOf,
   type StepDraft,
 } from '@/data/comm-record-detail'
+import { message, translate } from '@/app/i18n'
 import { useStepOptions, type NextStepSubject } from '@/data/next-step'
 
 /** The step part of every comm close-out — the record page, the meeting
@@ -17,7 +18,11 @@ import { useStepOptions, type NextStepSubject } from '@/data/next-step'
  *  subject's own step, as before. An unreached close never comes here, so it
  *  records no temperature. */
 
-export const NO_TEMPERATURE = 'Chưa chọn nhiệt độ khách hàng.'
+const NO_TEMPERATURE_COPY = message(
+  'Chưa chọn nhiệt độ khách hàng.',
+  'Choose the customer temperature.',
+  '고객 온도를 선택하세요.',
+)
 
 /** `stepTarget` is the record's own; a form with no record yet (the mobile
  *  log) leaves it out and takes the one the target door answers. */
@@ -38,14 +43,26 @@ export function useCloseStep(subjectCode: string, stepTarget?: DebriefStepTarget
   const stepShown = kind !== null && asked
 
   /** The evaluation part's own gap: the temperature sits beside the answers. */
-  const temperatureGap = customer && temperature === null ? NO_TEMPERATURE : null
+  const temperatureGap = customer && temperature === null ? translate(NO_TEMPERATURE_COPY) : null
 
   /** What still blocks the step part, or null when it is complete. */
   const gapOf = (draft: StepDraft): string | null => {
     if (!target.data) {
-      return target.error ? 'Không tải được điều kiện xác nhận.' : 'Đang tải điều kiện xác nhận.'
+      return translate(
+        target.error
+          ? message(
+              'Không tải được điều kiện xác nhận.',
+              'Could not load the confirmation conditions.',
+              '확인 조건을 불러오지 못했습니다.',
+            )
+          : message(
+              'Đang tải điều kiện xác nhận.',
+              'Loading the confirmation conditions.',
+              '확인 조건을 불러오는 중입니다.',
+            ),
+      )
     }
-    if (customer && temperature === null) return NO_TEMPERATURE
+    if (customer && temperature === null) return translate(NO_TEMPERATURE_COPY)
     return kind ? stepBlockerOf(draft, options) : null
   }
 

@@ -10,7 +10,7 @@ import { getLang, type Lang } from '@/app/i18n'
  *  The reader's language is applied only at the display boundary. */
 const GROUP: Record<NotificationGroup, { en: string; ko: string }> = {
   lead: { en: 'Leads', ko: '리드' },
-  opportunity: { en: 'Opportunities', ko: '영업 기회' },
+  opportunity: { en: 'Opportunities', ko: '기회' },
   contract: { en: 'Contracts', ko: '계약' },
   'next-step': { en: 'Next steps', ko: '다음 작업' },
   hold: { en: 'On hold', ko: '보류' },
@@ -41,20 +41,20 @@ const KIND: Record<NotificationKind, { en: string; ko: string }> = {
   },
   'opportunity-awaiting-accept': {
     en: 'An opportunity is waiting for you to accept',
-    ko: '수락 대기 중인 영업 기회가 있습니다',
+    ko: '수락 대기 중인 기회가 있습니다',
   },
-  'opportunity-lost': { en: 'Your opportunity was stopped', ko: '담당 영업 기회가 중단되었습니다' },
+  'opportunity-lost': { en: 'Your opportunity was stopped', ko: '담당 기회가 중단되었습니다' },
   'opportunity-accepted': {
     en: 'Your opportunity was accepted',
-    ko: '담당 영업 기회가 수락되었습니다',
+    ko: '담당 기회가 수락되었습니다',
   },
   'opportunity-assigned': {
     en: 'You were added to an opportunity',
-    ko: '영업 기회 담당자로 추가되었습니다',
+    ko: '기회 담당자로 추가되었습니다',
   },
   'opportunity-unassigned': {
     en: 'You were removed from an opportunity',
-    ko: '영업 기회 담당에서 제외되었습니다',
+    ko: '기회 담당에서 제외되었습니다',
   },
   'next-step-assigned': { en: 'A next step was assigned to you', ko: '다음 작업이 배정되었습니다' },
   'next-step-done': {
@@ -93,16 +93,16 @@ const KIND: Record<NotificationKind, { en: string; ko: string }> = {
   },
   'opportunity-stage-moved': {
     en: 'An opportunity moved to a new stage',
-    ko: '영업 기회가 다음 단계로 이동했습니다',
+    ko: '기회가 다음 단계로 이동했습니다',
   },
   'opportunity-primary-changed': {
     en: 'The main seller for an opportunity changed',
-    ko: '영업 기회의 주 담당자가 변경되었습니다',
+    ko: '기회의 주 영업 담당자가 변경되었습니다',
   },
   'contract-signed': { en: 'A contract was signed', ko: '계약이 체결되었습니다' },
   'quotation-new-round': {
     en: 'An opportunity has a new quote',
-    ko: '영업 기회에 새 견적이 있습니다',
+    ko: '기회에 새 견적이 있습니다',
   },
   'quotation-superseded': {
     en: 'A pending quote was replaced',

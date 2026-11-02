@@ -70,7 +70,7 @@ type ScreenDef = {
 /** Sáu module Sales đều có màn thật — không còn mục nào trỏ vào màn "chưa
  *  dựng", nên `sales-pending` đã xoá cùng trường `blocked` của nav. */
 export const SCREENS: ScreenDef[] = [
-  { path: '/', name: 'Tổng quan', load: () => import('@/pages/home') },
+  { path: '/', name: 'Tổng quan', load: () => import('@/pages/home') }, // i18n-ignore: route key, translated in route-copy
   {
     /** One Core · Quản trị — the `platform.actor` people book.
      *
@@ -87,7 +87,7 @@ export const SCREENS: ScreenDef[] = [
      *  no "read the people book" gate separate from "write the people book" —
      *  splitting them would build a door whose far side is the whole matrix. */
     path: '/admin/users',
-    name: 'Người dùng',
+    name: 'Người dùng', // i18n-ignore: route key, translated in route-copy
     permission: 'user.manage',
     load: () => import('@/pages/users'),
   },
@@ -96,20 +96,20 @@ export const SCREENS: ScreenDef[] = [
      *  reader's account instead, since the settings nav is the list there. No
      *  permission: it lists only what the role may open, account always first. */
     path: '/settings',
-    name: 'Cài đặt',
+    name: 'Cài đặt', // i18n-ignore: route key, translated in route-copy
     load: () => import('@/pages/settings'),
   },
   {
     /** One Core · "my account". No permission: it is about the reader. */
     path: '/account',
-    name: 'Tài khoản của tôi',
+    name: 'Tài khoản của tôi', // i18n-ignore: route key, translated in route-copy
     load: () => import('@/pages/account'),
   },
   {
     /** One Core · the bell's whole list. No `branch` and no `permission`: the
      *  server scopes every row to the caller, so there is nothing to gate. */
     path: '/notifications',
-    name: 'Thông báo',
+    name: 'Thông báo', // i18n-ignore: route key, translated in route-copy
     load: () => import('@/pages/notifications'),
   },
   {
@@ -126,7 +126,7 @@ export const SCREENS: ScreenDef[] = [
      *  `approval.decide` gates the two BUTTONS, at the door that actually
      *  changes something, exactly where the server puts it. */
     path: '/approvals',
-    name: 'Hộp duyệt',
+    name: 'Hộp duyệt', // i18n-ignore: route key, translated in route-copy
     load: () => import('@/pages/approvals'),
   },
   {
@@ -142,7 +142,7 @@ export const SCREENS: ScreenDef[] = [
      *  itself — whoever reaches this screen can grant themselves every other
      *  permission — so, again, there is no separate read gate. */
     path: '/admin/roles',
-    name: 'Vai trò',
+    name: 'Vai trò', // i18n-ignore: route key, translated in route-copy
     permission: 'role.manage',
     load: () => import('@/pages/roles'),
   },
@@ -150,7 +150,7 @@ export const SCREENS: ScreenDef[] = [
     /** One Core · notification policy per role (ADR 0093 §2). No `branch`:
      *  notifications are not Sales-only. */
     path: '/admin/notifications',
-    name: 'Thông báo theo vai trò',
+    name: 'Thông báo theo vai trò', // i18n-ignore: route key, translated in route-copy
     permission: 'setting.manage',
     load: () => import('@/pages/admin-notifications'),
   },
@@ -158,7 +158,7 @@ export const SCREENS: ScreenDef[] = [
     /** One Core · AI cost per month and the unit prices it is costed at
      *  (ADR 0102). No `branch`: AI spend is not Sales-only. */
     path: '/admin/costs',
-    name: 'Chi phí',
+    name: 'Chi phí', // i18n-ignore: route key, translated in route-copy
     permission: 'cost.view',
     load: () => import('@/pages/admin-costs'),
   },
@@ -166,7 +166,7 @@ export const SCREENS: ScreenDef[] = [
     /** Admin · lead origins — the origin catalogue behind every lead, plus
      *  the per-motion policy. Sales data, so it carries the Sales licence. */
     path: '/admin/lead-origins',
-    name: 'Nguồn lead',
+    name: 'Nguồn lead', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'lead-origin.manage',
     load: () => import('@/pages/lead-origins'),
@@ -175,7 +175,7 @@ export const SCREENS: ScreenDef[] = [
     /** Admin · partner book — who sends us leads; its kind is the origin
      *  referred leads inherit, so it sits behind the same permission. */
     path: '/admin/partners',
-    name: 'Đối tác',
+    name: 'Đối tác', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'lead-origin.manage',
     load: () => import('@/pages/partners'),
@@ -191,7 +191,7 @@ export const SCREENS: ScreenDef[] = [
      *  ngóm đúng lúc người dùng đang đứng trên nó, hoặc phải đẻ module thứ 7
      *  cho một sổ vốn thuộc module 1. Xem `components/module1-books.tsx`. */
     path: '/sales/campaigns',
-    name: 'Sổ chiến dịch',
+    name: 'Sổ chiến dịch', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'campaign.view',
     load: () => import('@/pages/campaigns'),
@@ -202,14 +202,14 @@ export const SCREENS: ScreenDef[] = [
      *  thật (`CP-nnnn`, đơn vị GỬI) theo quyết định D2 ngày 28/08. Hai bảng,
      *  hai định nghĩa đối lập, không hợp nhất được. */
     path: '/sales/campaigns/sources',
-    name: 'Nguồn dẫn',
+    name: 'Nguồn dẫn', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'campaign.view',
     load: () => import('@/pages/sources'),
   },
   {
     path: '/sales/campaigns/sources/:code',
-    name: 'Hồ sơ nguồn dẫn',
+    name: 'Hồ sơ nguồn dẫn', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'campaign.view',
     load: () => import('@/pages/source-detail'),
@@ -219,7 +219,7 @@ export const SCREENS: ScreenDef[] = [
      *  `campaign.view` để đọc, `campaign.broadcast` để dừng một lô; cửa thứ hai
      *  gác ở `data/mail-runs.ts`, không gác ở đây. */
     path: '/sales/campaigns/mail-runs',
-    name: 'Sổ lô gửi',
+    name: 'Sổ lô gửi', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'campaign.view',
     load: () => import('@/pages/mail-runs'),
@@ -236,7 +236,7 @@ export const SCREENS: ScreenDef[] = [
      *  reading this screen is useful to a view-only role too, because it
      *  answers what our letters currently say. */
     path: '/sales/config/mail-templates',
-    name: 'Sổ mẫu thư',
+    name: 'Sổ mẫu thư', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'campaign.view',
     load: () => import('@/pages/mail-templates'),
@@ -249,7 +249,7 @@ export const SCREENS: ScreenDef[] = [
      *  to land where that role can read, not on a 403; the Save button behind it
      *  is gated by `useCan` and the api layer, which is where it belongs. */
     path: '/sales/campaigns/:code/edit',
-    name: 'Sửa chiến dịch',
+    name: 'Sửa chiến dịch', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'campaign.view',
     load: () =>
@@ -259,14 +259,14 @@ export const SCREENS: ScreenDef[] = [
     /** Hồ sơ một chiến dịch. Cùng hình với hồ sơ lead: đường dẫn nằm DƯỚI sổ vì
      *  nó là một dòng của sổ, và nav vẫn sáng ở mục Chiến dịch. */
     path: '/sales/campaigns/:code',
-    name: 'Hồ sơ chiến dịch',
+    name: 'Hồ sơ chiến dịch', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'campaign.view',
     load: () => import('@/pages/campaign-detail'),
   },
   {
     path: '/sales/leads',
-    name: 'Sổ lead',
+    name: 'Sổ lead', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'lead.view',
     load: () => import('@/pages/leads'),
@@ -277,7 +277,7 @@ export const SCREENS: ScreenDef[] = [
      *  specificity, the same reason `/sales/campaigns/sources` above wins
      *  over `:code`). */
     path: '/sales/leads/new',
-    name: 'Lead mới',
+    name: 'Lead mới', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     /* Write permission, not read — same reason as campaign.edit above: this
        route only exists to write, so refuse at the door, not after 30 fields. */
@@ -287,7 +287,7 @@ export const SCREENS: ScreenDef[] = [
   {
     /** Card photos and profile PDFs into leads. Static `scan` outranks `:code`. */
     path: '/sales/leads/scan',
-    name: 'Nạp lead từ ảnh',
+    name: 'Nạp lead từ ảnh', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'lead.edit',
     load: () => import('@/pages/lead-scan'),
@@ -295,7 +295,7 @@ export const SCREENS: ScreenDef[] = [
   {
     /* Same module: a batch survives reload and resumes at its step. */
     path: '/sales/leads/scan/:code',
-    name: 'Lô nạp từ ảnh',
+    name: 'Lô nạp từ ảnh', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'lead.edit',
     load: () => import('@/pages/lead-scan'),
@@ -304,7 +304,7 @@ export const SCREENS: ScreenDef[] = [
     /** Hồ sơ một lead. Đường dẫn nằm DƯỚI sổ vì nó là một dòng của sổ — nav
      *  bên trái vẫn sáng ở mục Lead, không đẻ thêm mục thứ sáu cho nhánh. */
     path: '/sales/leads/:code',
-    name: 'Hồ sơ lead',
+    name: 'Hồ sơ lead', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'lead.view',
     load: () => import('@/pages/lead-detail'),
@@ -326,14 +326,14 @@ export const SCREENS: ScreenDef[] = [
      *  The CONTACT book is the opposite, deliberately: it runs on the lead
      *  read/write pair, because a contact is part of ONE lead's profile. */
     path: '/sales/accounts',
-    name: 'Sổ công ty',
+    name: 'Sổ công ty', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'account.view',
     load: () => import('@/pages/accounts'),
   },
   {
     path: '/sales/accounts/:code',
-    name: 'Hồ sơ công ty',
+    name: 'Hồ sơ công ty', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'account.view',
     load: () => import('@/pages/account-detail'),
@@ -349,21 +349,21 @@ export const SCREENS: ScreenDef[] = [
      *  is a fact about ONE PERSON'S customer, so this book runs on the lead's
      *  permission and is cut by the lead's scope axis. */
     path: '/sales/contacts',
-    name: 'Sổ người liên hệ',
+    name: 'Sổ người liên hệ', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'lead.view',
     load: () => import('@/pages/contacts'),
   },
   {
     path: '/sales/contacts/:code',
-    name: 'Hồ sơ người liên hệ',
+    name: 'Hồ sơ người liên hệ', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'lead.view',
     load: () => import('@/pages/contact-detail'),
   },
   {
     path: '/sales/opportunities',
-    name: 'Sổ cơ hội',
+    name: 'Sổ cơ hội', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'opportunity.view',
     load: () => import('@/pages/opportunities'),
@@ -371,7 +371,7 @@ export const SCREENS: ScreenDef[] = [
   {
     /** Held leads and deals, one list (ADR 0097 §3). */
     path: '/sales/holds',
-    name: 'Tạm hoãn',
+    name: 'Tạm hoãn', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'lead.view',
     load: () => import('@/pages/holds'),
@@ -379,7 +379,7 @@ export const SCREENS: ScreenDef[] = [
   {
     /** Parked leads waiting to be contacted again, and the stop log (ADR 0109, 0125). */
     path: '/sales/nurturing',
-    name: 'Khách đã dừng',
+    name: 'Khách đã dừng', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'lead.view',
     load: () => import('@/pages/nurturing'),
@@ -387,7 +387,7 @@ export const SCREENS: ScreenDef[] = [
   {
     /** Runs whose every live contract is fully collected, re-cared by temperature (ADR 0121). */
     path: '/sales/after-sale',
-    name: 'Khách đã mua',
+    name: 'Khách đã mua', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'contract.view',
     load: () => import('@/pages/after-sale'),
@@ -401,7 +401,7 @@ export const SCREENS: ScreenDef[] = [
      *  out of arrives as `?lead=`; without one the screen asks for it first,
      *  because `POST /sales/opportunities` carries a foreign key. */
     path: '/sales/opportunities/new',
-    name: 'Cơ hội mới',
+    name: 'Cơ hội mới', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'opportunity.create',
     load: () => import('@/pages/opportunity-new'),
@@ -410,7 +410,7 @@ export const SCREENS: ScreenDef[] = [
     /** Hồ sơ một cơ hội. Cùng hình với hồ sơ lead: đường dẫn nằm DƯỚI sổ vì nó
      *  là một dòng của sổ, và nav bên trái vẫn sáng ở mục Ops. */
     path: '/sales/opportunities/:code',
-    name: 'Hồ sơ cơ hội',
+    name: 'Hồ sơ cơ hội', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'opportunity.view',
     load: () => import('@/pages/opportunity-detail'),
@@ -421,28 +421,28 @@ export const SCREENS: ScreenDef[] = [
   },
   {
     path: '/sales/workstreams',
-    name: 'Sổ hành trình',
+    name: 'Sổ hành trình', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'workstream.view',
     load: () => import('@/pages/workstreams'),
   },
   {
     path: '/sales/workstreams/:code',
-    name: 'Hồ sơ hành trình',
+    name: 'Hồ sơ hành trình', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'workstream.view',
     load: () => import('@/pages/workstream-detail'),
   },
   {
     path: '/sales/workstreams/:code/comms',
-    name: 'Luồng liên hệ',
+    name: 'Luồng liên hệ', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'comm.view',
     load: () => import('@/pages/workstream-comms'),
   },
   {
     path: '/sales/contracts',
-    name: 'Hợp đồng',
+    name: 'Hợp đồng', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'contract.view',
     load: () => import('@/pages/contracts'),
@@ -451,7 +451,7 @@ export const SCREENS: ScreenDef[] = [
     /* Same shape as the lead and opportunity books: a contract is a row of the
        book, so its path sits under it and the nav stays lit on the same entry. */
     path: '/sales/contracts/:code',
-    name: 'Hồ sơ hợp đồng',
+    name: 'Hồ sơ hợp đồng', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'contract.view',
     load: () => import('@/pages/contract-detail'),
@@ -465,28 +465,28 @@ export const SCREENS: ScreenDef[] = [
        installment carries its own checklist, paperwork, chase log and notes, and
        none of that fits beside three sibling installments on one page. */
     path: '/sales/contracts/:code/installments/:no',
-    name: 'Đợt thanh toán',
+    name: 'Đợt thanh toán', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'contract.view',
     load: () => import('@/pages/installment-detail'),
   },
   {
     path: '/sales/kpi/me',
-    name: 'KPI của tôi',
+    name: 'KPI của tôi', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'kpi.view',
     load: () => import('@/pages/kpi-me'),
   },
   {
     path: '/sales/kpi/company',
-    name: 'KPI công ty',
+    name: 'KPI công ty', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'performance.view',
     load: () => import('@/pages/kpi-company'),
   },
   {
     path: '/sales/kpi/targets',
-    name: 'Chỉ tiêu tháng',
+    name: 'Chỉ tiêu tháng', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'kpi.view-all',
     load: () => import('@/pages/kpi-targets'),
@@ -494,7 +494,7 @@ export const SCREENS: ScreenDef[] = [
   {
     /* Not in the nav: a team lead holds `kpi.view` only, and the door checks the lead. */
     path: '/sales/kpi/team/:teamId',
-    name: 'KPI nhóm',
+    name: 'KPI nhóm', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'kpi.view',
     load: () => import('@/pages/kpi-team'),
@@ -502,7 +502,7 @@ export const SCREENS: ScreenDef[] = [
   {
     /* `kpi.view`, not view-all: a team lead opens a member here; the API checks who. */
     path: '/sales/kpi/company/:actorId',
-    name: 'KPI nhân sự',
+    name: 'KPI nhân sự', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'kpi.view',
     load: () => import('@/pages/kpi-person'),
@@ -510,7 +510,7 @@ export const SCREENS: ScreenDef[] = [
   {
     /* Not in the nav: every Sales person holds kpi.view; the API checks the seat (ADR 0120). */
     path: '/sales/kpi/assign',
-    name: 'Giao chỉ tiêu',
+    name: 'Giao chỉ tiêu', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'kpi.view',
     load: () => import('@/pages/kpi-assign'),
@@ -518,28 +518,28 @@ export const SCREENS: ScreenDef[] = [
   {
     /* `kpi.view`: the company seat may lack view-all; the API answers 403 to the rest. */
     path: '/sales/kpi/assign/status',
-    name: 'Tình trạng giao',
+    name: 'Tình trạng giao', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'kpi.view',
     load: () => import('@/pages/kpi-assign-status'),
   },
   {
     path: '/sales/reports/industries',
-    name: 'Báo cáo theo ngành',
+    name: 'Báo cáo theo ngành', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'campaign.view',
     load: () => import('@/pages/industry-report'),
   },
   {
     path: '/sales/plan',
-    name: 'Số liệu & kế hoạch',
+    name: 'Số liệu & kế hoạch', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'plan.view',
     load: () => import('@/pages/plan'),
   },
   {
     path: '/sales/config',
-    name: 'Thiết lập bán hàng',
+    name: 'Thiết lập bán hàng', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'config.view',
     load: () => import('@/pages/sales-config'),
@@ -548,14 +548,14 @@ export const SCREENS: ScreenDef[] = [
    *  the Sales-gated vocabulary; the static `log` segment outranks `:id`. */
   {
     path: '/comms/log',
-    name: 'Ghi liên hệ',
+    name: 'Ghi liên hệ', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'comm.view',
     load: () => import('@/pages/comm-log'),
   },
   {
     path: '/comms/:id',
-    name: 'Chi tiết liên hệ',
+    name: 'Chi tiết liên hệ', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
     permission: 'comm.view',
     load: () => import('@/pages/comm-record'),
@@ -564,16 +564,16 @@ export const SCREENS: ScreenDef[] = [
    *  mật khẩu thì không còn ai vào được nó. Là BA đường dẫn chứ không phải ba
    *  trạng thái của một màn, vì link đặt lại trong mail phải có URL riêng và nút
    *  Back của trình duyệt phải lùi đúng một bước. */
-  { path: '/sign-in', name: 'Đăng nhập', public: true, load: () => import('@/pages/sign-in') },
+  { path: '/sign-in', name: 'Đăng nhập', public: true, load: () => import('@/pages/sign-in') }, // i18n-ignore: route key, translated in route-copy
   {
     path: '/forgot-password',
-    name: 'Quên mật khẩu',
+    name: 'Quên mật khẩu', // i18n-ignore: route key, translated in route-copy
     public: true,
     load: () => import('@/pages/forgot-password'),
   },
   {
     path: '/reset-password',
-    name: 'Đặt mật khẩu mới',
+    name: 'Đặt mật khẩu mới', // i18n-ignore: route key, translated in route-copy
     public: true,
     load: () => import('@/pages/reset-password'),
   },
@@ -590,10 +590,10 @@ export const SCREENS: ScreenDef[] = [
    *  paint. */
   {
     path: CHANGE_PASSWORD_PATH,
-    name: 'Đổi mật khẩu',
+    name: 'Đổi mật khẩu', // i18n-ignore: route key, translated in route-copy
     load: () => import('@/pages/change-password'),
   },
-  { path: '/kit', name: 'Theme kit sống', public: true, load: () => import('@/kit/theme-kit') },
+  { path: '/kit', name: 'Theme kit sống', public: true, load: () => import('@/kit/theme-kit') }, // i18n-ignore: route key, translated in route-copy
 ]
 
 /** The Vietnamese paths, kept alive until 23/09/2026.
@@ -704,7 +704,6 @@ const syncHeadMetadata = (pathname: string) => {
   const description = name ? `${name} — ${tagline}` : tagline
 
   document.title = title
-  document.documentElement.lang = getLang()
   setMetaContent('meta[name="description"]', description)
   setMetaContent('meta[property="og:title"]', title)
   setMetaContent('meta[property="og:description"]', description)

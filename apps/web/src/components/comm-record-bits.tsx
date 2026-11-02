@@ -2,13 +2,15 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowRight, Button, Icon, cn } from '@pv/ui'
 import type { DebriefView } from '@pv/contracts'
 import { dmhm } from '@/lib/date'
-import { COMM_CARD_SURFACE, UNREACHED_LINE, summaryTextOf } from '@/data/comm-record-detail'
+import { COMM_CARD_SURFACE, summaryTextOf, unreachedLine } from '@/data/comm-record-detail'
+import { message, useI18n } from '@/app/i18n'
 import { commRecordPath } from '@/data/comm-records'
 import { ChannelPill, CommLateMark, CommStateBadge, StepCopyLine } from './comm-bits'
 
 /** A comm read under a subject's timeline (ADR 0075): summary, answers and step
  *  as the server kept them, and the door to the comm's own page. */
 export function CommRecordRead({ row }: { row: DebriefView }) {
+  const { t, lang } = useI18n()
   const navigate = useNavigate()
   const unreached = row.state === 'unreached'
   const cancelled = row.state === 'cancelled'
@@ -24,17 +26,23 @@ export function CommRecordRead({ row }: { row: DebriefView }) {
               : 'text-muted-foreground',
           )}
         >
-          {unreached ? UNREACHED_LINE : summaryTextOf(row.summary)}
+          {unreached ? unreachedLine(lang) : summaryTextOf(row.summary, lang)}
         </p>
       )}
 
       <dl className="m-0 grid gap-x-3 gap-y-2 text-[12.5px] sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        <dt className="text-muted-foreground">Người ghi</dt>
+        <dt className="text-muted-foreground">
+          {t(message('Người ghi', 'Recorded by', '기록자'))}
+        </dt>
         <dd className="m-0">{row.owner.name}</dd>
         {row.closedAt && (
           <>
             <dt className="text-muted-foreground">
-              {unreached ? 'Đóng lúc' : cancelled ? 'Huỷ lúc' : 'Xác nhận lúc'}
+              {unreached
+                ? t(message('Đóng lúc', 'Closed at', '종료 시각'))
+                : cancelled
+                  ? t(message('Huỷ lúc', 'Cancelled at', '취소 시각'))
+                  : t(message('Xác nhận lúc', 'Confirmed at', '확인 시각'))}
             </dt>
             <dd className="m-0 tabular-nums">{dmhm(row.closedAt)}</dd>
           </>
@@ -46,12 +54,22 @@ export function CommRecordRead({ row }: { row: DebriefView }) {
 
       {unreached ? null : row.step ? (
         <div className="flex min-w-0 flex-col gap-2">
-          <span className="text-muted-foreground text-[12px] font-medium">Bước tiếp theo</span>
+          <span className="text-muted-foreground text-[12px] font-medium">
+            {t(message('Bước tiếp theo', 'Next step', '다음 단계'))}
+          </span>
           <StepCopyLine step={row.step} />
         </div>
       ) : (
         row.state === 'done' && (
-          <p className="text-muted-foreground m-0 text-[12px]">Không đặt bước tiếp theo.</p>
+          <p className="text-muted-foreground m-0 text-[12px]">
+            {t(
+              message(
+                'Không đặt bước tiếp theo.',
+                'No next step set.',
+                '다음 단계가 설정되지 않았습니다.',
+              ),
+            )}
+          </p>
         )
       )}
     </>
@@ -59,7 +77,7 @@ export function CommRecordRead({ row }: { row: DebriefView }) {
 
   return (
     <section
-      aria-label="Chi tiết liên hệ"
+      aria-label={t(message('Chi tiết liên hệ', 'Interaction details', '연락 기록 상세'))}
       className={cn('flex min-w-0 flex-col gap-4 rounded-lg p-4', COMM_CARD_SURFACE)}
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -75,7 +93,7 @@ export function CommRecordRead({ row }: { row: DebriefView }) {
         className="pointer-coarse:h-12 self-start"
         onClick={() => navigate(commRecordPath(row.id))}
       >
-        Mở lượt liên hệ
+        {t(message('Mở lượt liên hệ', 'Open interaction', '연락 기록 열기'))}
         <Icon icon={ArrowRight} size={16} />
       </Button>
     </section>

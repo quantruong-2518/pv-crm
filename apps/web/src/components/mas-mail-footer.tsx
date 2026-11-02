@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { CalendarClock, RefreshCw, Send } from '@pv/ui'
 import { Button, Icon } from '@pv/ui'
+import { message, useI18n, type Message } from '@/app/i18n'
 import { sendLabel } from '@/data/mas-mail-draft'
 
 /** The strip under the mail panel: one sentence about what is missing, and the
@@ -8,13 +9,21 @@ import { sendLabel } from '@/data/mas-mail-draft'
  *  the walk between the steps and nothing about how the walk is painted. */
 
 /** What the footer says when nothing is wrong — one fact per step. */
-function footerNote(step: number, picked: number, sendable: number | null): string {
+function footerNote(step: number, picked: number, sendable: number | null): Message {
   if (step === 0) {
-    return `${picked} người nhận · thư đi từ noreply. Khách trả lời được ghi vào hồ sơ và báo người giữ.`
+    return message(
+      `${picked} người nhận · thư đi từ noreply. Khách trả lời được ghi vào hồ sơ và báo người giữ.`,
+      `${picked} ${picked === 1 ? 'recipient' : 'recipients'} · emails go out from noreply. Customer replies are logged on the record and sent to its owner.`,
+      `수신자 ${picked}명 · 메일은 noreply 주소로 발송됩니다. 고객 답장은 기록에 남고 담당자에게 알려집니다.`,
+    )
   }
   return sendable === null
-    ? 'Đang kiểm tra người nhận…'
-    : `${sendable} người sẽ nhận. Xem bản bên phải trước khi gửi.`
+    ? message('Đang kiểm tra người nhận…', 'Checking recipients…', '수신자를 확인하는 중…')
+    : message(
+        `${sendable} người sẽ nhận. Xem bản bên phải trước khi gửi.`,
+        `${sendable} will receive it. Check the preview on the right before sending.`,
+        `${sendable}명이 수신합니다. 보내기 전에 오른쪽 미리보기를 확인하세요.`,
+      )
 }
 
 export function MailFooter({
@@ -63,7 +72,8 @@ export function MailFooter({
   /** Opens the confirm box — the send itself happens there. */
   onSend: () => void
 }) {
-  const message = failure || stepBlocker || footerNote(step, picked, verdict)
+  const { t } = useI18n()
+  const note = failure || stepBlocker || t(footerNote(step, picked, verdict))
 
   return (
     <div className="relative flex min-w-0 flex-wrap items-center justify-between gap-4">
@@ -78,20 +88,22 @@ export function MailFooter({
               : 'text-muted-foreground min-w-0 max-w-[560px] text-[11.5px] leading-[1.5]'
         }
       >
-        {message}
+        {note}
       </span>
       <div className="flex shrink-0 gap-2">
         <Button size="lg" variant="ghost" type="button" disabled={backBlocked} onClick={onBack}>
-          {step === 0 ? 'Huỷ' : 'Quay lại'}
+          {step === 0
+            ? t(message('Huỷ', 'Cancel', '취소'))
+            : t(message('Quay lại', 'Back', '이전'))}
         </Button>
         {step === 0 ? (
           <Button size="lg" type="button" disabled={Boolean(stepBlocker)} onClick={onNext}>
-            Tiếp: Nội dung
+            {t(message('Tiếp: Nội dung', 'Next: Content', '다음: 내용'))}
           </Button>
         ) : onRetryCheck ? (
           <Button size="lg" type="button" onClick={onRetryCheck}>
             <Icon icon={RefreshCw} size={16} />
-            Kiểm tra lại người nhận
+            {t(message('Kiểm tra lại người nhận', 'Check recipients again', '수신자 다시 확인'))}
           </Button>
         ) : (
           <Button
@@ -102,11 +114,11 @@ export function MailFooter({
           >
             <Icon icon={timing === 'later' ? CalendarClock : Send} size={16} />
             {sending
-              ? 'Đang tạo lượt gửi…'
+              ? t(message('Đang tạo lượt gửi…', 'Creating the send…', '발송을 만드는 중…'))
               : verdict === null
                 ? checking
-                  ? 'Đang kiểm tra…'
-                  : 'Gửi thư'
+                  ? t(message('Đang kiểm tra…', 'Checking…', '확인 중…'))
+                  : t(message('Gửi thư', 'Send email', '메일 보내기'))
                 : sendLabel(timing === 'later', verdict * waves)}
           </Button>
         )}

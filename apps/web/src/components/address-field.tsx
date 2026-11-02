@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { Button, Combobox, Icon, Input, MapPin, cn } from '@pv/ui'
+import { message, useI18n } from '@/app/i18n'
 import {
   SUGGEST_EMPTY_TEXT,
   SUGGEST_FAILED_TEXT,
@@ -62,10 +63,14 @@ export type AddressFieldProps = {
   frame?: AddressFrame
 }
 
-const DEFAULT_LABELS = { address: 'Địa chỉ', province: 'Tỉnh/thành' } as const
-
-const PLACEHOLDER = 'Gõ số nhà, đường, phường…'
-const MAP_BUTTON_TEXT = 'Chọn trên bản đồ'
+const LABEL_ADDRESS = message('Địa chỉ', 'Address', '주소')
+const LABEL_PROVINCE = message('Tỉnh/thành', 'Province/city', '시/도')
+const PLACEHOLDER = message(
+  'Gõ số nhà, đường, phường…',
+  'Type house number, street, ward…',
+  '번지, 도로명, 동을 입력하세요…',
+)
+const MAP_BUTTON_TEXT = message('Chọn trên bản đồ', 'Choose on map', '지도에서 선택')
 
 /** The company form's frame: the shared field shell, address across both
  *  columns because a street rarely fits half a row. */
@@ -83,7 +88,7 @@ const defaultFrame: AddressFrame = ({ key, label, plain, errors, children }) => 
 export function AddressField({
   value,
   province,
-  labels = DEFAULT_LABELS,
+  labels: labelsProp,
   errors,
   maxLength,
   onPick,
@@ -95,6 +100,8 @@ export function AddressField({
   pickerClassName,
   frame = defaultFrame,
 }: AddressFieldProps) {
+  const { t } = useI18n()
+  const labels = labelsProp ?? { address: t(LABEL_ADDRESS), province: t(LABEL_PROVINCE) }
   /* Remembered so the address just chosen is not sent straight back as a
      search, and so the province box knows it is holding a picked value. */
   const [lastPick, setLastPick] = useState<string | null>(null)
@@ -163,14 +170,14 @@ export function AddressField({
               if (!hit) return
               applyPick(hit.address, hit.province)
             }}
-            placeholder={PLACEHOLDER}
-            emptyText={
+            placeholder={t(PLACEHOLDER)}
+            emptyText={t(
               suggest.tooShort
                 ? SUGGEST_TOO_SHORT_TEXT
                 : suggest.failed
                   ? SUGGEST_FAILED_TEXT
-                  : SUGGEST_EMPTY_TEXT
-            }
+                  : SUGGEST_EMPTY_TEXT,
+            )}
             loading={suggest.loading}
             invalid={addressInvalid}
           />
@@ -185,7 +192,7 @@ export function AddressField({
             onClick={() => setMapOpen(true)}
           >
             <Icon icon={MapPin} size={16} />
-            <span className="max-sm:sr-only">{MAP_BUTTON_TEXT}</span>
+            <span className="max-sm:sr-only">{t(MAP_BUTTON_TEXT)}</span>
           </Button>
         )}
       </div>

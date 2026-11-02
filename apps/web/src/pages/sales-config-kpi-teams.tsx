@@ -4,9 +4,9 @@ import { Button, GlassCard, Icon, Pencil, Plus, Skeleton, Trash2, cn } from '@pv
 import type { KpiTeam } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
-import { message, useI18n } from '@/app/i18n'
+import { message, useI18n, type Lang } from '@/app/i18n'
 import { kpiTeamRosterQuery } from '@/data/kpi-team-roster'
-import { ROLE_LABEL } from '@/data/users'
+import { kpiRoleText } from '@/data/kpi-i18n'
 import { monthText } from './kpi-model'
 import { actingLine } from './kpi-team-model'
 import { TeamFormDrawer, TeamRemoveDrawer } from './sales-config-kpi-teams-parts'
@@ -22,8 +22,8 @@ import { TeamFormDrawer, TeamRemoveDrawer } from './sales-config-kpi-teams-parts
 const NOTE = 'text-muted-foreground m-0 text-[11.5px] leading-[1.5]'
 const ALERT = 'text-destructive-foreground m-0 text-[11.5px] leading-[1.5]'
 
-const rolesOf = (team: KpiTeam) => [
-  ...new Set(team.members.flatMap((m) => m.roleIds.map((r) => ROLE_LABEL[r]))),
+const rolesOf = (team: KpiTeam, lang: Lang) => [
+  ...new Set(team.members.flatMap((m) => m.roleIds.map((r) => kpiRoleText(r, lang)))),
 ]
 
 function TeamLine({
@@ -37,7 +37,7 @@ function TeamLine({
   onEdit: () => void
   onRemove: () => void
 }) {
-  const { t, number } = useI18n()
+  const { t, number, lang } = useI18n()
   const me = useSession((s) => s.actor?.id)
   const acting = actingLine(team, me)
   return (
@@ -49,9 +49,9 @@ function TeamLine({
         <span className={cn(NOTE, 'tnum font-num')}>
           {t(
             message(
-              `Trưởng nhóm ${team.lead.name} · ${team.members.length} thành viên · ${rolesOf(team).join(', ')}`,
-              `Lead: ${team.lead.name} · ${number(team.members.length)} members · ${rolesOf(team).join(', ')}`,
-              `팀장 ${team.lead.name} · ${number(team.members.length)}명 · ${rolesOf(team).join(', ')}`,
+              `Trưởng nhóm ${team.lead.name} · ${team.members.length} thành viên · ${rolesOf(team, lang).join(', ')}`,
+              `Lead: ${team.lead.name} · ${number(team.members.length)} members · ${rolesOf(team, lang).join(', ')}`,
+              `팀장 ${team.lead.name} · ${number(team.members.length)}명 · ${rolesOf(team, lang).join(', ')}`,
             ),
           )}{' '}
         </span>

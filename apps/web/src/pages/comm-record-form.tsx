@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import { cn } from '@pv/ui'
 import type { DebriefView } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 import { CommStepper, type CommStepState } from '@/components/comm-record-frame'
 import { CommTurns } from '@/components/comm-turns'
 import type { CommForm } from '@/data/comm-record-form'
@@ -84,6 +85,7 @@ const STICKY_BAR_VAR = '--sticky-bar-clear'
  *  Lifted over the bottom nav on a phone; on a laptop narrow enough that the
  *  column meets the assistant button, it stops short of it. */
 export function CommFormBar({ problem, children }: { problem: FormProblem; children: ReactNode }) {
+  const { t } = useI18n()
   const bar = useRef<HTMLDivElement>(null)
   /* The AI tray sits in this same corner. The distance from the screen bottom, not the
      height: on a short step the bar rests higher up than the sticky offset. */
@@ -112,7 +114,7 @@ export function CommFormBar({ problem, children }: { problem: FormProblem; child
     <div
       ref={bar}
       role="group"
-      aria-label="Thao tác liên hệ"
+      aria-label={t(message('Thao tác liên hệ', 'Interaction actions', '연락 기록 작업'))}
       className="glass-overlay sticky bottom-[calc(84px+env(safe-area-inset-bottom)+12px)] z-20 flex flex-wrap items-center gap-3 rounded-lg px-4 py-3 lg:bottom-6 lg:max-xl:w-[calc(100%-72px)]"
     >
       <div className="flex min-w-0 flex-1 basis-64 flex-col">

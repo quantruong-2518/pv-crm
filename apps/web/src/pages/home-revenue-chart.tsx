@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import type { SalesMoneyFigureKind } from '@pv/contracts'
 import { cn } from '@pv/ui'
+import { message, useI18n, type Message } from '@/app/i18n'
 import { MARK_EASE, staggerMs } from './home-look'
 import {
   KIND_TITLE,
@@ -57,6 +58,8 @@ const SEGMENT = `block w-full shrink-0 ${ZONE_LOOK} ${FOCUS_IN}`
 const SEGMENT_FIGURE =
   'text-background tnum font-num flex items-center justify-center text-[12px] font-bold'
 
+const MILLION = (figure: string) => message(`${figure} triệu`, `${figure} million`, `${figure}백만`)
+
 const share = (vnd: number, top: number) => (vnd > 0 ? vnd / top : 0)
 const grow = `starting:h-0 transition-[height] ${MARK_EASE}`
 
@@ -85,9 +88,10 @@ function Column({
     { kind: 'due-unpaid', vnd: due, look: DUE_HATCH },
     { kind: 'collected', vnd: collected, look: cn(COLLECTED_FILL, SEGMENT_FIGURE) },
   ] as const
+  const { t } = useI18n()
   const kinds = columnKinds(col)
   const said = (kind: SalesMoneyFigureKind, vnd: number) =>
-    `${KIND_TITLE[kind].toLowerCase()} ${millions(vnd)} triệu`
+    `${t(KIND_TITLE[kind]).toLowerCase()} ${t(MILLION(millions(vnd)))}`
   return (
     <div className="relative flex min-w-0 flex-1 flex-col items-center justify-end gap-1 self-stretch">
       <span
@@ -96,7 +100,15 @@ function Column({
       >
         <span className="text-accent-foreground">{total > collected ? millions(total) : ''}</span>
         <span className="text-on-tint-warning font-semibold">
-          {due > 0 ? `thiếu ${millions(due)}` : ''}
+          {due > 0
+            ? t(
+                message(
+                  `thiếu ${millions(due)}`,
+                  `${millions(due)} short`,
+                  `${millions(due)} 부족`,
+                ),
+              )
+            : ''}
         </span>
       </span>
       {total > 0 ? (
@@ -227,6 +239,7 @@ function PenaltyRow({
   nameOf: (col: RevenueColumn) => string
   zone: Zone
 }) {
+  const { t } = useI18n()
   const incoming = kind === 'penalty-in'
   return (
     <>
@@ -241,7 +254,7 @@ function PenaltyRow({
               {figure.amountVnd > 0 ? (
                 <button
                   type="button"
-                  aria-label={`${nameOf(col)}: ${label.toLowerCase()} ${amount} triệu${figure.fromEarlier > 0 ? ', có hợp đồng ký kỳ trước' : ''}`}
+                  aria-label={`${nameOf(col)}: ${label.toLowerCase()} ${t(MILLION(amount))}${figure.fromEarlier > 0 ? t(message(', có hợp đồng ký kỳ trước', ', includes contracts signed in an earlier period', ', 이전 기간에 체결된 계약 포함')) : ''}`}
                   {...zone(view.bucket.key, kind, [kind])}
                   className={cn(
                     CELL,
@@ -287,14 +300,23 @@ export function PenaltyStrip({
   nameOf: (col: RevenueColumn) => string
   zone: Zone
 }) {
+  const { t } = useI18n()
   return (
     <div className="border-muted-foreground/25 mt-3 flex flex-col gap-1 border-t border-dashed pt-3 [@media(max-height:860px)]:mt-2 [@media(max-height:860px)]:pt-2">
       <div className={cn(NOTE, 'flex flex-wrap items-center justify-between gap-3')}>
-        <span className="text-foreground font-semibold">Tiền phạt</span>
+        <span className="text-foreground font-semibold">
+          {t(message('Tiền phạt', 'Penalties', '위약금'))}
+        </span>
         {any && (
           <span className="inline-flex items-center gap-2">
             <span aria-hidden className="bg-destructive-foreground size-1.5 rounded-full" />
-            chấm góc ô: hợp đồng ký kỳ trước
+            {t(
+              message(
+                'chấm góc ô: hợp đồng ký kỳ trước',
+                'corner dot: contract signed in an earlier period',
+                '모서리 점: 이전 기간에 체결된 계약',
+              ),
+            )}
           </span>
         )}
       </div>
@@ -303,20 +325,28 @@ export function PenaltyStrip({
           <PenaltyRow
             columns={columns}
             kind="penalty-in"
-            label="Khách thanh toán"
+            label={t(KIND_TITLE['penalty-in'])}
             nameOf={nameOf}
             zone={zone}
           />
           <PenaltyRow
             columns={columns}
             kind="penalty-out"
-            label="Mình thanh toán"
+            label={t(KIND_TITLE['penalty-out'])}
             nameOf={nameOf}
             zone={zone}
           />
         </>
       ) : (
-        <span className={cn(NOTE, 'py-2')}>Kỳ này không có tiền phạt.</span>
+        <span className={cn(NOTE, 'py-2')}>
+          {t(
+            message(
+              'Kỳ này không có tiền phạt.',
+              'No penalties this period.',
+              '이 기간에는 위약금이 없습니다.',
+            ),
+          )}
+        </span>
       )}
     </div>
   )
@@ -332,28 +362,38 @@ function Swatch({ className, label }: { className: string; label: string }) {
 }
 
 export function Legend() {
+  const { t } = useI18n()
   return (
     <div className={cn(NOTE, 'flex flex-wrap items-center gap-x-4 gap-y-1')}>
-      <Swatch className={COLLECTED_FILL} label="Đã thu" />
-      <Swatch className={DUE_HATCH} label="Đến hạn chưa thu" />
-      <Swatch className={UPCOMING_FILL} label="Sắp đến hạn" />
+      <Swatch className={COLLECTED_FILL} label={t(KIND_TITLE.collected)} />
+      <Swatch className={DUE_HATCH} label={t(KIND_TITLE['due-unpaid'])} />
+      <Swatch className={UPCOMING_FILL} label={t(KIND_TITLE.upcoming)} />
     </div>
   )
 }
 
 /** The chart's numbers for a screen reader: the marks above carry one figure each. */
-export function FiguresTable({ columns, unit }: { columns: RevenueColumn[]; unit: string }) {
+export function FiguresTable({ columns, unit }: { columns: RevenueColumn[]; unit: Message }) {
+  const { t } = useI18n()
   return (
     <table className="sr-only">
-      <caption>Doanh thu theo {unit}, triệu đồng</caption>
+      <caption>
+        {t(
+          message(
+            `Doanh thu theo ${unit.vi}, triệu đồng`,
+            `Revenue by ${unit.en}, VND millions`,
+            `${unit.ko}별 매출, 백만 VND`,
+          ),
+        )}
+      </caption>
       <thead>
         <tr>
-          <th scope="col">Kỳ</th>
-          <th scope="col">Đã thu</th>
-          <th scope="col">Đến hạn chưa thu</th>
-          <th scope="col">Sắp đến hạn</th>
-          <th scope="col">Khách thanh toán</th>
-          <th scope="col">Mình thanh toán</th>
+          <th scope="col">{t(message('Kỳ', 'Period', '기간'))}</th>
+          <th scope="col">{t(KIND_TITLE.collected)}</th>
+          <th scope="col">{t(KIND_TITLE['due-unpaid'])}</th>
+          <th scope="col">{t(KIND_TITLE.upcoming)}</th>
+          <th scope="col">{t(KIND_TITLE['penalty-in'])}</th>
+          <th scope="col">{t(KIND_TITLE['penalty-out'])}</th>
         </tr>
       </thead>
       <tbody>

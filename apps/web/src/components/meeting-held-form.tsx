@@ -11,6 +11,7 @@ import {
 } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
+import { message, useI18n } from '@/app/i18n'
 import { CommAiContent, CommAiEvaluation, CommAiSteps } from '@/components/comm-ai-report'
 import { CommEvaluation } from '@/components/comm-evaluation'
 import { CommFileDrop, CommFileList } from '@/components/comm-files'
@@ -40,6 +41,39 @@ type Guest = Person & { role?: string; contactCode?: string }
 
 const FORM_ID = 'meeting-held'
 
+const HELD = {
+  noAttendeeListYet: message(
+    'Chưa có danh sách người dự.',
+    'No attendee list yet.',
+    '참석자 목록이 없습니다.',
+  ),
+  theMeetingSummaryIs: message(
+    'Chưa ghi tóm tắt buổi họp.',
+    'The meeting summary is not written yet.',
+    '회의 요약이 아직 입력되지 않았습니다.',
+  ),
+  meetingOutcomeSaved: message(
+    'Đã lưu kết quả buổi họp',
+    'Meeting outcome saved',
+    '회의 결과를 저장했습니다',
+  ),
+  meetingOutcome: message('Kết quả buổi họp', 'Meeting outcome', '회의 결과'),
+  meetingSummary: message('Tóm tắt buổi họp', 'Meeting summary', '회의 요약'),
+  whatBothSidesAgreed: message(
+    'Hai bên đã thống nhất gì, khách cần gì tiếp theo.',
+    'What both sides agreed on and what the customer needs next.',
+    '양측이 합의한 내용과 고객이 다음에 필요한 것을 적어 주세요.',
+  ),
+  outcome: message('Kết quả', 'Outcome', '결과'),
+  nextStep: message('Bước tiếp theo', 'Next step', '다음 단계'),
+  doesNotAcceptA: message(
+    ' không nhận bước tiếp theo từ lượt liên hệ này.',
+    ' does not accept a next step from this interaction.',
+    '에는 이 연락 기록에서 다음 단계를 설정할 수 없습니다.',
+  ),
+  attachments: message('Tệp đính kèm', 'Attachments', '첨부 파일'),
+}
+
 export function MeetingHeldForm({
   record,
   meeting,
@@ -52,6 +86,7 @@ export function MeetingHeldForm({
   open: boolean
   onClose: () => void
 }) {
+  const { t, lang } = useI18n()
   const vocab = useQuery(commVocabularyQuery)
   const close = useCloseMeeting()
   const step = useCloseStep(record.subject.code, record.stepTarget)
@@ -62,9 +97,9 @@ export function MeetingHeldForm({
   const [draft, setDraft] = useState(EMPTY_STEP_DRAFT)
 
   const blocker =
-    (meeting ? null : 'Chưa có danh sách người dự.') ??
-    (summary.trim() === '' ? 'Chưa ghi tóm tắt buổi họp.' : null) ??
-    evaluationBlockerOf(vocab, picked) ??
+    (meeting ? null : t(HELD.noAttendeeListYet)) ??
+    (summary.trim() === '' ? t(HELD.theMeetingSummaryIs) : null) ??
+    evaluationBlockerOf(vocab, picked, lang) ??
     step.temperatureGap ??
     step.gapOf(draft)
 
@@ -93,29 +128,29 @@ export function MeetingHeldForm({
       { id: record.id, body },
       {
         onSuccess: () => {
-          toastDone('Đã lưu kết quả buổi họp')
+          toastDone(t(HELD.meetingOutcomeSaved))
           onClose()
         },
       },
     )
   }
 
-  const message = close.error ? userMessage(close.error) : blocker
+  const footerMessage = close.error ? userMessage(close.error) : blocker
 
   return (
     <Drawer
       open={open}
       onClose={onClose}
-      title="Kết quả buổi họp"
+      title={t(HELD.meetingOutcome)}
       subtitle={
         meeting
-          ? `${meeting.title} · ${meetingRowLabel(meeting.at, meeting.durationMinutes)}`
+          ? `${meeting.title} · ${meetingRowLabel(meeting.at, meeting.durationMinutes, lang)}`
           : record.subject.label
       }
       width="lg"
       footer={
         <HeldFooter
-          message={message}
+          text={footerMessage}
           failed={Boolean(close.error)}
           blocked={blocker !== null}
           saving={close.isPending}
@@ -125,14 +160,14 @@ export function MeetingHeldForm({
     >
       <form id={FORM_ID} onSubmit={submit} noValidate className="flex min-w-0 flex-col gap-8">
         <div className="flex min-w-0 flex-col gap-3">
-          <Field label="Tóm tắt buổi họp" note={`${summary.length}/${DEBRIEF_SUMMARY_MAX}`}>
+          <Field label={t(HELD.meetingSummary)} note={`${summary.length}/${DEBRIEF_SUMMARY_MAX}`}>
             <Textarea
               value={summary}
               rows={5}
               autoGrow
               maxLength={DEBRIEF_SUMMARY_MAX}
-              aria-label="Tóm tắt buổi họp"
-              placeholder="Hai bên đã thống nhất gì, khách cần gì tiếp theo."
+              aria-label={t(HELD.meetingSummary)}
+              placeholder={t(HELD.whatBothSidesAgreed)}
               onChange={(e) => setSummary(e.target.value)}
             />
           </Field>
@@ -141,8 +176,8 @@ export function MeetingHeldForm({
 
         <AttendanceGroup people={people} />
 
-        <section className="flex min-w-0 flex-col gap-4" aria-label="Kết quả">
-          <SectionTitle size="md">Kết quả</SectionTitle>
+        <section className="flex min-w-0 flex-col gap-4" aria-label={t(HELD.outcome)}>
+          <SectionTitle size="md">{t(HELD.outcome)}</SectionTitle>
           {ai.allowed && (
             <CommAiEvaluation
               ai={ai}
@@ -157,8 +192,8 @@ export function MeetingHeldForm({
           )}
         </section>
 
-        <section className="flex min-w-0 flex-col gap-4" aria-label="Bước tiếp theo">
-          <SectionTitle size="md">Bước tiếp theo</SectionTitle>
+        <section className="flex min-w-0 flex-col gap-4" aria-label={t(HELD.nextStep)}>
+          <SectionTitle size="md">{t(HELD.nextStep)}</SectionTitle>
           {step.takesStep ? (
             step.stepShown && (
               <>
@@ -180,15 +215,15 @@ export function MeetingHeldForm({
             )
           ) : step.target.isPending ? null : (
             <p className="text-muted-foreground m-0 text-[12px] leading-[1.6]">
-              {subjectKindLabel(record.subject.code)}{' '}
-              <span className="font-mono">{record.subject.code}</span> không nhận bước tiếp theo từ
-              lượt liên hệ này.
+              {subjectKindLabel(record.subject.code, lang)}{' '}
+              <span className="font-mono">{record.subject.code}</span>
+              {t(HELD.doesNotAcceptA)}
             </p>
           )}
         </section>
 
-        <section className="flex min-w-0 flex-col gap-4" aria-label="Tệp đính kèm">
-          <SectionTitle size="md">Tệp đính kèm</SectionTitle>
+        <section className="flex min-w-0 flex-col gap-4" aria-label={t(HELD.attachments)}>
+          <SectionTitle size="md">{t(HELD.attachments)}</SectionTitle>
           <CommFileDrop id={record.id} />
           <CommFileList id={record.id} canDelete />
         </section>
@@ -198,18 +233,19 @@ export function MeetingHeldForm({
 }
 
 function HeldFooter({
-  message,
+  text,
   failed,
   blocked,
   saving,
   onClose,
 }: {
-  message: string | null
+  text: string | null
   failed: boolean
   blocked: boolean
   saving: boolean
   onClose: () => void
 }) {
+  const { t } = useI18n()
   return (
     <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
       <span
@@ -221,15 +257,17 @@ function HeldFooter({
         }
         role={failed ? 'alert' : undefined}
       >
-        {message}
+        {text}
       </span>
       <div className="flex shrink-0 gap-2">
         <Button size="lg" variant="ghost" type="button" onClick={onClose}>
-          Huỷ
+          {t(message('Huỷ', 'Cancel', '취소'))}
         </Button>
         <Button size="lg" type="submit" form={FORM_ID} disabled={blocked || saving}>
           <Icon icon={Check} size={16} />
-          {saving ? 'Đang lưu…' : 'Lưu kết quả buổi họp'}
+          {saving
+            ? t(message('Đang lưu…', 'Saving…', '저장 중…'))
+            : t(message('Lưu kết quả buổi họp', 'Save meeting outcome', '회의 결과 저장'))}
         </Button>
       </div>
     </div>
@@ -239,6 +277,7 @@ function HeldFooter({
 type Attendance = ReturnType<typeof useAttendance>
 
 function AttendanceGroup({ people }: { people: Attendance }) {
+  const { t } = useI18n()
   const [typed, setTyped] = useState('')
   const full = people.guests.length >= MEETING_MAX_GUESTS
   const add = () => {
@@ -249,30 +288,63 @@ function AttendanceGroup({ people }: { people: Attendance }) {
   }
 
   return (
-    <section className="flex min-w-0 flex-col gap-4" aria-label="Người dự">
-      <SectionTitle size="md">Người dự</SectionTitle>
+    <section
+      className="flex min-w-0 flex-col gap-4"
+      aria-label={t(message('Người dự', 'Attendees', '참석자'))}
+    >
+      <SectionTitle size="md">{t(message('Người dự', 'Attendees', '참석자'))}</SectionTitle>
       <PersonChecks
-        label="Bên mình"
-        empty="Lịch họp không ghi người bên mình."
+        label={t(message('Bên mình', 'Our side', '우리 측'))}
+        empty={t(
+          message(
+            'Lịch họp không ghi người bên mình.',
+            'The meeting booking lists no one from our side.',
+            '회의 일정에 우리 측 참석자가 기재되어 있지 않습니다.',
+          ),
+        )}
         rows={people.hosts}
         onToggle={(key, attended) => people.mark('hosts', key, attended)}
       />
       <PersonChecks
-        label="Khách"
-        empty="Lịch họp không ghi khách nào."
+        label={t(message('Khách', 'Customer side', '고객 측'))}
+        empty={t(
+          message(
+            'Lịch họp không ghi khách nào.',
+            'The meeting booking lists no guests.',
+            '회의 일정에 고객 측 참석자가 기재되어 있지 않습니다.',
+          ),
+        )}
         rows={people.guests}
         onToggle={(key, attended) => people.mark('guests', key, attended)}
       />
       <Field
-        label="Thêm khách không có trong lịch"
-        problem={full ? `Một buổi tối đa ${MEETING_MAX_GUESTS} khách.` : undefined}
+        label={t(
+          message(
+            'Thêm khách không có trong lịch',
+            'Add a guest not in the booking',
+            '일정에 없는 참석자 추가',
+          ),
+        )}
+        problem={
+          full
+            ? t(
+                message(
+                  `Một buổi tối đa ${MEETING_MAX_GUESTS} khách.`,
+                  `A meeting allows at most ${MEETING_MAX_GUESTS} guests.`,
+                  `회의당 최대 ${MEETING_MAX_GUESTS}명까지 추가할 수 있습니다.`,
+                ),
+              )
+            : undefined
+        }
       >
         <div className="flex min-w-0 gap-2">
           <Input
             value={typed}
             maxLength={MEETING_GUEST_NAME_MAX}
-            placeholder="Tên khách"
-            aria-label="Tên khách thêm vào"
+            placeholder={t(message('Tên khách', 'Guest name', '참석자 이름'))}
+            aria-label={t(
+              message('Tên khách thêm vào', 'Name of guest to add', '추가할 참석자 이름'),
+            )}
             className="pointer-coarse:h-12 min-w-0 flex-1"
             onChange={(e) => setTyped(e.target.value)}
             onKeyDown={(e) => {
@@ -290,7 +362,7 @@ function AttendanceGroup({ people }: { people: Attendance }) {
             onClick={add}
           >
             <Icon icon={Plus} size={16} />
-            Thêm khách
+            {t(message('Thêm khách', 'Add guest', '참석자 추가'))}
           </Button>
         </div>
       </Field>

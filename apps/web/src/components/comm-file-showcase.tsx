@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Icon, Separator, Skeleton, cn } from '@pv/ui'
 import type { CommAttachment } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 import { commFileKindOf, commFilesQuery, fileSizeLabel } from '@/data/comm-record-detail'
 import { STEP_LABEL } from './comm-next-step-fields'
 
@@ -9,6 +10,7 @@ import { STEP_LABEL } from './comm-next-step-fields'
  *  open in a new tab. Nothing at all when there are none, and the rule above it
  *  goes too. Presigned links are short-lived: opened, never copied. */
 export function CommFileShowcase({ id }: { id: string }) {
+  const { t } = useI18n()
   const { data, isPending } = useQuery(commFilesQuery(id))
   if (isPending) return <Skeleton className="h-16 w-full" />
   const rows = data?.rows ?? []
@@ -21,8 +23,17 @@ export function CommFileShowcase({ id }: { id: string }) {
       <Separator />
       <div className="flex min-w-0 flex-col gap-3">
         <span className={STEP_LABEL}>
-          Ghi âm và tệp đính kèm{' '}
-          <span className="text-muted-foreground font-normal">· {rows.length} tệp</span>
+          {t(message('Ghi âm và tệp đính kèm', 'Recordings and attachments', '녹음 및 첨부 파일'))}{' '}
+          <span className="text-muted-foreground font-normal">
+            ·{' '}
+            {t(
+              message(
+                `${rows.length} tệp`,
+                `${rows.length} ${rows.length === 1 ? 'file' : 'files'}`,
+                `파일 ${rows.length}개`,
+              ),
+            )}
+          </span>
         </span>
         {audio.map((file) => (
           <div key={file.id} className="bg-muted flex min-w-0 flex-col gap-2 rounded-lg p-3">
@@ -52,7 +63,13 @@ export function CommFileShowcase({ id }: { id: string }) {
         )}
         {rows.some((file) => file.url === null) && (
           <p className="text-muted-foreground m-0 text-[12px] leading-[1.6]">
-            Bạn chỉ xem được tên và dung lượng tệp.
+            {t(
+              message(
+                'Bạn chỉ xem được tên và dung lượng tệp.',
+                'You can only see file names and sizes.',
+                '파일 이름과 용량만 볼 수 있습니다.',
+              ),
+            )}
           </p>
         )}
       </div>
@@ -61,7 +78,8 @@ export function CommFileShowcase({ id }: { id: string }) {
 }
 
 function FileTile({ file }: { file: CommAttachment }) {
-  const kind = commFileKindOf(file.mime)
+  const { lang } = useI18n()
+  const kind = commFileKindOf(file.mime, lang)
   const body = (
     <>
       <span className="bg-surface-ink/9 flex size-10 shrink-0 items-center justify-center rounded-md">

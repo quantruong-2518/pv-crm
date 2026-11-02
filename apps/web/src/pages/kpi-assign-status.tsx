@@ -23,7 +23,8 @@ import { isApiError } from '@/app/api'
 import { useAppChrome } from '@/app/chrome'
 import { kpiAssignmentTreeQuery } from '@/data/kpi-assignment'
 import { kpiCatalogQuery, type BlockQuery, type KpiCatalog } from '@/data/kpi-catalog'
-import { ROLE_LABEL } from '@/data/users'
+import { message, translate, useI18n, type Message } from '@/app/i18n'
+import { kpiRoleText } from '@/data/kpi-i18n'
 import { dm } from '@/lib/date'
 import { keyOf, num } from './home-model'
 import { NOTE, TILE } from './home-tiles'
@@ -47,12 +48,21 @@ import { MonthPicker, QueryBlock } from './kpi-parts'
  *
  *  No ContextRail (law 10 debt, as on the other KPI screens). */
 
-const LEVEL_LABEL: Record<KpiAssignmentLevel, string> = {
-  company: 'Công ty',
-  department: 'Phòng',
-  team: 'Nhóm',
-  person: 'Nhân viên xác nhận',
+const LEVEL_LABEL: Record<KpiAssignmentLevel, Message> = {
+  company: message('Công ty', 'Company', '회사'),
+  department: message('Phòng', 'Department', '부서'),
+  team: message('Nhóm', 'Team', '팀'),
+  person: message('Nhân viên xác nhận', 'Staff confirming', '확인하는 직원'),
 }
+
+const confirmedText = (confirmed: number, total: number) =>
+  translate(
+    message(
+      `${num(confirmed)}/${num(total)} đã xác nhận`,
+      `${num(confirmed)}/${num(total)} confirmed`,
+      `${num(confirmed)}/${num(total)} 확인됨`,
+    ),
+  )
 
 /* Depth as indent, on the spacing scale; deeper levels stay at the last step. */
 const INDENT = ['pl-4', 'pl-8', 'pl-12'] as const
@@ -63,38 +73,45 @@ function stepBadges({ units, people }: KpiAssignmentStep): Label[] {
     if (people.total === 0) return []
     const all = people.confirmed === people.total
     return [
-      {
-        text: `${num(people.confirmed)}/${num(people.total)} đã xác nhận`,
-        tone: all ? 'success' : 'draft',
-      },
+      { text: confirmedText(people.confirmed, people.total), tone: all ? 'success' : 'draft' },
     ]
   }
   if (!units) return []
   const total = units.sent + units.sentByDefault + units.notSent
-  const parts: [number, Label][] = [
-    [units.sent, { text: 'đã gửi', tone: 'success' }],
-    [units.sentByDefault, { text: 'giao mặc định', tone: 'warning' }],
-    [units.notSent, { text: 'chưa gửi', tone: 'draft' }],
+  const parts: [number, Message, Label['tone']][] = [
+    [units.sent, message('đã gửi', 'sent', '발송됨'), 'success'],
+    [
+      units.sentByDefault,
+      message('giao mặc định', 'assigned by default', '기본값으로 배정'),
+      'warning',
+    ],
+    [units.notSent, message('chưa gửi', 'not sent', '미발송'), 'draft'],
   ]
-  return parts.flatMap(([n, label]) => {
+  return parts.flatMap(([n, word, tone]) => {
     if (n === 0) return []
-    const text = total === 1 ? label.text : `${num(n)} ${label.text}`
-    return [{ ...label, text: text.charAt(0).toUpperCase() + text.slice(1) }]
+    const label = translate(word)
+    const text = total === 1 ? label : `${num(n)} ${label}`
+    return [{ tone, text: text.charAt(0).toUpperCase() + text.slice(1) }]
   })
 }
 
 function Steps({ steps }: { steps: readonly KpiAssignmentStep[] }) {
+  const { t } = useI18n()
   const shown = steps.flatMap((s) => {
     const badges = stepBadges(s)
     return badges.length > 0 ? [{ step: s, badges }] : []
   })
   return (
-    <ol aria-label="Các mốc giao" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <ol
+      aria-label={t(message('Các mốc giao', 'Assignment milestones', '배정 일정'))}
+      className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+    >
       {shown.map(({ step, badges }) => (
         <li key={step.level}>
           <GlassCard className={cn(TILE, 'h-full')}>
             <span className={cn(NOTE, 'tnum font-num')}>
-              {LEVEL_LABEL[step.level]} · hạn {dm(step.due)}
+              {t(LEVEL_LABEL[step.level])} ·{' '}
+              {t(message(`hạn ${dm(step.due)}`, `due ${dm(step.due)}`, `기한 ${dm(step.due)}`))}
             </span>
             <span className="flex flex-wrap gap-2">
               {badges.map((b) => (
@@ -111,10 +128,12 @@ function Steps({ steps }: { steps: readonly KpiAssignmentStep[] }) {
 }
 
 function UnitRow({ unit, tree }: { unit: KpiAssignmentTreeUnit; tree: KpiAssignmentTreeResponse }) {
+  const { t } = useI18n()
   const label = UNIT_STATE_LABEL[unit.state]
+  const away = unit.head?.away ? t(message(' · vắng', ' · away', ' · 부재')) : ''
   const head = unit.head
-    ? `${unit.head.name}${unit.head.away ? ' · vắng' : ''}`
-    : 'Chưa có trưởng đơn vị'
+    ? `${unit.head.name}${away}`
+    : t(message('Chưa có trưởng đơn vị', 'No unit head', '단위 책임자 없음'))
   return (
     <li>
       <Link
@@ -136,7 +155,7 @@ function UnitRow({ unit, tree }: { unit: KpiAssignmentTreeUnit; tree: KpiAssignm
           {unit.sentAt ? `${label.text} ${dm(unit.sentAt)}` : label.text}
         </Badge>
         <span className={cn(NOTE, 'tnum font-num')}>
-          {unit.total > 0 && `${num(unit.confirmed)}/${num(unit.total)} đã xác nhận`}
+          {unit.total > 0 && confirmedText(unit.confirmed, unit.total)}
         </span>
         <Icon icon={ChevronRight} size={16} className="text-muted-foreground" />
       </Link>
@@ -166,6 +185,7 @@ function joined(
 }
 
 function Board({ period }: { period: string }) {
+  const { t } = useI18n()
   const [params, setParams] = useSearchParams()
   const catalog = useQuery(kpiCatalogQuery)
   const roles = catalog.data ? RoleId.options.filter((r) => catalog.data[r].length > 0) : []
@@ -173,22 +193,48 @@ function Board({ period }: { period: string }) {
   const all = joined(catalog, trees)
 
   if (isApiError(all.error) && all.error.kind === 'forbidden') {
-    return <p className={NOTE}>Bạn không xem được tình trạng giao chỉ tiêu.</p>
+    return (
+      <p className={NOTE}>
+        {t(
+          message(
+            'Bạn không xem được tình trạng giao chỉ tiêu.',
+            'You do not have access to the target assignment status.',
+            '목표 배정 현황을 볼 권한이 없습니다.',
+          ),
+        )}
+      </p>
+    )
   }
   return (
-    <QueryBlock query={all} what="tình trạng giao chỉ tiêu" variant="b">
+    <QueryBlock
+      query={all}
+      what={message('tình trạng giao chỉ tiêu', 'target assignment status', '목표 배정 현황')}
+      variant="b"
+    >
       {(loaded) => {
         const shown = loaded.filter((t) => t.units.length > 0)
         const tree = shown.find((t) => t.role === params.get(ROLE_PARAM)) ?? shown[0]
-        if (!tree) return <p className={NOTE}>Tháng này chưa có đơn vị nào cần giao chỉ tiêu.</p>
+        if (!tree) {
+          return (
+            <p className={NOTE}>
+              {t(
+                message(
+                  'Tháng này chưa có đơn vị nào cần giao chỉ tiêu.',
+                  'No unit needs to assign targets this month.',
+                  '이번 달에는 목표를 배정할 단위가 없습니다.',
+                ),
+              )}
+            </p>
+          )
+        }
         return (
           <>
             <SegmentedControl
-              label="Vai trò"
+              label={t(message('Vai trò', 'Role', '역할'))}
               hideLabel
               tone="quiet"
               value={tree.role}
-              options={shown.map((t) => ({ value: t.role, label: ROLE_LABEL[t.role] }))}
+              options={shown.map((t) => ({ value: t.role, label: kpiRoleText(t.role) }))}
               onChange={(role) =>
                 setParams(
                   (prev) => {
@@ -203,7 +249,10 @@ function Board({ period }: { period: string }) {
             />
             <Steps steps={tree.steps} />
             <GlassCard variant="b" className="p-3">
-              <ul aria-label="Theo đơn vị" className="flex flex-col gap-1">
+              <ul
+                aria-label={t(message('Theo đơn vị', 'By unit', '단위별'))}
+                className="flex flex-col gap-1"
+              >
                 {tree.units.map((unit) => (
                   <UnitRow key={unit.unitId} unit={unit} tree={tree} />
                 ))}
@@ -217,6 +266,7 @@ function Board({ period }: { period: string }) {
 }
 
 export function KpiAssignStatusPage() {
+  const { t } = useI18n()
   const chrome = useAppChrome()
   const [pick, setPick] = useMonthParam()
   const period = keyOf(pick)
@@ -225,13 +275,13 @@ export function KpiAssignStatusPage() {
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <ScreenHeader
-          title="Tình trạng giao"
+          title={t(message('Tình trạng giao', 'Assignment status', '배정 현황'))}
           actions={<MonthPicker pick={pick} onPick={setPick} />}
         />
         {isTieredPeriod(period) ? (
           <Board key={period} period={period} />
         ) : (
-          <p className={NOTE}>{TIERED_SENTENCE}</p>
+          <p className={NOTE}>{t(TIERED_SENTENCE)}</p>
         )}
       </ScreenLayout>
     </AppShell>

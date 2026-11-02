@@ -2,8 +2,9 @@ import type { ReactNode } from 'react'
 import { Avatar, Button, Icon, Modal, Textarea, cn, type IconGlyph } from '@pv/ui'
 import { OPPORTUNITY_SALE_PRIMARY_REASON_MAX, isSellerRole } from '@pv/contracts'
 import { userMessage, type ApiError } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 import { useSalesPeople } from '@/data/directory'
-import { SALE_PRIMARY_LABEL, toggled } from '@/data/opportunities'
+import { SALE_PRIMARY_COPY, toggled } from '@/data/opportunities'
 import { PersonTokenField } from './person-token-field'
 import { SalePrimaryPick } from './sale-primary-pick'
 import { Field } from './ops-fields'
@@ -18,6 +19,18 @@ import { Field } from './ops-fields'
  *  `primary` adds the lane's primary choice (ADR 0086) under the picker.
  *  `pending` is a deal with a sign request waiting: the people are shown but
  *  frozen, and the primary change carries a reason (ADR 0086 §2). */
+
+const TYPE_NAME = message('Gõ tên để tìm…', 'Type a name to search…', '이름을 입력해 검색…')
+const NO_MORE_SALE = message(
+  'Không còn Sale nào để thêm.',
+  'No more salespeople to add.',
+  '추가할 영업 담당자가 없습니다.',
+)
+const REASON_LABEL = message(
+  'Lý do đổi Sale chính',
+  'Reason for changing the primary salesperson',
+  '주 영업 담당자 변경 사유',
+)
 
 export function SellerModal({
   open,
@@ -65,6 +78,7 @@ export function SellerModal({
   busyLabel: string
   onSubmit: () => void
 }) {
+  const { t } = useI18n()
   const people = useSalesPeople()
   const sellerPool = people.filter((a) => isSellerRole(a.roleIds))
   const toggle = (id: string) => onChange(toggled(sellers, id))
@@ -90,7 +104,7 @@ export function SellerModal({
           </span>
           <div className="flex shrink-0 gap-3">
             <Button size="lg" variant="ghost" disabled={busy} onClick={onClose}>
-              Quay lại
+              {t(message('Quay lại', 'Back', '돌아가기'))}
             </Button>
             <Button size="lg" disabled={busy || submitDisabled} onClick={onSubmit}>
               <Icon icon={icon} size={16} />
@@ -117,14 +131,15 @@ export function SellerModal({
           <PersonTokenField
             variant="inline"
             label={fieldLabel}
-            placeholder="Gõ tên để tìm…"
+            placeholder={t(TYPE_NAME)}
             tokens={sellers.map((id) => {
               const person = people.find((a) => a.id === id)
               return {
                 id,
                 name: nameOf(id),
                 ...(person && { note: person.role }),
-                ...(primary.lane.length > 1 && id === primary.value && { tag: SALE_PRIMARY_LABEL }),
+                ...(primary.lane.length > 1 &&
+                  id === primary.value && { tag: t(SALE_PRIMARY_COPY) }),
               }
             })}
             suggestions={sellerPool
@@ -132,7 +147,7 @@ export function SellerModal({
               .map((a) => ({ id: a.id, name: a.name, note: a.role }))}
             onPick={toggle}
             onRemove={toggle}
-            emptyNote="Không còn Sale nào để thêm."
+            emptyNote={t(NO_MORE_SALE)}
           />
         )}
       </Field>
@@ -146,12 +161,12 @@ export function SellerModal({
       </div>
       {pending && (
         <div className="pt-4">
-          <Field label="Lý do đổi Sale chính" required errors={error?.errors?.reason}>
+          <Field label={t(REASON_LABEL)} required errors={error?.errors?.reason}>
             <Textarea
               autoGrow
               rows={3}
               value={pending.reason}
-              aria-label="Lý do đổi Sale chính"
+              aria-label={t(REASON_LABEL)}
               aria-required
               maxLength={OPPORTUNITY_SALE_PRIMARY_REASON_MAX}
               onChange={(e) => pending.onReason(e.target.value)}

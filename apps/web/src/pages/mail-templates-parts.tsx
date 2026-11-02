@@ -3,6 +3,7 @@ import { Info } from '@pv/ui'
 import { Badge, Button, Icon, Input, Modal, SegmentedControl, Textarea, cn } from '@pv/ui'
 import type { MailDoor, MailTemplateMilestone, MailTemplateRow } from '@pv/contracts'
 import { userMessage, type ApiError, type FieldErrors } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 import { isHttpUrl } from '@/data/http-url'
 import { useMailPreview, useMailTemplateCreate, useMailTemplatePatch } from '@/data/mas'
 import { MailGuideDrawer } from '@/components/mail-guide-drawer'
@@ -33,6 +34,7 @@ export function MailTemplateDrawer({
   onClose: () => void
   template: MailTemplateRow | null
 }) {
+  const { t } = useI18n()
   const create = useMailTemplateCreate()
   const patch = useMailTemplatePatch()
 
@@ -164,14 +166,32 @@ export function MailTemplateDrawer({
         open={open}
         onClose={onClose}
         width="xl"
-        title={template ? `Sửa ${template.name}` : 'Thêm mẫu thư'}
+        title={
+          template
+            ? t(message(`Sửa ${template.name}`, `Edit ${template.name}`, `${template.name} 수정`))
+            : t(message('Thêm mẫu thư', 'Add email template', '이메일 템플릿 추가'))
+        }
         subtitle={
           template ? (
             <>
-              Sửa mẫu <span className="font-semibold">không</span> đổi các lô đã gửi.
+              {t(
+                message(
+                  'Sửa mẫu ',
+                  'Editing a template does ',
+                  '템플릿을 수정해도 이미 발송한 건은 ',
+                ),
+              )}
+              <span className="font-semibold">{t(message('không', 'not', '바뀌지 않습니다'))}</span>
+              {t(message(' đổi các lô đã gửi.', ' change runs already sent.', '.'))}
             </>
           ) : (
-            'Người soạn vẫn sửa được thư trước khi gửi.'
+            t(
+              message(
+                'Người soạn vẫn sửa được thư trước khi gửi.',
+                'Whoever writes the letter can still edit it before sending.',
+                '작성자는 발송 전에 메일을 수정할 수 있습니다.',
+              ),
+            )
           )
         }
         meta={
@@ -179,7 +199,9 @@ export function MailTemplateDrawer({
             <span className="flex flex-wrap gap-1">
               {template.milestone && <MilestonePill milestone={template.milestone} />}
               <Badge tone={template.active ? 'success' : 'draft'}>
-                {template.active ? 'Đang dùng' : 'Ngừng dùng'}
+                {template.active
+                  ? t(message('Đang dùng', 'In use', '사용 중'))
+                  : t(message('Ngừng dùng', 'Not in use', '사용 중지'))}
               </Badge>
             </span>
           ) : undefined
@@ -202,7 +224,7 @@ export function MailTemplateDrawer({
                 className="pointer-coarse:h-12"
                 onClick={onClose}
               >
-                Huỷ
+                {t(message('Huỷ', 'Cancel', '취소'))}
               </Button>
               <Button
                 size="md"
@@ -211,7 +233,11 @@ export function MailTemplateDrawer({
                 onClick={submit}
                 disabled={busy || doors.length === 0}
               >
-                {busy ? 'Đang lưu…' : template ? 'Lưu thay đổi' : 'Tạo mẫu'}
+                {busy
+                  ? t(message('Đang lưu…', 'Saving…', '저장 중…'))
+                  : template
+                    ? t(message('Lưu thay đổi', 'Save changes', '변경 사항 저장'))
+                    : t(message('Tạo mẫu', 'Create template', '템플릿 만들기'))}
               </Button>
             </div>
           </div>
@@ -222,12 +248,21 @@ export function MailTemplateDrawer({
            width: it reads the copy and shape, not the sent pixel width. */}
         <div className="grid min-w-0 gap-4 md:grid-cols-[3fr_2fr] md:items-start">
           <div className="flex min-w-0 flex-col gap-4">
-            <Field label="Tên mẫu" errors={errors['name']}>
+            <Field
+              label={t(message('Tên mẫu', 'Template name', '템플릿 이름'))}
+              errors={errors['name']}
+            >
               <Input
                 value={name}
                 maxLength={200}
                 invalid={Boolean(errors['name']?.length)}
-                placeholder="Ví dụ: Tiếp cận lần 4 — nhắc hội thảo"
+                placeholder={t(
+                  message(
+                    'Ví dụ: Tiếp cận lần 4 — nhắc hội thảo',
+                    'For example: 4th outreach — event reminder',
+                    '예: 4차 연락 — 행사 안내',
+                  ),
+                )}
                 onChange={(event) => {
                   setName(event.target.value)
                   clearError('name')
@@ -262,15 +297,33 @@ export function MailTemplateDrawer({
             )}
 
             <Field
-              label={`Tiêu đề email · ${subject.length}/200`}
+              label={t(
+                message(
+                  `Tiêu đề email · ${subject.length}/200`,
+                  `Email subject · ${subject.length}/200`,
+                  `이메일 제목 · ${subject.length}/200`,
+                ),
+              )}
               errors={errors['subject']}
-              hint="Tiêu đề dài hơn 70 ký tự dễ bị cắt."
+              hint={t(
+                message(
+                  'Tiêu đề dài hơn 70 ký tự dễ bị cắt.',
+                  'Subjects longer than 70 characters tend to get cut off.',
+                  '제목이 70자를 넘으면 잘리기 쉽습니다.',
+                ),
+              )}
             >
               <Input
                 value={subject}
                 maxLength={200}
                 invalid={Boolean(errors['subject']?.length)}
-                placeholder="Tiêu đề hiện trong hộp thư người nhận"
+                placeholder={t(
+                  message(
+                    'Tiêu đề hiện trong hộp thư người nhận',
+                    "Subject shown in the recipient's inbox",
+                    '받는 사람의 받은편지함에 표시되는 제목',
+                  ),
+                )}
                 onChange={(event) => {
                   setSubject(event.target.value)
                   clearError('subject')
@@ -279,15 +332,27 @@ export function MailTemplateDrawer({
             </Field>
 
             <Field
-              label="Nội dung"
+              label={t(message('Nội dung', 'Body', '내용'))}
               errors={errors['body']}
               /* The rich box carries toolbar buttons, and a `<label>` round it
                  would forward every click on the text to the first of them. */
               control={bodyMode === 'rich' ? 'plain' : 'input'}
               hint={
                 bodyMode === 'rich'
-                  ? 'Bôi đen chữ rồi bấm B / I. Bấm nút để chèn tên khách, tên công ty.'
-                  : '**đậm** · _nghiêng_ · đầu dòng `- ` thành danh sách. Dùng {{contact_name}} và {{account}} để điền tên từng người.'
+                  ? t(
+                      message(
+                        'Bôi đen chữ rồi bấm B / I. Bấm nút để chèn tên khách, tên công ty.',
+                        'Select text, then press B / I. Press a button to insert the customer name or company name.',
+                        '글자를 선택한 뒤 B / I를 누르세요. 버튼을 눌러 고객명, 회사명을 넣을 수 있습니다.',
+                      ),
+                    )
+                  : t(
+                      message(
+                        '**đậm** · _nghiêng_ · đầu dòng `- ` thành danh sách. Dùng {{contact_name}} và {{account}} để điền tên từng người.',
+                        "**bold** · _italic_ · a line starting with `- ` becomes a list. Use {{contact_name}} and {{account}} to fill in each person's name.",
+                        '**굵게** · _기울임_ · 줄 앞의 `- `는 목록이 됩니다. {{contact_name}}과 {{account}}로 사람마다 이름을 채울 수 있습니다.',
+                      ),
+                    )
               }
               /* The guide opens as a second drawer over this one. The button rides
                on this field's label rather than sitting in the panel header
@@ -299,13 +364,18 @@ export function MailTemplateDrawer({
               action={
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   <SegmentedControl
-                    label="Cách soạn"
+                    label={t(message('Cách soạn', 'Editor style', '작성 방식'))}
                     hideLabel
                     tone="quiet"
                     value={bodyMode}
                     onChange={(value) => setBodyMode(value === 'rich' ? 'rich' : 'markdown')}
                     options={[
-                      { value: 'rich', label: 'Soạn kiểu Gmail' },
+                      {
+                        value: 'rich',
+                        label: t(
+                          message('Soạn kiểu Gmail', 'Gmail-style editor', 'Gmail 방식 편집'),
+                        ),
+                      },
                       { value: 'markdown', label: 'Markdown' },
                     ]}
                   />
@@ -317,7 +387,7 @@ export function MailTemplateDrawer({
                     onClick={() => setGuideOpen(true)}
                   >
                     <Icon icon={Info} size={14} />
-                    Cách viết nội dung
+                    {t(message('Cách viết nội dung', 'How to write the body', '내용 작성 방법'))}
                   </Button>
                 </div>
               }
@@ -327,7 +397,13 @@ export function MailTemplateDrawer({
                   <MailRichBody
                     value={body}
                     invalid={Boolean(errors['body']?.length)}
-                    placeholder="Nội dung thư. Enter xuống đoạn mới, Shift+Enter xuống dòng."
+                    placeholder={t(
+                      message(
+                        'Nội dung thư. Enter xuống đoạn mới, Shift+Enter xuống dòng.',
+                        'Letter body. Enter starts a new paragraph, Shift+Enter a new line.',
+                        '메일 내용. Enter는 새 문단, Shift+Enter는 줄바꿈입니다.',
+                      ),
+                    )}
                     onChange={(markdown) => {
                       setBody(markdown)
                       clearError('body')
@@ -340,7 +416,13 @@ export function MailTemplateDrawer({
                   rows={20}
                   value={body}
                   invalid={Boolean(errors['body']?.length)}
-                  placeholder="Nội dung thư. Một dòng trống là một đoạn."
+                  placeholder={t(
+                    message(
+                      'Nội dung thư. Một dòng trống là một đoạn.',
+                      'Letter body. A blank line makes a paragraph.',
+                      '메일 내용. 빈 줄 하나가 문단 하나입니다.',
+                    ),
+                  )}
                   onChange={(event) => {
                     setBody(event.target.value)
                     clearError('body')
@@ -350,17 +432,31 @@ export function MailTemplateDrawer({
             </Field>
 
             <Field
-              label="Nút trong email (không bắt buộc)"
+              label={t(
+                message(
+                  'Nút trong email (không bắt buộc)',
+                  'Email button (optional)',
+                  '이메일 버튼 (선택)',
+                ),
+              )}
               errors={errors['cta.label'] ?? errors['cta.url'] ?? errors['cta']}
-              hint="Để trống nếu không cần nút. Link dán trong nội dung thư không bấm được."
+              hint={t(
+                message(
+                  'Để trống nếu không cần nút. Link dán trong nội dung thư không bấm được.',
+                  'Leave empty if no button is needed. A link pasted in the body is not clickable.',
+                  '버튼이 필요 없으면 비워 두세요. 본문에 붙여 넣은 링크는 클릭되지 않습니다.',
+                ),
+              )}
             >
               <div className="grid gap-2 sm:grid-cols-[minmax(150px,.55fr)_minmax(0,1fr)]">
                 <Input
                   value={ctaLabel}
                   maxLength={80}
-                  aria-label="Tên nút trong email"
+                  aria-label={t(
+                    message('Tên nút trong email', 'Email button label', '이메일 버튼 이름'),
+                  )}
                   invalid={Boolean(errors['cta.label']?.length)}
-                  placeholder="Tên nút"
+                  placeholder={t(message('Tên nút', 'Button label', '버튼 이름'))}
                   onChange={(event) => {
                     setCtaLabel(event.target.value)
                     clearError('cta.label')
@@ -368,7 +464,9 @@ export function MailTemplateDrawer({
                 />
                 <Input
                   value={ctaUrl}
-                  aria-label="Địa chỉ nút trong email"
+                  aria-label={t(
+                    message('Địa chỉ nút trong email', 'Email button address', '이메일 버튼 주소'),
+                  )}
                   invalid={Boolean(errors['cta.url']?.length)}
                   placeholder="https://…"
                   onChange={(event) => {
@@ -381,7 +479,7 @@ export function MailTemplateDrawer({
 
             {template?.bookingUrl && (
               <OldBookingLink
-                owner="Mẫu"
+                owner="template"
                 url={template.bookingUrl}
                 dropped={dropBooking}
                 onDrop={setDropBooking}
@@ -394,13 +492,19 @@ export function MailTemplateDrawer({
               template. */}
             {template && (
               <Field
-                label="Trạng thái"
+                label={t(message('Trạng thái', 'Status', '상태'))}
                 errors={errors['active']}
-                hint="Mẫu ngừng dùng không hiện trong ô chọn."
+                hint={t(
+                  message(
+                    'Mẫu ngừng dùng không hiện trong ô chọn.',
+                    'A template not in use does not appear in the picker.',
+                    '사용 중지한 템플릿은 선택 목록에 표시되지 않습니다.',
+                  ),
+                )}
                 control="plain"
               >
                 <SegmentedControl
-                  label="Trạng thái"
+                  label={t(message('Trạng thái', 'Status', '상태'))}
                   hideLabel
                   value={active ? 'active' : 'off'}
                   onChange={(value) => {
@@ -408,8 +512,8 @@ export function MailTemplateDrawer({
                     clearError('active')
                   }}
                   options={[
-                    { value: 'active', label: 'Đang dùng' },
-                    { value: 'off', label: 'Ngừng dùng' },
+                    { value: 'active', label: t(message('Đang dùng', 'In use', '사용 중')) },
+                    { value: 'off', label: t(message('Ngừng dùng', 'Not in use', '사용 중지')) },
                   ]}
                 />
               </Field>
@@ -420,7 +524,13 @@ export function MailTemplateDrawer({
             letter={preview.letter}
             pending={preview.pending}
             error={preview.error}
-            caption="Tên và công ty là dữ liệu mẫu."
+            caption={t(
+              message(
+                'Tên và công ty là dữ liệu mẫu.',
+                'The name and company are sample data.',
+                '이름과 회사는 예시 데이터입니다.',
+              ),
+            )}
           />
         </div>
       </Modal>

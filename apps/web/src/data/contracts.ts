@@ -19,6 +19,7 @@ import { api, type ApiNeed } from '@/app/api'
 import { cacheTier } from '@/app/query-client'
 import { bookQueryParams, keepPageUnderSameFilters } from '@/app/book-query'
 import { vnToday } from '@/data/opportunities'
+import { getLang, message, translate, type Lang, type Message } from '@/app/i18n'
 
 /** Read side of the contract book — on the server, no fixture left.
  *
@@ -251,55 +252,57 @@ export const contractCollectorCandidatesQuery = queryOptions({
 // How a level reads on screen
 // ---------------------------------------------------------------------------
 
-/** Vietnamese label of a level. Kept beside the ladder rather than inside a
- *  component because three screens print it and they must all read the same. */
-export const DUE_LABEL: Record<DueLevel, string> = {
-  done: 'Đã thu',
-  upcoming: 'Chưa tới',
-  'due-soon': 'Gần hạn',
-  due: 'Đến hạn',
-  overdue: 'Quá hạn',
-  'long-overdue': 'Quá hạn lâu',
-}
-
 /** The one sentence a reader without write rights gets on a contract (ADR 0110).
  *  With nobody holding it, only the head of sales and the director are named.
  *  `collects` is the payment PIC: they do get the collect button, so the line
  *  says what they may do instead of "view only". */
-export function contractReadOnlyNote(holder: string | null | undefined, collects = false): string {
-  if (collects) return 'Bạn được ghi thu tiền, không sửa được hợp đồng này.'
-  const who = holder ? `${holder}, trưởng phòng hoặc giám đốc` : 'Trưởng phòng hoặc giám đốc'
+export function contractReadOnlyNote(
+  holder: string | null | undefined,
+  collects = false,
+  lang: Lang = getLang(),
+): string {
+  const m = (vi: string, en: string, ko: string) => translate(message(vi, en, ko), lang)
+  if (collects) {
+    return m(
+      'Bạn được ghi thu tiền, không sửa được hợp đồng này.',
+      'You can record payments but cannot edit this contract.',
+      '수납 기록은 할 수 있지만 이 계약은 수정할 수 없습니다.',
+    )
+  }
   return holder
-    ? `Bạn chỉ xem được hợp đồng này. ${who} mới sửa được.`
-    : `${who} mới sửa được hợp đồng này.`
+    ? m(
+        `Bạn chỉ xem được hợp đồng này. ${holder}, trưởng phòng hoặc giám đốc mới sửa được.`,
+        `You can only view this contract. Only ${holder}, the head of sales or the director can edit it.`,
+        `이 계약은 조회만 가능합니다. ${holder}, 영업팀장 또는 이사만 수정할 수 있습니다.`,
+      )
+    : m(
+        'Trưởng phòng hoặc giám đốc mới sửa được hợp đồng này.',
+        'Only the head of sales or the director can edit this contract.',
+        '영업팀장 또는 이사만 이 계약을 수정할 수 있습니다.',
+      )
 }
 
 /** How many days, said the way a person would say it. */
-export function daysPhrase(daysLeft: number): string {
-  if (daysLeft > 0) return `còn ${daysLeft} ngày`
-  if (daysLeft === 0) return 'đến hạn hôm nay'
-  return `trễ ${-daysLeft} ngày`
+export function daysPhrase(daysLeft: number, lang: Lang = getLang()): string {
+  const m = (vi: string, en: string, ko: string) => translate(message(vi, en, ko), lang)
+  if (daysLeft > 0) return m(`còn ${daysLeft} ngày`, `${daysLeft} days left`, `${daysLeft}일 남음`)
+  if (daysLeft === 0) return m('đến hạn hôm nay', 'due today', '오늘 기한')
+  return m(`trễ ${-daysLeft} ngày`, `${-daysLeft} days late`, `${-daysLeft}일 지연`)
 }
 
 /** How the desk chased an installment — the one map every screen prints. */
-export const RECORD_CHANNEL_LABEL: Record<RecordChannel, string> = {
-  email: 'Gửi mail',
-  'zalo-oa': 'Zalo',
-  'in-app': 'Nhắn trong PV One',
-  call: 'Gọi điện',
+export const RECORD_CHANNEL_LABEL: Record<RecordChannel, Message> = {
+  email: message('Gửi mail', 'Send email', '메일 발송'),
+  'zalo-oa': message('Zalo', 'Zalo', 'Zalo'),
+  'in-app': message('Nhắn trong PV One', 'Message in PV One', 'PV One 내 메시지'),
+  call: message('Gọi điện', 'Phone call', '전화'),
 }
 
 /** Which side owes an unlock condition, as the drawer and its dialogs say it. */
-export const CONDITION_SIDE_LABEL: Record<ConditionSide, string> = {
-  ours: 'Bên mình',
-  customer: 'Bên khách',
+export const CONDITION_SIDE_LABEL: Record<ConditionSide, Message> = {
+  ours: message('Bên mình', 'Our side', '우리 측'),
+  customer: message('Bên khách', 'Customer side', '고객 측'),
 }
-
-/** The tab, the standing badge and the next-due cell all say this one phrase.
- *  The other two standings are said once here too, for the tabs and the badge. */
-export const COLLECTED_LABEL = 'Đã thu đủ'
-export const COLLECTING_LABEL = 'Đang thu'
-export const OVERDUE_LABEL = 'Quá hạn'
 
 /** Every query key a header, a tab or a shared link can set — what "clear all" resets. */
 export const CONTRACT_FILTER_KEYS = [
@@ -315,21 +318,24 @@ export const CONTRACT_FILTER_KEYS = [
 ] as const satisfies readonly (keyof ContractBookQuery)[]
 
 /** The customer column also shows the contract kind, so its header names both. */
-export const CUSTOMER_HEADER = 'Khách hàng / Loại hợp đồng'
+export const CUSTOMER_HEADER = message(
+  'Khách hàng / Loại hợp đồng',
+  'Customer / Contract type',
+  '고객 / 계약 유형',
+)
 
 /** Why a contract shows no closer: the dash's tooltip and the filter's "nobody" option. */
-export const NO_CLOSER = 'Chưa có người chốt'
+export const NO_CLOSER = message('Chưa có người chốt', 'No closer yet', '체결 담당자 없음')
 
 /** Where a contract stands in collecting — the ONE rule, said the way the
  *  book's tabs say it (the contract itself stores no state): any installment
  *  overdue, else every one paid, else still collecting. Both the contract
  *  screens (off due levels) and the deal's cards (off the money block's
  *  statuses) reduce their rows to these two flags and call it. */
-export type Standing = { tone: 'danger' | 'success' | 'running'; label: string }
+export type Standing = { tone: 'danger' | 'success' | 'running' }
 
 export function standingOf(rows: { overdue: boolean; paid: boolean }[]): Standing {
-  if (rows.some((r) => r.overdue)) return { tone: 'danger', label: OVERDUE_LABEL }
-  if (rows.length > 0 && rows.every((r) => r.paid))
-    return { tone: 'success', label: COLLECTED_LABEL }
-  return { tone: 'running', label: COLLECTING_LABEL }
+  if (rows.some((r) => r.overdue)) return { tone: 'danger' }
+  if (rows.length > 0 && rows.every((r) => r.paid)) return { tone: 'success' }
+  return { tone: 'running' }
 }

@@ -5,6 +5,7 @@ import { CircleX, Mail, Pencil } from '@pv/ui'
 import { Button, Icon, Select, Skeleton, buttonVariants, cn } from '@pv/ui'
 import type { MailSubjectTimelineRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 import { toastDone, toastFail } from '@/app/toast'
 import { MailRunEditModal } from '@/components/mail-run-edit-modal'
 import { COMM_FOCUS } from '@/data/comm-record-detail'
@@ -30,6 +31,44 @@ const ALL_CHANNELS = 'all'
 const RECENT = 5
 const NOTE = 'm-0 text-[12.5px] leading-[1.6]'
 
+const JOURNEY = {
+  interactionHistory: message('Lịch sử liên hệ', 'Interaction history', '연락 기록'),
+  channel: message('Kênh', 'Channel', '채널'),
+  allChannels: message('Mọi kênh', 'All channels', '모든 채널'),
+  viewTheWholeInteraction: message(
+    'Xem cả luồng liên hệ',
+    'View the whole interaction flow',
+    '전체 연락 흐름 보기',
+  ),
+  seeMore: message('Xem thêm', 'See more', '더 보기'),
+  couldNotReadThe: message(
+    'Không đọc được các email.',
+    'Could not read the emails.',
+    '이메일을 읽지 못했습니다.',
+  ),
+  tryAgain: message('Thử lại.', 'Try again.', '다시 시도해 주세요.'),
+  couldNotReadThe2: message(
+    'Không đọc được các lượt liên hệ.',
+    'Could not read the interactions.',
+    '연락 기록을 읽지 못했습니다.',
+  ),
+  noInteractionMatchesThe: message(
+    'Không có lượt liên hệ nào khớp bộ lọc.',
+    'No interaction matches the filter.',
+    '필터에 맞는 연락 기록이 없습니다.',
+  ),
+  noInteractionsYet: message(
+    'Chưa có lượt liên hệ nào.',
+    'No interactions yet.',
+    '연락 기록이 아직 없습니다.',
+  ),
+  yourRoleCannotView: message(
+    'Vai của bạn không có quyền xem các lượt liên hệ.',
+    'Your role cannot view interactions.',
+    '현재 역할로는 연락 기록을 볼 수 없습니다.',
+  ),
+}
+
 export function CommJourney({
   workstreamCode,
   subject,
@@ -39,6 +78,7 @@ export function CommJourney({
   /** The record the block stands on; absent on the run's own screen. */
   subject?: JourneySubject
 }) {
+  const { t } = useI18n()
   const { rows, canComms, isLoading, error, lettersError } = useJourneyRows(workstreamCode, subject)
   const [channel, setChannel] = useState(ALL_CHANNELS)
   const [editing, setEditing] = useState<{ id: string; viaContent: boolean } | null>(null)
@@ -67,17 +107,23 @@ export function CommJourney({
 
   return (
     <RunBlock
-      title="Lịch sử liên hệ"
+      title={t(JOURNEY.interactionHistory)}
       aside={
         <>
           {unconfirmed > 0 && (
             <span className="text-warning tnum text-[12px] font-medium">
-              {unconfirmed} chưa xác nhận
+              {t(
+                message(
+                  `${unconfirmed} chưa xác nhận`,
+                  `${unconfirmed} unconfirmed`,
+                  `미확인 ${unconfirmed}건`,
+                ),
+              )}
             </span>
           )}
           {channels.length > 1 && (
             <Select
-              label="Kênh"
+              label={t(JOURNEY.channel)}
               hideLabel
               size="sm"
               className="pointer-coarse:[&>button]:h-12"
@@ -85,7 +131,7 @@ export function CommJourney({
               neutralValue={ALL_CHANNELS}
               onChange={setChannel}
               options={[
-                { value: ALL_CHANNELS, label: 'Mọi kênh' },
+                { value: ALL_CHANNELS, label: t(JOURNEY.allChannels) },
                 ...channels.map((c) => ({ value: c, label: COMMS_CHANNEL_LABEL[c] })),
               ]}
             />
@@ -93,14 +139,14 @@ export function CommJourney({
           {canComms && workstreamCode !== null && rows.length > 0 && (
             <button
               type="button"
-              aria-label="Xem cả luồng liên hệ"
+              aria-label={t(JOURNEY.viewTheWholeInteraction)}
               onClick={() => navigate(workstreamCommsPath(workstreamCode))}
               className={cn(
                 'text-muted-foreground hover:text-foreground pointer-coarse:min-h-12 rounded-sm text-[13px] font-medium hover:underline',
                 COMM_FOCUS,
               )}
             >
-              Xem thêm
+              {t(JOURNEY.seeMore)}
             </button>
           )}
         </>
@@ -108,8 +154,8 @@ export function CommJourney({
     >
       {lettersError !== null && (
         <p className={cn(NOTE, 'text-destructive-foreground')}>
-          Không đọc được các email.{' '}
-          {isApiError(lettersError) ? userMessage(lettersError) : 'Thử lại.'}
+          {t(JOURNEY.couldNotReadThe)}{' '}
+          {isApiError(lettersError) ? userMessage(lettersError) : t(JOURNEY.tryAgain)}
         </p>
       )}
 
@@ -117,7 +163,8 @@ export function CommJourney({
         <Skeleton className="h-40 w-full" />
       ) : error ? (
         <p className={cn(NOTE, 'text-destructive-foreground')}>
-          Không đọc được các lượt liên hệ. {isApiError(error) ? userMessage(error) : 'Thử lại.'}
+          {t(JOURNEY.couldNotReadThe2)}{' '}
+          {isApiError(error) ? userMessage(error) : t(JOURNEY.tryAgain)}
         </p>
       ) : shown.length > 0 ? (
         <JourneyList
@@ -134,15 +181,15 @@ export function CommJourney({
           }
         />
       ) : rows.length > 0 ? (
-        <p className={cn(NOTE, 'text-muted-foreground')}>Không có lượt liên hệ nào khớp bộ lọc.</p>
+        <p className={cn(NOTE, 'text-muted-foreground')}>{t(JOURNEY.noInteractionMatchesThe)}</p>
       ) : (
-        canComms && <p className={cn(NOTE, 'text-muted-foreground')}>Chưa có lượt liên hệ nào.</p>
+        canComms && (
+          <p className={cn(NOTE, 'text-muted-foreground')}>{t(JOURNEY.noInteractionsYet)}</p>
+        )
       )}
 
       {!canComms && (
-        <p className={cn(NOTE, 'text-muted-foreground')}>
-          Vai của bạn không có quyền xem các lượt liên hệ.
-        </p>
+        <p className={cn(NOTE, 'text-muted-foreground')}>{t(JOURNEY.yourRoleCannotView)}</p>
       )}
       <MailRunEditModal
         runId={editing?.id ?? null}
@@ -161,11 +208,32 @@ function LetterActions({
   letter: MailSubjectTimelineRow
   onEdit: (runId: string) => void
 }) {
+  const { t } = useI18n()
   const stop = useOwnLetterCancel()
   const onStop = () =>
     stop.mutate(letter.runId, {
-      onSuccess: () => toastDone('Đã dừng thư', 'Thư sẽ không gửi đi.'),
-      onError: (cause) => toastFail('Không dừng được thư', userMessage(cause)),
+      onSuccess: () =>
+        toastDone(
+          t(message('Đã dừng thư', 'Letter stopped', '메일 발송을 중단했습니다')),
+          t(
+            message(
+              'Thư sẽ không gửi đi.',
+              'The letter will not be sent.',
+              '이 메일은 발송되지 않습니다.',
+            ),
+          ),
+        ),
+      onError: (cause) =>
+        toastFail(
+          t(
+            message(
+              'Không dừng được thư',
+              'Could not stop the letter',
+              '메일 발송을 중단하지 못했습니다',
+            ),
+          ),
+          userMessage(cause),
+        ),
     })
 
   /* A thread exists only once the letter left, and Edit · Stop only before it
@@ -183,7 +251,7 @@ function LetterActions({
         )}
       >
         <Icon icon={Mail} size={16} />
-        Mở trong Gmail
+        {t(message('Mở trong Gmail', 'Open in Gmail', 'Gmail에서 열기'))}
       </a>
     )
   }
@@ -197,7 +265,7 @@ function LetterActions({
         onClick={() => onEdit(letter.runId)}
       >
         <Icon icon={Pencil} size={16} />
-        Sửa
+        {t(message('Sửa', 'Edit', '수정'))}
       </Button>
       <Button
         size="sm"
@@ -207,7 +275,7 @@ function LetterActions({
         onClick={onStop}
       >
         <Icon icon={CircleX} size={16} />
-        Dừng
+        {t(message('Dừng', 'Stop', '중단'))}
       </Button>
     </>
   )

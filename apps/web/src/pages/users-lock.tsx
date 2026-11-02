@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Drawer, Lock, Select } from '@pv/ui'
 import type { UserHoldingsResponse, UserRow } from '@pv/contracts'
 import { userMessage } from '@/app/api'
+import { formatNumber, message, useI18n, type Lang } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import { useLockUser, usersQuery } from '@/data/users'
 import { StepFooter } from '@/components/step-footer'
@@ -27,6 +28,7 @@ export function HandoverDrawer({
   onClose: () => void
   onLocked: (row: UserRow) => void
 }) {
+  const { t, lang } = useI18n()
   const [receiver, setReceiver] = useState('')
   const lock = useLockUser()
   const { reset } = lock
@@ -57,9 +59,16 @@ export function HandoverDrawer({
       { id: user.id, disabled: true, handoverTo: receiver },
       {
         onSuccess: (row) => {
+          const to = receiverName ?? t(message('người nhận', 'the receiver', '인수자'))
           toastDone(
-            'Đã khoá tài khoản',
-            `${row.name} không đăng nhập được nữa. Việc đã chuyển cho ${receiverName ?? 'người nhận'}.`,
+            t(message('Đã khoá tài khoản', 'Account locked', '계정을 잠갔습니다')),
+            t(
+              message(
+                `${row.name} không đăng nhập được nữa. Việc đã chuyển cho ${to}.`,
+                `${row.name} can no longer sign in. Their work moved to ${to}.`,
+                `${row.name}님은 더 이상 로그인할 수 없습니다. 업무는 ${to}님에게 이전되었습니다.`,
+              ),
+            ),
           )
           onLocked(row)
           onClose()
@@ -71,22 +80,41 @@ export function HandoverDrawer({
     <Drawer
       open={open}
       onClose={onClose}
-      title={`Khoá ${user.name}`}
+      title={t(message(`Khoá ${user.name}`, `Lock ${user.name}`, `${user.name} 잠금`))}
       subtitle={
         holdings &&
-        heldLine(holdings) && <span className="tnum">Đang phụ trách {heldLine(holdings)}.</span>
+        heldLine(holdings, lang) && (
+          <span className="tnum">
+            {t(message('Đang phụ trách', 'Currently owns', '현재 담당'))} {heldLine(holdings, lang)}
+            .
+          </span>
+        )
       }
       footer={
         <StepFooter
           error={footerError}
           pending={lock.isPending}
           hint={
-            receiver === '' ? 'Chọn người nhận việc.' : `${user.name} không đăng nhập được nữa.`
+            receiver === ''
+              ? t(
+                  message(
+                    'Chọn người nhận việc.',
+                    'Choose who takes over the work.',
+                    '업무를 넘겨받을 사람을 선택하세요.',
+                  ),
+                )
+              : t(
+                  message(
+                    `${user.name} không đăng nhập được nữa.`,
+                    `${user.name} can no longer sign in.`,
+                    `${user.name}님은 더 이상 로그인할 수 없습니다.`,
+                  ),
+                )
           }
           onClose={onClose}
           confirm={{
             icon: Lock,
-            label: 'Khoá và chuyển việc',
+            label: t(message('Khoá và chuyển việc', 'Lock and hand over', '잠금 및 업무 이전')),
             disabled: receiver === '',
             onClick: confirm,
           }}
@@ -95,13 +123,24 @@ export function HandoverDrawer({
     >
       <div className="flex flex-col gap-2">
         {options.length === 0 ? (
-          <p className="text-muted-foreground text-[12px]">Chưa có ai khác ở Sales để nhận việc.</p>
+          <p className="text-muted-foreground text-[12px]">
+            {t(
+              message(
+                'Chưa có ai khác ở Sales để nhận việc.',
+                'Nobody else in Sales can take over the work yet.',
+                '업무를 넘겨받을 다른 영업 담당자가 없습니다.',
+              ),
+            )}
+          </p>
         ) : (
           <Select
-            label="Người nhận việc"
+            label={t(message('Người nhận việc', 'Receiver', '인수자'))}
             size="lg"
             value={receiver}
-            options={[{ value: '', label: 'Chọn người' }, ...options]}
+            options={[
+              { value: '', label: t(message('Chọn người', 'Choose a person', '담당자 선택')) },
+              ...options,
+            ]}
             onChange={(v) => {
               setReceiver(v)
               reset()
@@ -117,38 +156,72 @@ export function HandoverDrawer({
           }
         >
           {fieldError ??
-            'Lead, cơ hội và việc tiếp theo chuyển sang người này. Cơ hội đang chờ duyệt ký giữ nguyên.'}
+            t(
+              message(
+                'Lead, cơ hội và việc tiếp theo chuyển sang người này. Cơ hội đang chờ duyệt ký giữ nguyên.',
+                'Leads, opportunities and next steps move to this person. Opportunities awaiting sign-off approval stay as they are.',
+                '리드, 기회, 다음 단계가 이 사람에게 이전됩니다. 계약 승인 대기 중인 기회는 그대로 유지됩니다.',
+              ),
+            )}
         </p>
-        {holdings && offLine(holdings) ? (
-          <p className="text-muted-foreground tnum m-0 text-[11.5px]">
-            {heldLine(holdings)
-              ? `Kèm ${offLine(holdings)}.`
-              : `${capitalize(offLine(holdings))} chuyển sang người này.`}
-          </p>
-        ) : null}
+        {holdings && <OffNote holdings={holdings} />}
       </div>
     </Drawer>
   )
 }
 
+/** What also moves from switched-off leads, said apart from the main count. */
+function OffNote({ holdings }: { holdings: UserHoldingsResponse }) {
+  const { t, lang } = useI18n()
+  if (!offLine(holdings, lang)) return null
+  return (
+    <p className="text-muted-foreground tnum m-0 text-[11.5px]">
+      {heldLine(holdings, lang)
+        ? t(
+            message(
+              `Kèm ${offLine(holdings, 'vi')}.`,
+              `Includes ${offLine(holdings, 'en')}.`,
+              `${offLine(holdings, 'ko')} 포함.`,
+            ),
+          )
+        : t(
+            message(
+              `${capitalize(offLine(holdings, 'vi'))} chuyển sang người này.`,
+              `${capitalize(offLine(holdings, 'en'))} move to this person.`,
+              `${offLine(holdings, 'ko')}이(가) 이 사람에게 이전됩니다.`,
+            ),
+          )}
+    </p>
+  )
+}
+
+const countOf = (n: number, lang: Lang, noun: readonly [string, string, string]) =>
+  lang === 'ko'
+    ? `${noun[2]} ${formatNumber(n, lang)}건`
+    : `${formatNumber(n, lang)} ${noun[lang === 'en' ? 1 : 0]}`
+
 /** The counted work, a kind at zero left out — switched-off leads have their own note. */
-const heldLine = (h: UserHoldingsResponse) =>
-  [
-    [h.leads, 'lead'],
-    [h.opportunities, 'cơ hội'],
-    [h.nextSteps, 'việc tiếp theo'],
-  ]
-    .filter(([n]) => Number(n) > 0)
-    .map(([n, noun]) => `${Number(n).toLocaleString('vi-VN')} ${noun}`)
+const heldLine = (h: UserHoldingsResponse, lang: Lang) =>
+  (
+    [
+      [h.leads, ['lead', 'leads', '리드']],
+      [h.opportunities, ['cơ hội', 'opportunities', '기회']], // i18n-ignore
+      [h.nextSteps, ['việc tiếp theo', 'next steps', '다음 단계']], // i18n-ignore
+    ] as const
+  )
+    .filter(([n]) => n > 0)
+    .map(([n, noun]) => countOf(n, lang, noun))
     .join(', ')
 
 /** Work on switched-off leads: the leads when the leaver holds some, else
  *  only deals or steps on them, which have no count of their own. */
-const offLine = (h: UserHoldingsResponse) =>
+const offLine = (h: UserHoldingsResponse, lang: Lang) =>
   h.switchedOffLeads > 0
-    ? `${h.switchedOffLeads.toLocaleString('vi-VN')} lead đã vô hiệu`
+    ? countOf(h.switchedOffLeads, lang, ['lead đã vô hiệu', 'switched-off leads', '비활성 리드']) // i18n-ignore
     : h.switchedOffOther > 0
-      ? 'việc trên lead đã vô hiệu'
+      ? message('việc trên lead đã vô hiệu', 'work on switched-off leads', '비활성 리드의 업무')[
+          lang
+        ]
       : ''
 
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)

@@ -41,6 +41,7 @@ import {
   type LeadImportReport,
   type OpportunityRunningDeal,
 } from '@pv/contracts'
+import { message, translate, type Message } from '@/app/i18n'
 import { peopleIdOptions, peopleNameOptions } from '@/data/directory'
 import { CHANNEL_LABEL } from '@/data/sales-config'
 import { MAX_ROWS, type Sheet } from '@/data/intake-file'
@@ -61,7 +62,7 @@ import { MAX_ROWS, type Sheet } from '@/data/intake-file'
 // Mặt của sáu thế
 // ---------------------------------------------------------------------------
 
-export type MotionFace = {
+export type MotionFace = CopyOf<'label' | 'blurb' | 'example'> & {
   label: string
   icon: IconGlyph
   /** Một câu định nghĩa — ai chủ động. */
@@ -70,43 +71,91 @@ export type MotionFace = {
   example: string
 }
 
+type MotionRaw = { icon: IconGlyph; label: Message; blurb: Message; example: Message }
+const motionOf = ({ icon, ...copy }: MotionRaw): MotionFace =>
+  live({ icon, label: '', blurb: '', example: '', copy })
+
 export const MOTION_FACE: Record<LeadMotion, MotionFace> = {
-  inbound: {
-    label: 'Inbound',
+  inbound: motionOf({
+    label: message('Inbound', 'Inbound', '인바운드'),
     icon: PhoneIncoming,
-    blurb: 'Khách tự tìm đến.',
-    example: 'Form landing · hotline gọi vào · thư về info@ · nhắn Zalo OA',
-  },
-  outbound: {
-    label: 'Outbound',
+    blurb: message('Khách tự tìm đến.', 'The customer reaches out.', '고객이 먼저 찾아옵니다.'),
+    example: message(
+      'Form landing · hotline gọi vào · thư về info@ · nhắn Zalo OA',
+      'Landing page form · inbound hotline call · email to info@ · Zalo OA message',
+      '랜딩 페이지 양식 · 핫라인 수신 전화 · info@ 메일 · Zalo OA 메시지',
+    ),
+  }),
+  outbound: motionOf({
+    label: message('Outbound', 'Outbound', '아웃바운드'),
     icon: PhoneOutgoing,
-    blurb: 'Công ty chủ động tìm khách, khách chưa biết đến công ty.',
-    example: 'Chuỗi email lạnh · cold call · prospect LinkedIn · danh sách mua về',
-  },
-  event: {
-    label: 'Sự kiện',
+    blurb: message(
+      'Công ty chủ động tìm khách, khách chưa biết đến công ty.',
+      'The company reaches out first; the customer does not know it yet.',
+      '회사가 먼저 고객을 찾아가며, 고객은 아직 회사를 모릅니다.',
+    ),
+    example: message(
+      'Chuỗi email lạnh · cold call · prospect LinkedIn · danh sách mua về',
+      'Cold email sequence · cold call · LinkedIn prospect · purchased list',
+      '콜드 이메일 시퀀스 · 콜드 콜 · LinkedIn 잠재 고객 · 구매한 목록',
+    ),
+  }),
+  event: motionOf({
+    label: message('Sự kiện', 'Event', '행사'),
     icon: CalendarClock,
-    blurb: 'Gặp mặt ở hội thảo, triển lãm hoặc webinar.',
-    example: 'Danh sách đăng ký · quét thẻ tại gian hàng · sổ khách ghé bàn',
-  },
-  referral: {
-    label: 'Giới thiệu',
+    blurb: message(
+      'Gặp mặt ở hội thảo, triển lãm hoặc webinar.',
+      'Met at a seminar, trade show or webinar.',
+      '세미나, 박람회 또는 웨비나에서 만난 고객입니다.',
+    ),
+    example: message(
+      'Danh sách đăng ký · quét thẻ tại gian hàng · sổ khách ghé bàn',
+      'Registration list · badge scan at the booth · booth visitor book',
+      '등록 목록 · 부스 명찰 스캔 · 부스 방문자 명부',
+    ),
+  }),
+  referral: motionOf({
+    label: message('Giới thiệu', 'Referral', '소개'),
     icon: Handshake,
-    blurb: 'Khách cũ giới thiệu, không qua đợt nào.',
-    example: 'Giám đốc nhà máy giới thiệu sang nhà máy anh em cùng tập đoàn',
-  },
-  partner: {
-    label: 'Đối tác',
+    blurb: message(
+      'Khách cũ giới thiệu, không qua đợt nào.',
+      'An existing customer refers them, outside any wave.',
+      '기존 고객이 소개하며, 어느 웨이브와도 무관합니다.',
+    ),
+    example: message(
+      'Giám đốc nhà máy giới thiệu sang nhà máy anh em cùng tập đoàn',
+      'A plant director introduces a sister plant in the same group',
+      '공장장이 같은 그룹의 자매 공장을 소개합니다',
+    ),
+  }),
+  partner: motionOf({
+    label: message('Đối tác', 'Partner', '파트너'),
     icon: ArrowLeftRight,
-    blurb: 'Đại lý hoặc nhà tích hợp chuyển khách sang.',
-    example: 'Nhà tích hợp hệ thống chuyển lại phần phần mềm cho công ty',
-  },
-  recycle: {
-    label: 'Đánh thức lại',
+    blurb: message(
+      'Đại lý hoặc nhà tích hợp chuyển khách sang.',
+      'A dealer or integrator passes the customer over.',
+      '대리점이나 통합 업체가 고객을 넘겨줍니다.',
+    ),
+    example: message(
+      'Nhà tích hợp hệ thống chuyển lại phần phần mềm cho công ty',
+      'A systems integrator hands the software part over to the company',
+      '시스템 통합 업체가 소프트웨어 부분을 회사에 넘겨줍니다',
+    ),
+  }),
+  recycle: motionOf({
+    label: message('Đánh thức lại', 'Re-engage', '재접촉'),
     icon: RefreshCw,
-    blurb: 'Lead ở Khách đã dừng, nay có lý do quay lại.',
-    example: 'Đơn thua vì hết ngân sách năm ngoái, sang năm mở lại',
-  },
+    blurb: message(
+      'Lead ở Khách đã dừng, nay có lý do quay lại.',
+      'A lead among stopped customers that now has a reason to return.',
+      '중단된 고객 중 다시 돌아올 이유가 생긴 리드입니다.',
+    ),
+    example: message(
+      'Đơn thua vì hết ngân sách năm ngoái, sang năm mở lại',
+      'A deal lost to last year’s budget freeze, reopened this year',
+      '작년 예산 소진으로 놓친 거래를 올해 다시 엽니다',
+    ),
+  }),
 }
 
 /** Thứ tự bày ra màn. Hai thế đầu là hai thế lớn nhất của mọi phòng kinh doanh
@@ -117,7 +166,7 @@ export const MOTION_ORDER = LEAD_MOTIONS
 // Mặt của năm đường vào
 // ---------------------------------------------------------------------------
 
-export type IntakeFace = {
+export type IntakeFace = CopyOf<'label' | 'blurb'> & {
   label: string
   icon: IconGlyph
   blurb: string
@@ -126,37 +175,61 @@ export type IntakeFace = {
   built: boolean
 }
 
+type IntakeRaw = { icon: IconGlyph; built: boolean; label: Message; blurb: Message }
+const intakeOf = ({ icon, built, ...copy }: IntakeRaw): IntakeFace =>
+  live({ icon, built, label: '', blurb: '', copy })
+
 export const INTAKE_FACE: Record<LeadIntake, IntakeFace> = {
-  sync: {
-    label: 'Đợt tự đổ về',
+  sync: intakeOf({
+    label: message('Đợt tự đổ về', 'Automatic wave intake', '자동 유입'),
     icon: Megaphone,
-    blurb: 'Lead từ chiến dịch tự vào sổ.',
+    blurb: message(
+      'Lead từ chiến dịch tự vào sổ.',
+      'Leads from a campaign enter the book on their own.',
+      '캠페인의 리드가 자동으로 목록에 들어옵니다.',
+    ),
     built: true,
-  },
-  file: {
-    label: 'Nạp tệp',
+  }),
+  file: intakeOf({
+    label: message('Nạp tệp', 'File import', '파일 가져오기'),
     icon: FileSpreadsheet,
-    blurb: 'Kéo tệp CSV hoặc Excel vào, khớp cột rồi nạp cả lô.',
+    blurb: message(
+      'Kéo tệp CSV hoặc Excel vào, khớp cột rồi nạp cả lô.',
+      'Drop in a CSV or Excel file, match the columns, then import the whole batch.',
+      'CSV 또는 Excel 파일을 끌어다 놓고 열을 맞춘 뒤 한꺼번에 가져옵니다.',
+    ),
     built: true,
-  },
-  manual: {
-    label: 'Gõ tay',
+  }),
+  manual: intakeOf({
+    label: message('Gõ tay', 'Manual entry', '직접 입력'),
     icon: PenLine,
-    blurb: 'Nhập từng dòng, người nhập chịu trách nhiệm.',
+    blurb: message(
+      'Nhập từng dòng, người nhập chịu trách nhiệm.',
+      'Enter one row at a time; the person entering is accountable.',
+      '한 줄씩 입력하며, 입력한 사람이 책임집니다.',
+    ),
     built: false,
-  },
-  scan: {
-    label: 'Quét thẻ',
+  }),
+  scan: intakeOf({
+    label: message('Quét thẻ', 'Card scan', '명함 스캔'),
     icon: ScanLine,
-    blurb: 'Quét thẻ của khách ngay tại sự kiện.',
+    blurb: message(
+      'Quét thẻ của khách ngay tại sự kiện.',
+      'Scan the customer’s card right at the event.',
+      '행사 현장에서 고객의 명함을 바로 스캔합니다.',
+    ),
     built: false,
-  },
-  api: {
-    label: 'Hệ khác đẩy sang',
+  }),
+  api: intakeOf({
+    label: message('Hệ khác đẩy sang', 'Pushed from another system', '다른 시스템에서 전송'),
     icon: Plug,
-    blurb: 'Form ngoài, tổng đài hoặc nền tảng marketing tự gửi sang.',
+    blurb: message(
+      'Form ngoài, tổng đài hoặc nền tảng marketing tự gửi sang.',
+      'An external form, call center or marketing platform sends it over.',
+      '외부 양식, 콜센터 또는 마케팅 플랫폼이 자동으로 보냅니다.',
+    ),
     built: false,
-  },
+  }),
 }
 
 export const INTAKE_ORDER = LEAD_INTAKES
@@ -165,25 +238,42 @@ export const INTAKE_ORDER = LEAD_INTAKES
 // Mặt của ba mức tin
 // ---------------------------------------------------------------------------
 
-export const TRUST_FACE: Record<
-  IntakeTrust,
-  { label: string; tone: 'success' | 'running' | 'draft'; blurb: string }
-> = {
-  VERIFIED: {
-    label: 'Có khách xác nhận',
-    tone: 'success',
-    blurb: 'Khách tự cung cấp thông tin.',
-  },
-  DECLARED: {
-    label: 'Có người mình đứng tên',
-    tone: 'running',
-    blurb: 'Có người trong công ty chịu trách nhiệm dòng này.',
-  },
-  RAW: {
-    label: 'Chưa ai xác nhận',
-    tone: 'draft',
-    blurb: 'Mới là dòng dữ liệu, chưa ai liên hệ khách.',
-  },
+type TrustFace = CopyOf<'label' | 'blurb'> & {
+  label: string
+  tone: 'success' | 'running' | 'draft'
+  blurb: string
+}
+const trustFaceOf = (tone: TrustFace['tone'], label: Message, blurb: Message): TrustFace =>
+  live({ label: '', tone, blurb: '', copy: { label, blurb } })
+
+export const TRUST_FACE: Record<IntakeTrust, TrustFace> = {
+  VERIFIED: trustFaceOf(
+    'success',
+    message('Có khách xác nhận', 'Confirmed by the customer', '고객이 확인함'),
+    message(
+      'Khách tự cung cấp thông tin.',
+      'The customer supplied the details.',
+      '고객이 직접 정보를 제공했습니다.',
+    ),
+  ),
+  DECLARED: trustFaceOf(
+    'running',
+    message('Có người mình đứng tên', 'Vouched for by our staff', '직원이 보증함'),
+    message(
+      'Có người trong công ty chịu trách nhiệm dòng này.',
+      'Someone in the company is accountable for this row.',
+      '회사 내 담당자가 이 행에 책임을 집니다.',
+    ),
+  ),
+  RAW: trustFaceOf(
+    'draft',
+    message('Chưa ai xác nhận', 'Not yet confirmed', '아직 확인 안 됨'),
+    message(
+      'Mới là dòng dữ liệu, chưa ai liên hệ khách.',
+      'Just a data row; nobody has contacted the customer.',
+      '아직 데이터 행일 뿐이며, 고객에게 연락한 사람이 없습니다.',
+    ),
+  ),
 }
 
 export const trustOf = (intake: LeadIntake) => TRUST_FACE[INTAKE_TRUST[intake]]
@@ -220,7 +310,19 @@ export function motionOfOrigin(kind: OriginKind): LeadMotion {
 // Spec cột của một luồng nạp
 // ---------------------------------------------------------------------------
 
-export type ImportField = {
+/** Display text lives in `copy`; `live` turns each entry into a getter so a
+ *  spec built once still reads in the language on screen. */
+type CopyOf<K extends string> = { copy: Partial<Record<K, Message>> }
+
+function live<T extends CopyOf<string>>(data: T): T {
+  const out = { ...data }
+  for (const [key, copy] of Object.entries(data.copy)) {
+    if (copy) Object.defineProperty(out, key, { get: () => translate(copy), enumerable: true })
+  }
+  return out
+}
+
+export type ImportField = CopyOf<'label'> & {
   key: string
   label: string
   /** Thiếu ô này thì DÒNG hỏng, không phải cả tệp hỏng. */
@@ -268,7 +370,7 @@ export type ImportField = {
   sample: string
 }
 
-export type ImportSpec = {
+export type ImportSpec = CopyOf<'title' | 'blurb' | 'rowNoun' | 'bookDupLabel'> & {
   key: 'lead' | 'recipient' | 'op'
   /** Tiêu đề panel. */
   title: string
@@ -315,6 +417,30 @@ export type ImportSpec = {
   sampleStem: string
 }
 
+type RawField = Omit<ImportField, 'label' | 'copy'> & { label: Message }
+type RawSpec = Omit<
+  ImportSpec,
+  'title' | 'blurb' | 'rowNoun' | 'bookDupLabel' | 'copy' | 'fields'
+> & {
+  title: Message
+  blurb: Message
+  rowNoun?: Message
+  bookDupLabel?: Message
+  fields: RawField[]
+}
+
+const fieldOf = ({ label, ...rest }: RawField): ImportField =>
+  live({ ...rest, label: '', copy: { label } })
+
+const specOf = ({ title, blurb, rowNoun, bookDupLabel, fields, ...rest }: RawSpec): ImportSpec =>
+  live({
+    ...rest,
+    title: '',
+    blurb: '',
+    fields: fields.map(fieldOf),
+    copy: { title, blurb, rowNoun, bookDupLabel },
+  })
+
 const TIER_OPTIONS = LEAD_TIERS.map((t) => ({ value: t.key, label: t.label }))
 const SOURCE_OPTIONS = SOURCES.map((s) => ({ value: s.code, label: s.label }))
 const CHANNEL_OPTIONS = Object.entries(CHANNEL_LABEL).map(([value, label]) => ({ value, label }))
@@ -332,22 +458,22 @@ const CHANNEL_OPTIONS = Object.entries(CHANNEL_LABEL).map(([value, label]) => ({
 export function withCategories(spec: ImportSpec, names: readonly string[]): ImportSpec {
   if (names.length === 0) return spec
   const options = names.map((name) => ({ value: name, label: name }))
-  return {
+  return live({
     ...spec,
-    fields: spec.fields.map((f) => (f.key === 'category' ? { ...f, options } : f)),
-  }
+    fields: spec.fields.map((f) => (f.key === 'category' ? live({ ...f, options }) : f)),
+  })
 }
 
 export function withPeople(spec: ImportSpec, people: readonly Actor[]): ImportSpec {
   if (people.length === 0) return spec
   const byName = peopleNameOptions(people)
   const byId = peopleIdOptions(people)
-  return {
+  return live({
     ...spec,
     fields: spec.fields.map((f) =>
-      f.people ? { ...f, options: f.people === 'name' ? byName : byId } : f,
+      f.people ? live({ ...f, options: f.people === 'name' ? byName : byId }) : f,
     ),
-  }
+  })
 }
 
 /** Spec của sổ lead — luồng nạp chính.
@@ -376,15 +502,19 @@ export function withPeople(spec: ImportSpec, people: readonly Actor[]): ImportSp
  *  vào cổng init data: nạp một tệp đầy đủ thì lead vào sổ đã qua sẵn cổng,
  *  không phải moi lại từ đầu. Đó là lý do danh sách này dài hơn ba cột — cắt
  *  ngắn cho gọn là bắt BD gõ lại bằng tay đúng những ô tệp đã có sẵn. */
-export const LEAD_SPEC: ImportSpec = {
+export const LEAD_SPEC: ImportSpec = specOf({
   key: 'lead',
-  title: 'Nạp lead vào sổ',
-  blurb: 'Mỗi dòng của tệp thành một lead.',
+  title: message('Nạp lead vào sổ', 'Import leads', '리드 가져오기'),
+  blurb: message(
+    'Mỗi dòng của tệp thành một lead.',
+    'Each row of the file becomes a lead.',
+    '파일의 각 행이 리드 하나가 됩니다.',
+  ),
   intake: 'file',
   motions: ['outbound', 'event', 'partner', 'recycle'],
   defaultMotion: 'outbound',
   sampleStem: 'mau-nap-lead',
-  rowNoun: 'lead',
+  rowNoun: message('lead', 'leads', '리드'),
   /* No browser pre-check: the server decides what a duplicate is and LISTS the
      rows it kept out, which a row dropped here would never reach. */
   dedupe: () => [],
@@ -398,15 +528,15 @@ export const LEAD_SPEC: ImportSpec = {
   fields: [
     {
       key: 'company',
-      label: 'Công ty',
+      label: message('Công ty', 'Company', '회사'),
       required: true,
       max: LEAD_MAX.company,
       aliases: ['account', 'cong ty', 'ten cong ty', 'ten khach hang', 'khach hang', 'company'],
-      sample: 'Điện tử Kỳ Anh',
+      sample: 'Điện tử Kỳ Anh', // i18n-ignore
     },
     {
       key: 'province',
-      label: 'Tỉnh',
+      label: message('Tỉnh', 'Province', '시·도'),
       max: LEAD_MAX.province,
       /* 'company city' và 'company state' có mặt vì tệp Apollo — bản xuất
          phổ biến nhất của khối outbound — chở BỐN cột địa danh: 'City' và
@@ -428,11 +558,11 @@ export const LEAD_SPEC: ImportSpec = {
         'company city',
         'company state',
       ],
-      sample: 'Hải Phòng',
+      sample: 'Hải Phòng', // i18n-ignore
     },
     {
       key: 'category',
-      label: 'Nhóm ngành',
+      label: message('Nhóm ngành', 'Industry group', '업종'),
       /* Not required, and the closed list is why: the config categories are how
          PV One splits the market, not how Apollo does. A cell off the list is
          dropped (`withCategories`), leaving slot 2 of the init gate unfilled. */
@@ -441,7 +571,7 @@ export const LEAD_SPEC: ImportSpec = {
     },
     {
       key: 'source',
-      label: 'Chiến dịch',
+      label: message('Chiến dịch', 'Campaign', '캠페인'),
       aliases: ['ma nguon', 'ma chien dich', 'chien dich', 'campaign'],
       options: SOURCE_OPTIONS,
       sample: 'CD-0101',
@@ -449,7 +579,7 @@ export const LEAD_SPEC: ImportSpec = {
     {
       /* Free text, folded by `originKey` on the server; a new name mints a row. */
       key: 'origin',
-      label: 'Nguồn',
+      label: message('Nguồn', 'Source', '출처'),
       aliases: [
         'nguon',
         'nguon lead',
@@ -463,43 +593,43 @@ export const LEAD_SPEC: ImportSpec = {
     },
     {
       key: 'owner',
-      label: 'Lead PIC',
+      label: message('Lead PIC', 'Lead owner', '리드 담당자'),
       aliases: ['lead pic', 'pic', 'nguoi giu', 'phu trach', 'owner', 'sale'],
       max: LEAD_MAX.contactName,
       people: 'name',
-      sample: 'Lê Hoàng Nam',
+      sample: 'Lê Hoàng Nam', // i18n-ignore
     },
     {
       key: 'tier',
-      label: 'Bậc',
+      label: message('Bậc', 'Tier', '등급'),
       aliases: ['bac', 'tier', 'stage', 'muc'],
       options: TIER_OPTIONS,
-      sample: 'Đầu mối',
+      sample: 'Đầu mối', // i18n-ignore
     },
     {
       key: 'legalName',
-      label: 'Tên pháp nhân',
+      label: message('Tên pháp nhân', 'Legal name', '법인명'),
       aliases: ['ten phap nhan', 'phap nhan', 'ten dang ky', 'legal name'],
       max: LEAD_MAX.legalName,
-      sample: 'Công ty CP Điện tử Kỳ Anh',
+      sample: 'Công ty CP Điện tử Kỳ Anh', // i18n-ignore
     },
     {
       key: 'taxCode',
-      label: 'Mã số thuế',
+      label: message('Mã số thuế', 'Tax code', '세금 번호'),
       aliases: ['ma so thue', 'mst', 'tax code', 'tax'],
       max: LEAD_MAX.taxCode,
       sample: '0201234567',
     },
     {
       key: 'address',
-      label: 'Địa chỉ',
+      label: message('Địa chỉ', 'Address', '주소'),
       aliases: ['dia chi', 'address', 'dia chi nha may'],
       max: LEAD_MAX.address,
-      sample: 'KCN Nomura, Hải Phòng',
+      sample: 'KCN Nomura, Hải Phòng', // i18n-ignore
     },
     {
       key: 'contactName',
-      label: 'Người liên hệ',
+      label: message('Người liên hệ', 'Contact person', '연락 담당자'),
       required: true,
       max: LEAD_MAX.contactName,
       /* 'contact' TRẦN đã bỏ: vòng dò thứ hai khớp theo CHỨA, và
@@ -521,7 +651,7 @@ export const LEAD_SPEC: ImportSpec = {
         'ho va ten',
         'full name',
       ],
-      sample: 'Nguyễn Văn Thành',
+      sample: 'Nguyễn Văn Thành', // i18n-ignore
     },
     {
       key: 'contactSurname',
@@ -531,7 +661,11 @@ export const LEAD_SPEC: ImportSpec = {
          THEO CHỨA sẽ khớp trúng "Home Phone" của chính tệp Apollo. Nhãn dài
          hơn ba chữ là cách rẻ nhất để chuyện đó không xảy ra — mà một cột tên
          đúng "Họ" vẫn khớp được ở vòng hai theo chiều ngược. */
-      label: 'Họ (nếu tách cột)',
+      label: message(
+        'Họ (nếu tách cột)',
+        'Last name (if split into columns)',
+        '성 (열이 나뉜 경우)',
+      ),
       aliases: ['last name', 'surname', 'family name', 'ho lot', 'ho va ten dem'],
       mergeBefore: 'contactName',
       max: LEAD_MAX.contactName,
@@ -542,21 +676,21 @@ export const LEAD_SPEC: ImportSpec = {
     },
     {
       key: 'contactTitle',
-      label: 'Chức danh',
+      label: message('Chức danh', 'Job title', '직함'),
       aliases: ['chuc danh', 'chuc vu', 'title', 'position'],
       max: LEAD_MAX.contactTitle,
-      sample: 'Giám đốc nhà máy',
+      sample: 'Giám đốc nhà máy', // i18n-ignore
     },
     {
       key: 'phone',
-      label: 'Điện thoại',
+      label: message('Điện thoại', 'Phone', '전화번호'),
       aliases: ['dien thoai', 'sdt', 'so dien thoai', 'phone', 'mobile', 'tel'],
       max: PHONE_MAX,
       sample: '0912345678',
     },
     {
       key: 'email',
-      label: 'Email',
+      label: message('Email', 'Email', '이메일'),
       /* Bắt buộc vì hai cửa dưới nó đều bắt buộc: máy chủ khoá chống trùng
          theo `email:lower(email)`, và cả sổ lead sinh ra là để gửi được MAS
          mail. Một dòng không hòm thư vừa không so trùng được vừa không làm
@@ -568,82 +702,86 @@ export const LEAD_SPEC: ImportSpec = {
     },
     {
       key: 'channel',
-      label: 'Kênh liên hệ',
+      label: message('Kênh liên hệ', 'Contact channel', '연락 채널'),
       aliases: ['kenh', 'kenh lien he', 'channel'],
       options: CHANNEL_OPTIONS,
       sample: 'Zalo OA',
     },
     {
       key: 'headcount',
-      label: 'Quy mô',
+      label: message('Quy mô', 'Company size', '규모'),
       aliases: ['quy mo', 'so nguoi', 'nhan su', 'headcount', 'size'],
       sample: '1400',
     },
     {
       key: 'pain',
-      label: 'Vấn đề đang gặp',
+      label: message('Vấn đề đang gặp', 'Current challenge', '현재 문제'),
       aliases: ['van de', 'nhu cau', 'pain', 'ghi chu', 'note'],
       max: LEAD_MAX.pain,
-      sample: 'Theo dõi tiến độ chuyền bằng Excel, cuối tháng mới biết trễ',
+      sample: 'Theo dõi tiến độ chuyền bằng Excel, cuối tháng mới biết trễ', // i18n-ignore
     },
   ],
-}
+})
 
 /** Spec danh sách người nhận của một chiến dịch.
  *
  *  Ngắn hơn spec lead có chủ đích: ở bậc này chưa ai là khách hàng, họ mới là
  *  một địa chỉ trong danh sách gửi. Đòi ngành và tỉnh ở đây là đòi thứ chỉ biết
  *  được SAU khi có người trả lời. */
-export const RECIPIENT_SPEC: ImportSpec = {
+export const RECIPIENT_SPEC: ImportSpec = specOf({
   key: 'recipient',
-  title: 'Nạp danh sách người nhận',
-  blurb: 'Danh sách gửi của một đợt, hoặc danh sách đăng ký và người đến của một buổi.',
+  title: message('Nạp danh sách người nhận', 'Import recipient list', '수신자 목록 가져오기'),
+  blurb: message(
+    'Danh sách gửi của một đợt, hoặc danh sách đăng ký và người đến của một buổi.',
+    'The send list of a wave, or the registration and attendance list of an event.',
+    '한 웨이브의 발송 목록 또는 행사의 등록·참석자 목록입니다.',
+  ),
   intake: 'file',
   motions: ['outbound', 'event'],
   defaultMotion: 'outbound',
   sampleStem: 'mau-nap-nguoi-nhan',
-  rowNoun: 'người nhận',
+  rowNoun: message('người nhận', 'recipients', '수신자'),
   fields: [
     {
       key: 'company',
-      label: 'Account',
+      label: message('Account', 'Account', '고객사'),
       required: true,
       aliases: ['account', 'cong ty', 'ten cong ty', 'khach hang', 'company'],
-      sample: 'Điện tử Kỳ Anh',
+      sample: 'Điện tử Kỳ Anh', // i18n-ignore
     },
     {
       key: 'contactName',
-      label: 'Người nhận',
+      label: message('Người nhận', 'Recipient', '수신자'),
       aliases: ['nguoi nhan', 'ho ten', 'ten', 'contact', 'name'],
-      sample: 'Nguyễn Văn Thành',
+      sample: 'Nguyễn Văn Thành', // i18n-ignore
     },
     {
       key: 'contactTitle',
-      label: 'Chức danh',
+      label: message('Chức danh', 'Job title', '직함'),
       aliases: ['chuc danh', 'chuc vu', 'title'],
-      sample: 'Giám đốc nhà máy',
+      sample: 'Giám đốc nhà máy', // i18n-ignore
     },
     {
       key: 'email',
-      label: 'Email',
+      label: message('Email', 'Email', '이메일'),
       required: true,
       aliases: ['email', 'mail', 'thu dien tu', 'e-mail'],
       sample: 'thanh.nv@kyanh.vn',
     },
     {
       key: 'phone',
-      label: 'Điện thoại',
+      label: message('Điện thoại', 'Phone', '전화번호'),
       aliases: ['dien thoai', 'sdt', 'phone', 'mobile'],
       sample: '0912345678',
     },
     {
       key: 'province',
-      label: 'Tỉnh',
+      label: message('Tỉnh', 'Province', '시·도'),
       aliases: ['tinh', 'province', 'city'],
-      sample: 'Hải Phòng',
+      sample: 'Hải Phòng', // i18n-ignore
     },
   ],
-}
+})
 
 /** Spec sổ cơ hội — luồng DI TRÚ, không phải luồng hằng ngày.
  *
@@ -671,83 +809,91 @@ export const RECIPIENT_SPEC: ImportSpec = {
  *  `people: 'id'` bên dưới vì thế đang nằm im — nó chỉ có tác dụng khi có ai gọi
  *  `withPeople`, và ngày đó phải đổi sang `'name'` trước, nếu không ô chọn đổ id
  *  vào tệp và mọi dòng đều trượt ở phép tra theo tên. */
-export const OP_SPEC: ImportSpec = {
+export const OP_SPEC: ImportSpec = specOf({
   key: 'op',
-  title: 'Nạp cơ hội vào sổ',
-  blurb: 'Mang cơ hội đang giữ trong Excel vào sổ, mỗi dòng một đơn.',
+  title: message('Nạp cơ hội vào sổ', 'Import opportunities', '기회 가져오기'),
+  blurb: message(
+    'Mang cơ hội đang giữ trong Excel vào sổ, mỗi dòng một đơn.',
+    'Bring the opportunities you keep in Excel into the book, one deal per row.',
+    'Excel에 있는 기회를 목록으로 가져옵니다. 한 행이 거래 하나입니다.',
+  ),
   intake: 'file',
   defaultMotion: 'outbound',
   sampleStem: 'mau-nap-co-hoi',
-  bookDupLabel: 'Lead có cơ hội đang chạy',
+  bookDupLabel: message(
+    'Lead có cơ hội đang chạy',
+    'Leads with a running opportunity',
+    '진행 중인 기회가 있는 리드',
+  ),
   anyOf: ['leadCode', 'company'],
   fields: [
     {
       key: 'name',
-      label: 'Tên cơ hội',
+      label: message('Tên cơ hội', 'Opportunity name', '기회 이름'),
       required: true,
       aliases: ['ten co hoi', 'co hoi', 'ten don', 'opportunity', 'deal'],
-      sample: 'Điện tử Kỳ Anh — Factory MES',
+      sample: 'Điện tử Kỳ Anh — Factory MES', // i18n-ignore
     },
     {
       key: 'company',
-      label: 'Account',
+      label: message('Account', 'Account', '고객사'),
       aliases: ['account', 'cong ty', 'khach hang', 'company'],
-      sample: 'Điện tử Kỳ Anh',
+      sample: 'Điện tử Kỳ Anh', // i18n-ignore
     },
     {
       key: 'amount',
-      label: 'Giá trị đơn',
+      label: message('Giá trị đơn', 'Deal value', '거래 금액'),
       required: true,
       aliases: ['gia tri', 'gia tri don', 'so tien', 'amount', 'value'],
       sample: '1800000000',
     },
     {
       key: 'closedDate',
-      label: 'Ngày đóng dự kiến',
+      label: message('Ngày đóng dự kiến', 'Expected close date', '예상 마감일'),
       required: true,
       aliases: ['ngay dong', 'ngay dong du kien', 'close date', 'closed date'],
       sample: '2026-10-15',
     },
     {
       key: 'saleOwner',
-      label: 'Sale đứng đơn',
+      label: message('Sale đứng đơn', 'Salesperson', '영업 담당자'),
       aliases: ['sale', 'sale owner', 'nguoi ban', 'owner'],
       people: 'id',
-      sample: 'Đỗ Quang Huy',
+      sample: 'Đỗ Quang Huy', // i18n-ignore
     },
     {
       key: 'bdOwner',
-      label: 'BD đứng đơn',
+      label: message('BD đứng đơn', 'BD on the deal', 'BD 담당자'),
       aliases: ['bd', 'bd owner', 'business development'],
       people: 'id',
-      sample: 'Lê Hoàng Nam',
+      sample: 'Lê Hoàng Nam', // i18n-ignore
     },
     {
       key: 'leadCode',
-      label: 'Mã lead',
+      label: message('Mã lead', 'Lead ID', '리드 ID'),
       aliases: ['ma lead', 'lead', 'lead code'],
       sample: '',
     },
     {
       key: 'contact',
-      label: 'Mã người liên hệ',
+      label: message('Mã người liên hệ', 'Contact ID', '연락처 ID'),
       aliases: ['ma nguoi lien he', 'ma lien he', 'contact', 'contact code'],
       sample: '',
     },
     {
       key: 'contactRole',
-      label: 'Vai trò người liên hệ',
+      label: message('Vai trò người liên hệ', 'Contact role', '연락처 역할'),
       aliases: ['vai tro nguoi lien he', 'vai tro', 'contact role', 'role'],
-      sample: 'Người quyết định',
+      sample: 'Người quyết định', // i18n-ignore
     },
     {
       key: 'products',
-      label: 'Mã sản phẩm',
+      label: message('Mã sản phẩm', 'Product code', '제품 코드'),
       aliases: ['san pham', 'ma san pham', 'products', 'product'],
       sample: 'PD-02, PD-05',
     },
   ],
-}
+})
 
 // ---------------------------------------------------------------------------
 // Khớp cột — dò tự động
@@ -839,15 +985,21 @@ export function guessMapping(
   const matches = (ok: (h: string) => boolean) =>
     norm.flatMap((h, i) => (!used.has(i) && h !== '' && ok(h) ? [i] : []))
 
+  /* Exact pass: the label in any language, since a template may have been
+     downloaded in another one. The fuzzy pass keeps Vietnamese only. */
   for (const field of spec.fields) {
-    const targets = [normalise(field.label), ...field.aliases.map(normalise)]
+    const labels = Object.values(field.copy.label ?? {}).map(normalise)
+    const targets = [...labels, ...field.aliases.map(normalise)]
     const hit = fullest(matches((h) => targets.includes(h)))
     if (hit !== undefined) claim(field.key, hit)
   }
 
   for (const field of spec.fields) {
     if (out[field.key] !== undefined) continue
-    const targets = [normalise(field.label), ...field.aliases.map(normalise)]
+    const targets = [
+      normalise(field.copy.label?.vi ?? field.label),
+      ...field.aliases.map(normalise),
+    ]
     const hit = fullest(matches((h) => targets.some((t) => h.includes(t) || t.includes(h))))
     if (hit !== undefined) claim(field.key, hit)
   }
@@ -874,7 +1026,8 @@ export function unmappedRequired(mapping: ColumnMapping, spec: ImportSpec): stri
 export function anyOfLabel(spec: ImportSpec): string | undefined {
   if (!spec.anyOf) return undefined
   const keys = spec.anyOf
-  return keys.map((key) => spec.fields.find((f) => f.key === key)?.label ?? key).join(' hoặc ')
+  const or = translate(message(' hoặc ', ' or ', ' 또는 '))
+  return keys.map((key) => spec.fields.find((f) => f.key === key)?.label ?? key).join(or)
 }
 
 // ---------------------------------------------------------------------------
@@ -1013,9 +1166,19 @@ export type ImportReport = {
  *  and the result panel print, so the two never word one fact differently. */
 export function originTally(origins: { matched: number; created: string[] }): string {
   const made = origins.created.length
-  return made === 0
-    ? `Khớp ${origins.matched} nguồn`
-    : `Khớp ${origins.matched} nguồn · tạo mới ${made}: ${origins.created.join(', ')}`
+  return translate(
+    made === 0
+      ? message(
+          `Khớp ${origins.matched} nguồn`,
+          `${origins.matched} sources matched`,
+          `출처 ${origins.matched}개 일치`,
+        )
+      : message(
+          `Khớp ${origins.matched} nguồn · tạo mới ${made}: ${origins.created.join(', ')}`,
+          `${origins.matched} sources matched · ${made} created: ${origins.created.join(', ')}`,
+          `출처 ${origins.matched}개 일치 · ${made}개 신규 생성: ${origins.created.join(', ')}`,
+        ),
+  )
 }
 
 /** Nhường lại một nhịp vẽ cho trình duyệt.
@@ -1068,7 +1231,17 @@ export async function buildRows(
       const cell = at < 0 ? '' : (raw[at] ?? '').trim()
 
       if (cell === '') {
-        if (field.required) bad ??= { field: field.key, reason: `Thiếu ${field.label}` }
+        if (field.required)
+          bad ??= {
+            field: field.key,
+            reason: translate(
+              message(
+                `Thiếu ${field.label}`,
+                `${field.label} is missing`,
+                `${field.label}이(가) 없습니다`,
+              ),
+            ),
+          }
         continue
       }
 
@@ -1080,7 +1253,13 @@ export async function buildRows(
           if (field.required)
             bad ??= {
               field: field.key,
-              reason: `${field.label} "${cell}" không có trong danh sách`,
+              reason: translate(
+                message(
+                  `${field.label} "${cell}" không có trong danh sách`,
+                  `${field.label} "${cell}" is not in the list`,
+                  `${field.label} "${cell}"은(는) 목록에 없습니다`,
+                ),
+              ),
             }
           continue
         }
@@ -1101,7 +1280,13 @@ export async function buildRows(
       if (limit !== undefined && cell.length > limit) {
         bad ??= {
           field: field.key,
-          reason: `${field.label} dài ${cell.length} ký tự, tối đa ${limit}`,
+          reason: translate(
+            message(
+              `${field.label} dài ${cell.length} ký tự, tối đa ${limit}`,
+              `${field.label} is ${cell.length} characters long; the maximum is ${limit}`,
+              `${field.label}이(가) ${cell.length}자입니다. 최대 ${limit}자까지 가능합니다`,
+            ),
+          ),
         }
         continue
       }
@@ -1188,7 +1373,12 @@ export function errorRows(errors: RowError[], spec?: ImportSpec): string[][] {
     key === undefined ? '' : (spec?.fields.find((f) => f.key === key)?.label ?? key)
 
   return [
-    ['Dòng trong tệp', 'Ô đầu dòng', 'Cột sai', 'Vì sao không nạp được'],
+    [
+      translate(message('Dòng trong tệp', 'Row in file', '파일의 행')),
+      translate(message('Ô đầu dòng', 'First cell of row', '행의 첫 셀')),
+      translate(message('Cột sai', 'Wrong column', '잘못된 열')),
+      translate(message('Vì sao không nạp được', 'Why it was not imported', '가져오지 못한 이유')),
+    ],
     ...errors.map((e) => [String(e.line), e.first, labelOf(e.field), e.reason]),
   ]
 }
@@ -1326,7 +1516,7 @@ export function rowsToLeads(
           /* Dòng lịch sử nói ra ĐƯỜNG VÀO và số dòng trong tệp gốc. Sáu tháng
              sau, câu hỏi duy nhất về một lead lạ là "cái này ở đâu ra" — và
              "nạp từ tệp X, dòng 312" trả lời xong, còn "vào sổ" thì không. */
-          note: `Nạp từ tệp · dòng ${row.line} · ${MOTION_FACE[opts.motion].label}`,
+          note: `Nạp từ tệp · dòng ${row.line} · ${MOTION_FACE[opts.motion].copy.label?.vi}`, // i18n-ignore
         },
       ],
     }

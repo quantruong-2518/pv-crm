@@ -4,7 +4,7 @@ import { dmhm } from '@/lib/date'
 
 /** Module 1 · the wave modal's wording that is computed, not drawn. */
 
-export const tr = (vi: string, en: string, ko: string) => translate(message(vi, en, ko))
+export const msg = (vi: string, en: string, ko: string) => translate(message(vi, en, ko))
 
 /** The button's words: what is about to happen and to how many. */
 export function fireLabel(
@@ -14,20 +14,20 @@ export function fireLabel(
   people: string,
 ) {
   return busy
-    ? tr('Đang gửi…', 'Sending…', '발송 중…')
+    ? msg('Đang gửi…', 'Sending…', '발송 중…')
     : waves.length > 1
-      ? tr(
+      ? msg(
           `Gửi ${waves.length} đợt cho ${people} người`,
           `Send ${waves.length} waves to ${people} recipients`,
-          `수신자 ${people}명에게 ${waves.length}개 차수 발송`,
+          `수신자 ${people}명에게 ${waves.length}개 웨이브 발송`,
         )
       : scheduled && waves[0]?.scheduledAt
-        ? tr(
+        ? msg(
             `Hẹn ${dmhm(waves[0].scheduledAt)} cho ${people} người`,
             `Schedule for ${dmhm(waves[0].scheduledAt)} · ${people} recipients`,
             `${dmhm(waves[0].scheduledAt)}에 수신자 ${people}명 예약`,
           )
-        : tr(
+        : msg(
             `Gửi cho ${people} người`,
             `Send to ${people} recipients`,
             `수신자 ${people}명에게 발송`,
@@ -37,12 +37,12 @@ export function fireLabel(
 /** One line under each step saying what it already holds. */
 export function stepSummaries(people: string, subject: string, waveCount: number) {
   return [
-    tr(`${people} người nhận`, `${people} recipients`, `수신자 ${people}명`),
+    msg(`${people} người nhận`, `${people} recipients`, `수신자 ${people}명`),
     subject.trim(),
-    tr(
+    msg(
       `${Math.max(waveCount, 1)} đợt`,
       `${Math.max(waveCount, 1)} waves`,
-      `발송 차수 ${Math.max(waveCount, 1)}개`,
+      `웨이브 ${Math.max(waveCount, 1)}개`,
     ),
   ]
 }

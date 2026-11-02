@@ -9,6 +9,7 @@ import {
   type CommDraft,
 } from '@/data/comm-record-detail'
 import { useCloseStep } from '@/data/customer-close'
+import { message, translate, useLang } from '@/app/i18n'
 
 /** The state of a comm's three-step form on `/comms/:id`, shared by the
  *  owner's first fill and the later edit (ADR 0122): what is typed, which step
@@ -17,6 +18,7 @@ import { useCloseStep } from '@/data/customer-close'
 
 /** `titled` false drops the title field: a booked meeting keeps no title of its own. */
 export function useCommForm(record: DebriefView, seed: CommDraft, titled = true) {
+  const lang = useLang()
   const vocab = useQuery(commVocabularyQuery)
   const close = useCloseStep(record.subject.code, record.stepTarget)
   const [title, setTitle] = useState(seed.title)
@@ -26,9 +28,11 @@ export function useCommForm(record: DebriefView, seed: CommDraft, titled = true)
   const [at, setAt] = useState(0)
 
   const missing = [
-    titled && title.trim() === '' && 'tiêu đề',
-    summary.trim() === '' && 'ghi chú',
-  ].filter((word): word is string => word !== false)
+    titled && title.trim() === '' && message('tiêu đề', 'title', '제목'),
+    summary.trim() === '' && message('ghi chú', 'notes', '메모'),
+  ]
+    .filter((word) => word !== false)
+    .map((word) => translate(word, lang))
   const go = (index: number) => {
     setAt(index)
     window.scrollTo({ top: 0 })
@@ -53,7 +57,17 @@ export function useCommForm(record: DebriefView, seed: CommDraft, titled = true)
     answers,
     titled,
     titles: commStepTitles(record),
-    contentGap: missing.length > 0 ? `Còn thiếu ${missing.join(' và ')}` : null,
+    contentGap:
+      missing.length > 0
+        ? translate(
+            message(
+              `Còn thiếu ${missing.join(' và ')}`,
+              `Missing ${missing.join(' and ')}`,
+              `${missing.join(' 및 ')} 입력이 필요합니다`,
+            ),
+            lang,
+          )
+        : null,
     /** The answers alone; each caller decides when the temperature counts too. */
     answersGap: evaluationBlockerOf(vocab, picked),
   }

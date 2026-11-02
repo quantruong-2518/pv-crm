@@ -1,13 +1,11 @@
 import { useState } from 'react'
 import { Button, Drawer, Icon, Input, Save, SegmentedControl, Trash2, X, cn } from '@pv/ui'
-import {
-  CONTRACT_PENALTY_DIRECTION_LABEL,
-  type ContractPenaltyDirection,
-  type CurrencyCode,
-} from '@pv/contracts'
+import type { ContractPenaltyDirection, CurrencyCode } from '@pv/contracts'
 import { userMessage } from '@/app/api'
+import { message, useI18n, type Message } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import type { Contract } from '@/data/contracts'
+import { penaltyDirectionText } from '@/data/contract-copy'
 import { useSavePenalty } from '@/data/contracts-write'
 import {
   penaltyDayWrong,
@@ -29,9 +27,23 @@ import { Field } from './ops-fields'
 
 const NONE = 'none'
 
-const DAY_LABEL: Record<ContractPenaltyDirection, { label: string; hint: string }> = {
-  'customer-pays': { label: 'Ngày nhận tiền phạt', hint: 'Để trống nếu chưa nhận.' },
-  'company-pays': { label: 'Ngày trả tiền phạt', hint: 'Để trống nếu chưa trả.' },
+const DAY_LABEL: Record<ContractPenaltyDirection, { label: Message; hint: Message }> = {
+  'customer-pays': {
+    label: message('Ngày nhận tiền phạt', 'Penalty received on', '위약금 수령일'),
+    hint: message(
+      'Để trống nếu chưa nhận.',
+      'Leave empty if not received yet.',
+      '아직 받지 않았다면 비워 두세요.',
+    ),
+  },
+  'company-pays': {
+    label: message('Ngày trả tiền phạt', 'Penalty paid on', '위약금 지급일'),
+    hint: message(
+      'Để trống nếu chưa trả.',
+      'Leave empty if not paid yet.',
+      '아직 지급하지 않았다면 비워 두세요.',
+    ),
+  },
 }
 
 export function PenaltyFields({
@@ -43,15 +55,18 @@ export function PenaltyFields({
   onChange: (next: PenaltyDraft) => void
   currency: CurrencyCode | null
 }) {
+  const { t, lang, number } = useI18n()
   const { direction } = draft
-  const day = direction ? DAY_LABEL[direction] : null
+  const day = direction
+    ? { label: t(DAY_LABEL[direction].label), hint: t(DAY_LABEL[direction].hint) }
+    : null
   const wrongDay = penaltyDayWrong(draft)
 
   return (
     <div className="flex flex-col gap-6">
-      <Field label="Tiền phạt" plain>
+      <Field label={t(message('Tiền phạt', 'Penalty', '위약금'))} plain>
         <SegmentedControl
-          label="Tiền phạt"
+          label={t(message('Tiền phạt', 'Penalty', '위약금'))}
           hideLabel
           tone="quiet"
           value={direction ?? NONE}
@@ -59,22 +74,22 @@ export function PenaltyFields({
             onChange({ ...draft, direction: v === NONE ? null : (v as ContractPenaltyDirection) })
           }
           options={[
-            { value: NONE, label: 'Không phạt' },
-            { value: 'customer-pays', label: CONTRACT_PENALTY_DIRECTION_LABEL['customer-pays'] },
-            { value: 'company-pays', label: CONTRACT_PENALTY_DIRECTION_LABEL['company-pays'] },
+            { value: NONE, label: t(message('Không phạt', 'No penalty', '위약금 없음')) },
+            { value: 'customer-pays', label: penaltyDirectionText('customer-pays', lang) },
+            { value: 'company-pays', label: penaltyDirectionText('company-pays', lang) },
           ]}
         />
       </Field>
 
       {direction && day && (
         <>
-          <Field label="Số tiền phạt" required>
+          <Field label={t(message('Số tiền phạt', 'Penalty amount', '위약금 금액'))} required>
             <span className="relative flex items-center">
               <Input
                 inputMode="numeric"
-                aria-label="Số tiền phạt"
+                aria-label={t(message('Số tiền phạt', 'Penalty amount', '위약금 금액'))}
                 className="tnum font-num pointer-coarse:h-12 pr-8"
-                value={draft.amount === null ? '' : draft.amount.toLocaleString('vi-VN')}
+                value={draft.amount === null ? '' : number(draft.amount)}
                 onChange={(e) => {
                   const digits = e.target.value.replace(/\D/g, '')
                   onChange({ ...draft, amount: digits === '' ? null : Number(digits) })
@@ -114,6 +129,7 @@ export function PenaltyDrawer({
   open: boolean
   onClose: () => void
 }) {
+  const { t } = useI18n()
   const current = contract.termination?.penalty
   const [draft, setDraft] = useState(() => penaltyDraftOf(current))
   const save = useSavePenalty(contract.code)
@@ -138,7 +154,11 @@ export function PenaltyDrawer({
       { penalty: penaltyInputOf(draft) ?? null },
       {
         onSuccess: () => {
-          toastDone(clearing ? 'Đã bỏ tiền phạt.' : 'Đã lưu tiền phạt.')
+          toastDone(
+            clearing
+              ? t(message('Đã bỏ tiền phạt.', 'Penalty removed.', '위약금을 삭제했습니다.'))
+              : t(message('Đã lưu tiền phạt.', 'Penalty saved.', '위약금을 저장했습니다.')),
+          )
           onClose()
         },
       },
@@ -150,7 +170,7 @@ export function PenaltyDrawer({
     <Drawer
       open={open}
       onClose={close}
-      title="Tiền phạt"
+      title={t(message('Tiền phạt', 'Penalty', '위약금'))}
       subtitle={
         <>
           <span className="font-mono">{contract.code}</span> · {contract.customer}
@@ -178,11 +198,13 @@ export function PenaltyDrawer({
               onClick={close}
             >
               <Icon icon={X} size={16} />
-              Huỷ
+              {t(message('Huỷ', 'Cancel', '취소'))}
             </Button>
             <Button size="md" className="pointer-coarse:h-12" disabled={!ready} onClick={submit}>
               <Icon icon={clearing ? Trash2 : Save} size={16} />
-              {clearing ? 'Bỏ tiền phạt' : 'Lưu tiền phạt'}
+              {clearing
+                ? t(message('Bỏ tiền phạt', 'Remove penalty', '위약금 삭제'))
+                : t(message('Lưu tiền phạt', 'Save penalty', '위약금 저장'))}
             </Button>
           </div>
         </div>

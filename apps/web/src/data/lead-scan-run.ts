@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { SCAN_PUT_HEADERS } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
+import { message, translate } from '@/app/i18n'
 import { toastOf } from '@/app/toast'
 import { createScanBatch, scanBatchKey, startScanBatch } from './lead-scan'
 import {
@@ -158,7 +159,22 @@ async function prepareAll(picked: Picked[], keys: string[]): Promise<Ready[]> {
   })
   if (repeats.size > 0) {
     dropFiles(repeats)
-    toastWarn(`Bỏ ${repeats.size} tệp trùng`, 'Một tệp được chọn nhiều lần.')
+    toastWarn(
+      translate(
+        message(
+          `Bỏ ${repeats.size} tệp trùng`,
+          `Dropped ${repeats.size} duplicate files`,
+          `중복 파일 ${repeats.size}개 제외`,
+        ),
+      ),
+      translate(
+        message(
+          'Một tệp được chọn nhiều lần.',
+          'A file was picked more than once.',
+          '같은 파일이 여러 번 선택되었습니다.',
+        ),
+      ),
+    )
   }
   return ready
 }
@@ -182,7 +198,22 @@ async function upload(
   })
   if (repeats.size > 0) {
     dropFiles(repeats)
-    toastWarn(`Bỏ ${repeats.size} tệp trùng`, 'Tệp này đã có trong lô.')
+    toastWarn(
+      translate(
+        message(
+          `Bỏ ${repeats.size} tệp trùng`,
+          `Dropped ${repeats.size} duplicate files`,
+          `중복 파일 ${repeats.size}개 제외`,
+        ),
+      ),
+      translate(
+        message(
+          'Tệp này đã có trong lô.',
+          'This file is already in the batch.',
+          '이 파일은 이미 묶음에 있습니다.',
+        ),
+      ),
+    )
   }
 
   const ids = await inPool(jobs, UPLOAD_LANES, async ({ key, prepared, slot }) => {
@@ -199,7 +230,10 @@ async function upload(
       patchFile(key, { phase: 'uploaded', progress: 1 })
       return slot.id
     } catch {
-      patchFile(key, { phase: 'failed', error: 'Không tải lên được' })
+      patchFile(key, {
+        phase: 'failed',
+        error: translate(message('Không tải lên được', 'Upload failed', '업로드하지 못했습니다')),
+      })
       return null
     }
   })
@@ -213,7 +247,16 @@ async function runScan(
   client: QueryClient,
 ) {
   const ready = await prepareAll(picked, keys)
-  if (ready.length === 0) return patchRun({ failure: 'Không tệp nào chuẩn bị được.' })
+  if (ready.length === 0)
+    return patchRun({
+      failure: translate(
+        message(
+          'Không tệp nào chuẩn bị được.',
+          'No file could be prepared.',
+          '준비된 파일이 없습니다.',
+        ),
+      ),
+    })
 
   let created: Awaited<ReturnType<typeof createScanBatch>>
   try {
@@ -222,21 +265,55 @@ async function runScan(
       files: ready.map((r) => r.prepared.declared),
     })
   } catch (error) {
-    const reason = failureOf(error, 'Không mở được lô mới.')
+    const reason = failureOf(
+      error,
+      translate(
+        message(
+          'Không mở được lô mới.',
+          'Could not open a new batch.',
+          '새 묶음을 열 수 없습니다.',
+        ),
+      ),
+    )
     useScanRun.setState({ run: null, held: { picked, campaign, reason } })
-    return toastFail('Chưa mở được lô mới', reason)
+    return toastFail(
+      translate(
+        message('Chưa mở được lô mới', 'Could not open a new batch', '새 묶음을 열지 못했습니다'),
+      ),
+      reason,
+    )
   }
   patchRun({ code: created.code })
 
   const ids = await upload(created.code, ready, created.files)
   if (!alive(created.code)) return
-  if (ids.length === 0) return patchRun({ failure: 'Không tệp nào tải lên được.' })
+  if (ids.length === 0)
+    return patchRun({
+      failure: translate(
+        message(
+          'Không tệp nào tải lên được.',
+          'No file could be uploaded.',
+          '업로드된 파일이 없습니다.',
+        ),
+      ),
+    })
   try {
     await startScanBatch(created.code, ids)
     patchRun({ started: true })
     void client.invalidateQueries({ queryKey: scanBatchKey(created.code) })
   } catch (error) {
-    patchRun({ failure: failureOf(error, 'Không bắt đầu đọc được lô này.') })
+    patchRun({
+      failure: failureOf(
+        error,
+        translate(
+          message(
+            'Không bắt đầu đọc được lô này.',
+            'Could not start reading this batch.',
+            '이 묶음을 읽기 시작하지 못했습니다.',
+          ),
+        ),
+      ),
+    })
   }
 }
 
@@ -263,8 +340,27 @@ export function useBeginScan() {
       },
     })
     runScan(picked, keys, campaign, client).catch((error: unknown) => {
-      patchRun({ failure: failureOf(error, 'Lô này dừng giữa chừng.') })
-      toastFail('Lô này dừng giữa chừng')
+      patchRun({
+        failure: failureOf(
+          error,
+          translate(
+            message(
+              'Lô này dừng giữa chừng.',
+              'This batch stopped midway.',
+              '이 묶음이 중간에 중단되었습니다.',
+            ),
+          ),
+        ),
+      })
+      toastFail(
+        translate(
+          message(
+            'Lô này dừng giữa chừng',
+            'This batch stopped midway',
+            '이 묶음이 중간에 중단되었습니다',
+          ),
+        ),
+      )
     })
   }
 }

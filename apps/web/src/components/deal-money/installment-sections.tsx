@@ -13,17 +13,12 @@ import {
   StatusDot,
   cn,
 } from '@pv/ui'
-import {
-  DOC_STATE_LABEL,
-  RecordChannel,
-  type ContractCode,
-  type DocState,
-  type InstallmentRow,
-} from '@pv/contracts'
+import { RecordChannel, type ContractCode, type DocState, type InstallmentRow } from '@pv/contracts'
 import { userMessage } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import { dmhm, dmy } from '@/lib/date'
-import { CONDITION_SIDE_LABEL, RECORD_CHANNEL_LABEL } from '@/data/contracts'
+import { conditionSideText, docStateText, recordChannelText } from '@/data/installment-copy'
 import { PAY_TEXT_MAX, useAddReminder } from '@/data/contracts-write'
 import { BADGE_INK } from '@/data/opportunities'
 import { Field } from '@/components/ops-fields'
@@ -84,21 +79,30 @@ export function AcceptSection({
   /** Absent = the reader may not add a condition. */
   onAdd?: (() => void) | undefined
 }) {
+  const { t, lang } = useI18n()
   return (
     <Section
       divided={false}
-      title="Nghiệm thu"
+      title={t(message('Nghiệm thu', 'Acceptance', '검수'))}
       action={
         onAdd && (
           <Button size="sm" variant="ghost" className="pointer-coarse:h-12" onClick={onAdd}>
             <Icon icon={Plus} size={16} />
-            Thêm điều kiện
+            {t(message('Thêm điều kiện', 'Add condition', '조건 추가'))}
           </Button>
         )
       }
     >
       {installment.conditions.length === 0 ? (
-        <p className={LINE}>Chưa ghi điều kiện nào.</p>
+        <p className={LINE}>
+          {t(
+            message(
+              'Chưa ghi điều kiện nào.',
+              'No conditions recorded.',
+              '기록된 조건이 없습니다.',
+            ),
+          )}
+        </p>
       ) : (
         <ul className="m-0 flex list-none flex-col gap-3 p-0">
           {installment.conditions.map((c) => (
@@ -111,10 +115,18 @@ export function AcceptSection({
                 <span className="block break-words">{c.what}</span>
                 <span className="text-muted-foreground tnum text-[12px]">
                   {[
-                    CONDITION_SIDE_LABEL[c.side],
+                    conditionSideText(c.side, lang),
                     c.who,
-                    `hạn ${dmy(c.due)}`,
-                    c.doneAt ? `xong ${dmy(c.doneAt)}` : 'chưa xong',
+                    t(message(`hạn ${dmy(c.due)}`, `due ${dmy(c.due)}`, `기한 ${dmy(c.due)}`)),
+                    c.doneAt
+                      ? t(
+                          message(
+                            `xong ${dmy(c.doneAt)}`,
+                            `done ${dmy(c.doneAt)}`,
+                            `완료 ${dmy(c.doneAt)}`,
+                          ),
+                        )
+                      : t(message('chưa xong', 'not done', '미완료')),
                   ].join(' · ')}
                 </span>
               </span>
@@ -127,7 +139,7 @@ export function AcceptSection({
                   onClick={() => onTick(c.id)}
                 >
                   <Icon icon={Check} size={16} />
-                  Đánh dấu xong
+                  {t(message('Đánh dấu xong', 'Mark as done', '완료로 표시'))}
                 </Button>
               )}
             </li>
@@ -146,7 +158,7 @@ export function AcceptSection({
                 tone={DOC_TONE[doc.state]}
                 className={cn('shrink-0', doc.state === 'missing' && BADGE_INK)}
               >
-                {DOC_STATE_LABEL[doc.state]}
+                {docStateText(doc.state, lang)}
               </Badge>
             </li>
           ))}
@@ -155,8 +167,6 @@ export function AcceptSection({
     </Section>
   )
 }
-
-const CHANNELS = RecordChannel.options.map((c) => ({ value: c, label: RECORD_CHANNEL_LABEL[c] }))
 
 /** Past reminders, and the form that records another — inline, not a layer. */
 export function ReminderSection({
@@ -168,11 +178,18 @@ export function ReminderSection({
   installment: InstallmentRow
   canRemind: boolean
 }) {
+  const { t, lang } = useI18n()
   const [open, setOpen] = useState(false)
 
   return (
     <Section
-      title={`Nhắc khách · ${installment.records.length} lần`}
+      title={t(
+        message(
+          `Nhắc khách · ${installment.records.length} lần`,
+          `Reminders · ${installment.records.length}`,
+          `고객 알림 · ${installment.records.length}회`,
+        ),
+      )}
       action={
         canRemind && (
           <Button
@@ -183,22 +200,25 @@ export function ReminderSection({
             onClick={() => setOpen((was) => !was)}
           >
             <Icon icon={Plus} size={16} />
-            Ghi lần nhắc
+            {t(message('Ghi lần nhắc', 'Log a reminder', '알림 기록'))}
           </Button>
         )
       }
     >
       {installment.records.length === 0 ? (
-        <p className={LINE}>Chưa nhắc lần nào.</p>
+        <p className={LINE}>
+          {t(message('Chưa nhắc lần nào.', 'No reminders yet.', '아직 보낸 알림이 없습니다.'))}
+        </p>
       ) : (
         <ul className="m-0 flex list-none flex-col gap-3 p-0">
           {installment.records.map((r) => (
             <li key={r.id} className="flex min-w-0 items-start gap-3 text-[12.5px] leading-[1.5]">
-              <MetaPill>{RECORD_CHANNEL_LABEL[r.channel]}</MetaPill>
+              <MetaPill>{recordChannelText(r.channel, lang)}</MetaPill>
               <span className="min-w-0 flex-1">
                 <span className="block break-words">{r.what}</span>
                 <span className="text-muted-foreground block break-words text-[12px]">
-                  Kết quả: {r.detail}
+                  {t(message('Kết quả: ', 'Result: ', '결과: '))}
+                  {r.detail}
                 </span>
               </span>
               <span className="text-muted-foreground tnum shrink-0 text-[12px]">{dmhm(r.at)}</span>
@@ -222,6 +242,11 @@ export function ReminderForm({
   no: number
   onClose: () => void
 }) {
+  const { t, lang } = useI18n()
+  const channels = RecordChannel.options.map((c) => ({
+    value: c,
+    label: recordChannelText(c, lang),
+  }))
   const [channel, setChannel] = useState('')
   const [what, setWhat] = useState('')
   const [detail, setDetail] = useState('')
@@ -231,28 +256,28 @@ export function ReminderForm({
 
   return (
     <div className="bg-surface-ink/5 flex flex-col gap-4 rounded-md p-4">
-      <Field label="Kênh nhắc" required plain>
+      <Field label={t(message('Kênh nhắc', 'Reminder channel', '알림 채널'))} required plain>
         <SegmentedControl
-          label="Kênh nhắc"
+          label={t(message('Kênh nhắc', 'Reminder channel', '알림 채널'))}
           hideLabel
           tone="quiet"
           value={channel}
           onChange={setChannel}
-          options={CHANNELS}
+          options={channels}
         />
       </Field>
-      <Field label="Nội dung đã nhắc" required>
+      <Field label={t(message('Nội dung đã nhắc', 'What was said', '알린 내용'))} required>
         <Input
-          aria-label="Nội dung đã nhắc"
+          aria-label={t(message('Nội dung đã nhắc', 'What was said', '알린 내용'))}
           className="pointer-coarse:h-12"
           maxLength={PAY_TEXT_MAX.what}
           value={what}
           onChange={(e) => setWhat(e.target.value)}
         />
       </Field>
-      <Field label="Kết quả" required>
+      <Field label={t(message('Kết quả', 'Result', '결과'))} required>
         <Input
-          aria-label="Kết quả"
+          aria-label={t(message('Kết quả', 'Result', '결과'))}
           className="pointer-coarse:h-12"
           maxLength={PAY_TEXT_MAX.detail}
           value={detail}
@@ -261,7 +286,7 @@ export function ReminderForm({
       </Field>
       <div className="flex items-center justify-end gap-2">
         <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={onClose}>
-          Bỏ
+          {t(message('Bỏ', 'Discard', '취소'))}
         </Button>
         <Button
           size="md"
@@ -274,7 +299,9 @@ export function ReminderForm({
               { no, body: { channel: picked.data, what: what.trim(), detail: detail.trim() } },
               {
                 onSuccess: () => {
-                  toastDone('Đã ghi lần nhắc.')
+                  toastDone(
+                    t(message('Đã ghi lần nhắc.', 'Reminder logged.', '알림을 기록했습니다.')),
+                  )
                   onClose()
                 },
               },
@@ -282,7 +309,7 @@ export function ReminderForm({
           }}
         >
           <Icon icon={Bell} size={16} />
-          Lưu lần nhắc
+          {t(message('Lưu lần nhắc', 'Save reminder', '알림 저장'))}
         </Button>
       </div>
       {add.error && (

@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react'
 import { Badge, CalendarClock, Chip, Icon, cn } from '@pv/ui'
 import type { WorkstreamCloseReason, WorkstreamStandKind } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 import { chainPath } from '@/data/opportunities'
 import { BADGE_INK } from '@/data/opportunities'
-import { CLOSE_REASON_LABEL } from '@/data/workstreams'
+import { closeReasonLabel } from '@/data/workstreams'
 
 /** Cells shared by the workstream screens.
  *
@@ -56,9 +57,16 @@ export function OverdueNote({
   overdueBy: number | null
   noDeadline?: string
 }): ReactNode {
+  const { t } = useI18n()
   if (overdueBy === null) {
     if (noDeadline) return <span className="text-muted-foreground">{noDeadline}</span>
-    const note = 'Bậc này chưa đặt hạn'
+    const note = t(
+      message(
+        'Bậc này chưa đặt hạn',
+        'No deadline set for this stage',
+        '이 단계에는 기한이 없습니다',
+      ),
+    )
     return (
       <span className="text-muted-foreground shrink-0" role="img" title={note} aria-label={note}>
         —
@@ -69,15 +77,18 @@ export function OverdueNote({
   return (
     <Badge tone="warning" className={cn('shrink-0 gap-1', BADGE_INK)}>
       <Icon icon={CalendarClock} size={14} />
-      Trễ <span className="tnum font-num">{overdueBy}</span> ngày
+      {t(message('Trễ ', 'Late by ', '지연 '))}
+      <span className="tnum font-num">{overdueBy}</span>
+      {t(message(' ngày', ' days', '일'))}
     </Badge>
   )
 }
 
 export function CloseBadge({ reason }: { reason: WorkstreamCloseReason }) {
+  const { lang } = useI18n()
   return (
     <Badge tone={CLOSE_BADGE[reason]} className={cn('shrink-0', BADGE_INK)}>
-      {CLOSE_REASON_LABEL[reason]}
+      {closeReasonLabel(reason, lang)}
     </Badge>
   )
 }

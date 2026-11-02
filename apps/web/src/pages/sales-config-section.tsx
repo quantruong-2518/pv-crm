@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { Button, DataTable, GlassCard, Input, cn } from '@pv/ui'
 import type { ConfigBundle, ConfigList } from '@pv/contracts'
 import { useCan } from '@/app/auth'
-import { message, useI18n } from '@/app/i18n'
+import { message, useI18n, type Message } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import {
   isEditDone,
@@ -39,11 +39,6 @@ export type AreaProps = {
  *  scrolled to by its `#id` lands below it instead of under it. */
 export const SECTION_ANCHOR = 'scroll-mt-[128px]'
 
-const sectionTitle = (at: SectionId, title: string, t: ReturnType<typeof useI18n>['t']) => {
-  const copy = sectionMessage(at)
-  return copy ? t(copy) : title
-}
-
 /** One configuration section, named by its entry in `CONFIG_AREAS`. The number
  *  is not printed, only carried in the group's accessible name. */
 export function Section({
@@ -59,8 +54,8 @@ export function Section({
   children: ReactNode
 }) {
   const { t } = useI18n()
-  const { no, title } = sectionOf(at)
-  const localizedTitle = sectionTitle(at, title, t)
+  const { no } = sectionOf(at)
+  const localizedTitle = t(sectionMessage(at))
   return (
     <GlassCard
       id={at}
@@ -82,10 +77,11 @@ export function Section({
 
 /** The reader's own change still waiting, said under what it changes. */
 export function WaitingNote({ words }: { words: string | null }) {
+  const { t } = useI18n()
   if (words === null) return null
   return (
     <p className="text-muted-foreground m-0 text-[11.5px]">
-      {WAITING}: {words}
+      {t(WAITING)}: {words}
     </p>
   )
 }
@@ -122,23 +118,22 @@ export function WaitingCount({ count }: { count: number }) {
   )
 }
 
+/** Callers name the list in Vietnamese, so that word is the lookup key. */
+const NOUNS: Record<string, Message> = {
+  'lý do': message('lý do', 'reasons', '사유'), // i18n-ignore
+  mục: message('mục', 'items', '항목'), // i18n-ignore
+  loại: message('loại', 'types', '유형'), // i18n-ignore
+  nhãn: message('nhãn', 'labels', '라벨'), // i18n-ignore
+  câu: message('câu', 'questions', '질문'), // i18n-ignore
+  nhóm: message('nhóm', 'groups', '그룹'), // i18n-ignore
+}
+
 /** A catalog's size for `Section.summary`. Nothing for an empty list: the
  *  section body already says so in words. */
 export function EntryCount({ rows, noun }: { rows: { active: boolean }[]; noun: string }) {
   const { t, number } = useI18n()
   if (rows.length === 0) return null
-  const nounCopy =
-    noun === 'lý do'
-      ? message('lý do', 'reasons', '사유')
-      : noun === 'mục'
-        ? message('mục', 'items', '항목')
-        : noun === 'loại'
-          ? message('loại', 'types', '유형')
-          : noun === 'nhãn'
-            ? message('nhãn', 'labels', '라벨')
-            : noun === 'câu'
-              ? message('câu', 'questions', '질문')
-              : message(noun, noun, noun)
+  const nounCopy = NOUNS[noun] ?? message(noun, noun, noun)
   return t(
     message(
       `${number(rows.length)} ${nounCopy.vi} · ${number(rows.filter((r) => r.active).length)} đang bật`,
@@ -234,7 +229,7 @@ export function LadderTable({
 }
 
 /** What a rung is called in the sentence of its pending edit. */
-const RUNG = { STAGE: 'giai đoạn', TIER: 'bậc' } as const
+const RUNG = { STAGE: 'giai đoạn', TIER: 'bậc' } as const // i18n-ignore: the vi variant of a message
 
 /** The send of ONE ladder, drawn next to its boxes. It sends every pending
  *  edit of the list, not of the rows in sight: a box typed under another

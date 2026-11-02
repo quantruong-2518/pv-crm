@@ -4,7 +4,7 @@ import { StackTable, type StackColumn } from '@/components/stack-table'
 import type { KpiCatalog } from '@/data/kpi-catalog'
 import { forecastItems, type ForecastItem } from '@/data/kpi-forecast'
 import { NOTE } from './home-tiles'
-import { useI18n, message } from '@/app/i18n'
+import { useI18n, message, type Message } from '@/app/i18n'
 import { kpiMetricText, kpiRoleText } from '@/data/kpi-i18n'
 import { FlagBadge, FlagRule } from './kpi-company-forecast'
 import { DASH, printShort } from './kpi-model'
@@ -17,10 +17,14 @@ import { DASH, printShort } from './kpi-model'
  *  both thresholds from the response. */
 
 /* Value and target are on the scoreboard above; this table adds only where the month heads. */
-const COLUMNS: StackColumn[] = [
-  { header: 'Chỉ số', width: 'minmax(0,1.6fr)' },
-  { header: 'Dự báo cuối tháng', width: 'minmax(0,1.1fr)', align: 'right' },
-  { header: 'Cảnh báo', width: 'minmax(0,1fr)' },
+const columnsOf = (t: (copy: Message) => string): StackColumn[] => [
+  { header: t(message('Chỉ số', 'Metric', '지표')), width: 'minmax(0,1.6fr)' },
+  {
+    header: t(message('Dự báo cuối tháng', 'Month-end forecast', '월말 예상')),
+    width: 'minmax(0,1.1fr)',
+    align: 'right',
+  },
+  { header: t(message('Cảnh báo', 'Alert', '경고')), width: 'minmax(0,1fr)' },
 ]
 
 const FIGURE = 'tnum font-num'
@@ -79,7 +83,7 @@ export function PersonForecast({
           flush
           rowHeight="min-h-12 py-2"
           tableClassName="min-w-md"
-          columns={COLUMNS}
+          columns={columnsOf(t)}
           rows={items.map((item) => ({
             id: `${item.forecast.role}/${item.def.key}`,
             cells: cellsOf(item, withRole, lang),

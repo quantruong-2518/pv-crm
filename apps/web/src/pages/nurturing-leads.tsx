@@ -1,26 +1,19 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import {
-  Button,
-  ColumnFilter,
-  ColumnFilterList,
-  ColumnFilterRange,
-  SearchField,
-  SegmentedControl,
-  Select,
-} from '@pv/ui'
+import { ColumnFilter, ColumnFilterList, ColumnFilterRange, SegmentedControl, Select } from '@pv/ui'
 import { LEAD_STOP_REASON_OTHER, LeadBookQuery, vnDayOf, type LeadRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { useI18n } from '@/app/i18n'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
-import { searchHint } from '@/lib/search-box'
 import { leadBookQuery, leadStopReasonsQuery } from '@/data/leads'
 import { leadLabelOptionsQuery } from '@/data/lead-labels'
 import { recareCountsQuery } from '@/data/stop-log'
 import { stopReasonLabel } from '@/data/sales-config'
+import { NURTURING_COPY as COPY } from '@/data/nurturing-copy'
 import { dayRangeChip, listChip } from '@/components/active-filters'
-import { BookCount, BookPage, type BookTable } from '@/components/book-page'
+import { BookCount, BookPage, BookSearch, type BookTable } from '@/components/book-page'
 import { FilterSection, ViewSwitch } from '@/components/book-cards'
 import { GRID_PAGE_SIZE, noop, useBookView } from '@/components/book-view'
 import { ClaimLeadButton } from '@/components/lead-claim'
@@ -28,11 +21,10 @@ import { LabelChips } from '@/components/lead-labels'
 import { CompanyCell, MomentCell } from '@/components/lead-cells'
 import { LeadNurtureCards, RecontactCell } from '@/components/nurture-cards'
 import { FilterMenu, TableFooter } from '@/components/table-bits'
+import { COL } from '@/components/book-columns'
 import { SourceCell } from './leads-parts'
 import {
-  PAGE_TITLE,
   RECARE_GROUPS,
-  RECARE_GROUP_LABEL,
   defaultGroup,
   groupQuery,
   withPageKeys,
@@ -51,13 +43,6 @@ const SCHEMA = withPageKeys(LeadBookQuery)
 const FILTER_KEYS = ['exitReason', 'exitedFrom', 'exitedTo', 'label'] as const
 const NO_POOL_FILTERS = { exitReason: undefined, exitedFrom: undefined, exitedTo: undefined }
 
-const EMPTY: Record<RecareGroup, string> = {
-  replied: 'Chưa có khách nào vừa phản hồi.',
-  due: 'Không có lead nào đến hạn liên hệ lại.',
-  later: 'Không có lead nào hẹn liên hệ lại sau.',
-  none: 'Không có lead nào chưa hẹn ngày liên hệ lại.',
-}
-
 const csvOf = (v?: string) => (v ? v.split(',') : [])
 
 /** The header filters and the chips for what is narrowed. Each filter's body is
@@ -67,6 +52,7 @@ function useRecareFilters(
   replied: boolean,
   patch: (next: Partial<LeadBookQuery>) => void,
 ) {
+  const { t } = useI18n()
   const { data: reasons } = useQuery(leadStopReasonsQuery)
   const { data: labels } = useQuery(leadLabelOptionsQuery)
   const reasonName = (id?: string) => stopReasonLabel(reasons?.rows, id)
@@ -92,42 +78,35 @@ function useRecareFilters(
   const labelOn = Boolean(query.label)
 
   const dayFilter = (
-    <ColumnFilter iconOnly label="Ngày vào nhóm" active={dayOn}>
+    <ColumnFilter iconOnly label={t(COPY.dayEntered)} active={dayOn}>
       {dayBody}
     </ColumnFilter>
   )
   const labelFilter = (
-    <ColumnFilter label="Nhãn" active={labelOn}>
+    <ColumnFilter label={t(COPY.label)} active={labelOn}>
       {labelBody}
     </ColumnFilter>
   )
   const menu = (
-    <FilterMenu label="Bộ lọc khách đã dừng" active={Number(dayOn) + Number(labelOn)}>
-      {!replied && <FilterSection title="Ngày vào nhóm">{dayBody(noop)}</FilterSection>}
-      <FilterSection title="Nhãn">{labelBody(noop)}</FilterSection>
+    <FilterMenu label={t(COPY.filtersMenu)} active={Number(dayOn) + Number(labelOn)}>
+      {!replied && <FilterSection title={t(COPY.dayEntered)}>{dayBody(noop)}</FilterSection>}
+      <FilterSection title={t(COPY.label)}>{labelBody(noop)}</FilterSection>
     </FilterMenu>
   )
 
+  /* The reason shows its pick in its own Select, so it gets no chip. */
   const chips = [
-    ...(query.exitReason
-      ? [
-          {
-            id: 'exitReason',
-            label: `Lý do: ${reasonName(query.exitReason)}`,
-            onDrop: () => patch({ exitReason: undefined }),
-          },
-        ]
-      : []),
-    ...dayRangeChip('exited', 'Ngày vào nhóm', query.exitedFrom, query.exitedTo, () =>
+    ...dayRangeChip('exited', t(COPY.dayEntered), query.exitedFrom, query.exitedTo, () =>
       patch({ exitedFrom: undefined, exitedTo: undefined }),
     ),
-    ...listChip('label', 'Nhãn', query.label, labelName, () => patch({ label: undefined })),
+    ...listChip('label', t(COPY.label), query.label, labelName, () => patch({ label: undefined })),
   ]
 
   return { reasons, reasonName, dayFilter, labelFilter, menu, chips }
 }
 
 type Filters = ReturnType<typeof useRecareFilters>
+type Translate = ReturnType<typeof useI18n>['t']
 
 /** A parked lead: why, since when, when to call again, and the claim. */
 function parkedTable(
@@ -136,21 +115,27 @@ function parkedTable(
   today: string,
   canClaim: boolean,
   open: (code: string) => void,
+  t: Translate,
 ): BookTable {
   const { reasonName, dayFilter, labelFilter } = filters
+  /* px floors: narrower, the card scrolls sideways instead of cells overlapping. */
   return {
-    minWidth: 'min-w-[1040px]',
+    pageSize: PAGE_SIZE,
     columns: [
-      { header: 'Công ty / Người liên hệ', width: 'minmax(0,2.2fr)' },
-      { header: 'Lý do', width: 'minmax(0,1.4fr)' },
-      { header: 'Ngày vào nhóm', filter: dayFilter, width: 'minmax(0,1fr)' },
-      { header: 'Liên hệ lại', width: 'minmax(0,1fr)' },
-      { header: labelFilter, width: 'minmax(0,1.2fr)' },
-      { header: 'Nguồn lead', width: 'minmax(0,1.3fr)' },
+      { header: t(COPY.company), width: COL.name },
+      { header: t(COPY.reason), width: 'minmax(136px,1.4fr)' },
+      {
+        header: t(COPY.dayEntered),
+        filter: dayFilter,
+        width: '144px',
+      },
+      { header: t(COPY.recontact), width: '112px' },
+      { header: labelFilter, width: 'minmax(120px,1.2fr)' },
+      { header: t(COPY.leadSource), width: 'minmax(120px,1.3fr)' },
       ...(canClaim
         ? [
             {
-              header: <span className="sr-only">Nhận lead</span>,
+              header: <span className="sr-only">{t(COPY.claimLead)}</span>,
               width: '144px',
               align: 'center' as const,
             },
@@ -162,7 +147,7 @@ function parkedTable(
       onOpen: () => open(l.code),
       cells: [
         <CompanyCell key="c" lead={l} />,
-        <span key="r" className="truncate text-[13px]" title={reasonName(l.exitReason)}>
+        <span key="r" className="block truncate text-[13px]" title={reasonName(l.exitReason)}>
           {reasonName(l.exitReason) ?? '—'}
         </span>,
         <MomentCell key="d" iso={l.exitedAt} />,
@@ -176,14 +161,19 @@ function parkedTable(
 }
 
 /** A lead a reply brought back: in `new`, assigned the usual way from its page. */
-function repliedTable(rows: LeadRow[], filters: Filters, open: (code: string) => void): BookTable {
+function repliedTable(
+  rows: LeadRow[],
+  filters: Filters,
+  open: (code: string) => void,
+  t: Translate,
+): BookTable {
   return {
-    minWidth: 'min-w-[800px]',
+    pageSize: PAGE_SIZE,
     columns: [
-      { header: 'Công ty / Người liên hệ', width: 'minmax(0,2.2fr)' },
-      { header: 'Phản hồi lúc', width: 'minmax(0,1fr)' },
-      { header: filters.labelFilter, width: 'minmax(0,1.2fr)' },
-      { header: 'Nguồn lead', width: 'minmax(0,1.3fr)' },
+      { header: t(COPY.company), width: COL.name },
+      { header: t(COPY.repliedAt), width: '144px' },
+      { header: filters.labelFilter, width: 'minmax(120px,1.2fr)' },
+      { header: t(COPY.leadSource), width: 'minmax(120px,1.3fr)' },
     ],
     rows: rows.map((l) => ({
       id: l.code,
@@ -199,6 +189,7 @@ function repliedTable(rows: LeadRow[], filters: Filters, open: (code: string) =>
 }
 
 export function RecareBook({ nav }: NurtureTabProps) {
+  const { t } = useI18n()
   const navigate = useNavigate()
   const canClaim = useCan('lead.edit')
   const [view, setView] = useBookView('pv.nurturing.view')
@@ -220,51 +211,51 @@ export function RecareBook({ nav }: NurtureTabProps) {
   })
   const { pageIndex } = useBookPageClamp(book, data?.total)
   const filters = useRecareFilters(query, replied, book.patch)
+  /* Replies ignore the pool keys a link may still carry; they would offer a
+     clear button with no chip to say what it clears. */
+  const dirty = replied ? book.text.trim() !== '' || query.label !== undefined : book.dirty
   const rows = data?.rows ?? []
   const open = (code: string) => navigate(`/sales/leads/${encodeURIComponent(code)}`)
-
   const groups = (
     <SegmentedControl
-      label="Nhóm"
+      label={t(COPY.groupLabel)}
       hideLabel
       tone="quiet"
       value={group ?? ''}
       options={RECARE_GROUPS.map((g) => ({
         value: g,
-        label: RECARE_GROUP_LABEL[g],
+        label: t(COPY.groups[g]),
         count: counts.data?.[g],
       }))}
       onChange={(value) =>
-        book.patch({ group: value as RecareGroup, ...(value === 'replied' ? NO_POOL_FILTERS : {}) })
+        book.patch({
+          group: value as RecareGroup,
+          ...(value === 'replied' ? NO_POOL_FILTERS : {}),
+        })
       }
     />
   )
 
   return (
     <BookPage
-      title={PAGE_TITLE}
+      title={t(COPY.title)}
       nav={nav}
       tabs={groups}
-      count={data && <BookCount total={data.total} noun="lead" hidden={data.hidden} />}
+      count={data && <BookCount total={data.total} noun={t(COPY.leadNoun)} hidden={data.hidden} />}
       filters={filters.chips}
+      onClearFilters={dirty ? book.clear : undefined}
       tools={
         <>
-          <SearchField
-            placeholder="Tìm theo tên công ty, người liên hệ hoặc mã lead…"
-            value={book.text}
-            meta={searchHint(book.text)}
-            onChange={book.setText}
-            className="min-w-0 flex-1 sm:max-w-[320px]"
-          />
+          <BookSearch placeholder={t(COPY.search)} value={book.text} onChange={book.setText} />
           {!replied && (
             <Select
-              label="Lý do"
+              label={t(COPY.reason)}
               value={query.exitReason ?? ''}
               neutralValue=""
               options={[
-                { value: '', label: 'Tất cả' },
+                { value: '', label: t(COPY.all) },
                 ...(filters.reasons?.rows ?? []).map((r) => ({ value: r.id, label: r.name })),
-                { value: LEAD_STOP_REASON_OTHER, label: 'Khác' },
+                { value: LEAD_STOP_REASON_OTHER, label: t(COPY.other) },
               ]}
               onChange={(value) => book.patch({ exitReason: value === '' ? undefined : value })}
               className="pointer-coarse:[&>button]:h-12 max-w-[240px]"
@@ -272,32 +263,27 @@ export function RecareBook({ nav }: NurtureTabProps) {
           )}
           {view === 'grid' && filters.menu}
           <ViewSwitch value={view} onChange={setView} />
-          {book.dirty && (
-            <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={book.clear}>
-              Bỏ hết bộ lọc
-            </Button>
-          )}
         </>
       }
       pending={isPending}
       failure={
         error
           ? {
-              message: `Không tải được danh sách lead. ${isApiError(error) ? userMessage(error) : 'Thử lại.'}`,
+              message: `${t(COPY.leadsFailed)} ${isApiError(error) ? userMessage(error) : t(COPY.retry)}`,
               onRetry: () => void refetch(),
             }
           : undefined
       }
       empty={
         rows.length === 0
-          ? book.dirty
+          ? dirty
             ? {
-                message: 'Không có lead nào khớp bộ lọc.',
-                action: { label: 'Bỏ hết bộ lọc', onClick: book.clear },
+                message: t(COPY.noMatch),
+                action: { label: t(COPY.clearFilters), onClick: book.clear },
               }
             : {
-                message: EMPTY[group ?? 'due'],
-                action: { label: 'Tải lại', onClick: () => void refetch() },
+                message: t(COPY.empty[group ?? 'due']),
+                action: { label: t(COPY.reload), onClick: () => void refetch() },
               }
           : undefined
       }
@@ -315,8 +301,8 @@ export function RecareBook({ nav }: NurtureTabProps) {
       table={
         view === 'table'
           ? replied
-            ? repliedTable(rows, filters, open)
-            : parkedTable(rows, filters, today, canClaim, open)
+            ? repliedTable(rows, filters, open, t)
+            : parkedTable(rows, filters, today, canClaim, open, t)
           : undefined
       }
       footer={

@@ -1,3 +1,4 @@
+import { message, translate } from '@/app/i18n'
 import type { StepSubject } from '@/data/next-step'
 
 /** Module 3 · a deal's next step as both of its doors build it — the profile
@@ -13,7 +14,13 @@ export function dealStepSubject(code: string, holder: StepSubject['holder']): St
     code,
     holder,
     canAssign: true,
-    holderHint: 'Người giữ cơ hội.',
-    noHolder: 'Cơ hội chưa có ai đứng đơn hay nhận PIC.',
+    holderHint: translate(message('Người giữ cơ hội.', 'Opportunity holder.', '기회 담당자.')),
+    noHolder: translate(
+      message(
+        'Cơ hội chưa có ai đứng đơn hay nhận PIC.',
+        'No one is the seller or owner of this opportunity yet.',
+        '이 기회에는 아직 영업 담당자나 담당자가 없습니다.',
+      ),
+    ),
   }
 }

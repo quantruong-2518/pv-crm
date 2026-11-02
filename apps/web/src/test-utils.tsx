@@ -22,7 +22,7 @@ type Opts = {
 
 function wrap(children: ReactNode, route: string) {
   const actorId = useSession.getState().actor?.id
-  if (!actorId) throw new Error('renderScreen: chưa đặt phiên đăng nhập')
+  if (!actorId) throw new Error('renderScreen: chưa đặt phiên đăng nhập') // i18n-ignore: test harness error
 
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity, gcTime: Infinity } },
@@ -45,7 +45,7 @@ function wrap(children: ReactNode, route: string) {
  *  không phải vì màn sai. */
 function signIn(actorId = 'u-ha') {
   const actor = dasVina.actors.find((a) => a.id === actorId)
-  if (!actor) throw new Error(`Không có vai ${actorId} trong kịch bản`)
+  if (!actor) throw new Error(`Không có vai ${actorId} trong kịch bản`) // i18n-ignore: test harness error
   /* Cửa sổ phiên dựng tại chỗ vì trong test không có máy chủ để hỏi. Đây là
      bản sao đúng hình dạng của thứ `/auth/sign-in` trả về, không phải một hình
      dạng riêng cho test: `signIn` chỉ nhận `SessionWindow`, nên một ngày nào đó

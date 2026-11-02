@@ -7,7 +7,7 @@ import type {
   MailTemplateRow,
 } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
-import { formatNumber, message, translate } from '@/app/i18n'
+import { formatNumber, message, translate, useLang } from '@/app/i18n'
 import { toast } from '@/app/toast'
 import { type useCampaignStart, type useCampaignWaveAdd } from '@/data/campaign-book'
 import { mailHints } from '@/data/mail-hints'
@@ -24,7 +24,7 @@ import {
 } from '@/components/mail-sequence/wave-draft'
 import { ceilingNote } from './campaign-model'
 import { ReachBadge, StepBody } from './campaign-wave-modal-parts'
-import { fireLabel, stepSummaries, tr } from './campaign-wave-modal-text'
+import { fireLabel, stepSummaries, msg } from './campaign-wave-modal-text'
 
 /** Module 1 · THE ONE DOOR THAT SENDS CAMPAIGN MAIL — a Modal in the mould of
  *  `MasMailModal`, so a campaign wave reads like every other mail in the app.
@@ -72,6 +72,7 @@ export function WaveModal({
   preflight?: CampaignPreflightResponse
   preflightFailed?: boolean
 }) {
+  const lang = useLang()
   const [composer, setComposer] = useState<ComposerState>(emptyComposerState)
   const [step, setStep] = useState(0)
   const [reached, setReached] = useState(0)
@@ -106,12 +107,15 @@ export function WaveModal({
     { subject: composer.subject, body: composer.body, ...(cta ? { cta } : {}) },
     open && step > 0 && letterReady,
   )
-  const hints = mailHints({
-    subject: composer.subject,
-    body: composer.body,
-    ctaUrl: composer.ctaUrl,
-    missing: preview.letter?.missing,
-  })
+  const hints = mailHints(
+    {
+      subject: composer.subject,
+      body: composer.body,
+      ctaUrl: composer.ctaUrl,
+      missing: preview.letter?.missing,
+    },
+    lang,
+  )
 
   const goTo = (next: number) => {
     setStep(next)
@@ -133,10 +137,10 @@ export function WaveModal({
         open={open}
         onClose={onClose}
         width="wide"
-        title={tr(
+        title={msg(
           `Gửi đợt ${campaign.waveCount + 1}`,
           `Send wave ${campaign.waveCount + 1}`,
-          `${campaign.waveCount + 1}차 발송`,
+          `웨이브 ${campaign.waveCount + 1} 발송`,
         )}
         subtitle={`${campaign.code} · ${campaign.name}`}
         meta={<ReachBadge preflight={preflight} failed={preflightFailed} campaign={campaign} />}
@@ -146,7 +150,7 @@ export function WaveModal({
             warn={Boolean(note) || (preflightFailed && step !== 1)}
             hints={hints}
             onGuide={() => setGuideOpen(true)}
-            back={step === 0 ? tr('Huỷ', 'Cancel', '취소') : tr('Quay lại', 'Back', '뒤로')}
+            back={step === 0 ? msg('Huỷ', 'Cancel', '취소') : msg('Quay lại', 'Back', '뒤로')}
             onBack={() => (step === 0 ? onClose() : goTo(step - 1))}
             busy={busy}
             {...(last
@@ -160,7 +164,7 @@ export function WaveModal({
                 }
               : {
                   next: {
-                    label: tr(
+                    label: msg(
                       `Tiếp: ${translate(STEPS[step + 1]?.label ?? message('', '', ''))}`,
                       `Next: ${translate(STEPS[step + 1]?.label ?? message('', '', ''))}`,
                       `다음: ${translate(STEPS[step + 1]?.label ?? message('', '', ''))}`,
@@ -213,14 +217,14 @@ function useFireWave(
 ) {
   const busy = start.isPending || waveAdd.isPending
   const failed = (err: unknown) =>
-    toast(tr('Không gửi được đợt', 'Could not send wave', '발송 차수를 보낼 수 없습니다'), {
+    toast(msg('Không gửi được đợt', 'Could not send wave', '웨이브를 보낼 수 없습니다'), {
       tone: 'danger',
       detail: isApiError(err)
         ? userMessage(err)
-        : tr('Hãy thử lại.', 'Please try again.', '다시 시도해 주세요.'),
+        : msg('Hãy thử lại.', 'Please try again.', '다시 시도해 주세요.'),
     })
   const skipped = (n: number) =>
-    n > 0 ? tr(`, bỏ qua ${n}`, `, ${n} skipped`, `, ${n}개 건너뜀`) : ''
+    n > 0 ? msg(`, bỏ qua ${n}`, `, ${n} skipped`, `, ${n}개 건너뜀`) : ''
 
   const fire = (firstRun: boolean, waves: CampaignWaveInput[], composer: ComposerState) => {
     if (busy) return
@@ -230,16 +234,19 @@ function useFireWave(
         {
           onSuccess: (res) => {
             const first = res.waves[0]
-            toast(tr('Chiến dịch đã bắt đầu chạy', 'Campaign started', '캠페인이 시작되었습니다'), {
-              tone: 'success',
-              detail: first
-                ? tr(
-                    `${first.queued} thư đang chờ gửi${skipped(first.skipped)}.`,
-                    `${first.queued} emails queued${skipped(first.skipped)}.`,
-                    `이메일 ${first.queued}개 대기 중${skipped(first.skipped)}.`,
-                  )
-                : undefined,
-            })
+            toast(
+              msg('Chiến dịch đã bắt đầu chạy', 'Campaign started', '캠페인이 시작되었습니다'),
+              {
+                tone: 'success',
+                detail: first
+                  ? msg(
+                      `${first.queued} thư đang chờ gửi${skipped(first.skipped)}.`,
+                      `${first.queued} emails queued${skipped(first.skipped)}.`,
+                      `이메일 ${first.queued}개 대기 중${skipped(first.skipped)}.`,
+                    )
+                  : undefined,
+              },
+            )
             onClose()
           },
           onError: failed,
@@ -252,14 +259,14 @@ function useFireWave(
       {
         onSuccess: (res) => {
           toast(
-            tr(
+            msg(
               `Đã tạo đợt ${campaign.waveCount + 1}`,
               `Wave ${campaign.waveCount + 1} created`,
-              `${campaign.waveCount + 1}차 생성 완료`,
+              `웨이브 ${campaign.waveCount + 1} 생성 완료`,
             ),
             {
               tone: 'success',
-              detail: tr(
+              detail: msg(
                 `${res.queued} thư đang chờ gửi${skipped(res.skipped)}.`,
                 `${res.queued} emails queued${skipped(res.skipped)}.`,
                 `이메일 ${res.queued}개 대기 중${skipped(res.skipped)}.`,
@@ -369,7 +376,7 @@ function recipientBlocker(
   preflight: CampaignPreflightResponse | undefined,
 ): string | null {
   if (campaign.audienceCount === 0)
-    return tr(
+    return msg(
       'Chưa có người nhận. Hãy thêm người ở tab Người nhận trước khi gửi.',
       'There are no recipients. Add people in the Recipients tab before sending.',
       '수신자가 없습니다. 발송 전에 수신자 탭에서 추가하세요.',
@@ -377,7 +384,7 @@ function recipientBlocker(
   if (campaign.audienceCount > campaign.batchCeiling)
     return ceilingNote(campaign.audienceCount, campaign.batchCeiling)
   if (preflight?.sendable === 0)
-    return tr(
+    return msg(
       'Không có ai nhận được thư. Hãy kiểm tra địa chỉ bị chặn, email còn thiếu, tên miền không hỗ trợ hoặc địa chỉ trùng trong tab Người nhận.',
       'No one can receive this email. Check blocked addresses, missing emails, unsupported domains, or duplicates in the Recipients tab.',
       '수신 가능한 사람이 없습니다. 수신자 탭에서 차단된 주소, 이메일 누락, 지원되지 않는 도메인 또는 중복 주소를 확인하세요.',
@@ -393,25 +400,25 @@ function stepNote(
   failed: boolean,
 ): string {
   if (step === 1)
-    return tr(
+    return msg(
       'Xem trước email rồi chuyển sang bước Kiểm lại.',
       'Preview the email, then continue to Review.',
       '이메일을 미리 본 다음 검토 단계로 이동하세요.',
     )
   if (failed)
-    return tr(
+    return msg(
       'Không thể kiểm tra danh sách người nhận. Bạn vẫn có thể gửi; những người không đủ điều kiện sẽ được bỏ qua.',
       'Could not check recipients. You can still send; recipients who cannot receive the email will be skipped.',
       '수신자 확인에 실패했습니다. 계속 발송할 수 있으며 이메일을 받을 수 없는 수신자는 건너뜁니다.',
     )
-  if (!preflight) return tr('Đang kiểm tra người nhận…', 'Checking recipients…', '수신자 확인 중…')
+  if (!preflight) return msg('Đang kiểm tra người nhận…', 'Checking recipients…', '수신자 확인 중…')
   if (step === 0)
-    return tr(
+    return msg(
       `${formatNumber(preflight.sendable)} người sẽ nhận đợt này.`,
       `${formatNumber(preflight.sendable)} recipients will receive this wave.`,
-      `이번 차수의 수신자는 ${formatNumber(preflight.sendable)}명입니다.`,
+      `이번 웨이브의 수신자는 ${formatNumber(preflight.sendable)}명입니다.`,
     )
-  return tr(
+  return msg(
     'Email đã gửi không thể thu hồi.',
     'Sent emails cannot be recalled.',
     '발송된 이메일은 회수할 수 없습니다.',

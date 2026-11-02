@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { ArrowRight, Button, Drawer, Icon, Lock, SegmentedControl, cn } from '@pv/ui'
 import type { MailSubjectKind } from '@pv/contracts'
 import { dm, dmhm } from '@/lib/date'
+import { message, translate, useI18n } from '@/app/i18n'
 import { contractReadOnlyNote } from '@/data/contracts'
 import { useContractKindLabel } from '@/data/sales-config'
 import { HoldMark } from '@/components/hold-strip'
@@ -58,7 +59,7 @@ function pickOf(
   if (lead.code === code) {
     return {
       kind: 'lead',
-      title: 'Lead',
+      title: translate(message('Lead', 'Lead', '리드')),
       status: leadStatus(lead),
       rungs: railOf('lead', lead.rungs, null),
       hold: lead.hold,
@@ -82,7 +83,9 @@ function pickOf(
   if (!contract) return null
   return {
     kind: 'contract',
-    title: (contract.kind && kindLabel(contract.kind)) || 'Hợp đồng',
+    title:
+      (contract.kind && kindLabel(contract.kind)) ||
+      translate(message('Hợp đồng', 'Contract', '계약')),
     status: contractStatus(contract),
     rungs: railOf('contract', contract.rungs, contractLate(contract)),
     hold: null,
@@ -95,11 +98,15 @@ function pickOf(
 }
 
 function Timeline({ rungs }: { rungs: RailRung[] }) {
+  const { t } = useI18n()
   return (
     <ol className="m-0 flex list-none flex-col p-0">
       {rungs.map((r, i) => {
         const reached = r.state !== 'upcoming' && r.state !== 'skipped'
-        const who = [r.by && `Bởi ${r.by.name}`, r.days !== null && `${r.days} ngày`]
+        const who = [
+          r.by && t(message(`Bởi ${r.by.name}`, `By ${r.by.name}`, `${r.by.name} 처리`)),
+          r.days !== null && t(message(`${r.days} ngày`, `${r.days} days`, `${r.days}일`)),
+        ]
           .filter(Boolean)
           .join(' · ')
         return (
@@ -164,6 +171,7 @@ export function CardDrawer({
   go: (path: string) => void
   pathOf: PathOf
 }) {
+  const { t } = useI18n()
   const kindLabel = useContractKindLabel()
   const [tab, setTab] = useState('flow')
   /* The last card stays read while the drawer slides out. */
@@ -172,6 +180,7 @@ export function CardDrawer({
   const at = shown.current
   const picked = at ? pickOf(journey, at, kindLabel) : null
   if (!at || !picked) return null
+  const [openHead, openTail] = t(message('Mở {code}', 'Open {code}', '{code} 열기')).split('{code}')
   const path = pathOf(CHAIN_KIND[picked.kind], at)
   const subject = { kind: SUBJECT[picked.kind], code: at }
 
@@ -191,7 +200,9 @@ export function CardDrawer({
         <div className="flex justify-end">
           <Button size="lg" disabled={!path} onClick={() => path && go(path)}>
             <span>
-              Mở <span className="font-mono">{at}</span>
+              {openHead}
+              <span className="font-mono">{at}</span>
+              {openTail}
             </span>
             <Icon icon={ArrowRight} size={16} />
           </Button>
@@ -207,13 +218,13 @@ export function CardDrawer({
         )}
         <RunContacts subject={subject} />
         <SegmentedControl
-          label="Nội dung của thẻ"
+          label={t(message('Nội dung của thẻ', 'Card content', '카드 내용'))}
           hideLabel
           value={tab}
           onChange={setTab}
           options={[
-            { value: 'flow', label: 'Tiến trình' },
-            { value: 'comm', label: 'Lịch sử liên hệ' },
+            { value: 'flow', label: t(message('Tiến trình', 'Progress', '진행 상황')) },
+            { value: 'comm', label: t(message('Lịch sử liên hệ', 'Contact history', '연락 이력')) },
           ]}
         />
         {tab === 'flow' ? (

@@ -34,7 +34,7 @@ function stepText(key: Step['key'], t: ReturnType<typeof useI18n>['t']) {
   const copy = {
     leads: message('Lead vào sổ', 'Leads added', '등록된 리드'),
     firstContacts: message('Đã liên hệ lần đầu', 'First contact made', '첫 접점 완료'),
-    opportunities: message('Thành cơ hội', 'Converted to opportunity', '영업 기회로 전환'),
+    opportunities: message('Thành cơ hội', 'Converted to opportunity', '기회로 전환'),
     contracts: message('Đã ký hợp đồng', 'Contract signed', '계약 체결'),
   } as const
   return t(copy[key])

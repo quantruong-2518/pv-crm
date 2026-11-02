@@ -1,17 +1,17 @@
 import { useId, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Button, GlassCard, Input, Skeleton, cn } from '@pv/ui'
-import { APPROVAL_STATE_LABEL, KpiAlertPatch, type ApprovalState } from '@pv/contracts'
+import { KpiAlertPatch, type ApprovalState } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
-import { message, useI18n } from '@/app/i18n'
+import { message, translate, useI18n, type Message } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import { kpiAlertQuery, useProposeKpiAlert } from '@/data/kpi-config'
 import { dmhm } from '@/lib/date'
 import { KpiMetricMatrix } from './sales-config-kpi-matrix'
 import { OrgSection } from './sales-config-org'
 import { Section } from './sales-config-section'
-import { sentCopy } from './sales-config-copy'
+import { approvalStateCopy, sentCopy } from './sales-config-copy'
 
 /** The KPI area of the config screen (ADR 0099 §1–3, ADR 0100 §1): which metrics
  *  count per role, the two thresholds behind "about to miss" and "about to hit",
@@ -20,21 +20,12 @@ import { sentCopy } from './sales-config-copy'
  *  keep the stored values until the change is approved. The org section (5.18)
  *  below them (ADR 0118) is the exception: tree edits apply directly. */
 
-type Field = { axis: keyof KpiAlertPatch; label: string; short: string; hint?: string }
+type Field = { axis: keyof KpiAlertPatch; hint?: true }
 
 const FIELDS: readonly Field[] = [
-  {
-    axis: 'slipPercent',
-    label: 'Sắp trượt khi dự báo cuối tháng dưới',
-    short: 'Ngưỡng sắp trượt',
-  },
-  { axis: 'hitPercent', label: 'Sắp đạt khi tiến độ từ', short: 'Ngưỡng sắp đạt' },
-  {
-    axis: 'tolerancePercent',
-    label: 'Thiếu bao nhiêu vẫn tính Đúng tiến độ',
-    short: 'Mức thiếu cho phép',
-    hint: 'Tính trên số cần đạt tới hôm nay. Để 0% nếu phải đủ.',
-  },
+  { axis: 'slipPercent' },
+  { axis: 'hitPercent' },
+  { axis: 'tolerancePercent', hint: true },
 ]
 
 const fieldCopy = (axis: keyof KpiAlertPatch) => {
@@ -83,11 +74,14 @@ const toPercent = (value: string) => (/^\d+$/.test(value.trim()) ? Number(value)
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1)
 
 /** The contract's own sentence; a bound is prefixed with the box it belongs to. */
-function issueOf(issue: { code: string; message: string; path: readonly PropertyKey[] }) {
+function issueOf(
+  issue: { code: string; message: string; path: readonly PropertyKey[] },
+  t: (copy: Message) => string,
+) {
   const field = FIELDS.find((f) => f.axis === issue.path[0])
   return issue.code === 'custom' || !field
     ? issue.message
-    : `${fieldCopy(field.axis).short.vi}: ${lowerFirst(issue.message)}`
+    : `${t(fieldCopy(field.axis).short)}: ${lowerFirst(issue.message)}`
 }
 
 function KpiAlertConfig() {
@@ -165,7 +159,7 @@ function KpiAlertConfig() {
                 {t(fieldCopy(f.axis).label)}
               </label>
             ) : (
-              <span className={LABEL}>{f.label}</span>
+              <span className={LABEL}>{t(fieldCopy(f.axis).label)}</span>
             )}
             {/* The unit beside the box, not `suffix`: the suffix shell is fixed at 40px, under law 13's 48. */}
             <span className="flex items-center gap-2">
@@ -211,16 +205,16 @@ function KpiAlertConfig() {
 
       {(issue ?? propose.error) && (
         <p id={issueId} role="alert" className={ALERT}>
-          {issue ? issueOf(issue) : propose.error ? userMessage(propose.error) : null}
+          {issue ? issueOf(issue, t) : propose.error ? userMessage(propose.error) : null}
         </p>
       )}
       {sent && (
         <p className={cn(NOTE, 'tnum font-num')}>
           {t(
             message(
-              `Đã gửi: sắp trượt dưới ${sent.slipPercent}%, sắp đạt từ ${sent.hitPercent}%, thiếu ${sent.tolerancePercent}% vẫn tính Đúng tiến độ. ${APPROVAL_STATE_LABEL[sent.state]}.`,
-              `Submitted: at risk below ${sent.slipPercent}%, on track from ${sent.hitPercent}%, and up to ${sent.tolerancePercent}% behind still counts as on track. ${APPROVAL_STATE_LABEL[sent.state]}.`,
-              `제출됨: ${sent.slipPercent}% 미만은 위험, ${sent.hitPercent}%부터 정상이며 ${sent.tolerancePercent}%까지 미달해도 정상으로 계산합니다. ${APPROVAL_STATE_LABEL[sent.state]}.`,
+              `Đã gửi: sắp trượt dưới ${sent.slipPercent}%, sắp đạt từ ${sent.hitPercent}%, thiếu ${sent.tolerancePercent}% vẫn tính Đúng tiến độ. ${translate(approvalStateCopy(sent.state), 'vi')}.`,
+              `Submitted: at risk below ${sent.slipPercent}%, on track from ${sent.hitPercent}%, and up to ${sent.tolerancePercent}% behind still counts as on track. ${translate(approvalStateCopy(sent.state), 'en')}.`,
+              `제출됨: ${sent.slipPercent}% 미만은 위험, ${sent.hitPercent}%부터 정상이며 ${sent.tolerancePercent}%까지 미달해도 정상으로 계산합니다. ${translate(approvalStateCopy(sent.state), 'ko')}.`,
             ),
           )}
         </p>

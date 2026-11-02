@@ -5,11 +5,12 @@ import type { KpiForecastResponse, KpiPerson } from '@pv/contracts'
 import { isApiError } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
+import { message, useI18n } from '@/app/i18n'
 import { kpiPersonQuery } from '@/data/kpi'
 import { kpiCatalogQuery, withCatalog, type KpiCatalog } from '@/data/kpi-catalog'
 import { kpiPersonForecastQuery } from '@/data/kpi-forecast'
 import { kpiTeamRosterQuery } from '@/data/kpi-team-roster'
-import { ROLE_LABEL } from '@/data/users'
+import { kpiRoleText } from '@/data/kpi-i18n'
 import { keyOf } from './home-model'
 import { TILE } from './home-tiles'
 import { monthQuery, teamPath } from './kpi-allocate-model'
@@ -44,10 +45,19 @@ function PersonBody({
   person: KpiPerson
   forecast: UseQueryResult<KpiForecastResponse>
 }) {
+  const { t } = useI18n()
   if (person.scorecards.length === 0) {
     return (
       <GlassCard className={TILE}>
-        <p className="text-[12.5px] leading-5">Người này không giữ vai trò có KPI.</p>
+        <p className="text-[12.5px] leading-5">
+          {t(
+            message(
+              'Người này không giữ vai trò có KPI.',
+              'This person holds no role with KPIs.',
+              '이 사람은 KPI가 있는 역할을 맡고 있지 않습니다.',
+            ),
+          )}
+        </p>
       </GlassCard>
     )
   }
@@ -60,14 +70,20 @@ function PersonBody({
             size="lg"
             hint={<span className="tnum font-num">{acknowledgementOf(card).text}</span>}
           >
-            {ROLE_LABEL[card.role]}
+            {kpiRoleText(card.role)}
           </SectionTitle>
           <Scoreboard catalog={catalog} role={card.role} readings={card.readings} />
         </section>
       ))}
       <section className="flex flex-col gap-3">
-        <SectionTitle size="lg">Dự báo cuối tháng</SectionTitle>
-        <QueryBlock query={forecast} what="dự báo cuối tháng" variant="b">
+        <SectionTitle size="lg">
+          {t(message('Dự báo cuối tháng', 'Month-end forecast', '월말 예상'))}
+        </SectionTitle>
+        <QueryBlock
+          query={forecast}
+          what={message('dự báo cuối tháng', 'month-end forecast', '월말 예상')}
+          variant="b"
+        >
           {(data) => <PersonForecast catalog={catalog} data={data} actorId={person.actorId} />}
         </QueryBlock>
       </section>
@@ -89,6 +105,7 @@ function Refusal({ text, locked }: { text: string; locked: boolean }) {
 }
 
 export function KpiPersonPage() {
+  const { t } = useI18n()
   const chrome = useAppChrome()
   const navigate = useNavigate()
   const seesAll = useCan('kpi.view-all')
@@ -105,14 +122,26 @@ export function KpiPersonPage() {
   const team = roster.data?.teams.find((t) => t.members.some((m) => m.actorId === actorId))
   const led = teamsActedFor(roster.data?.teams ?? [], me)[0]
   const back = seesAll
-    ? { label: 'KPI công ty', path: `${COMPANY_PATH}${monthQuery(period)}` }
+    ? {
+        label: t(message('KPI công ty', 'Company KPIs', '회사 KPI')),
+        path: `${COMPANY_PATH}${monthQuery(period)}`,
+      }
     : led
-      ? { label: `KPI nhóm ${led.name}`, path: teamPath(led.id, period) }
-      : { label: 'KPI của tôi', path: `${ME_PATH}${monthQuery(period)}` }
+      ? {
+          label: t(message(`KPI nhóm ${led.name}`, `${led.name} team KPIs`, `${led.name} 팀 KPI`)),
+          path: teamPath(led.id, period),
+        }
+      : {
+          label: t(message('KPI của tôi', 'My KPIs', '내 KPI')),
+          path: `${ME_PATH}${monthQuery(period)}`,
+        }
   /* As on the team page: an index above 0 means the reader came from inside the app. */
   const goBack = () => (window.history.state?.idx > 0 ? navigate(-1) : navigate(back.path))
   /* Roles are left out: each section below is titled with one. */
-  const about = [team && `Nhóm ${team.name}`, dayOfMonth(period)].filter(Boolean)
+  const about = [
+    team && t(message(`Nhóm ${team.name}`, `Team ${team.name}`, `${team.name} 팀`)),
+    dayOfMonth(period),
+  ].filter(Boolean)
   const failed = isApiError(person.error) ? person.error.kind : undefined
 
   return (
@@ -120,7 +149,7 @@ export function KpiPersonPage() {
       <ScreenLayout>
         <ScreenHeader
           back={{ label: back.label, onClick: goBack }}
-          title={person.data?.person.name ?? 'KPI nhân sự'}
+          title={person.data?.person.name ?? t(message('KPI nhân sự', 'Staff KPIs', '직원 KPI'))}
           description={
             about.length > 0 && <span className="tnum font-num">{about.join(' · ')}</span>
           }
@@ -132,11 +161,32 @@ export function KpiPersonPage() {
         )}
 
         {failed === 'forbidden' ? (
-          <Refusal locked text="Bạn không có quyền xem KPI của người này." />
+          <Refusal
+            locked
+            text={t(
+              message(
+                'Bạn không có quyền xem KPI của người này.',
+                'You do not have permission to view this person’s KPIs.',
+                '이 사람의 KPI를 볼 권한이 없습니다.',
+              ),
+            )}
+          />
         ) : failed === 'not-found' ? (
-          <Refusal locked={false} text="Không tìm thấy người này trong phòng Kinh doanh." />
+          <Refusal
+            locked={false}
+            text={t(
+              message(
+                'Không tìm thấy người này trong phòng Kinh doanh.',
+                'This person was not found in the Sales department.',
+                '영업 부서에서 이 사람을 찾을 수 없습니다.',
+              ),
+            )}
+          />
         ) : (
-          <QueryBlock query={withCatalog(person, catalog)} what="KPI của người này">
+          <QueryBlock
+            query={withCatalog(person, catalog)}
+            what={message('KPI của người này', 'this person’s KPIs', '이 사람의 KPI')}
+          >
             {([data, defs]) => (
               <PersonBody
                 catalog={defs}

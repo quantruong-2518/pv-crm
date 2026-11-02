@@ -15,7 +15,7 @@ import { isApiError, userMessage } from '@/app/api'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { keyOf } from '@/data/period-pick'
 import {
-  WORKSTREAM_STATUS_LABEL,
+  WORKSTREAM_STATUS_COPY,
   parseBoardView,
   type BoardView,
   withBoardParams,
@@ -78,13 +78,7 @@ const FILTER_KEYS = [
 const STATUS_OPTIONS: { value: WorkstreamStatus; label: ReturnType<typeof message> }[] =
   WorkstreamStatus.options.map((value) => ({
     value,
-    label: message(
-      WORKSTREAM_STATUS_LABEL[value],
-      ({ open: 'Open', closed: 'Closed', all: 'All' } as Record<string, string>)[value] ??
-        WORKSTREAM_STATUS_LABEL[value],
-      ({ open: '진행 중', closed: '종료', all: '전체' } as Record<string, string>)[value] ??
-        WORKSTREAM_STATUS_LABEL[value],
-    ),
+    label: WORKSTREAM_STATUS_COPY[value],
   }))
 
 function rowCells(row: WorkstreamRow, go: (path: string) => void, today: string) {

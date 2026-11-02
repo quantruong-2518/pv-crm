@@ -5,6 +5,7 @@ import type {
   KpiTeamViewResponse,
   RoleId,
 } from '@pv/contracts'
+import { message, translate } from '@/app/i18n'
 import { monthEnded } from './kpi-model'
 
 /** What the team page computes besides what it draws: which roles the team has
@@ -37,8 +38,22 @@ export function counterActors(team: Pick<KpiTeam, 'lead' | 'actingFor'>, propose
 /** The line beside a team's lead while someone stands in; null while the lead acts. */
 export function actingLine(team: Pick<KpiTeam, 'actingFor'>, me: string | undefined) {
   if (team.actingFor.length === 0) return null
-  if (team.actingFor.some((a) => a.actorId === me)) return 'Bạn đang làm thay trưởng nhóm'
-  return `Người làm thay trưởng nhóm: ${team.actingFor.map((a) => a.name).join(', ')}`
+  if (team.actingFor.some((a) => a.actorId === me)) {
+    const mine = message(
+      'Bạn đang làm thay trưởng nhóm',
+      'You are standing in for the team lead',
+      '팀장을 대리하고 있습니다',
+    )
+    return translate(mine)
+  }
+  const names = team.actingFor.map((a) => a.name).join(', ')
+  return translate(
+    message(
+      `Người làm thay trưởng nhóm: ${names}`,
+      `Standing in for the team lead: ${names}`,
+      `팀장 대리: ${names}`,
+    ),
+  )
 }
 
 /** Teams the reader acts for, from the roster: theirs as lead, or one they stand in for. */

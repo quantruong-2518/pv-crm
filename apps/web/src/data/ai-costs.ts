@@ -68,7 +68,7 @@ const fine = () =>
   })
 
 /** The word for a cost nobody priced yet — never 0, which would read as free. */
-export const UNPRICED = 'Chưa tính được'
+export const UNPRICED = message('Chưa tính được', 'Not priced yet', '단가 미산정')
 
 /** One call costs a fraction of a cent, so below 1 USD four decimals are kept,
  *  and a real spend too small even for those never prints as zero. */

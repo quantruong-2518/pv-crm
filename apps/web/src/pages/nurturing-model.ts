@@ -8,6 +8,7 @@ import {
   type RecareCountsResponse,
 } from '@pv/contracts'
 import type { useBookQuery } from '@/app/book-query'
+import { formatDate, type Lang } from '@/app/i18n'
 import { periodLabel } from '@/data/period-pick'
 
 /** The stopped-customers page without JSX (ADR 0125): the two tabs, the re-contact groups
@@ -21,25 +22,11 @@ import { periodLabel } from '@/data/period-pick'
 export const NURTURE_TABS = ['recare', 'log'] as const
 export type NurtureTab = (typeof NURTURE_TABS)[number]
 
-export const NURTURE_TAB_LABEL: Record<NurtureTab, string> = {
-  recare: 'Cần liên hệ lại',
-  log: 'Nhật ký dừng',
-}
-
-export const PAGE_TITLE = 'Khách đã dừng'
-
 /** What each tab takes: the page's tab switch, drawn under the title. */
 export type NurtureTabProps = { nav: ReactNode }
 
 export const RECARE_GROUPS = ['replied', 'due', 'later', 'none'] as const
 export type RecareGroup = (typeof RECARE_GROUPS)[number]
-
-export const RECARE_GROUP_LABEL: Record<RecareGroup, string> = {
-  replied: 'Vừa phản hồi',
-  due: 'Đến hạn',
-  later: 'Chưa đến hạn',
-  none: 'Không hẹn',
-}
 
 /** Fresh replies first while there are any; a failed count falls to `due`. */
 export const defaultGroup = (counts?: RecareCountsResponse): RecareGroup =>
@@ -103,17 +90,28 @@ export function monthDays(month: string): { from: string; to: string } {
   return { from: span.from, to: lastDayOf(span) }
 }
 
+/** Vietnamese keeps the period picker's wording; the others use the browser's. */
+const monthLabel = (month: string, lang: Lang) =>
+  lang === 'vi'
+    ? periodLabel(month)
+    : formatDate(`${month}-01`, lang, { month: 'long', year: 'numeric' })
+
 const dmOf = (day: string) => `${day.slice(8, 10)}/${day.slice(5, 7)}`
 
 /** The range the log reads: the address's, else the running month. A link may
  *  carry any span (the overview's quarter); only a whole month prints its name. */
-export function logRange(from: string | undefined, to: string | undefined, current: string) {
+export function logRange(
+  from: string | undefined,
+  to: string | undefined,
+  current: string,
+  lang: Lang,
+) {
   const month = monthOf(from ?? `${current}-01`)
   const whole = monthDays(month)
   const range = { from: from ?? whole.from, to: to ?? whole.to }
   const label =
     range.from === whole.from && range.to === whole.to
-      ? periodLabel(month)
+      ? monthLabel(month, lang)
       : `${dmOf(range.from)} – ${dmOf(range.to)}/${range.to.slice(0, 4)}`
   return { ...range, month, label }
 }

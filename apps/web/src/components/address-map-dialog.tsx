@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Modal, SearchField, cn } from '@pv/ui'
 import type { AddressPlace } from '@pv/contracts'
+import { message, translate, useI18n } from '@/app/i18n'
 import {
   SUGGEST_EMPTY_TEXT,
   SUGGEST_FAILED_TEXT,
@@ -28,16 +29,40 @@ import { AddressMapCanvas } from './address-map-canvas'
 
 type Choice = { kind: 'ref'; refId: string } | { kind: 'point'; at: MapPoint }
 
-const SEARCH_PLACEHOLDER = 'Tìm địa chỉ: số nhà, đường, phường…'
-const SEARCHING_TEXT = 'Đang tìm…'
-const HINT_TEXT = 'Tìm địa chỉ hoặc chạm vào bản đồ để chọn.'
-const FETCHING_TEXT = 'Đang lấy địa chỉ…'
-const LOOKUP_FAILED_TEXT = 'Không lấy được địa chỉ. Thử lại.'
-const NO_ADDRESS_TEXT = 'Điểm này không có địa chỉ. Chọn điểm khác.'
-const CONFIRM_TEXT = 'Dùng địa chỉ này'
-const CANCEL_TEXT = 'Huỷ'
-const TITLE_TEXT = 'Chọn địa chỉ trên bản đồ'
-const SUBTITLE_TEXT = 'Chỉ lưu địa chỉ và tỉnh/thành.'
+const SEARCH_PLACEHOLDER = message(
+  'Tìm địa chỉ: số nhà, đường, phường…',
+  'Search an address: house number, street, ward…',
+  '주소 검색: 번지, 도로명, 동…',
+)
+const SEARCHING_TEXT = message('Đang tìm…', 'Searching…', '검색 중…')
+const HINT_TEXT = message(
+  'Tìm địa chỉ hoặc chạm vào bản đồ để chọn.',
+  'Search for an address or tap the map to choose.',
+  '주소를 검색하거나 지도를 눌러 선택하세요.',
+)
+const FETCHING_TEXT = message('Đang lấy địa chỉ…', 'Getting the address…', '주소를 가져오는 중…')
+const LOOKUP_FAILED_TEXT = message(
+  'Không lấy được địa chỉ. Thử lại.',
+  'Could not get the address. Try again.',
+  '주소를 가져오지 못했습니다. 다시 시도하세요.',
+)
+const NO_ADDRESS_TEXT = message(
+  'Điểm này không có địa chỉ. Chọn điểm khác.',
+  'This point has no address. Choose another point.',
+  '이 위치에는 주소가 없습니다. 다른 위치를 선택하세요.',
+)
+const CONFIRM_TEXT = message('Dùng địa chỉ này', 'Use this address', '이 주소 사용')
+const CANCEL_TEXT = message('Huỷ', 'Cancel', '취소')
+const TITLE_TEXT = message(
+  'Chọn địa chỉ trên bản đồ',
+  'Choose an address on the map',
+  '지도에서 주소 선택',
+)
+const SUBTITLE_TEXT = message(
+  'Chỉ lưu địa chỉ và tỉnh/thành.',
+  'Only the address and province/city are saved.',
+  '주소와 시/도만 저장됩니다.',
+)
 
 export type AddressMapDialogProps = {
   open: boolean
@@ -55,6 +80,7 @@ export function AddressMapDialog({
   initialQuery,
   onPick,
 }: AddressMapDialogProps) {
+  const { t } = useI18n()
   const [query, setQuery] = useState(initialQuery)
   const [choice, setChoice] = useState<Choice | null>(null)
   const wasOpen = useRef(open)
@@ -101,8 +127,8 @@ export function AddressMapDialog({
     <Modal
       open={open}
       onClose={onClose}
-      title={TITLE_TEXT}
-      subtitle={SUBTITLE_TEXT}
+      title={t(TITLE_TEXT)}
+      subtitle={t(SUBTITLE_TEXT)}
       footer={
         <div className="flex flex-wrap items-center justify-end gap-3">
           <ChosenLine
@@ -112,10 +138,10 @@ export function AddressMapDialog({
             failed={choice !== null && lookup.isError}
           />
           <Button size="lg" variant="ghost" onClick={onClose}>
-            {CANCEL_TEXT}
+            {t(CANCEL_TEXT)}
           </Button>
           <Button size="lg" disabled={place === null} onClick={confirm}>
-            {CONFIRM_TEXT}
+            {t(CONFIRM_TEXT)}
           </Button>
         </div>
       }
@@ -125,7 +151,7 @@ export function AddressMapDialog({
           size="page"
           value={query}
           onChange={setQuery}
-          placeholder={SEARCH_PLACEHOLDER}
+          placeholder={t(SEARCH_PLACEHOLDER)}
         />
         <ResultList
           suggest={suggest}
@@ -193,10 +219,10 @@ function ResultList({
 
 /** Why the list has no rows, or `null` when it has some. */
 function messageOf(suggest: AddressSuggestState): string | null {
-  if (suggest.loading) return SEARCHING_TEXT
-  if (suggest.tooShort) return SUGGEST_TOO_SHORT_TEXT
-  if (suggest.failed) return SUGGEST_FAILED_TEXT
-  return suggest.items.length === 0 ? SUGGEST_EMPTY_TEXT : null
+  if (suggest.loading) return translate(SEARCHING_TEXT)
+  if (suggest.tooShort) return translate(SUGGEST_TOO_SHORT_TEXT)
+  if (suggest.failed) return translate(SUGGEST_FAILED_TEXT)
+  return suggest.items.length === 0 ? translate(SUGGEST_EMPTY_TEXT) : null
 }
 
 /** What the confirm button is about to write, spelled out beside it — the one
@@ -212,6 +238,7 @@ function ChosenLine({
   busy: boolean
   failed: boolean
 }) {
+  const { t } = useI18n()
   if (place !== null) {
     return (
       <p className="m-0 mr-auto text-[12.5px]">
@@ -221,7 +248,13 @@ function ChosenLine({
     )
   }
 
-  const text = !chosen ? HINT_TEXT : busy ? FETCHING_TEXT : failed ? LOOKUP_FAILED_TEXT : null
+  const text = !chosen
+    ? t(HINT_TEXT)
+    : busy
+      ? t(FETCHING_TEXT)
+      : failed
+        ? t(LOOKUP_FAILED_TEXT)
+        : null
   return (
     <p
       role={text === null || failed ? 'alert' : undefined}
@@ -230,7 +263,7 @@ function ChosenLine({
         failed ? 'text-destructive-foreground' : 'text-muted-foreground',
       )}
     >
-      {text ?? NO_ADDRESS_TEXT}
+      {text ?? t(NO_ADDRESS_TEXT)}
     </p>
   )
 }

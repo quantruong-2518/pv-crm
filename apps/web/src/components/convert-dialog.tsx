@@ -7,6 +7,7 @@ import { draftOpportunity, type OpportunityDraft } from '@pv/engines/fixtures/da
 import type { LeadProfile, OpportunityContactPick, OpportunityCreateResponse } from '@pv/contracts'
 import { isApiError, userMessage, type ApiError, type FieldErrors } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { useDirectory } from '@/data/directory'
 import { profileForm } from '@/data/lead-profile'
 import { chainPath, primaryFit, salePrimaryIn } from '@/data/opportunities'
@@ -71,7 +72,35 @@ const seedOf = (profile: LeadProfile, staff: Parameters<typeof draftOpportunity>
     staff,
   )
 
+const OPEN = {
+  confirmDifferentNeed: message(
+    'xác nhận đây là nhu cầu khác',
+    'confirm this is a different need',
+    '다른 수요임을 확인',
+  ),
+  opportunityOpened: message('Đã mở cơ hội', 'Opportunity opened', '기회를 열었습니다'),
+  openOpportunity: message('Mở cơ hội', 'Open opportunity', '기회 열기'),
+  prefilledFromTheLead: message(
+    'Điền sẵn từ lead. Kiểm lại các ô có dấu *.',
+    'Prefilled from the lead. Check the fields marked with *.',
+    '리드 정보로 미리 채워져 있습니다. *가 있는 항목을 확인하세요.',
+  ),
+  backToOpportunities: message('Về sổ cơ hội', 'Back to opportunities', '기회 목록으로'),
+  stayOnTheLead: message('Ở lại lead', 'Stay on the lead', '리드에 머물기'),
+}
+
+/** Said to a screen reader only once the deal exists: the panel then speaks for itself. */
+function OpenTitle({ created }: { created: boolean }) {
+  const { t } = useI18n()
+  return created ? (
+    <span className="sr-only">{t(OPEN.opportunityOpened)}</span>
+  ) : (
+    <>{t(OPEN.openOpportunity)}</>
+  )
+}
+
 function OpenDrawer({ profile, open, onClose, onCreated }: Props) {
+  const { t } = useI18n()
   const staff = useDirectory()
   const me = useSession((s) => s.actor)
   const navigate = useNavigate()
@@ -128,7 +157,7 @@ function OpenDrawer({ profile, open, onClose, onCreated }: Props) {
   const shownCodes = ctx?.runningDeals.map((d) => d.code) ?? []
   const { confirmed, confirm } = useDealsConfirm(shownCodes)
   const missing = missingForOpen(draft, picks, canAccept)
-  if (!confirmed) missing.push('xác nhận đây là nhu cầu khác')
+  if (!confirmed) missing.push(t(OPEN.confirmDifferentNeed))
 
   const submit = () => {
     if (!ctx) return
@@ -167,8 +196,8 @@ function OpenDrawer({ profile, open, onClose, onCreated }: Props) {
       open={open}
       onClose={onClose}
       width="lg"
-      title={created ? <span className="sr-only">Đã mở cơ hội</span> : 'Mở cơ hội'}
-      subtitle={created ? undefined : 'Điền sẵn từ lead. Kiểm lại các ô có dấu *.'}
+      title={<OpenTitle created={created !== null} />}
+      subtitle={created ? undefined : t(OPEN.prefilledFromTheLead)}
       footer={
         created ? undefined : (
           <OpenBar
@@ -185,7 +214,7 @@ function OpenDrawer({ profile, open, onClose, onCreated }: Props) {
       {created ? (
         <CreatedPanel
           created={created}
-          stayLabel={onCreated ? 'Về sổ cơ hội' : 'Ở lại lead'}
+          stayLabel={onCreated ? t(OPEN.backToOpportunities) : t(OPEN.stayOnTheLead)}
           onOpen={() => openDeal(created.row)}
           onStay={onClose}
         />
@@ -242,13 +271,18 @@ function OpenDrawer({ profile, open, onClose, onCreated }: Props) {
  *  form is never drawn from a half-known context: contacts and the running
  *  deals decide what the person is about to confirm. */
 function ContextGate({ error, onRetry }: { error: Error | null; onRetry: () => void }) {
+  const { t } = useI18n()
   if (error)
     return (
       <EmptyState
         tone="danger"
         icon={TriangleAlert}
-        message={`Không mở được phiếu. ${isApiError(error) ? userMessage(error) : 'Thử lại.'}`}
-        action={{ label: 'Thử lại', onClick: onRetry }}
+        message={`${t(message('Không mở được phiếu.', 'Could not open the form.', '양식을 열지 못했습니다.'))} ${
+          isApiError(error)
+            ? userMessage(error)
+            : t(message('Thử lại.', 'Try again.', '다시 시도해 주세요.'))
+        }`}
+        action={{ label: t(message('Thử lại', 'Try again', '다시 시도')), onClick: onRetry }}
         className="py-12"
       />
     )
@@ -279,6 +313,7 @@ function OpenBar({
   onClose: () => void
   onSubmit: () => void
 }) {
+  const { t } = useI18n()
   const ready = missing.length === 0 && !pending
 
   return (
@@ -300,18 +335,32 @@ function OpenBar({
         {error
           ? userMessage(error)
           : pending
-            ? 'Đang gửi phiếu…'
+            ? t(message('Đang gửi phiếu…', 'Submitting the form…', '양식을 제출하는 중…'))
             : ready
-              ? `Đủ ô bắt buộc · ${contacts} người liên hệ`
-              : `Còn thiếu ${missing.join(' · ')}.`}
+              ? t(
+                  message(
+                    `Đủ ô bắt buộc · ${contacts} người liên hệ`,
+                    `All required fields filled · ${contacts} ${contacts === 1 ? 'contact' : 'contacts'}`,
+                    `필수 항목 입력 완료 · 연락처 ${contacts}명`,
+                  ),
+                )
+              : t(
+                  message(
+                    `Còn thiếu ${missing.join(' · ')}.`,
+                    `Missing ${missing.join(' · ')}.`,
+                    `부족한 항목: ${missing.join(' · ')}.`,
+                  ),
+                )}
       </span>
       <div className="flex shrink-0 gap-2">
         <Button size="lg" variant="ghost" onClick={onClose}>
           <Icon icon={X} size={16} />
-          Huỷ
+          {t(message('Huỷ', 'Cancel', '취소'))}
         </Button>
         <Button size="lg" disabled={!ready} onClick={onSubmit}>
-          {pending ? 'Đang tạo…' : 'Tạo cơ hội'}
+          {pending
+            ? t(message('Đang tạo…', 'Creating…', '생성 중…'))
+            : t(message('Tạo cơ hội', 'Create opportunity', '기회 생성'))}
           <Icon icon={ArrowRight} size={16} />
         </Button>
       </div>

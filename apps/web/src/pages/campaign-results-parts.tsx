@@ -33,7 +33,7 @@ const TEXT = {
   noEmailsHaveBeenSent: message(
     'Chưa gửi thư nào. Kết quả sẽ hiện sau khi đợt đầu bắt đầu gửi.',
     'No emails have been sent yet. Results will appear once the first wave starts.',
-    '아직 발송된 이메일이 없습니다. 첫 발송 차수가 시작되면 결과가 표시됩니다.',
+    '아직 발송된 이메일이 없습니다. 첫 웨이브가 시작되면 결과가 표시됩니다.',
   ),
   clicksAsAShareOf: message(
     'Số người bấm trên số thư tới nơi',
@@ -43,7 +43,7 @@ const TEXT = {
   theActiveWaveStopsAutomatically: message(
     'Vượt ngưỡng sẽ tự dừng đợt đang gửi',
     'The active wave stops automatically when it exceeds the limit',
-    '한도를 초과하면 진행 중인 차수가 자동으로 중지됩니다',
+    '한도를 초과하면 진행 중인 웨이브가 자동으로 중지됩니다',
   ),
 }
 
@@ -74,7 +74,7 @@ export function CampaignResults({ campaign }: { campaign: CampaignProfile }) {
     message(
       `Hiệu quả sau ${gone.length} đợt gửi`,
       `Performance across ${gone.length} waves`,
-      `${gone.length}개 발송 차수 성과`,
+      `웨이브 ${gone.length}개 성과`,
     ),
   )
 
@@ -93,14 +93,14 @@ export function CampaignResults({ campaign }: { campaign: CampaignProfile }) {
       <FunnelCard title={title} total={total} />
 
       <Tile
-        title={t(message('Tỉ lệ bấm theo đợt', 'Click rate by wave', '발송 차수별 클릭률'))}
+        title={t(message('Tỉ lệ bấm theo đợt', 'Click rate by wave', '웨이브별 클릭률'))}
         subtitle={t(TEXT.clicksAsAShareOf)}
         className="lg:col-span-3"
       >
         <Columns
           items={recent.map(({ waveNo, run }) => ({
             key: waveNo,
-            label: t(message(`Đợt ${waveNo}`, `Wave ${waveNo}`, `${waveNo}차`)),
+            label: t(message(`Đợt ${waveNo}`, `Wave ${waveNo}`, `웨이브 ${waveNo}`)),
             value: shareOf(run.clicked, run.delivered, 1),
             /* Scaled to the best wave shown: click rates are a few percent,
                and on a 0–100 scale every column would be the same sliver. */
@@ -117,7 +117,7 @@ export function CampaignResults({ campaign }: { campaign: CampaignProfile }) {
       </Tile>
 
       <Tile
-        title={t(message('Thư bị trả lại theo đợt', 'Bounces by wave', '발송 차수별 반송'))}
+        title={t(message('Thư bị trả lại theo đợt', 'Bounces by wave', '웨이브별 반송'))}
         subtitle={t(TEXT.theActiveWaveStopsAutomatically)}
         aside={
           <span className="text-muted-foreground flex shrink-0 items-center gap-2 text-[12px]">
@@ -133,7 +133,7 @@ export function CampaignResults({ campaign }: { campaign: CampaignProfile }) {
             const over = bounceOver(run, campaign) === true
             return {
               key: waveNo,
-              label: t(message(`Đợt ${waveNo}`, `Wave ${waveNo}`, `${waveNo}차`)),
+              label: t(message(`Đợt ${waveNo}`, `Wave ${waveNo}`, `웨이브 ${waveNo}`)),
               value: shareOf(run.bounced, run.sent, 1),
               fill: bounceScale > 0 ? ratio(run.bounced, run.sent) / bounceScale : 0,
               tone: over ? 'bg-destructive' : 'bg-warning',
@@ -216,7 +216,7 @@ function RiskTile({ waveCount, risks }: { waveCount: number; risks: WaveRisk[] }
         message(
           `Rủi ro trước đợt ${waveCount + 1}`,
           `Risks before wave ${waveCount + 1}`,
-          `${waveCount + 1}차 발송 전 위험 요소`,
+          `웨이브 ${waveCount + 1} 발송 전 위험 요소`,
         ),
       )}
       className="lg:col-span-12"

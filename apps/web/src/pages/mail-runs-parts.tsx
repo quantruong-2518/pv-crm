@@ -1,16 +1,20 @@
 import { CircleX, Pencil } from '@pv/ui'
 import { Button, Icon } from '@pv/ui'
 import type { MailRunRow } from '@pv/contracts'
-import { CANCELLABLE, EDITABLE, SKIPPED_MAIL_LABEL, type MailRunRoute } from '@/data/mail-runs'
+import { message, useI18n } from '@/app/i18n'
+import { CANCELLABLE, EDITABLE, SKIPPED_MAIL_COPY, type MailRunRoute } from '@/data/mail-runs'
 
 /** Cells of the run book (G-Runs) that need more than one line of logic: what
  *  a group letter shows instead of a head count, and the two buttons G8 gates by state AND by who is asking. */
 
-const num = (n: number) => n.toLocaleString('vi-VN')
-
-const PERMISSION_WHY = 'Chỉ người tạo lô hoặc người có quyền phát chiến dịch.'
+const PERMISSION_WHY = message(
+  'Chỉ người tạo lô hoặc người có quyền phát chiến dịch.',
+  'Only the run creator or someone allowed to broadcast campaigns.',
+  '발송 건 작성자 또는 캠페인 발송 권한이 있는 사람만 가능합니다.',
+)
 
 export function RunLabel({ run }: { run: MailRunRow }) {
+  const { t } = useI18n()
   const name = run.sequenceName ?? run.campaignName ?? run.label
   return (
     <div className="min-w-0">
@@ -21,7 +25,9 @@ export function RunLabel({ run }: { run: MailRunRow }) {
         className="text-muted-foreground block truncate text-[11px]"
         title={`${run.phase ?? run.label} · ${run.subject}`}
       >
-        {run.waveNo ? `Đợt ${run.waveNo} · ` : ''}
+        {run.waveNo
+          ? t(message(`Đợt ${run.waveNo} · `, `Wave ${run.waveNo} · `, `웨이브 ${run.waveNo} · `))
+          : ''}
         {run.phase ?? run.label} · {run.subject}
       </span>
     </div>
@@ -31,24 +37,44 @@ export function RunLabel({ run }: { run: MailRunRow }) {
 /** A group run is ONE letter to named To/CC (G1), so `audienceCount` is 1 and
  *  says nothing; the row does not carry the addresses, so it names the kind. */
 export function RunAudience({ run }: { run: MailRunRow }) {
+  const { t, number } = useI18n()
   if (run.kind === 'group') {
-    return <span title="Một thư, mọi người nhận thấy địa chỉ của nhau">Thư nhóm</span>
+    return (
+      <span
+        title={t(
+          message(
+            'Một thư, mọi người nhận thấy địa chỉ của nhau',
+            "One letter, everyone sees each other's address",
+            '메일 한 통이며 모든 수신자가 서로의 주소를 볼 수 있습니다',
+          ),
+        )}
+      >
+        {t(message('Thư nhóm', 'Group letter', '그룹 메일'))}
+      </span>
+    )
   }
-  return <span>{num(run.audienceCount)}</span>
+  return <span>{number(run.audienceCount)}</span>
 }
 
 /** `withheld` rides under the sent count: it is the other half of "why fewer
  *  left than were filed" on a later wave (G6), and not a failure. */
 export function RunSent({ run }: { run: MailRunRow }) {
+  const { t, number } = useI18n()
   return (
     <span className="flex flex-col items-end">
-      <span>{num(run.sent)}</span>
+      <span>{number(run.sent)}</span>
       {run.withheld > 0 && (
         <span
           className="text-muted-foreground text-[11px]"
-          title="Đã trả lời hoặc đã có cuộc gặp sau đợt 1."
+          title={t(
+            message(
+              'Đã trả lời hoặc đã có cuộc gặp sau đợt 1.',
+              'Replied or met after wave 1.',
+              '웨이브 1 이후 답장했거나 미팅을 했습니다.',
+            ),
+          )}
         >
-          {SKIPPED_MAIL_LABEL} {num(run.withheld)}
+          {t(SKIPPED_MAIL_COPY)} {number(run.withheld)}
         </span>
       )}
     </span>
@@ -71,22 +97,35 @@ export function RunActions({
   onEdit: () => void
   onStop: (route: MailRunRoute) => void
 }) {
+  const { t } = useI18n()
   const canEdit = EDITABLE.includes(run.state)
   const canStop = CANCELLABLE.includes(run.state)
   const editWhy = !canEdit
-    ? 'Chỉ lô còn Hẹn giờ mới sửa được.'
+    ? message(
+        'Chỉ lô còn Hẹn giờ mới sửa được.',
+        'Only a Scheduled run can be edited.',
+        '예약됨 상태의 발송 건만 수정할 수 있습니다.',
+      )
     : route
-      ? 'Sửa nội dung hoặc giờ gửi'
+      ? message(
+          'Sửa nội dung hoặc giờ gửi',
+          'Edit the content or send time',
+          '내용 또는 발송 시각 수정',
+        )
       : PERMISSION_WHY
   const stopWhy = !canStop
-    ? 'Lô đã kết thúc.'
+    ? message('Lô đã kết thúc.', 'This run has ended.', '종료된 발송 건입니다.')
     : route
-      ? 'Giữ lại những thư chưa gửi'
+      ? message(
+          'Giữ lại những thư chưa gửi',
+          'Hold back the unsent letters',
+          '보내지 않은 메일을 보류',
+        )
       : PERMISSION_WHY
 
   return (
     <div className="flex min-w-0 items-center gap-2">
-      <span title={editWhy}>
+      <span title={t(editWhy)}>
         <Button
           size="sm"
           variant="ghost"
@@ -95,10 +134,10 @@ export function RunActions({
           onClick={onEdit}
         >
           <Icon icon={Pencil} size={14} />
-          Sửa
+          {t(message('Sửa', 'Edit', '수정'))}
         </Button>
       </span>
-      <span title={stopWhy}>
+      <span title={t(stopWhy)}>
         <Button
           size="sm"
           variant="ghost"
@@ -107,7 +146,7 @@ export function RunActions({
           onClick={() => route && onStop(route)}
         >
           <Icon icon={CircleX} size={14} />
-          Dừng
+          {t(message('Dừng', 'Stop', '중단'))}
         </Button>
       </span>
     </div>

@@ -5,6 +5,7 @@ import { AI_FLASH_MS, AiFieldConflict, type AiFillState } from '@pv/ui'
 import type { LeadAiFillField, LeadAiJob, LeadProfile } from '@pv/contracts'
 import { userMessage, type ApiError } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { message, translate } from '@/app/i18n'
 import { toast, toastDone, toastFail } from '@/app/toast'
 import { LeadAiMark } from '@/components/lead-ai-mark'
 import { useAttachLeadAccount, type AiFillConflict } from '@/data/lead-ai-fill'
@@ -125,10 +126,19 @@ export function useAiFillRun(lead: LeadProfile, draft: LeadDraft, canEdit: boole
     const line = refusalLine(error)
     if (line) toast(line, { tone: 'danger' })
     else
-      toast('Chưa điền được. Thử lại sau ít phút.', {
-        tone: 'danger',
-        action: { label: 'Thử lại', onClick: press },
-      })
+      toast(
+        translate(
+          message(
+            'Chưa điền được. Thử lại sau ít phút.',
+            'Could not fill in. Try again in a few minutes.',
+            '자동 입력하지 못했습니다. 잠시 후 다시 시도하세요.',
+          ),
+        ),
+        {
+          tone: 'danger',
+          action: { label: translate(message('Thử lại', 'Retry', '다시 시도')), onClick: press },
+        },
+      )
   }
 
   function press() {
@@ -147,9 +157,21 @@ export function useAiFillRun(lead: LeadProfile, draft: LeadDraft, canEdit: boole
       {
         onSuccess: () => {
           setAttached((cur) => new Set(cur).add(tag(conflict)))
-          toastDone(`Đã gắn vào ${conflict.accountName}.`)
+          toastDone(
+            translate(
+              message(
+                `Đã gắn vào ${conflict.accountName}.`,
+                `Linked to ${conflict.accountName}.`,
+                `${conflict.accountName}에 연결했습니다.`,
+              ),
+            ),
+          )
         },
-        onError: (error) => toastFail('Chưa gắn được.', userMessage(error)),
+        onError: (error) =>
+          toastFail(
+            translate(message('Chưa gắn được.', 'Could not link.', '연결하지 못했습니다.')),
+            userMessage(error),
+          ),
       },
     )
 

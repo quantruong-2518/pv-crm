@@ -23,6 +23,7 @@ import {
 } from '@pv/ui'
 import { DAS_VINA_FROZEN_AT, dasVina } from '@pv/engines/fixtures/das-vina'
 import { useAppChrome } from '@/app/chrome'
+import { message, useI18n, type Message } from '@/app/i18n'
 import { dm } from '@/lib/date'
 import { PLAN_ANCHOR, planBoardQuery } from '@/data/plan'
 
@@ -67,8 +68,17 @@ const STAT_ICON: Record<string, IconGlyph> = {
 }
 
 export function PlanPage() {
-  const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
-  const { data: board } = useQuery(planBoardQuery)
+  const { t, lang } = useI18n()
+  const chrome = useAppChrome({
+    searchPlaceholder: t(
+      message(
+        'Tìm khách hàng, cơ hội, báo giá, hồ sơ…',
+        'Search customers, opportunities, quotes, records…',
+        '고객, 기회, 견적, 기록 검색…',
+      ),
+    ),
+  })
+  const { data: board } = useQuery(planBoardQuery(lang))
 
   /* Kế hoạch đang dựng là chuyện RIÊNG của màn — chưa gửi thì chưa ai khác cần
      biết. Lên E3 khi bấm gửi duyệt, không phải khi bấm thêm. */
@@ -111,17 +121,26 @@ export function PlanPage() {
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <ScreenHeader
-          title="Số liệu & kế hoạch"
+          title={t(message('Số liệu & kế hoạch', 'Results & plans', '실적 및 계획'))}
           description={
             <>
-              DAS Vina · số liệu chốt lúc{' '}
-              <span className="font-mono">{DAS_VINA_FROZEN_AT.slice(11, 16)}</span> ngày{' '}
+              {t(
+                message(
+                  'DAS Vina · số liệu chốt lúc ',
+                  'DAS Vina · figures frozen at ',
+                  'DAS Vina · 수치 확정 시각 ',
+                ),
+              )}
+              <span className="font-mono">{DAS_VINA_FROZEN_AT.slice(11, 16)}</span>
+              {t(message(' ngày ', ' on ', ', 날짜 '))}
               <span className="font-mono">{dm(DAS_VINA_FROZEN_AT)}</span>
             </>
           }
           context={
             <>
-              <span className="text-muted-foreground text-[11px]">Đơn lớn nhất đang chạy</span>
+              <span className="text-muted-foreground text-[11px]">
+                {t(message('Đơn lớn nhất đang chạy', 'Largest open deal', '진행 중인 최대 기회'))}
+              </span>
               <ContextRail objects={rail} />
             </>
           }
@@ -149,7 +168,9 @@ export function PlanPage() {
                 không cắt chuỗi, vì cắt ở đây thì nhãn và ngữ cảnh dính lại ngay
                 lần ai đó sửa câu chữ ở tầng dữ liệu. */}
             <section className="flex flex-col gap-3">
-              <h3 className="text-[13px] font-semibold">Phòng đang đứng ở đâu</h3>
+              <h3 className="text-[13px] font-semibold">
+                {t(message('Phòng đang đứng ở đâu', 'Where the team stands', '현재 팀 현황'))}
+              </h3>
               <ScreenScoreGrid>
                 {board.stats.map((s) => (
                   <StatCard
@@ -174,15 +195,38 @@ export function PlanPage() {
                 theo điểm như hôm nay — thứ bị chặn là câu chữ, không phải thứ
                 tự (quyết định D-03, lý do đầy đủ ở `data/source-cost.ts`). */}
             <GlassCard variant="b" className="flex flex-col gap-3 p-5 lg:p-6">
-              <SectionTitle size="sm" kicker="Tiền đã đi đâu" hint={board.rankingNote}>
-                Giá mỗi lead tốt theo nguồn
+              <SectionTitle
+                size="sm"
+                kicker={t(message('Tiền đã đi đâu', 'Where the money went', '비용이 쓰인 곳'))}
+                hint={board.rankingNote}
+              >
+                {t(
+                  message(
+                    'Giá mỗi lead tốt theo nguồn',
+                    'Cost per good lead by source',
+                    '출처별 우수 리드당 비용',
+                  ),
+                )}
               </SectionTitle>
               <DataTable
                 columns={[
-                  { header: 'Hạng', width: '0.4fr' },
-                  { header: 'Mã', width: '0.9fr' },
-                  { header: 'Lead tốt', width: '0.7fr', align: 'right' },
-                  { header: 'Giá mỗi lead tốt · dải 95%', width: '2fr' },
+                  { header: t(message('Hạng', 'Rank', '순위')), width: '0.4fr' },
+                  { header: t(message('Mã', 'Code', '코드')), width: '0.9fr' },
+                  {
+                    header: t(message('Lead tốt', 'Good leads', '우수 리드')),
+                    width: '0.7fr',
+                    align: 'right',
+                  },
+                  {
+                    header: t(
+                      message(
+                        'Giá mỗi lead tốt · dải 95%',
+                        'Cost per good lead · 95% range',
+                        '우수 리드당 비용 · 95% 범위',
+                      ),
+                    ),
+                    width: '2fr',
+                  },
                 ]}
                 rows={board.ranking.map((r, i) => ({
                   id: r.code,
@@ -220,9 +264,19 @@ export function PlanPage() {
                   {/* Luật 15 · icon Trợ lý AI là `orbit`, size 20 vì đây là đầu
                       một khối chứ không phải icon trong nút. */}
                   <Icon icon={Orbit} size={20} className="text-accent-foreground" />
-                  <h3 className="text-[13px] font-semibold">Đề xuất cho tháng tới</h3>
+                  <h3 className="text-[13px] font-semibold">
+                    {t(
+                      message('Đề xuất cho tháng tới', 'Proposals for next month', '다음 달 제안'),
+                    )}
+                  </h3>
                   <span className="text-muted-foreground text-[11px]">
-                    {board.proposals.length} việc
+                    {t(
+                      message(
+                        `${board.proposals.length} việc`,
+                        `${board.proposals.length} tasks`,
+                        `${board.proposals.length}건`,
+                      ),
+                    )}
                   </span>
                 </div>
 
@@ -245,18 +299,44 @@ export function PlanPage() {
                       /* Nhãn khác hẳn nút "Bỏ khỏi kế hoạch" ở danh sách bên
                          dưới — hai nút cùng tên trên một màn thì người dùng
                          không biết mình đang rút cái nào. */
-                      confirmLabel={added ? 'Đã thêm · bấm để rút' : p.confirmLabel}
+                      confirmLabel={
+                        added
+                          ? t(
+                              message(
+                                'Đã thêm · bấm để rút',
+                                'Added · click to withdraw',
+                                '추가됨 · 눌러서 취소',
+                              ),
+                            )
+                          : p.confirmLabel
+                      }
                       empty={
                         added ? (
                           <>
-                            Đã vào kế hoạch, người làm là{' '}
-                            <b className="text-on-tint-primary font-semibold">{p.owner}</b>. Chưa
-                            gửi cho ai.
+                            {t(
+                              message(
+                                'Đã vào kế hoạch, người làm là ',
+                                'Added to the plan; the owner is ',
+                                '계획에 추가되었으며 담당자는 ',
+                              ),
+                            )}
+                            <b className="text-on-tint-primary font-semibold">{p.owner}</b>
+                            {t(
+                              message(
+                                '. Chưa gửi cho ai.',
+                                '. Nothing has been sent yet.',
+                                '입니다. 아직 아무에게도 보내지 않았습니다.',
+                              ),
+                            )}
                           </>
                         ) : (
-                          <>
-                            Chưa tạo gì cả. {board.approver} duyệt rồi {p.owner} mới làm.
-                          </>
+                          t(
+                            message(
+                              `Chưa tạo gì cả. ${board.approver} duyệt rồi ${p.owner} mới làm.`,
+                              `Nothing has been created yet. ${p.owner} starts only after ${board.approver} approves.`,
+                              `아직 아무것도 만들지 않았습니다. ${board.approver} 승인 후 ${p.owner}이(가) 진행합니다.`,
+                            ),
+                          )
                         )
                       }
                       onConfirm={() => {
@@ -274,17 +354,25 @@ export function PlanPage() {
               <GlassCard variant="b" className="flex flex-col gap-4 p-5 lg:p-6">
                 <div className="flex items-center gap-2">
                   <Icon icon={ClipboardList} size={16} />
-                  <h3 className="text-[13px] font-semibold">Kế hoạch đã chốt</h3>
+                  <h3 className="text-[13px] font-semibold">
+                    {t(message('Kế hoạch đã chốt', 'Confirmed plan', '확정된 계획'))}
+                  </h3>
                 </div>
 
                 {chosen.length === 0 ? (
                   <EmptyState
                     icon={ClipboardList}
-                    message="Kế hoạch chưa có việc nào."
+                    message={t(
+                      message(
+                        'Kế hoạch chưa có việc nào.',
+                        'The plan has no tasks yet.',
+                        '계획에 등록된 일이 없습니다.',
+                      ),
+                    )}
                     /* EmptyState LUÔN vẽ một nút, nên nút phải làm được việc
                        thật — nút bấm không phản hồi tệ hơn không có nút. */
                     action={{
-                      label: 'Xem đề xuất',
+                      label: t(message('Xem đề xuất', 'View proposals', '제안 보기')),
                       onClick: () =>
                         document
                           .getElementById('proposals')
@@ -305,10 +393,12 @@ export function PlanPage() {
                         {/* Căn cứ đi CÙNG việc sang chỗ người gật. Gửi mỗi câu
                             đề xuất là bắt người ta gật vào niềm tin. */}
                         <span className="text-muted-foreground text-[11px] leading-[1.5]">
-                          Căn cứ: {p.basis}
+                          {t(message('Căn cứ: ', 'Basis: ', '근거: '))}
+                          {p.basis}
                         </span>
                         <span className="text-[11px]">
-                          Người làm: <b className="font-semibold">{p.owner}</b>
+                          {t(message('Người làm: ', 'Owner: ', '담당: '))}
+                          <b className="font-semibold">{p.owner}</b>
                         </span>
                         <div className="flex flex-wrap items-center gap-2">
                           {p.codes.map((code) => (
@@ -317,7 +407,7 @@ export function PlanPage() {
                         </div>
                         <Button size="sm" variant="ghost" onClick={() => toggle(p.id)}>
                           <Icon icon={X} size={16} />
-                          Bỏ khỏi kế hoạch
+                          {t(message('Bỏ khỏi kế hoạch', 'Remove from plan', '계획에서 제외'))}
                         </Button>
                       </li>
                     ))}
@@ -327,10 +417,16 @@ export function PlanPage() {
                 {sent ? (
                   <div className="flex flex-col gap-2">
                     <Badge tone="running" className="self-start">
-                      Đã gửi {board.approver} · đang chờ duyệt
+                      {t(
+                        message(
+                          `Đã gửi ${board.approver} · đang chờ duyệt`,
+                          `Sent to ${board.approver} · awaiting approval`,
+                          `${board.approver}에게 전송됨 · 승인 대기 중`,
+                        ),
+                      )}
                     </Badge>
                     <Button size="md" variant="ghost" onClick={() => setSent(false)}>
-                      Rút lại
+                      {t(message('Rút lại', 'Withdraw', '철회'))}
                     </Button>
                   </div>
                 ) : (
@@ -345,12 +441,24 @@ export function PlanPage() {
                     }}
                   >
                     <Icon icon={Send} size={16} />
-                    Gửi {board.approver} duyệt
+                    {t(
+                      message(
+                        `Gửi ${board.approver} duyệt`,
+                        `Send to ${board.approver} for approval`,
+                        `${board.approver}에게 승인 요청`,
+                      ),
+                    )}
                   </Button>
                 )}
 
                 <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                  Gửi duyệt xong, việc chỉ bắt đầu khi {board.approver} đồng ý.
+                  {t(
+                    message(
+                      `Gửi duyệt xong, việc chỉ bắt đầu khi ${board.approver} đồng ý.`,
+                      `After submitting, work starts only when ${board.approver} agrees.`,
+                      `승인 요청 후에는 ${board.approver}이(가) 동의해야 작업이 시작됩니다.`,
+                    ),
+                  )}
                 </p>
               </GlassCard>
             </div>
@@ -368,34 +476,70 @@ export function PlanPage() {
  *  Khối này ở lại trên màn (không phải trong comment) vì ba trong bốn dòng là
  *  thứ người xem sẽ hỏi ngay: "sao không có dự báo", "sao không có mũi tên
  *  tăng/giảm". Trả lời một lần trên màn rẻ hơn trả lời mười lần trong họp. */
+const NOT_DOING: { title: Message; body: Message }[] = [
+  {
+    title: message(
+      'Không dự báo doanh số tháng tới',
+      "No forecast of next month's revenue",
+      '다음 달 매출 예측 없음',
+    ),
+    body: message(
+      'Chưa có số theo thời gian nên không dự báo được.',
+      'There is no data over time, so a forecast is not possible.',
+      '시간별 데이터가 없어 예측할 수 없습니다.',
+    ),
+  },
+  {
+    title: message(
+      'Không có mức tăng giảm trên bốn ô số',
+      'No change indicators on the four tiles',
+      '네 개 수치 칸에 증감 표시 없음',
+    ),
+    body: message(
+      'Chưa có kỳ trước để so sánh.',
+      'There is no previous period to compare with.',
+      '비교할 이전 기간이 없습니다.',
+    ),
+  },
+  {
+    title: message(
+      'Không tự gửi cho ai',
+      'Nothing is sent on its own',
+      '자동으로 아무에게도 보내지 않음',
+    ),
+    body: message(
+      'Trợ lý không thêm việc, không gửi duyệt, không báo ai. Cả ba bước chờ bạn bấm.',
+      'The assistant does not add tasks, send for approval or notify anyone. All three steps wait for you to press.',
+      '도우미는 일을 추가하거나 승인을 요청하거나 누군가에게 알리지 않습니다. 세 단계 모두 직접 누르셔야 진행됩니다.',
+    ),
+  },
+  {
+    title: message(
+      'Không lặp lại màn Performance',
+      'Does not repeat the Performance screen',
+      '실적 화면과 중복하지 않음',
+    ),
+    body: message(
+      'Ai đang làm được, ai đang tắc xem ở màn Performance.',
+      'See the Performance screen for who is delivering and who is stuck.',
+      '누가 잘하고 있고 누가 막혀 있는지는 실적 화면에서 확인하세요.',
+    ),
+  },
+]
+
 function NotDoing() {
-  const items = [
-    {
-      title: 'Không dự báo doanh số tháng tới',
-      body: 'Chưa có số theo thời gian nên không dự báo được.',
-    },
-    {
-      title: 'Không có mức tăng giảm trên bốn ô số',
-      body: 'Chưa có kỳ trước để so sánh.',
-    },
-    {
-      title: 'Không tự gửi cho ai',
-      body: 'Trợ lý không thêm việc, không gửi duyệt, không báo ai. Cả ba bước chờ bạn bấm.',
-    },
-    {
-      title: 'Không lặp lại màn Performance',
-      body: 'Ai đang làm được, ai đang tắc xem ở màn Performance.',
-    },
-  ]
+  const { t } = useI18n()
 
   return (
     <GlassCard className="flex flex-col gap-3 p-5 lg:p-6">
-      <h3 className="text-[13px] font-semibold">Cố tình không làm</h3>
+      <h3 className="text-[13px] font-semibold">
+        {t(message('Cố tình không làm', 'Deliberately not doing', '의도적으로 하지 않는 것'))}
+      </h3>
       <ul className="grid gap-3 lg:grid-cols-2 lg:gap-4">
-        {items.map((it) => (
-          <li key={it.title} className="flex flex-col gap-1">
-            <b className="text-[11.5px] font-semibold">{it.title}</b>
-            <span className="text-muted-foreground text-[11.5px] leading-[1.5]">{it.body}</span>
+        {NOT_DOING.map((it) => (
+          <li key={it.title.vi} className="flex flex-col gap-1">
+            <b className="text-[11.5px] font-semibold">{t(it.title)}</b>
+            <span className="text-muted-foreground text-[11.5px] leading-[1.5]">{t(it.body)}</span>
           </li>
         ))}
       </ul>

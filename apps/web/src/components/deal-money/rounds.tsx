@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { Button, cn } from '@pv/ui'
 import { QUOTATION_OUTCOME_LABEL, type QuotationOutcome, type QuotationRow } from '@pv/contracts'
 import { dm } from '@/lib/date'
+import { message, useI18n } from '@/app/i18n'
 import { BADGE_INK } from '@/data/opportunities'
 import { StepDocuments } from '@/components/run/step-documents'
-import { NO_AMOUNT, compactMoney } from './money'
+import { NO_AMOUNT_COPY, compactMoney } from './money'
 import { TintBadge } from './tint-badge'
 
 /** The rounds of one paper, in the server's order (newest first). Each row
@@ -15,6 +16,12 @@ const OUTCOME_TONE: Record<QuotationOutcome, 'running' | 'success' | 'draft'> = 
   pending: 'running',
   won: 'success',
   'not-closed': 'draft',
+}
+
+const OUTCOME_COPY: Record<QuotationOutcome, ReturnType<typeof message>> = {
+  pending: message(QUOTATION_OUTCOME_LABEL.pending, 'Awaiting customer', '고객 응답 대기'),
+  won: message(QUOTATION_OUTCOME_LABEL.won, 'Won', '수주'),
+  'not-closed': message(QUOTATION_OUTCOME_LABEL['not-closed'], 'Not closed', '미체결'),
 }
 
 export function RoundList({
@@ -45,6 +52,7 @@ function RoundLine({
   workstreamCode: string | null
   onPatch?: ((round: QuotationRow) => void) | undefined
 }) {
+  const { t } = useI18n()
   const [filesOpen, setFilesOpen] = useState(false)
   /* The patch door takes a pending round only. */
   const incomplete = round.amount === null || round.kind === null
@@ -57,23 +65,39 @@ function RoundLine({
         <span className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="flex flex-wrap items-center gap-2">
             <span className="tnum font-semibold">
-              Lần {round.roundNo} ·{' '}
-              {round.amount === null ? NO_AMOUNT : compactMoney(round.amount, round.currency)}
+              {t(message(`Lần ${round.roundNo}`, `Round ${round.roundNo}`, `${round.roundNo}차`))} ·{' '}
+              {round.amount === null
+                ? t(NO_AMOUNT_COPY)
+                : compactMoney(round.amount, round.currency)}
             </span>
             <TintBadge
               tone={OUTCOME_TONE[round.outcome]}
               className={cn(round.outcome === 'not-closed' && BADGE_INK)}
             >
-              {QUOTATION_OUTCOME_LABEL[round.outcome]}
+              {t(OUTCOME_COPY[round.outcome])}
             </TintBadge>
           </span>
           {reason && <span className="text-muted-foreground min-w-0 break-words">{reason}</span>}
           {round.validUntil &&
             (round.expired ? (
-              <span className="text-warning tnum">Hết hiệu lực từ {dm(round.validUntil)}</span>
+              <span className="text-warning tnum">
+                {t(
+                  message(
+                    `Hết hiệu lực từ ${dm(round.validUntil)}`,
+                    `Expired on ${dm(round.validUntil)}`,
+                    `${dm(round.validUntil)} 만료`,
+                  ),
+                )}
+              </span>
             ) : (
               <span className="text-accent-foreground tnum">
-                Hiệu lực đến {dm(round.validUntil)}
+                {t(
+                  message(
+                    `Hiệu lực đến ${dm(round.validUntil)}`,
+                    `Valid until ${dm(round.validUntil)}`,
+                    `${dm(round.validUntil)}까지 유효`,
+                  ),
+                )}
               </span>
             ))}
         </span>
@@ -87,7 +111,7 @@ function RoundLine({
             className="pointer-coarse:h-12"
             onClick={() => onPatch(round)}
           >
-            Bổ sung thông tin
+            {t(message('Bổ sung thông tin', 'Add details', '정보 추가'))}
           </Button>
         )}
         <Button
@@ -97,7 +121,13 @@ function RoundLine({
           aria-expanded={filesOpen}
           onClick={() => setFilesOpen((was) => !was)}
         >
-          {round.files} tệp
+          {t(
+            message(
+              `${round.files} tệp`,
+              `${round.files} ${round.files === 1 ? 'file' : 'files'}`,
+              `파일 ${round.files}개`,
+            ),
+          )}
         </Button>
       </div>
       {filesOpen && (
