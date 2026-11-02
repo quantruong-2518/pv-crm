@@ -103,10 +103,10 @@ A right-hand panel on the existing Drawer and AiAction style, with no new
 - Figures in words pass.
 - "Đã báo sai" is not remembered after reopen.
 - Refs for linked codes cited in text get no chip.
-- **Open, and live since every role holds `assistant.use`:** the re-check asks
-  only whether a record is still readable, not whether the reader still holds
-  `data.export`. An email in an answer has no digit, so it is stored as prose and
-  comes back on load, replay and in reports after `data.export` is lost.
+- Closed the same day: a stored answer is cut again on every read (load, replay,
+  reports) by the reader's live `data.export`. Phone and mail shapes become
+  `[withheld]` (`assistant-contact.ts`), which the web shows in the reader's
+  language. A contact spelled out in words still passes, as on the tool path.
 - The reports audit line names the page and a count, not which answers were read.
 - In reports the 400-code cap is shared by the whole page, not counted per chat,
   so later rows can come back `unchecked`.

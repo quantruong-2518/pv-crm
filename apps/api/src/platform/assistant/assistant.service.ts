@@ -114,7 +114,11 @@ export class AssistantService {
         id: row.id,
         seq: row.seq,
         role: row.role,
-        body: shut ? '' : row.body,
+        body: shut
+          ? ''
+          : row.role === 'assistant'
+            ? this.gate.contactText(who, row.body)
+            : row.body,
         refs: read,
         withheld: shut === 'withheld',
         unchecked: shut === 'unchecked',
@@ -184,7 +188,10 @@ export class AssistantService {
     const check = await recheckChats(this.gate, who, chatCodes)
     const shown = rows.map(({ messageId, sessionId: _s, seq: _q, ...row }) => {
       const shut = check.shut.get(messageId)
-      const text = shut ? { question: '', answer: '', note: null } : {}
+      const cut = (t: string) => this.gate.contactText(who, t)
+      const text = shut
+        ? { question: '', answer: '', note: null }
+        : { question: cut(row.question), answer: cut(row.answer), note: row.note && cut(row.note) }
       return {
         ...row,
         ...text,

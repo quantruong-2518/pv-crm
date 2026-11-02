@@ -7,6 +7,7 @@ import { z, type ZodType } from 'zod'
 import { NEED_KEY, PUBLIC_KEY, type RouteNeed } from '../access/need.decorator'
 import type { AiToolCall, AiToolDecl } from '../ai/ai-client'
 import { ACCESS } from '../engines/tokens'
+import { maskContact } from './assistant-contact'
 import { PvError } from '../http/problem'
 
 /** A tool is a gate, not a function (ADR 0133 D2).
@@ -238,6 +239,12 @@ export class AssistantToolGate {
       if (this.registered.has(tool.name)) throw new Error(`assistant tool ${tool.name}: twice`)
       this.registered.set(tool.name, register(tool))
     }
+  }
+
+  /** Stored answer text as this reader may see it now: a contact the answer once
+   *  carried is cut once the reader no longer holds `data.export` (0136 §3). */
+  contactText(who: Actor, text: string): string {
+    return this.access.allows(who, 'data.export') ? text : (maskContact(text) as string)
   }
 
   declarations(): AiToolDecl[] {

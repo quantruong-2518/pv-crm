@@ -6,7 +6,7 @@ import { message, useI18n } from '@/app/i18n'
 import { SettingsShell } from '@/components/settings-shell'
 import { TableFooter } from '@/components/table-bits'
 import { reportsQuery } from '@/data/assistant'
-import { ASSISTANT_COPY as C, REASON_COPY } from '@/data/assistant-copy'
+import { ASSISTANT_COPY as C, REASON_COPY, shownText } from '@/data/assistant-copy'
 import { QueryBlock } from './kpi-parts'
 
 /** One Core · Admin · answers of the CRM assistant someone reported as wrong
@@ -68,7 +68,7 @@ export function AdminAssistantReportsPage() {
 }
 
 function ReportItem({ row }: { row: AssistantReportRow }) {
-  const { t, date } = useI18n()
+  const { t, date, lang } = useI18n()
   const at = date(row.at, {
     day: '2-digit',
     month: '2-digit',
@@ -91,8 +91,8 @@ function ReportItem({ row }: { row: AssistantReportRow }) {
       ) : (
         <dl className="m-0 grid gap-2 text-[13px] leading-[1.55] sm:grid-cols-[112px_minmax(0,1fr)]">
           {row.note && <Entry label={t(COPY.note)} text={row.note} />}
-          <Entry label={t(COPY.question)} text={row.question} />
-          <Entry label={t(COPY.answer)} text={row.answer} />
+          <Entry label={t(COPY.question)} text={shownText(row.question, lang)} />
+          <Entry label={t(COPY.answer)} text={shownText(row.answer, lang)} />
         </dl>
       )}
     </li>

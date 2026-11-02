@@ -94,6 +94,12 @@ const LOOKING = m('Đang tra dữ liệu…', 'Looking up data…', '데이터 �
 export const stepLabel = (tool: string | undefined, lang: Lang) =>
   translate(tool ? (STEP[tool] ?? LOOKING) : WRITING, lang)
 
+/** The server cuts a phone or mail the reader may not see to this marker (ADR 0136 §3). */
+const CONTACT_HIDDEN = m('[liên hệ bị ẩn]', '[contact hidden]', '[연락처 숨김]')
+
+export const shownText = (text: string, lang: Lang) =>
+  text.replaceAll('[withheld]', translate(CONTACT_HIDDEN, lang))
+
 export const ERROR_COPY: Record<AssistantErrorCode, Message> = {
   off: m('Trợ lý đang tắt.', 'The assistant is turned off.', '도우미가 꺼져 있습니다.'),
   busy: m(

@@ -26,6 +26,7 @@ import {
   openLabel,
   stepLabel,
   suggestionText,
+  shownText,
 } from '@/data/assistant-copy'
 import type { AnswerView } from '@/data/assistant-thread'
 
@@ -105,7 +106,7 @@ function Running({ answer }: { answer: AnswerView }) {
       </div>
       {answer.body && (
         <p className="text-foreground m-0 whitespace-pre-line text-[13px] leading-[1.55]">
-          {answer.body}
+          {shownText(answer.body, lang)}
         </p>
       )}
     </div>
@@ -123,7 +124,7 @@ function Failed({ answer, ask, busy }: AnswerProps) {
     : t(C.notAnswered)
   const retry = !failure || RETRYABLE.has(failure.code)
   const copy = () =>
-    void navigator.clipboard.writeText(answer.body).then(
+    void navigator.clipboard.writeText(shownText(answer.body, lang)).then(
       () => toastDone(t(C.copied)),
       () => toastFail(t(C.copyFailed)),
     )
@@ -134,7 +135,9 @@ function Failed({ answer, ask, busy }: AnswerProps) {
         <AiAction
           variant="panel"
           className={BLOCK}
-          suggestion={<span className="block whitespace-pre-line">{answer.body}</span>}
+          suggestion={
+            <span className="block whitespace-pre-line">{shownText(answer.body, lang)}</span>
+          }
           basis={basisOf(answer, lang)}
           basisLabel={t(C.basisLabel)}
           empty={t(C.readOnly)}
@@ -170,7 +173,7 @@ function Answered({ answer, last, busy, ask, openPath }: AnswerProps) {
   const [reported, setReported] = useState(false)
   const first = answer.refs[0]
   const copy = () =>
-    void navigator.clipboard.writeText(answer.body).then(
+    void navigator.clipboard.writeText(shownText(answer.body, lang)).then(
       () => toastDone(t(C.copied)),
       () => toastFail(t(C.copyFailed)),
     )
@@ -185,7 +188,7 @@ function Answered({ answer, last, busy, ask, openPath }: AnswerProps) {
             <span className="text-on-tint-primary-muted mb-2 block text-[11.5px] font-semibold">
               {t(C.aiLabel)}
             </span>
-            <span className="block whitespace-pre-line">{answer.body}</span>
+            <span className="block whitespace-pre-line">{shownText(answer.body, lang)}</span>
             {answer.state === 'stopped' && (
               <span className="text-on-tint-primary-muted mt-2 block text-[11.5px]">
                 {t(C.stopped)}

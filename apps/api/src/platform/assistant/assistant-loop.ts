@@ -347,7 +347,13 @@ export class AssistantRunner {
       const calls = await this.repo.callsOf(ids)
       const chat = ids.map((id) => ({ id, codes: (calls.get(id) ?? []).flatMap((c) => c.codes) }))
       const { shut } = await recheck(this.tools, who, chat)
-      return history.filter((line) => !shut.has(line.turnId))
+      return history
+        .filter((line) => !shut.has(line.turnId))
+        .map((line) =>
+          line.role === 'assistant'
+            ? { ...line, body: this.tools.contactText(who, line.body) }
+            : line,
+        )
     } catch (error) {
       this.log.error(`replay check failed: ${error instanceof Error ? error.name : 'unknown'}`)
       return []
