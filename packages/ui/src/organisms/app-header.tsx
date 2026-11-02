@@ -78,6 +78,9 @@ export type AppHeaderProps = {
    *  panel does not scroll: the body decides which of its parts does. */
   notificationsMenu?: (close: () => void) => ReactNode
   onOpenAssistant?: () => void
+  /** Free slot left of the approvals/bell cluster, for a control the app owns
+   *  (the language picker) that the header must not know the data of. */
+  utility?: ReactNode
   className?: string
   /** Width and side padding of the row inside the full-bleed bar — the shell
    *  passes main's own axis, so the brand lines up with the page title. */
@@ -237,6 +240,7 @@ export function AppHeader({
   search,
   accountActions,
   notificationsMenu,
+  utility,
   onOpenAssistant,
   className,
   frameClassName,
@@ -315,6 +319,7 @@ export function AppHeader({
         </div>
 
         <div className={cn('flex shrink-0 items-center justify-end gap-2', dim)}>
+          {utility}
           {approvals ? <CoreButton action={approvals} copy={copy} /> : null}
           {notificationAction && notificationsMenu ? (
             <BellMenu action={notificationAction} unread={unread} copy={copy}>
