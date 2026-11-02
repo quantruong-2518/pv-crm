@@ -72,6 +72,11 @@ const seat = (id: string, role: 'director' | 'head-of-sales'): Actor => ({
 const director = seat('u-dir', 'director')
 const other = seat('u-other', 'director')
 const head = seat('u-head', 'head-of-sales')
+/** Every role holds `assistant.use` by default; this one had it unticked in the matrix. */
+const unticked: Actor = {
+  ...head,
+  permissions: head.permissions.filter((p) => p !== 'assistant.use'),
+}
 /** A seat of its own for the counts that the other tests' turns would move. */
 const counted = seat('u-count', 'director')
 /** The same person after the role editor took `lead.view` away. */
@@ -243,7 +248,7 @@ describe('availability', () => {
   })
 
   it('is off for a role without the permission, and off the Sales branch', async () => {
-    expect(await enabled(head)).toBe(false)
+    expect(await enabled(unticked)).toBe(false)
     expect(await enabled({ ...director, branches: [] })).toBe(false)
   })
 })
@@ -834,7 +839,7 @@ describe('the guards', () => {
   })
 
   it('refuses the turn door to a role without assistant.use', async () => {
-    await expect(gate(AssistantController.prototype.turn, head)).rejects.toMatchObject({
+    await expect(gate(AssistantController.prototype.turn, unticked)).rejects.toMatchObject({
       status: 403,
     })
   })

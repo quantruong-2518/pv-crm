@@ -87,22 +87,17 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
   /** Head of sales: the approver of the whole department, so every Sales screen
    *  names this role as the one who approves.
    *
-   *  The director's row minus five, and the overlap is on purpose: `lead.disable`
+   *  The director's row minus four, and the overlap is on purpose: `lead.disable`
    *  and `role.manage` (owner, 07/10/2026: only the director switches a lead off,
    *  and a role that edits the matrix could grant itself back), `cost.view`,
-   *  `assistant.use` and `assistant.review` (managers never read chats). Within
+   *  and `assistant.review` (managers never read chats). Within
    *  Sales the two roles act alike; the license axis tells them apart, since the
    *  director holds all five branches. Putting that gap in this matrix would put
    *  it on the wrong axis. */
   'head-of-sales': PERMISSIONS.filter(
     // `cost.view`: the owner keeps product spend with the director alone (ADR 0102).
-    // `assistant.use`: the owner tries the assistant alone first (ADR 0136).
     (p) =>
-      p !== 'lead.disable' &&
-      p !== 'role.manage' &&
-      p !== 'cost.view' &&
-      p !== 'assistant.use' &&
-      p !== 'assistant.review',
+      p !== 'lead.disable' && p !== 'role.manage' && p !== 'cost.view' && p !== 'assistant.review',
   ),
 
   /** Marketing — sở hữu chiến dịch, đọc lead để biết nguồn nào ra khách. Không
@@ -134,6 +129,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     /* Marketing answers "which source produces customers", so it keeps the
        origin catalogue clean enough to answer it. */
     'lead-origin.manage',
+    'assistant.use',
   ],
 
   /** BD — mang lead vào và đẩy qua cổng init data. Không `lead.assign`: giao việc
@@ -163,6 +159,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'kpi.view',
     'plan.view',
     'config.view',
+    'assistant.use',
   ],
 
   /** Presales — dựng số và đi demo cùng Sale. Đọc lead, làm việc trên cơ hội,
@@ -180,6 +177,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'performance.view',
     'kpi.view',
     'plan.view',
+    'assistant.use',
   ],
 
   /** Sale — làm đủ vòng đời khách của MÌNH. Quyền rộng gần bằng BD nhưng bị
@@ -217,6 +215,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'kpi.view',
     'plan.view',
     'config.view',
+    'assistant.use',
   ],
 
   /** Account executive — the combined Marketer + BD + AM seat. One person runs
@@ -264,6 +263,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'audit-log.view',
     'approval.decide',
     'data.export',
+    'assistant.use',
   ],
 }
 

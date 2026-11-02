@@ -15,12 +15,16 @@ chat route, the screens, the report of a wrong answer, and D3 of 0133.
 
 ### 1 · Who can use it, and the override of gate 0
 
-A new permission `assistant.use`, director only by default. Widening to Sales
-is ticking it per role in the role matrix, no code. The entry shows only when
-the `assistant` route is on and the person holds the permission
-(`GET /assistant/availability`), so web and API ship order does not matter.
-Why: switching on for the owner is the owner's explicit override of gate 0;
-widening to the department should wait for the keyed run.
+A new permission `assistant.use`. The entry shows only when the `assistant`
+route is on and the person holds the permission (`GET /assistant/availability`),
+so web and API ship order does not matter.
+
+**Amended the same day:** every role holds `assistant.use` by default, and on
+Neon it was granted to all seven roles by direct SQL with audit lines. The first
+cut gave it to the director alone; the owner corrected that: "trợ lý là của
+chung nhưng trả lời theo quyền của người hỏi". Each tool already runs through
+its door as the asker, so nothing else changes. Switching it on is the owner's
+explicit override of gate 0 and of open question 139.
 
 `assistant.review`, admin only, reads a reported answer and the question before
 it, nothing else. Each read writes an audit line, and each answer is re-checked
@@ -99,7 +103,7 @@ A right-hand panel on the existing Drawer and AiAction style, with no new
 - Figures in words pass.
 - "Đã báo sai" is not remembered after reopen.
 - Refs for linked codes cited in text get no chip.
-- **Must close before `assistant.use` widens past the director:** the re-check asks
+- **Open, and live since every role holds `assistant.use`:** the re-check asks
   only whether a record is still readable, not whether the reader still holds
   `data.export`. An email in an answer has no digit, so it is stored as prose and
   comes back on load, replay and in reports after `data.export` is lost.

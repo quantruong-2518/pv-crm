@@ -29,8 +29,8 @@ import { AssistantService } from './assistant.service'
 
 /** `/assistant` — the CRM assistant chat, wave 1 (contract: `assistant-http.ts`).
  *
- *  Every door but two needs `assistant.use` on the Sales branch: the owner tries
- *  it alone first, and the matrix opens it to a role. `availability` is "just be
+ *  Every door but two needs `assistant.use` on the Sales branch: every role holds
+ *  it, and each answer stays within the asker's own rights. `availability` is "just be
  *  signed in", since it is the question of whether to show the button. `reports`
  *  needs `assistant.review`: it shows answers of other people's chats. */
 @Controller('assistant')
