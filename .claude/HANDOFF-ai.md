@@ -26,25 +26,14 @@ Claude Haiku 5.5); phân loại nhanh → Claude Haiku 5.5; tìm web → Gemini 
 
 ## Đợt 0 CRM Agent (ADR 0133, 01/11/2026)
 
-Đã dựng và push lên master. Migration 0159 chưa lên Neon. Bốn tuyến `assistant*` seed ở trạng
-thái tắt. Chưa ship API. Cổng 0 còn MỞ: chờ khoá nhà cung cấp trên một máy. Việc kế tiếp: chạy
+Đã ship 02/11/2026 cùng ADR 0134: commit `bf19d6c3`, Fly v206, Neon 0159 và 0160. Bốn tuyến
+`assistant*` vẫn tắt, chưa có tuyến chat và màn, nên chưa ai dùng được trợ lý. Cổng 0 còn MỞ: chờ
+khoá nhà cung cấp trên một máy. Việc kế tiếp: chạy
 `pnpm ai:eval -- --suite assistant --live --yes --model <id>` có khoá, cho cả hai hãng.
 
-**Deploy API từ master phải chạy 0159 lên Neon trước.** Lệnh ghi `ai_call` nêu đủ cột mới, nên
-API mới trên DB cũ làm hỏng mọi lần ghi sổ AI, kể cả tự điền lead và báo cáo liên hệ. Giữa lúc
-migrate và deploy, API cũ trả 500 ở `GET /ai/routes` vì chưa biết bốn tác vụ mới.
-
-**Thứ tự ship: 0159 rồi 0160 lên Neon, TRƯỚC mọi lần deploy API từ master.** Thiếu 0159 thì mọi
-lần ghi sổ AI hỏng. Thiếu 0160 thì cửa `GET /audit/ai-reads` trả 403 cho mọi người và lượt dọn
-hằng giờ quét cả bảng audit. 0160 là quyền `ai-read.view` và một chỉ mục từng phần trên
-`audit(at)` cho `ai-read`. Kiểm số dòng `platform.audit` lúc ship: `CREATE INDEX` thường chặn
-ghi audit trong lúc dựng chỉ mục.
-
-## Trạng thái 01/11/2026 (sau ADR 0134)
-
-Chủ dự án trả lời câu hỏi mở 141 đến 153 (ADR 0134) và kéo 143, 144, 147, 149 lên trước cổng 0:
-đã dựng, vẫn không với tới được (không tuyến, không màn, tuyến tắt). Cổng 0 còn MỞ. Bộ thử có
-thêm hai nhóm, scope-reach và runner-summary. Câu hỏi mở mới: 154 đến 157. Chưa commit, chưa ship.
+Chủ dự án trả lời câu hỏi mở 141 đến 153 (ADR 0134) và kéo 143, 144, 147, 149 lên trước cổng 0.
+Câu hỏi mở mới: 154 đến 157. Chưa có lượt gọi AI nào trên v206, nên ghi `ai_call` với cột mới
+chưa được thử thật trên production.
 
 ## Nợ còn mở
 
