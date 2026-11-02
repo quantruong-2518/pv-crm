@@ -7,7 +7,8 @@ import { toastDone } from '@/app/toast'
 import { useProposeConfigCreate, useProposeIndustryMerge } from '@/data/industries'
 import { useMyConfigProposals, useProposeConfigPatch } from '@/data/sales-config'
 import { industryAddsWaiting, industryWaiting } from './sales-config-model'
-import { SENT, WaitingNote } from './sales-config-section'
+import { WaitingNote } from './sales-config-section'
+import { SENT } from './sales-config-copy'
 
 /** 5.20 · what one industry pill opens, and the add row under a category.
  *  Split from `sales-config-industries.tsx` on size. Each control sends its own

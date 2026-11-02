@@ -325,7 +325,7 @@ export class AuthService {
     const stored = found.actor.passwordHash ?? (await dummyPasswordHash())
     if (!(await verifyPassword(password, stored))) {
       this.throttle.fail(key)
-      throw denied('unauthenticated', 'Mật khẩu không đúng.')
+      throw denied('unauthenticated', 'Mật khẩu không đúng.', 'wrong-password')
     }
 
     this.throttle.clear(key)
@@ -364,7 +364,7 @@ export class AuthService {
    *  429 from becoming its own oracle — it fires on the submitted string, known
    *  address or not. Without it, the endpoint is a mail bomb aimed at any
    *  address an outsider can guess. */
-  async forgotPassword(email: string): Promise<void> {
+  async forgotPassword(email: string, lang: 'vi' | 'en' | 'ko' = 'vi'): Promise<void> {
     const key = `forgot:${email}`
     this.refuseWhileThrottled(key)
     this.throttle.fail(key, FORGOT_FREE_ATTEMPTS)
@@ -372,7 +372,7 @@ export class AuthService {
     const row = await this.repo.actorByEmail(email)
     if (!row || row.disabledAt) return
 
-    await this.issueTicket(row, 'reset', RESET_TTL_MS)
+    await this.issueTicket(row, 'reset', RESET_TTL_MS, lang)
   }
 
   /** What the set-password screen may show before anything is typed.
@@ -494,6 +494,7 @@ export class AuthService {
     try {
       await this.mailer.send({
         purpose: 'invite',
+        lang: 'vi',
         actorId: person.id,
         name: person.name,
         email: person.email,
@@ -682,6 +683,7 @@ export class AuthService {
     row: ActorRow,
     purpose: 'invite' | 'reset',
     ttlMs: number,
+    lang: 'vi' | 'en' | 'ko' = 'vi',
   ): Promise<void> {
     /* Retires this account's other live reset links before minting a new one —
        the common case; `password_reset_one_live_reset_uq` is the real fence
@@ -712,6 +714,7 @@ export class AuthService {
     try {
       await this.mailer.send({
         purpose,
+        lang,
         actorId: row.id,
         name: row.name,
         email: row.email,

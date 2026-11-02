@@ -1,12 +1,13 @@
 import { Check } from '@pv/ui'
 import { Button, Checkbox, Icon, Select, cn } from '@pv/ui'
 import {
-  OPPORTUNITY_CONTACT_ROLE_LABEL,
   OpportunityContactRole,
   type OpportunityContactPick,
   type OpportunityOpenContext,
 } from '@pv/contracts'
 import { primaryPick, rolePick, toggledPick } from '@/data/opportunity-open'
+import { useI18n, message } from '@/app/i18n'
+import { opportunityContactRoleLabel } from '@/data/sales-labels-i18n'
 import { SectionHead } from './open-deal-basics'
 
 /** The customer-side section: who on the customer's side this deal is about.
@@ -18,11 +19,6 @@ import { SectionHead } from './open-deal-basics'
 const NO_ROLE = ''
 /** Also the run rail's line for a deal contact with no role. */
 export const NO_ROLE_LABEL = 'Chưa nêu vai'
-const ROLE_OPTIONS = [
-  { value: NO_ROLE, label: NO_ROLE_LABEL },
-  ...Object.entries(OPPORTUNITY_CONTACT_ROLE_LABEL).map(([value, label]) => ({ value, label })),
-]
-
 export function ContactsSection({
   contacts,
   picks,
@@ -36,6 +32,14 @@ export function ContactsSection({
   onPicks: (next: OpportunityContactPick[]) => void
   onOpenLead: () => void
 }) {
+  const { t, lang } = useI18n()
+  const roleOptions = [
+    { value: NO_ROLE, label: t(message(NO_ROLE_LABEL, 'Role not specified', '역할 미지정')) },
+    ...OpportunityContactRole.options.map((role) => ({
+      value: role,
+      label: opportunityContactRoleLabel(role, lang),
+    })),
+  ]
   const refusal = errors?.join(' · ')
   const bare = picks.length === 0 && contacts.length > 0
 
@@ -82,8 +86,24 @@ export function ContactsSection({
                 />
                 {pick && (
                   <PickControls
-                    name={contact.name}
                     pick={pick}
+                    roleOptions={roleOptions}
+                    primaryLabel={t(message('Chính', 'Primary', '주 담당'))}
+                    roleAria={t(
+                      message(
+                        `Vai của ${contact.name}`,
+                        `Role for ${contact.name}`,
+                        `${contact.name} 역할`,
+                      ),
+                    )}
+                    primaryAria={t(
+                      message(
+                        `Đặt ${contact.name} làm người liên hệ chính`,
+                        `Set ${contact.name} as the primary contact`,
+                        `${contact.name}님을 주 연락처로 지정`,
+                      ),
+                    )}
+                    setPrimaryLabel={t(message('Đặt chính', 'Set primary', '주 담당 지정'))}
                     onRole={(role) => onPicks(rolePick(picks, contact.code, role))}
                     onPrimary={() => onPicks(primaryPick(picks, contact.code))}
                   />
@@ -98,41 +118,49 @@ export function ContactsSection({
 }
 
 function PickControls({
-  name,
   pick,
+  roleOptions,
+  primaryLabel,
+  roleAria,
+  primaryAria,
+  setPrimaryLabel,
   onRole,
   onPrimary,
 }: {
-  name: string
   pick: OpportunityContactPick
+  roleOptions: { value: string; label: string }[]
+  primaryLabel: string
+  roleAria: string
+  primaryAria: string
+  setPrimaryLabel: string
   onRole: (role: OpportunityContactPick['role']) => void
   onPrimary: () => void
 }) {
   return (
     <span className="flex shrink-0 items-center gap-3">
       <Select
-        label={`Vai của ${name}`}
+        label={roleAria}
         hideLabel
         value={pick.role ?? NO_ROLE}
         neutralValue={NO_ROLE}
-        options={ROLE_OPTIONS}
+        options={roleOptions}
         onChange={(v) => onRole(v === NO_ROLE ? null : OpportunityContactRole.parse(v))}
         className="pointer-coarse:[&>button]:h-12 w-44"
       />
       {pick.primary ? (
         <span className="text-success flex w-24 items-center gap-1 text-[12px] font-medium">
           <Icon icon={Check} size={16} />
-          Chính
+          {primaryLabel}
         </span>
       ) : (
         <Button
           size="sm"
           variant="ghost"
           className="pointer-coarse:h-12 w-24"
-          aria-label={`Đặt ${name} làm người liên hệ chính`}
+          aria-label={primaryAria}
           onClick={onPrimary}
         >
-          Đặt chính
+          {setPrimaryLabel}
         </Button>
       )}
     </span>

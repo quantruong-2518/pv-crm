@@ -19,6 +19,7 @@ import {
 } from '@pv/ui'
 import type { SalesDayRange, SalesPerformanceResponse } from '@pv/contracts'
 import { useCan } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { CARD, ICON_TONE, MARK_EASE, WASH, WASH_WARN } from './home-look'
 import {
   WORKSTREAM_BOOK_HREF,
@@ -184,6 +185,7 @@ function WinRing({ rate }: { rate: number }) {
 /** Won over every deal closed in the period, by the day each closed
  *  (ADR 0088 §7, 0107) — the KPI definition. A dash when nothing closed. */
 export function WinRateTile({ data, className }: Figures) {
+  const { t } = useI18n()
   const { wonDeals } = data.current
   const canView = useCan('opportunity.view')
   const rate = winRate(data.current)
@@ -194,15 +196,27 @@ export function WinRateTile({ data, className }: Figures) {
         <IconTile icon={Target} className={ICON_TONE.success} />
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex flex-col gap-1">
-            <h3 className={CARD_TITLE}>Tỷ lệ chốt đơn</h3>
+            <h3 className={CARD_TITLE}>{t(message('Tỷ lệ chốt đơn', 'Win rate', '수주율'))}</h3>
             <span className={cn(NOTE, 'tnum font-num')}>
               {rate === null
-                ? 'Chưa có cơ hội đóng trong kỳ'
-                : `Tỷ lệ ký hợp đồng / cơ hội (${num(wonDeals)}/${num(closedOf(data.current))})`}
+                ? t(
+                    message(
+                      'Chưa có cơ hội đóng trong kỳ',
+                      'No opportunities closed in this period',
+                      '이번 기간에 종료된 영업 기회가 없습니다',
+                    ),
+                  )
+                : t(
+                    message(
+                      `Tỷ lệ ký hợp đồng / cơ hội (${num(wonDeals)}/${num(closedOf(data.current))})`,
+                      `Contracts signed / opportunities (${num(wonDeals)}/${num(closedOf(data.current))})`,
+                      `계약 체결 / 영업 기회 (${num(wonDeals)}/${num(closedOf(data.current))})`,
+                    ),
+                  )}
             </span>
             {canView && wonDeals > 0 && (
               <Link to={dealsHref('won', data.span)} className={cn(PILL_LINK, 'self-start')}>
-                Xem hợp đồng đã ký
+                {t(message('Xem hợp đồng đã ký', 'View signed contracts', '체결된 계약 보기'))}
                 <Icon icon={ArrowRight} size={14} />
               </Link>
             )}
@@ -234,15 +248,20 @@ export function RunsTile({
   onRetry: () => void
   className?: string
 }) {
+  const { t } = useI18n()
   if (stopped === undefined || live === undefined) {
     return (
       <GlassCard className={cn(TILE, 'rounded-3xl', className)}>
-        <TileHead title="Hành trình đã dừng" />
+        <TileHead
+          title={t(message('Hành trình đã dừng', 'Stopped workstreams', '중지된 워크스트림'))}
+        />
         {failed ? (
           <div className="mt-auto flex flex-col items-start gap-2">
-            <span className={cn(NOTE, 'text-destructive-foreground')}>Không tải được.</span>
+            <span className={cn(NOTE, 'text-destructive-foreground')}>
+              {t(message('Không tải được.', 'Could not load.', '불러오지 못했습니다.'))}
+            </span>
             <Button variant="ghost" size="sm" className="pointer-coarse:h-12" onClick={onRetry}>
-              Thử lại
+              {t(message('Thử lại', 'Retry', '다시 시도'))}
             </Button>
           </div>
         ) : (
@@ -270,14 +289,22 @@ export function RunsTile({
       <span className="flex min-w-0 items-center gap-3">
         <IconTile icon={Route} className={warn ? ICON_TONE.warning : ICON_TONE.neutral} />
         <span className="flex min-w-0 flex-col gap-1">
-          <h3 className={CARD_TITLE}>Hành trình đã dừng</h3>
+          <h3 className={CARD_TITLE}>
+            {t(message('Hành trình đã dừng', 'Stopped workstreams', '중지된 워크스트림'))}
+          </h3>
           <span className={cn(NOTE, 'tnum font-num flex flex-wrap items-center gap-x-1')}>
-            trên
+            {t(message('trên', 'out of', '중'))}
             <Link
               to={runsHref(liveRunsQuery(span))}
               className={cn(TILE_LINK, 'text-foreground gap-1 font-semibold underline')}
             >
-              {num(live)} hành trình đang chạy trong kỳ
+              {t(
+                message(
+                  `${num(live)} hành trình đang chạy trong kỳ`,
+                  `${num(live)} workstreams active in this period`,
+                  `이번 기간 활성 워크스트림 ${num(live)}개`,
+                ),
+              )}
             </Link>
           </span>
         </span>
@@ -286,7 +313,13 @@ export function RunsTile({
         {warn ? (
           <Link
             to={runsHref(stoppedRunsQuery(span))}
-            aria-label={`${num(stopped)} hành trình đã dừng`}
+            aria-label={t(
+              message(
+                `${num(stopped)} hành trình đã dừng`,
+                `${num(stopped)} stopped workstreams`,
+                `중지된 워크스트림 ${num(stopped)}개`,
+              ),
+            )}
             className={cn(TILE_LINK, 'underline-offset-4 hover:underline')}
           >
             <span className={cn(CARD_BIG, 'text-on-tint-warning')}>{num(stopped)}</span>
@@ -295,7 +328,7 @@ export function RunsTile({
           <span className={CARD_BIG}>{num(stopped)}</span>
         )}
         <Link to={WORKSTREAM_BOOK_HREF} className={cn(PILL_LINK, 'whitespace-nowrap')}>
-          Xem tất cả hành trình
+          {t(message('Xem tất cả hành trình', 'View all workstreams', '모든 워크스트림 보기'))}
           <Icon icon={ArrowRight} size={14} />
         </Link>
       </span>
@@ -325,13 +358,14 @@ export function ChartsFailed({
   onRetry: () => void
   className?: string
 }) {
+  const { t } = useI18n()
   return (
     <GlassCard className={cn(TILE, 'rounded-3xl', className)}>
       <EmptyState
         tone="danger"
         icon={TriangleAlert}
-        message={`Không tải được số liệu biểu đồ. ${detail}`}
-        action={{ label: 'Thử lại', onClick: onRetry }}
+        message={`${t(message('Không tải được số liệu biểu đồ.', 'Could not load chart data.', '차트 데이터를 불러오지 못했습니다.'))} ${detail}`}
+        action={{ label: t(message('Thử lại', 'Retry', '다시 시도')), onClick: onRetry }}
         className="py-12"
       />
     </GlassCard>

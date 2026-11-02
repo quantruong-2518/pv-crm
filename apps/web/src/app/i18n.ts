@@ -1,15 +1,26 @@
 import { useSyncExternalStore } from 'react'
 
-/** System language — only the auth flow reads it today, but the state lives
- *  HERE (not in a screen's `useState`) because it must survive navigation:
- *  switching language on the sign-in screen and following the forgot-password
- *  link must not fall back to Vietnamese partway through.
+/** Language shared by every screen. Keep it outside an individual page so a
+ *  change survives navigation and reaches the chrome, dialogs and route title.
  *
  *  Same shape as `useThemeMode`/`toggleTheme` in `@pv/ui` (DOM read + a
- *  `storage` event for cross-tab sync) — one difference: no anti-FOUC script
- *  in `index.html`. The one thing language adds to the page is the Hangul
+ *  `storage` event for cross-tab sync). The one extra language asset is the Hangul
  *  face, loaded on demand by `loadHangulFace` (ADR 0108). */
 export type Lang = 'vi' | 'en' | 'ko'
+export type Message = Record<Lang, string>
+
+export const LOCALE_TAG: Record<Lang, string> = {
+  vi: 'vi-VN',
+  en: 'en-US',
+  ko: 'ko-KR',
+}
+
+function applyDocumentLanguage(lang: Lang) {
+  if (typeof document !== 'undefined') document.documentElement.lang = LOCALE_TAG[lang]
+}
+
+/** Declare one product message with all supported languages present. */
+export const message = (vi: string, en: string, ko: string): Message => ({ vi, en, ko })
 
 const LANG_KEY = 'pv-lang'
 const CHANGE_EVENT = 'pv-lang-change'
@@ -50,13 +61,17 @@ function loadHangulFace(lang: Lang) {
   document.head.append(link)
 }
 loadHangulFace(current)
+applyDocumentLanguage(current)
 
 function subscribe(onChange: () => void) {
   const onStorage = (event: StorageEvent) => {
     if (event.key !== LANG_KEY && event.key !== null) return
-    current = isLang(event.newValue) ? event.newValue : 'vi'
+    const next = isLang(event.newValue) ? event.newValue : 'vi'
+    if (next === current) return
+    current = next
     loadHangulFace(current)
-    onChange()
+    applyDocumentLanguage(current)
+    window.dispatchEvent(new Event(CHANGE_EVENT))
   }
   window.addEventListener(CHANGE_EVENT, onChange)
   window.addEventListener('storage', onStorage)
@@ -77,6 +92,53 @@ export function useLang(): Lang {
 /** Non-React read for code outside the tree (head metadata in `routes.tsx`). */
 export const getLang = (): Lang => current
 
+/** Also works in non-React models, route metadata and event handlers. */
+export const translate = (copy: Message, lang: Lang = getLang()): string => copy[lang]
+
+export function formatNumber(
+  value: number,
+  lang: Lang = getLang(),
+  options?: Intl.NumberFormatOptions,
+) {
+  return new Intl.NumberFormat(LOCALE_TAG[lang], options).format(value)
+}
+
+export function formatCurrency(value: number, currency: string, lang: Lang = getLang()) {
+  return new Intl.NumberFormat(LOCALE_TAG[lang], {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: currency === 'VND' ? 0 : 2,
+  }).format(value)
+}
+
+/** A calendar day has no time zone; a timestamp uses the reader's zone. */
+export function formatDate(
+  value: string | Date,
+  lang: Lang = getLang(),
+  options: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', year: 'numeric' },
+) {
+  const date =
+    typeof value === 'string'
+      ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value)
+      : value
+  return Number.isNaN(date.getTime())
+    ? String(value)
+    : new Intl.DateTimeFormat(LOCALE_TAG[lang], options).format(date)
+}
+
+export function useI18n() {
+  const lang = useLang()
+  return {
+    lang,
+    t: (copy: Message) => translate(copy, lang),
+    number: (value: number, options?: Intl.NumberFormatOptions) =>
+      formatNumber(value, lang, options),
+    currency: (value: number, code: string) => formatCurrency(value, code, lang),
+    date: (value: string | Date, options?: Intl.DateTimeFormatOptions) =>
+      formatDate(value, lang, options),
+  }
+}
+
 export function onLangChange(listener: () => void) {
   window.addEventListener(CHANGE_EVENT, listener)
   return () => window.removeEventListener(CHANGE_EVENT, listener)
@@ -85,6 +147,7 @@ export function onLangChange(listener: () => void) {
 export function setLang(next: Lang) {
   current = next
   loadHangulFace(current)
+  applyDocumentLanguage(current)
   try {
     localStorage.setItem(LANG_KEY, current)
   } catch {

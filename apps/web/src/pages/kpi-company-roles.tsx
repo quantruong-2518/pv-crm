@@ -1,13 +1,8 @@
 import { GlassCard, cn } from '@pv/ui'
-import {
-  KPI_METRIC_LABEL,
-  KPI_VERDICT_LABEL,
-  type KpiCompanyScorecard,
-  type KpiPerson,
-} from '@pv/contracts'
+import { type KpiCompanyScorecard, type KpiPerson } from '@pv/contracts'
 import { StackTable, type StackColumn } from '@/components/stack-table'
 import type { KpiCatalog } from '@/data/kpi-catalog'
-import { ROLE_LABEL } from '@/data/users'
+import { kpiMetricText, kpiRoleText, kpiVerdictText } from '@/data/kpi-i18n'
 import { num } from './home-model'
 import { NOTE } from './home-tiles'
 import { DASH, BAR_FILL, printShort, roleGroups, roleSummary, type RoleSummary } from './kpi-model'
@@ -51,7 +46,7 @@ function splitCell(summary: RoleSummary) {
         {summary.verdicts.map(({ verdict, count }) => (
           <span key={verdict} className="inline-flex items-center gap-1">
             <span aria-hidden className={cn('size-2 shrink-0 rounded-sm', BAR_FILL[verdict])} />
-            {KPI_VERDICT_LABEL[verdict]} {num(count)}
+            {kpiVerdictText(verdict)} {num(count)}
           </span>
         ))}
       </span>
@@ -62,10 +57,10 @@ function splitCell(summary: RoleSummary) {
 function cellsOf(summary: RoleSummary) {
   return [
     <span key="role" className={TWO_LINES}>
-      <span className="font-semibold">{ROLE_LABEL[summary.role]}</span>
+      <span className="font-semibold">{kpiRoleText(summary.role)}</span>
       <span className={cn(NOTE, FIGURE)}>{num(summary.holders)} người</span>
     </span>,
-    summary.def ? KPI_METRIC_LABEL[summary.def.key] : DASH,
+    summary.def ? kpiMetricText(summary.def.key) : DASH,
     summary.def && summary.room ? (
       <span key="target" className={cn(TWO_LINES, 'items-end')}>
         <span className={cn(FIGURE, 'font-semibold')}>

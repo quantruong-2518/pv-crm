@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { AppShell } from '@pv/ui'
 import type { DebriefView } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
+import { message, useI18n } from '@/app/i18n'
 import { commRecordQuery } from '@/data/comm-record-detail'
 import { RecordShell } from '@/components/record/record-shell'
 import { CommFillWorkspace } from './comm-record-fill'
@@ -24,7 +25,16 @@ import { ScheduledMeeting } from './comm-record-meeting'
  *  mints no object code, so the ContextRail carries the subject alone (law 10). */
 
 export function CommRecordPage() {
-  const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
+  const { t } = useI18n()
+  const chrome = useAppChrome({
+    searchPlaceholder: t(
+      message(
+        'Tìm khách hàng, cơ hội, báo giá, hồ sơ…',
+        'Search accounts, opportunities, quotes, and profiles…',
+        '고객사, 영업 기회, 견적 및 프로필 검색…',
+      ),
+    ),
+  })
   const navigate = useNavigate()
   const { id = '' } = useParams()
   const { data: record, isPending, error } = useQuery(commRecordQuery(id))
@@ -39,9 +49,21 @@ export function CommRecordPage() {
           skeleton={{ strip: false, rail: false }}
           failure={{
             error,
-            notFound: 'Không tìm thấy lượt liên hệ này.',
-            fallback: 'Không mở được lượt liên hệ này.',
-            back: { label: 'Quay lại', onClick: () => navigate(-1) },
+            notFound: t(
+              message(
+                'Không tìm thấy lượt liên hệ này.',
+                'Interaction not found.',
+                '연락 기록을 찾을 수 없습니다.',
+              ),
+            ),
+            fallback: t(
+              message(
+                'Không mở được lượt liên hệ này.',
+                'Could not open this interaction.',
+                '연락 기록을 열 수 없습니다.',
+              ),
+            ),
+            back: { label: t(message('Quay lại', 'Back', '뒤로')), onClick: () => navigate(-1) },
           }}
         />
       )}

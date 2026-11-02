@@ -17,6 +17,7 @@ import {
   type TableSort,
 } from '@pv/ui'
 import { searchHint } from '@/lib/search-box'
+import { message, useI18n } from '@/app/i18n'
 import type { ActiveFilter } from './active-filters'
 import { bookMinWidth } from './book-columns'
 
@@ -38,6 +39,11 @@ import { bookMinWidth } from './book-columns'
  *  cannot set it — that is how books ended up waiting on 11px bars. */
 const ROW_CLASS = 'h-14'
 const ROW_PX = 56
+/* A book whose rows lead with a picture; the one geometry a screen may pick. */
+const TALL_ROW_CLASS = 'h-24'
+const TALL_ROW_PX = 96
+const rowOf = (tall?: boolean) =>
+  tall ? { cls: TALL_ROW_CLASS, px: TALL_ROW_PX } : { cls: ROW_CLASS, px: ROW_PX }
 
 /** The header band: 40px, 64px under a finger, where a column filter's 48px
  *  trigger sets it. The footer slot: `TableFooter`'s 32px page buttons in
@@ -62,11 +68,11 @@ const RESERVED_CLASS = cn(
   'h-[min(var(--book-body),max(var(--book-floor),calc(100dvh-var(--book-top,0px)-var(--book-foot,0px)-var(--book-gap))))]',
 )
 
-function reservedHeight(rows: number) {
+function reservedHeight(rows: number, rowPx: number) {
   return {
-    '--book-rows-fine': `${HEAD_PX + rows * ROW_PX}px`,
-    '--book-rows-coarse': `${HEAD_COARSE_PX + rows * ROW_PX}px`,
-    '--book-floor': `${HEAD_PX + FLOOR_ROWS * ROW_PX}px`,
+    '--book-rows-fine': `${HEAD_PX + rows * rowPx}px`,
+    '--book-rows-coarse': `${HEAD_COARSE_PX + rows * rowPx}px`,
+    '--book-floor': `${HEAD_PX + FLOOR_ROWS * rowPx}px`,
     /* Starting values; `useFitWindow` writes the measured ones. React leaves
        a key alone while its value does not change between renders. */
     '--book-top': '0px',
@@ -113,6 +119,8 @@ export type BookTable = {
   /** Rows per page. Given, the body keeps one height through loading, empty,
    *  a short page and a full one, capped so the pager stays in the window. */
   pageSize?: number
+  /** 96px rows instead of 56px, for a book whose first cell is a picture. */
+  tall?: boolean
 }
 
 export type BookPageProps = {
@@ -175,11 +183,13 @@ export function BookPage({
   footer,
   onClearFilters,
 }: BookPageProps) {
+  const { t } = useI18n()
   const hasToolbar = Boolean(tabs || count || tools || onClearFilters)
   const hasRows = !pending && !failure && !empty
   const hasFilters = Boolean(filters?.length)
   /* Cards are as tall as their rows make them; only a table reserves a page. */
   const reserve = cards ? undefined : table?.pageSize
+  const row = rowOf(table?.tall)
   const bodyRef = useRef<HTMLDivElement>(null)
   const footRef = useRef<HTMLDivElement>(null)
   useFitWindow(bodyRef, footRef, reserve !== undefined)
@@ -241,25 +251,25 @@ export function BookPage({
   const body = pending ? (
     reserve === undefined ? (
       <div className="flex flex-col gap-3 p-5">
-        <Skeleton height={ROW_PX} />
-        <Skeleton height={ROW_PX} delay={200} />
-        <Skeleton height={ROW_PX} delay={400} />
+        <Skeleton height={row.px} />
+        <Skeleton height={row.px} delay={200} />
+        <Skeleton height={row.px} delay={400} />
       </div>
     ) : (
-      <TableSkeleton rows={reserve} />
+      <TableSkeleton rows={reserve} rowClass={row.cls} />
     )
   ) : failure ? (
     <EmptyState
       tone="danger"
       icon={TriangleAlert}
       message={failure.message}
-      action={{ label: 'Thử lại', onClick: failure.onRetry }}
+      action={{ label: t(message('Thử lại', 'Try again', '다시 시도')), onClick: failure.onRetry }}
       className="py-12"
     />
   ) : empty ? (
     <EmptyState icon={Inbox} message={empty.message} action={empty.action} className="py-12" />
   ) : table ? (
-    <BookDataTable table={table} sticky={reserve !== undefined} />
+    <BookDataTable table={table} sticky={reserve !== undefined} rowClass={row.cls} />
   ) : null
 
   return (
@@ -278,7 +288,7 @@ export function BookPage({
         ) : (
           <div
             ref={bodyRef}
-            style={reservedHeight(reserve)}
+            style={reservedHeight(reserve, row.px)}
             className={cn(
               RESERVED_CLASS,
               hasRows ? 'overflow-auto' : 'justify-center overflow-hidden',
@@ -298,12 +308,12 @@ export function BookPage({
 
 /** Loading in the table's own geometry: the header band, then one 56px row per
  *  row the page will hold, so the rows land where the bars stood. */
-function TableSkeleton({ rows }: { rows: number }) {
+function TableSkeleton({ rows, rowClass }: { rows: number; rowClass: string }) {
   return (
     <div aria-hidden>
       <div className={cn('bg-surface-ink/5', HEAD_CLASS)} />
       {Array.from({ length: rows }, (_, i) => (
-        <div key={i} className={cn('flex items-center px-5', ROW_CLASS)}>
+        <div key={i} className={cn('flex items-center px-5', rowClass)}>
           <Skeleton height={16} delay={i * 80} />
         </div>
       ))}
@@ -313,12 +323,20 @@ function TableSkeleton({ rows }: { rows: number }) {
 
 /** `DataTable` takes no style, so the summed minimum rides on a wrapper; a
  *  `minWidth` class a book still names sits on the table and the larger wins. */
-function BookDataTable({ table, sticky }: { table: BookTable; sticky: boolean }) {
+function BookDataTable({
+  table,
+  sticky,
+  rowClass,
+}: {
+  table: BookTable
+  sticky: boolean
+  rowClass: string
+}) {
   const drawn = (
     <DataTable
       flush
       stickyHeader={sticky}
-      rowHeight={ROW_CLASS}
+      rowHeight={rowClass}
       className={cn(table.minWidth, table.className)}
       columns={table.columns}
       rows={table.rows}
@@ -364,6 +382,7 @@ function ActiveFilters({
   className?: string
 }) {
   const group = useRef<HTMLDivElement>(null)
+  const { t } = useI18n()
   /* The pressed chip unmounts; its neighbours keep their nodes (stable keys). */
   const drop = (index: number, onDrop: () => void) => {
     const chips = group.current?.children
@@ -375,7 +394,11 @@ function ActiveFilters({
     <div
       ref={group}
       role={items.length > 0 ? 'group' : undefined}
-      aria-label={items.length > 0 ? 'Bộ lọc đang áp dụng' : undefined}
+      aria-label={
+        items.length > 0
+          ? t(message('Bộ lọc đang áp dụng', 'Active filters', '적용 중인 필터'))
+          : undefined
+      }
       tabIndex={-1}
       className={cn(
         'flex flex-wrap items-center gap-2 outline-none',
@@ -415,14 +438,22 @@ export function BookCount({
   noun: string
   hidden?: number
 }) {
+  const { t, number } = useI18n()
   return (
     <span className="text-muted-foreground text-[11.5px]">
-      <span className="tnum text-foreground font-semibold">{total}</span> {noun}
+      <span className="tnum text-foreground font-semibold">{number(total)}</span> {noun}
       {hidden > 0 && (
         <>
           {' · '}
           <span className="text-warning">
-            <span className="tnum">{hidden}</span> bị ẩn theo quyền của bạn
+            <span className="tnum">{number(hidden)}</span>{' '}
+            {t(
+              message(
+                'bị ẩn theo quyền của bạn',
+                'hidden by your permissions',
+                '권한이 없어 숨겨짐',
+              ),
+            )}
           </span>
         </>
       )}

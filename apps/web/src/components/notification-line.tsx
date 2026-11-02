@@ -1,14 +1,14 @@
 import { Badge, Icon, cn } from '@pv/ui'
 import {
   NOTIFICATION_DETAIL_OBJECT,
-  NOTIFICATION_GROUP_LABEL,
   NOTIFICATION_KIND_GROUP,
-  NOTIFICATION_KIND_LABEL,
   type NotificationRow,
   type NotificationSubject,
 } from '@pv/contracts'
 import { hm } from '@/lib/date'
 import { sentenceOf } from '@/data/notification-sentence'
+import { notificationGroupLabel, notificationKindLabel } from '@/data/notification-i18n'
+import { message, useI18n } from '@/app/i18n'
 import { GROUP_ICON, GROUP_TONE, TONE_INK, type Tone } from './notification-group'
 
 /** Kinds that say something went wrong or is late, whatever their group. */
@@ -38,11 +38,12 @@ export function NotificationLine({
   path: string | null
   onPress: (rows: NotificationRow[], path: string | null) => void
 }) {
+  const { lang, t, number } = useI18n()
   const row = rows[0]!
   const unread = rows.some((r) => r.readAt === null)
   const group = NOTIFICATION_KIND_GROUP[row.kind]
   const tone: Tone = TROUBLE.test(row.kind) ? 'danger' : GROUP_TONE[group]
-  const sentence = sentenceOf(row)
+  const sentence = sentenceOf(row, lang)
   const { code, label } = row.subject
   const object = row.detail?.[NOTIFICATION_DETAIL_OBJECT]
   /* An id inside the label already says it; a built sentence already names it. */
@@ -67,11 +68,23 @@ export function NotificationLine({
         )}
       >
         <Badge tone="draft" className="mr-2 align-middle">
-          {NOTIFICATION_GROUP_LABEL[group]}
+          {notificationGroupLabel(group, lang)}
         </Badge>
-        {unread ? <span className="sr-only">Chưa đọc. </span> : null}
-        {rows.length > 1 ? <span className="tnum">{rows.length} lần · </span> : null}
-        {sentence === null ? NOTIFICATION_KIND_LABEL[row.kind] : before}
+        {unread ? (
+          <span className="sr-only">{t(message('Chưa đọc. ', 'Unread. ', '읽지 않음. '))}</span>
+        ) : null}
+        {rows.length > 1 ? (
+          <span className="tnum">
+            {t(
+              message(
+                `${number(rows.length)} lần · `,
+                `${number(rows.length)} ${rows.length === 1 ? 'time' : 'times'} · `,
+                `${number(rows.length)}회 · `,
+              ),
+            )}
+          </span>
+        ) : null}
+        {sentence === null ? notificationKindLabel(row.kind, lang) : before}
         {after === null || after === undefined ? null : (
           <>
             <strong className="font-bold">{label}</strong>

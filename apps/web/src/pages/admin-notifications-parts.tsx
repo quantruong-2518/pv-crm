@@ -1,13 +1,10 @@
 import { Checkbox, DataTable } from '@pv/ui'
-import {
-  NOTIFICATION_GROUP_LABEL,
-  NOTIFICATION_KIND_LABEL,
-  type NotificationKind,
-  type RoleId,
-} from '@pv/contracts'
+import { type NotificationKind, type RoleId } from '@pv/contracts'
 import { dmhm } from '@/lib/date'
 import { ROLE_LABEL } from '@/data/users'
 import { ROLE_COLUMN_LABEL, ROLE_IDS } from '@/data/roles'
+import { notificationGroupLabel, notificationKindLabel } from '@/data/notification-i18n'
+import { message, useI18n } from '@/app/i18n'
 import {
   KIND_GROUPS,
   isLocked,
@@ -59,17 +56,26 @@ function PlainCell({ children, muted = false }: { children: string; muted?: bool
 }
 
 function KindName({ kind, index }: { kind: NotificationKind; index: PolicyIndex }) {
+  const { lang, t } = useI18n()
   const row = index[kind]
   const notes = [
-    isLocked(index, kind) ? 'Không tắt được.' : null,
+    isLocked(index, kind)
+      ? t(message('Không tắt được.', 'This notification is required.', '이 알림은 끌 수 없습니다.'))
+      : null,
     row?.updatedBy && row.updatedAt
-      ? `Cập nhật lần cuối: ${row.updatedBy.name}, ${dmhm(row.updatedAt)}`
+      ? t(
+          message(
+            `Cập nhật lần cuối: ${row.updatedBy.name}, ${dmhm(row.updatedAt)}`,
+            `Last updated by ${row.updatedBy.name}, ${dmhm(row.updatedAt)}`,
+            `${row.updatedBy.name}님이 마지막으로 수정 · ${dmhm(row.updatedAt)}`,
+          ),
+        )
       : null,
   ].filter(Boolean)
 
   return (
     <span className="flex min-w-0 flex-col gap-1 py-2">
-      <span className="font-semibold">{NOTIFICATION_KIND_LABEL[kind]}</span>
+      <span className="font-semibold">{notificationKindLabel(kind, lang)}</span>
       {notes.length > 0 && (
         <span className="text-muted-foreground tnum text-[11px]">{notes.join(' · ')}</span>
       )}
@@ -87,13 +93,17 @@ const cellLabel = (word: string, context: string) => (
 )
 
 export function PolicyGrid({ draft, index, onHears, onImportant, saving }: PolicyGridProps) {
+  const { lang, t } = useI18n()
   return (
     <DataTable
       className={`min-w-[1240px] ${STICKY_FIRST}`}
       rowHeight="min-h-12"
       columns={[
-        { header: 'Loại thông báo', width: 'minmax(260px,1.7fr)' },
-        { header: 'Quan trọng', width: 'minmax(112px,0.8fr)' },
+        {
+          header: t(message('Loại thông báo', 'Notification', '알림')),
+          width: 'minmax(260px,1.7fr)',
+        },
+        { header: t(message('Quan trọng', 'Important', '중요')), width: 'minmax(112px,0.8fr)' },
         ...ROLE_IDS.map((id) => ({ header: ROLE_COLUMN_LABEL[id], width: 'minmax(104px,1fr)' })),
       ]}
       rows={KIND_GROUPS.flatMap(({ group, kinds }) => [
@@ -101,7 +111,7 @@ export function PolicyGrid({ draft, index, onHears, onImportant, saving }: Polic
           id: `group-${group}`,
           cells: [
             <span key="g" className="text-muted-foreground text-[11.5px] font-semibold">
-              {NOTIFICATION_GROUP_LABEL[group]}
+              {notificationGroupLabel(group, lang)}
             </span>,
           ],
         },
@@ -109,7 +119,7 @@ export function PolicyGrid({ draft, index, onHears, onImportant, saving }: Polic
           const locked = isLocked(index, kind)
           const out = index[kind]?.inapplicableRoleIds ?? []
           const { important, mutedRoleIds } = draft[kind]
-          const name = NOTIFICATION_KIND_LABEL[kind]
+          const name = notificationKindLabel(kind, lang)
 
           return {
             id: kind,
@@ -120,7 +130,10 @@ export function PolicyGrid({ draft, index, onHears, onImportant, saving }: Polic
                 key="i"
                 className={CELL}
                 checked={important}
-                label={cellLabel(important ? 'Có' : 'Không', `${name} — Quan trọng`)}
+                label={cellLabel(
+                  important ? t(message('Có', 'Yes', '예')) : t(message('Không', 'No', '아니요')),
+                  `${name} — ${t(message('Quan trọng', 'Important', '중요'))}`,
+                )}
                 disabled={saving}
                 onChange={(on) => onImportant(kind, on)}
               />,
@@ -130,18 +143,21 @@ export function PolicyGrid({ draft, index, onHears, onImportant, saving }: Polic
                 if (out.includes(id)) {
                   return (
                     <PlainCell key={id} muted>
-                      Không áp dụng
+                      {t(message('Không áp dụng', 'Not applicable', '해당 없음'))}
                     </PlainCell>
                   )
                 }
                 return locked ? (
-                  <PlainCell key={id}>Nhận</PlainCell>
+                  <PlainCell key={id}>{t(message('Nhận', 'On', '받기'))}</PlainCell>
                 ) : (
                   <Checkbox
                     key={id}
                     className={CELL}
                     checked={hears}
-                    label={cellLabel(hears ? 'Nhận' : 'Tắt', `${name} — ${ROLE_LABEL[id]}`)}
+                    label={cellLabel(
+                      hears ? t(message('Nhận', 'On', '받기')) : t(message('Tắt', 'Off', '끄기')),
+                      `${name} — ${ROLE_LABEL[id]}`,
+                    )}
                     disabled={saving}
                     onChange={(on) => onHears(kind, id, on)}
                   />

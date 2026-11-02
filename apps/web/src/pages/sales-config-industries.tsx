@@ -10,7 +10,8 @@ import { BADGE_INK } from '@/data/opportunities'
 import { useMyConfigProposals, useProposeConfigPatch } from '@/data/sales-config'
 import { AddIndustry, IndustryActions } from './sales-config-industry-actions'
 import { addsWaiting, byOrd, entryWaiting, industryAddsWaiting } from './sales-config-model'
-import { EntryCount, SENT, Section, WaitingNote } from './sales-config-section'
+import { EntryCount, Section, WaitingNote } from './sales-config-section'
+import { SENT } from './sales-config-copy'
 
 /** 5.20 · categories and their industries (approved canvas, artboard 1). One
  *  card per category: its Sale, its lead count, its

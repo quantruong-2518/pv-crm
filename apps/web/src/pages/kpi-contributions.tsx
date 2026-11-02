@@ -2,7 +2,6 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Accordion, GlassCard, Icon, SectionTitle, cn } from '@pv/ui'
 import {
-  KPI_METRIC_LABEL,
   type KpiContribution,
   type KpiContributionKind,
   type KpiContributionsResponse,
@@ -11,22 +10,16 @@ import {
   type RoleId,
 } from '@pv/contracts'
 import { isApiError } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 import { useCan } from '@/app/auth'
 import { StackTable, type StackColumn, type StackRow } from '@/components/stack-table'
 import type { KpiCatalog } from '@/data/kpi-catalog'
 import { contributionHref, kpiContributionsQuery } from '@/data/kpi-contributions'
-import { ROLE_LABEL } from '@/data/users'
+import { kpiMetricText, kpiRoleText } from '@/data/kpi-i18n'
 import { dmy } from '@/lib/date'
 import { num } from './home-model'
 import { NOTE } from './home-tiles'
-import {
-  ADJUSTMENT_ICON,
-  adjustmentSentence,
-  DASH,
-  FROZEN_NOTE,
-  printCell,
-  printSigned,
-} from './kpi-model'
+import { ADJUSTMENT_ICON, DASH, printCell, printSigned } from './kpi-model'
 import { QueryBlock } from './kpi-parts'
 
 /** The records each KPI figure of one person counted — shared by the person
@@ -52,11 +45,15 @@ function blocksOf(catalog: KpiCatalog, data: KpiContributionsResponse): RoleBloc
   })
 }
 
-function summaryOf({ group }: Group): string {
+function summaryOf({ group }: Group, t: ReturnType<typeof useI18n>['t']): string {
   const adjusted = group.items.filter((i) => i.adjustment !== null).length
   const n = num(group.items.length - adjusted)
-  const records = group.truncated ? `Hơn ${n} bản ghi` : `${n} bản ghi`
-  return adjusted > 0 ? `${records} · ${num(adjusted)} điều chỉnh` : records
+  const records = group.truncated
+    ? t(message(`Hơn ${n} bản ghi`, `More than ${n} records`, `${n}개 초과 기록`))
+    : t(message(`${n} bản ghi`, `${n} records`, `${n}개 기록`))
+  return adjusted > 0
+    ? `${records} · ${t(message(`${num(adjusted)} điều chỉnh`, `${num(adjusted)} adjustments`, `조정 ${num(adjusted)}건`))}`
+    : records
 }
 
 /** Which kinds the reader may open; the route gate would refuse the rest anyway. */
@@ -67,43 +64,88 @@ function useOpenable(): Record<KpiContributionKind, boolean> {
   return { lead, opportunity, contract, installment: contract, meeting: false }
 }
 
-const COLUMNS: StackColumn[] = [
-  { header: 'Bản ghi', width: 'minmax(0,1fr)' },
-  { header: 'Nội dung', width: 'minmax(0,1.4fr)' },
-  { header: 'Ngày', width: 'minmax(0,.8fr)' },
-]
-const VALUE_COLUMN: StackColumn = { header: 'Giá trị', width: 'minmax(0,1fr)', align: 'right' }
-
 const FIGURE = 'tnum font-num'
 
 /** What the record says, or for an adjustment the mark and what happened to it. */
 function ContentCell({ item }: { item: KpiContribution }) {
+  const { t } = useI18n()
   if (item.adjustment === null) return <span>{item.label}</span>
   return (
     <span className="flex min-w-0 flex-col items-start gap-1">
       <span className="inline-flex items-center gap-1 font-semibold">
         <Icon icon={ADJUSTMENT_ICON} size={14} className="shrink-0" />
-        Điều chỉnh
+        {t(message('Điều chỉnh', 'Adjustment', '조정'))}
       </span>
-      <span className={cn(NOTE, FIGURE)}>{adjustmentSentence(item.kind, item.adjustment)}</span>
+      <span className={cn(NOTE, FIGURE)}>{adjustmentText(item, t)}</span>
     </span>
   )
 }
 
 type OpenTo = (kind: KpiContributionKind, code: string) => (() => void) | undefined
 
+function adjustmentText(item: KpiContribution, t: ReturnType<typeof useI18n>['t']): string {
+  if (!item.adjustment) return ''
+  const { cause, sourcePeriod } = item.adjustment
+  const month = sourcePeriod.slice(5, 7).replace(/^0/, '')
+  const kind = t(
+    message(
+      (
+        {
+          lead: 'Khách hàng tiềm năng',
+          opportunity: 'Cơ hội',
+          contract: 'Hợp đồng',
+          installment: 'Đợt thanh toán',
+          meeting: 'Buổi họp',
+        } as const
+      )[item.kind],
+      (
+        {
+          lead: 'Lead',
+          opportunity: 'Opportunity',
+          contract: 'Contract',
+          installment: 'Installment',
+          meeting: 'Meeting',
+        } as const
+      )[item.kind],
+      (
+        {
+          lead: '잠재 고객',
+          opportunity: '영업 기회',
+          contract: '계약',
+          installment: '분할 납부',
+          meeting: '회의',
+        } as const
+      )[item.kind],
+    ),
+  )
+  const action =
+    cause === 'appeared'
+      ? t(message('được thêm vào', 'was added to', '추가됨'))
+      : cause === 'vanished'
+        ? t(message('bị loại khỏi', 'was removed from', '제외됨'))
+        : t(message('đổi giá trị trong', 'changed in', '값이 변경됨'))
+  return t(
+    message(
+      `${kind} ${action} tháng ${month}`,
+      `${kind} ${action} month ${month}`,
+      `${month}월 ${kind} ${action}`,
+    ),
+  )
+}
+
 function rowsOf(
   items: readonly KpiContribution[],
   def: KpiMetricDef,
   valued: boolean,
   openTo: OpenTo,
+  t: ReturnType<typeof useI18n>['t'],
 ): StackRow[] {
   return items.map((item, i) => {
     const onOpen = openTo(item.kind, item.code)
     /* A meeting's code is a bare id: it names nothing a reader could look up. */
     const code =
       item.kind === 'meeting' ? (
-        <span key="code">Buổi họp</span>
+        <span key="code">{t(message('Buổi họp', 'Meeting', '회의'))}</span>
       ) : (
         <span
           key="code"
@@ -144,8 +186,29 @@ function GroupBody({
   /** The open action for a record, or undefined where it opens nothing. */
   openTo: OpenTo
 }) {
+  const { t } = useI18n()
+  const columns: StackColumn[] = [
+    { header: t(message('Bản ghi', 'Record', '기록')), width: 'minmax(0,1fr)' },
+    { header: t(message('Nội dung', 'Details', '내용')), width: 'minmax(0,1.4fr)' },
+    { header: t(message('Ngày', 'Date', '날짜')), width: 'minmax(0,.8fr)' },
+  ]
+  const valueColumn: StackColumn = {
+    header: t(message('Giá trị', 'Value', '값')),
+    width: 'minmax(0,1fr)',
+    align: 'right',
+  }
   if (group.items.length === 0) {
-    return <p className="py-2 text-[12.5px] leading-5">Chưa có bản ghi nào tính vào chỉ số này.</p>
+    return (
+      <p className="py-2 text-[12.5px] leading-5">
+        {t(
+          message(
+            'Chưa có bản ghi nào tính vào chỉ số này.',
+            'No records contribute to this metric yet.',
+            '아직 이 지표에 반영된 기록이 없습니다.',
+          ),
+        )}
+      </p>
+    )
   }
   const after = group.items.filter((i) => i.adjustment?.sourcePeriod === period)
   const inside = group.items.filter((i) => i.adjustment?.sourcePeriod !== period)
@@ -156,19 +219,29 @@ function GroupBody({
       from="md"
       rowHeight="min-h-12 py-2"
       tableClassName="min-w-md"
-      columns={valued ? [...COLUMNS, VALUE_COLUMN] : COLUMNS}
-      rows={rowsOf(items, def, valued, openTo)}
+      columns={valued ? [...columns, valueColumn] : columns}
+      rows={rowsOf(items, def, valued, openTo, t)}
     />
   )
   return (
     <div className="flex flex-col gap-2">
       {inside.length > 0 && table(inside)}
       {group.truncated && (
-        <p className={cn(NOTE, FIGURE)}>Chỉ hiện {num(records)} bản ghi mới nhất.</p>
+        <p className={cn(NOTE, FIGURE)}>
+          {t(
+            message(
+              `Chỉ hiện ${num(records)} bản ghi mới nhất.`,
+              `Showing the ${num(records)} most recent records.`,
+              `최근 기록 ${num(records)}개만 표시합니다.`,
+            ),
+          )}
+        </p>
       )}
       {after.length > 0 && (
         <>
-          <p className="m-0 pt-2 text-[12.5px] font-semibold leading-5">Sau điều chỉnh</p>
+          <p className="m-0 pt-2 text-[12.5px] font-semibold leading-5">
+            {t(message('Sau điều chỉnh', 'After adjustments', '조정 후'))}
+          </p>
           {table(after)}
         </>
       )}
@@ -185,21 +258,32 @@ function Blocks({
   period: string
   openTo: OpenTo
 }) {
+  const { t } = useI18n()
   if (blocks.length === 0) {
-    return <p className="text-[12.5px] leading-5">Chưa có bản ghi nào tính vào chỉ số.</p>
+    return (
+      <p className="text-[12.5px] leading-5">
+        {t(
+          message(
+            'Chưa có bản ghi nào tính vào chỉ số.',
+            'No records contribute to these metrics yet.',
+            '아직 지표에 반영된 기록이 없습니다.',
+          ),
+        )}
+      </p>
+    )
   }
   const titled = blocks.length > 1
   return (
     <div className="flex flex-col gap-4">
       {blocks.map(({ role, groups }) => (
         <div key={role} className="flex flex-col gap-2">
-          {titled && <SectionTitle size="md">{ROLE_LABEL[role]}</SectionTitle>}
+          {titled && <SectionTitle size="md">{kpiRoleText(role)}</SectionTitle>}
           <GlassCard variant="b" className="flex flex-col px-4 py-2">
             {groups.map((entry) => (
               <Accordion
                 key={entry.def.key}
-                title={KPI_METRIC_LABEL[entry.def.key]}
-                summary={summaryOf(entry)}
+                title={kpiMetricText(entry.def.key)}
+                summary={summaryOf(entry, t)}
                 defaultOpen={entry.def.primary}
               >
                 <GroupBody entry={entry} period={period} openTo={openTo} />
@@ -215,8 +299,19 @@ function Blocks({
 /** The frozen-copy note, once per screen: the contributions read says whether
  *  this month's lists and weekly series come from the copy frozen at close. */
 export function FrozenNote({ period, actorId }: { period: string; actorId: string }) {
+  const { t } = useI18n()
   const query = useQuery(kpiContributionsQuery(period, actorId))
-  return query.data?.frozen ? <p className={NOTE}>{FROZEN_NOTE}</p> : null
+  return query.data?.frozen ? (
+    <p className={NOTE}>
+      {t(
+        message(
+          'Theo số lúc chốt. Thay đổi sau đó tính vào tháng đang chạy.',
+          'Based on figures at close. Later changes count toward the current month.',
+          '마감 시점 수치 기준입니다. 이후 변경 사항은 현재 월에 반영됩니다.',
+        ),
+      )}
+    </p>
+  ) : null
 }
 
 export function ContributionsPanel({
@@ -228,6 +323,7 @@ export function ContributionsPanel({
   period: string
   actorId: string
 }) {
+  const { t } = useI18n()
   const query = useQuery(kpiContributionsQuery(period, actorId))
   const navigate = useNavigate()
   const openable = useOpenable()
@@ -240,11 +336,25 @@ export function ContributionsPanel({
 
   return (
     <section className="flex flex-col gap-3">
-      <SectionTitle size="lg">Bản ghi tính vào chỉ số</SectionTitle>
+      <SectionTitle size="lg">
+        {t(message('Bản ghi tính vào chỉ số', 'Records behind your metrics', '지표에 반영된 기록'))}
+      </SectionTitle>
       {denied ? (
-        <p className="text-[12.5px] leading-5">Bạn không có quyền xem các bản ghi này.</p>
+        <p className="text-[12.5px] leading-5">
+          {t(
+            message(
+              'Bạn không có quyền xem các bản ghi này.',
+              'You do not have permission to view these records.',
+              '이 기록을 볼 권한이 없습니다.',
+            ),
+          )}
+        </p>
       ) : (
-        <QueryBlock query={query} what="bản ghi tính vào chỉ số" variant="b">
+        <QueryBlock
+          query={query}
+          what={t(message('bản ghi tính vào chỉ số', 'metric records', '지표 기록'))}
+          variant="b"
+        >
           {(data) => (
             <Blocks blocks={blocksOf(catalog, data)} period={data.period} openTo={openTo} />
           )}

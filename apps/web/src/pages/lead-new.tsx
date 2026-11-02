@@ -1,12 +1,14 @@
 import { useNavigate } from 'react-router-dom'
 import { AppShell, GlassCard, ScreenDetailGrid, ScreenHeader, ScreenLayout } from '@pv/ui'
 import { useAppChrome } from '@/app/chrome'
+import { useI18n } from '@/app/i18n'
 import { useLeadDraft } from '@/data/lead-draft'
 import { DetailSidePanel } from '@/components/detail-side-panel'
 import { LeadActivityCard } from '@/components/lead-activity-card'
 import { LeadToolsBar } from '@/components/lead-tools-bar'
 import { OwnerSourceCard } from '@/components/owner-source-card'
 import { LeadForm, NextActionCard, SaveStateNote } from './lead-parts'
+import { LEAD_COPY } from '@/data/lead-copy'
 
 /** Module 2 · One lead typed by hand — `/sales/leads/new`.
  *
@@ -24,7 +26,8 @@ import { LeadForm, NextActionCard, SaveStateNote } from './lead-parts'
  *  Buttons live in `LeadToolsBar` only — the sticky bar is where the screen's
  *  primary action belongs, and two submit buttons are two answers. */
 export function LeadNewPage() {
-  const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
+  const { t } = useI18n()
+  const chrome = useAppChrome({ searchPlaceholder: t(LEAD_COPY.search) })
   const navigate = useNavigate()
   /* The 201 carries the whole stored row, so the next stop is its own profile:
      whoever typed it sees the NORMALISED values. */
@@ -38,16 +41,16 @@ export function LeadNewPage() {
       <ScreenLayout>
         <GlassCard variant="b" className="p-4">
           <ScreenHeader
-            back={{ label: 'Sổ lead', onClick: () => navigate('/sales/leads') }}
-            title="Lead mới"
+            back={{ label: t(LEAD_COPY.book), onClick: () => navigate('/sales/leads') }}
+            title={t(LEAD_COPY.newTitle)}
             className="gap-3 [&>div]:gap-3 [&_h2]:tracking-[-.4px]"
-            description="Lead mới vào kho chung, chưa ai nhận."
+            description={t(LEAD_COPY.newDescription)}
             meta={<SaveStateNote state={draft.saveState} />}
           />
         </GlassCard>
 
         <ScreenDetailGrid
-          sideLabel="Phụ trách và việc tiếp theo"
+          sideLabel={t(LEAD_COPY.sideLabel)}
           className="w-full"
           sideClassName="relative xl:self-stretch"
           sideFirst

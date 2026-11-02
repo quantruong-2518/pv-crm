@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import type { RailObject } from '@pv/ui'
-import { OPPORTUNITY_CONTACT_ROLE_LABEL, type JourneyContract } from '@pv/contracts'
+import type { JourneyContract } from '@pv/contracts'
 import { useCan } from '@/app/auth'
+import { useI18n } from '@/app/i18n'
 import type { Contract } from '@/data/contracts'
 import { opportunityProfileQuery, railOf } from '@/data/opportunities'
 import { useContractKindLabel } from '@/data/sales-config'
+import { opportunityContactRoleLabel } from '@/data/sales-labels-i18n'
 import { workstreamJourneyQuery } from '@/data/workstream-journey'
 import type { BarContact } from '@/components/record/action-bar'
 
@@ -22,6 +24,7 @@ export const MAIL_BLOCKED = 'Cần quyền gửi email cho lead.'
 export type RunRead = 'pending' | 'denied' | 'unread' | 'ready'
 
 export function useContractRun(contract: Contract) {
+  const { lang } = useI18n()
   const canViewDeal = useCan('opportunity.view')
   const canViewRun = useCan('workstream.view')
   const kindLabel = useContractKindLabel()
@@ -37,7 +40,7 @@ export function useContractRun(contract: Contract) {
   const inside = journey.data?.contracts.find((c) => c.code === contract.code) ?? null
   const contacts: BarContact[] = (deal.data?.contacts ?? []).map((c) => ({
     ...c,
-    role: c.role && OPPORTUNITY_CONTACT_ROLE_LABEL[c.role],
+    role: c.role && opportunityContactRoleLabel(c.role, lang),
   }))
   const read: RunRead = !canViewRun
     ? 'denied'

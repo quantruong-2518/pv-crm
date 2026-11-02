@@ -7,6 +7,35 @@ import { SIZE_OPTIONS } from '@/data/lead-form'
 import { categoryOptions, leadIndustryOptionsQuery } from '@/data/industries'
 import { AddressField } from './address-field'
 import { Field } from './ops-fields'
+import { message, useI18n } from '@/app/i18n'
+
+const TEXT = {
+  usedToDetectDuplicatesWhen: message(
+    'Dùng để kiểm tra trùng khi chưa có mã số thuế.',
+    'Used to detect duplicates when no tax ID is provided.',
+    '사업자등록번호가 없을 때 중복 확인에 사용됩니다.',
+  ),
+  fullNameAsShownOn: message(
+    'Tên đầy đủ trên hoá đơn.',
+    'Full name as shown on invoices.',
+    '청구서에 표시되는 전체 이름입니다.',
+  ),
+  matchingTaxIDsAreTreated: message(
+    'Trùng mã số thuế là cùng một công ty.',
+    'Matching tax IDs are treated as the same company.',
+    '사업자등록번호가 같으면 동일 회사로 처리됩니다.',
+  ),
+  theIndustryGroupDecidesWho: message(
+    'Nhóm ngành quyết định ai nhận lead mới.',
+    'The industry group decides who receives new leads.',
+    '산업 분야에 따라 새 리드 담당자가 정해집니다.',
+  ),
+  pasteAnImageURLStarting: message(
+    'Dán link ảnh logo, bắt đầu bằng https://. Logo hiện làm nền thẻ công ty.',
+    'Paste an image URL starting with https://. The logo appears on the company card.',
+    'https://로 시작하는 이미지 URL을 붙여 넣으세요. 로고는 회사 카드에 표시됩니다.',
+  ),
+}
 
 /** The company form's fields, shared between TWO places.
  *
@@ -38,45 +67,50 @@ export function AccountFields({
   errors?: FieldErrors
 }) {
   const { data: categories } = useQuery(leadIndustryOptionsQuery)
+  const { t } = useI18n()
   return (
     <div className="flex flex-col gap-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field
-          label="Tên công ty"
+          label={t(message('Tên công ty', 'Company name', '회사명'))}
           required
           errors={errors.name}
-          hint="Dùng để kiểm tra trùng khi chưa có mã số thuế."
+          hint={t(TEXT.usedToDetectDuplicatesWhen)}
           className="sm:col-span-2"
         >
           <Input
             value={draft.name}
             maxLength={200}
-            aria-label="Tên công ty"
+            aria-label={t(message('Tên công ty', 'Company name', '회사명'))}
             aria-required
             invalid={Boolean(errors.name)}
             onChange={(e) => onSet('name', e.target.value)}
           />
         </Field>
 
-        <Field label="Tên trên giấy tờ" errors={errors.legalName} hint="Tên đầy đủ trên hoá đơn.">
+        <Field
+          label={t(message('Tên trên giấy tờ', 'Legal name', '법인명'))}
+          errors={errors.legalName}
+          hint={t(TEXT.fullNameAsShownOn)}
+        >
           <Input
             value={draft.legalName}
             maxLength={200}
-            aria-label="Tên trên giấy tờ"
+            aria-label={t(message('Tên trên giấy tờ', 'Legal name', '법인명'))}
             invalid={Boolean(errors.legalName)}
             onChange={(e) => onSet('legalName', e.target.value)}
           />
         </Field>
 
         <Field
-          label="Mã số thuế"
+          label={t(message('Mã số thuế', 'Tax ID', '사업자등록번호'))}
           errors={errors.taxCode}
-          hint="Trùng mã số thuế là cùng một công ty."
+          hint={t(TEXT.matchingTaxIDsAreTreated)}
         >
           <Input
             value={draft.taxCode}
             maxLength={32}
-            aria-label="Mã số thuế"
+            aria-label={t(message('Mã số thuế', 'Tax ID', '사업자등록번호'))}
             className="font-mono"
             invalid={Boolean(errors.taxCode)}
             onChange={(e) => onSet('taxCode', e.target.value)}
@@ -109,28 +143,35 @@ export function AccountFields({
         />
 
         <Field
-          label="Nhóm ngành"
+          label={t(message('Nhóm ngành', 'Industry group', '산업 분야'))}
           plain
           errors={errors.categoryId}
-          hint="Nhóm ngành quyết định ai nhận lead mới."
+          hint={t(TEXT.theIndustryGroupDecidesWho)}
         >
           <Select
-            label="Nhóm ngành"
+            label={t(message('Nhóm ngành', 'Industry group', '산업 분야'))}
             hideLabel
             value={draft.categoryId}
             neutralValue=""
             onChange={(v) => onSet('categoryId', v)}
             options={[
-              { value: '', label: 'Chưa chọn nhóm ngành' },
+              {
+                value: '',
+                label: t(message('Chưa chọn nhóm ngành', 'No industry group', '산업 분야 미선택')),
+              },
               ...categoryOptions(categories, draft.categoryId),
             ]}
             className="w-full"
           />
         </Field>
 
-        <Field label="Quy mô" plain errors={errors.sizeBand}>
+        <Field
+          label={t(message('Quy mô', 'Company size', '기업 규모'))}
+          plain
+          errors={errors.sizeBand}
+        >
           <Select
-            label="Quy mô"
+            label={t(message('Quy mô', 'Company size', '기업 규모'))}
             hideLabel
             value={draft.sizeBand}
             neutralValue=""
@@ -142,9 +183,9 @@ export function AccountFields({
       </div>
 
       <Field
-        label="Link logo"
+        label={t(message('Link logo', 'Logo URL', '로고 URL'))}
         errors={errors.logoUrl}
-        hint="Dán link ảnh logo, bắt đầu bằng https://. Logo hiện làm nền thẻ công ty."
+        hint={t(TEXT.pasteAnImageURLStarting)}
       >
         <Input
           type="url"
@@ -152,19 +193,19 @@ export function AccountFields({
           maxLength={1000}
           placeholder="https://"
           value={draft.logoUrl}
-          aria-label="Link logo"
+          aria-label={t(message('Link logo', 'Logo URL', '로고 URL'))}
           invalid={Boolean(errors.logoUrl)}
           onChange={(e) => onSet('logoUrl', e.target.value)}
         />
       </Field>
 
-      <Field label="Ghi chú" errors={errors.note}>
+      <Field label={t(message('Ghi chú', 'Notes', '메모'))} errors={errors.note}>
         <Textarea
           autoGrow
           rows={3}
           maxLength={1000}
           value={draft.note}
-          aria-label="Ghi chú về công ty"
+          aria-label={t(message('Ghi chú về công ty', 'Company notes', '회사 메모'))}
           invalid={Boolean(errors.note)}
           onChange={(e) => onSet('note', e.target.value)}
         />

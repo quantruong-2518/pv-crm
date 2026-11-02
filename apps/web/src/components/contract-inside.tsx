@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Badge, StatusDot, cn, vnd, type StatusDotState } from '@pv/ui'
+import { Badge, StatusDot, cn, type StatusDotState } from '@pv/ui'
 import {
   DOC_STATE_LABEL,
   type DocState,
@@ -9,6 +9,7 @@ import {
 import { dm, dmy } from '@/lib/date'
 import { BADGE_INK } from '@/data/opportunities'
 import { DueBadge } from '@/components/contract-bits'
+import { formatCurrency } from '@/app/i18n'
 
 /** What sits inside a contract's rungs, read-only, off the run's journey:
  *  deployment milestones, acceptance documents, installments with their
@@ -99,7 +100,7 @@ export function ContractInside({ contract: c }: { contract: JourneyContract }) {
               <li key={i.no} className="flex min-w-0 flex-col gap-1 py-2">
                 <span className="flex flex-wrap items-center gap-2 text-[12.5px] leading-[1.5]">
                   <span className="min-w-0 grow break-words font-medium">{i.label}</span>
-                  <span className="tnum">{vnd(i.amount)}</span>
+                  <span className="tnum">{formatCurrency(i.amount, 'VND')}</span>
                   <DueBadge level={i.dueLevel} />
                 </span>
                 <span className="text-muted-foreground tnum text-[12px] leading-[1.5]">
@@ -109,7 +110,7 @@ export function ContractInside({ contract: c }: { contract: JourneyContract }) {
                     i.invoicedAt &&
                       ['hoá đơn', i.invoiceNo, dmy(i.invoicedAt)].filter(Boolean).join(' '),
                     i.paidAt &&
-                      `đã thu ${dmy(i.paidAt)}${i.paidAmount === null ? '' : ` · ${vnd(i.paidAmount)}`}`,
+                      `đã thu ${dmy(i.paidAt)}${i.paidAmount === null ? '' : ` · ${formatCurrency(i.paidAmount, 'VND')}`}`,
                   ]
                     .filter(Boolean)
                     .join(' · ')}

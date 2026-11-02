@@ -9,6 +9,8 @@
         const saved = localStorage.getItem('pv-theme')
         document.documentElement.dataset.theme =
           saved === 'stone' || saved === 'porcelain' ? saved : 'aurora'
+        const language = localStorage.getItem('pv-lang')
+        document.documentElement.lang = language === 'en' || language === 'ko' ? language : 'vi'
       } catch {
         document.documentElement.dataset.theme = 'aurora'
       }

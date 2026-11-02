@@ -6,6 +6,7 @@ import { AppShell, Button, Checkbox, Icon, ScreenLayout, type TableSort } from '
 import { OpportunityBookQuery, type OpportunityBookRow } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
+import { message, useI18n } from '@/app/i18n'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { openMasMail } from '@/app/mas-mail-composer'
 import { toast } from '@/app/toast'
@@ -18,6 +19,7 @@ import {
   opportunityProfileQuery,
 } from '@/data/opportunities'
 import { OP_SPEC } from '@/data/intake'
+import type { MasRecipient } from '@/data/mas-mail-draft'
 import { usePins } from '@/data/pins'
 import { useOpportunityImport } from '@/data/opportunity-import'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
@@ -70,10 +72,15 @@ import {
 const NO_LOCAL_KEYS: ReadonlySet<string> = new Set()
 
 /** Exactly the fields the server matches: deal name, deal code, company. */
-const SEARCH_PLACEHOLDER = 'Tìm theo tên cơ hội, mã cơ hội hoặc khách hàng…'
+const SEARCH_PLACEHOLDER = message(
+  'Tìm theo tên cơ hội, mã cơ hội hoặc khách hàng…',
+  'Search by opportunity name, code, or account…',
+  '기회명, 코드 또는 고객사로 검색…',
+)
 
 export function OpportunitiesPage() {
-  const chrome = useAppChrome({ searchPlaceholder: SEARCH_PLACEHOLDER })
+  const { t } = useI18n()
+  const chrome = useAppChrome({ searchPlaceholder: t(SEARCH_PLACEHOLDER) })
   const navigate = useNavigate()
   const book = useBookQuery(OpportunityBookQuery, { size: BOOK_PAGE_SIZE, filterKeys: FILTER_KEYS })
   const { urlQuery, query, text, setText, patch, goPage, clear: clearFilters, dirty } = book
@@ -111,7 +118,7 @@ export function OpportunitiesPage() {
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <BookPage
-          title="Sổ cơ hội"
+          title={t(message('Sổ cơ hội', 'Opportunities', '영업 기회'))}
           actions={
             canCreate && (
               <CreateDoors onCreate={() => setCreating(true)} onSeeResult={clearFilters} />
@@ -120,15 +127,17 @@ export function OpportunitiesPage() {
           score={<ScoreCards />}
           tabs={<BookTabs query={urlQuery} onPatch={patch} />}
           count={data && <BookCounts query={urlQuery} total={total} hidden={data.hidden} />}
-          tools={<BookSearch value={text} onChange={setText} placeholder={SEARCH_PLACEHOLDER} />}
+          tools={<BookSearch value={text} onChange={setText} placeholder={t(SEARCH_PLACEHOLDER)} />}
           onClearFilters={dirty ? clearFilters : undefined}
           filters={filterChips}
           pending={isPending}
           failure={
             bookError
               ? {
-                  message: `Không tải được danh sách cơ hội. ${
-                    isApiError(bookError) ? userMessage(bookError) : 'Thử lại.'
+                  message: `${t(message('Không tải được danh sách cơ hội.', 'Could not load opportunities.', '영업 기회를 불러오지 못했습니다.'))} ${
+                    isApiError(bookError)
+                      ? userMessage(bookError)
+                      : t(message('Thử lại.', 'Try again.', '다시 시도하세요.'))
                   }`,
                   onRetry: () => void refetch(),
                 }
@@ -159,14 +168,21 @@ export function OpportunitiesPage() {
                     checked={allPageSelected}
                     indeterminate={pageSelected > 0 && !allPageSelected}
                     onChange={selection.selectPage}
-                    label={<span className="sr-only">Chọn cả trang</span>}
+                    label={
+                      <span className="sr-only">
+                        {t(message('Chọn cả trang', 'Select page', '페이지 선택'))}
+                      </span>
+                    }
                     className="w-full justify-center gap-0 p-0"
                   />
                 ),
                 width: COL.select,
               },
               ...bookColumns(filters, closeDayOf(book.query) === 'closed'),
-              { header: <span className="sr-only">Ghim</span>, width: COL.pin },
+              {
+                header: <span className="sr-only">{t(message('Ghim', 'Pin', '고정'))}</span>,
+                width: COL.pin,
+              },
             ],
             rows: rows.map((o) => ({
               id: o.code,
@@ -200,33 +216,57 @@ export function OpportunitiesPage() {
           onCreated={(row) => open(row.code)}
         />
 
-        {selectedCodes.size > 0 && <div aria-hidden className="h-24" />}
-        {selectedCodes.size > 0 && (
-          <BookSelectionBar
-            count={selectedCodes.size}
-            noun="cơ hội"
-            meta={mailTally(selectedCodes, mailable)}
-            onClear={clearSelection}
-            onSend={() =>
-              openMasMail({
-                recipients,
-                initialCodes: [...selectedCodes],
-                subjectType: 'opportunity',
-                onQueued: clearSelection,
-              })
-            }
-            actions={
-              <PinSelectionAction
-                subject="opportunity"
-                codes={[...selectedCodes]}
-                noun="cơ hội"
-                onDone={clearSelection}
-              />
-            }
-          />
-        )}
+        <OpportunitySelectionBar
+          selectedCodes={selectedCodes}
+          mailable={mailable}
+          recipients={recipients}
+          onClear={clearSelection}
+        />
       </ScreenLayout>
     </AppShell>
+  )
+}
+
+/** The floating bar over a non-empty selection, with the spacer that keeps the last row clear of it. */
+function OpportunitySelectionBar({
+  selectedCodes,
+  mailable,
+  recipients,
+  onClear,
+}: {
+  selectedCodes: ReadonlySet<string>
+  mailable: ReadonlyMap<string, MasRecipient>
+  recipients: MasRecipient[]
+  onClear: () => void
+}) {
+  const { t } = useI18n()
+  if (selectedCodes.size === 0) return null
+  return (
+    <>
+      <div aria-hidden className="h-24" />
+      <BookSelectionBar
+        count={selectedCodes.size}
+        noun={t(message('cơ hội', 'opportunities', '영업 기회'))}
+        meta={mailTally(selectedCodes, mailable)}
+        onClear={onClear}
+        onSend={() =>
+          openMasMail({
+            recipients,
+            initialCodes: [...selectedCodes],
+            subjectType: 'opportunity',
+            onQueued: onClear,
+          })
+        }
+        actions={
+          <PinSelectionAction
+            subject="opportunity"
+            codes={[...selectedCodes]}
+            noun={t(message('cơ hội', 'opportunities', '영업 기회'))}
+            onDone={onClear}
+          />
+        }
+      />
+    </>
   )
 }
 

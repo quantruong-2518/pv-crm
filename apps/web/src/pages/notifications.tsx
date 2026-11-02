@@ -4,6 +4,7 @@ import { AppShell, GlassCard, ScreenHeader, ScreenLayout } from '@pv/ui'
 import { NotificationListQuery, type NotificationRow } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { useBookQuery } from '@/app/book-query'
+import { message, useI18n } from '@/app/i18n'
 import {
   notificationPageQuery,
   unreadIds,
@@ -23,6 +24,7 @@ import { NotificationFeed, NotificationNav, NotificationToolbar } from './notifi
  *  object, so the rail returns once it can follow the pressed row. */
 
 export default function NotificationsPage() {
+  const { t } = useI18n()
   const chrome = useAppChrome()
   const navigate = useNavigate()
   const book = useBookQuery(NotificationListQuery, { filterKeys: ['unread', 'group'] })
@@ -58,14 +60,18 @@ export default function NotificationsPage() {
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
-        <ScreenHeader title="Thông báo" />
+        <ScreenHeader title={t(message('Thông báo', 'Notifications', '알림'))} />
 
         <div className="flex flex-wrap items-start gap-6">
           <NotificationNav book={book} />
 
           {/* Law 8 — a long list sits on `.glass-b`, and nothing inside draws a
               second surface. */}
-          <GlassCard variant="b" aria-label="Thông báo" className="min-w-0 flex-[999_1_560px]">
+          <GlassCard
+            variant="b"
+            aria-label={t(message('Thông báo', 'Notifications', '알림'))}
+            className="min-w-0 flex-[999_1_560px]"
+          >
             <NotificationToolbar book={book} total={list.data?.total} markAll={markAll} />
             <NotificationFeed
               list={list}

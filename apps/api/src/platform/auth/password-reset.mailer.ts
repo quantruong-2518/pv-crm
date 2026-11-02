@@ -96,6 +96,7 @@ export class PasswordResetMailer implements ResetMailer {
     try {
       const { subject, html, text } = await renderPasswordReset({
         purpose: issued.purpose,
+        lang: issued.lang,
         name: issued.name,
         email: issued.email,
         link: issued.link,

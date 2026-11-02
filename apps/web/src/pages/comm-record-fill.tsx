@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { ArrowLeft, ArrowRight, Button, Icon, PhoneOff, Save, Timer } from '@pv/ui'
 import type { DebriefClose, DebriefView } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 import { userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
 import { dmy, hm } from '@/lib/date'
@@ -15,7 +16,7 @@ import { CommRecordFrame } from '@/components/comm-record-frame'
 import { CommUnreachedDialog } from '@/components/comm-unreached-dialog'
 import { useCommAiReport } from '@/data/comm-ai-report'
 import {
-  COMM_NOUN,
+  commNoun,
   useAnchorTurn,
   clearCommDraft,
   commKindLine,
@@ -28,6 +29,14 @@ import { EMPTY_COMM_DRAFT, useCommForm } from '@/data/comm-record-form'
 import { useMinuteClock } from '@/data/minute-clock'
 import { BAR_BUTTON, CommFormBar, CommFormSteps, type FormProblem } from './comm-record-form'
 
+const TEXT = {
+  draftSavedOnThisDevice: message(
+    'Đã lưu nháp trên máy này',
+    'Draft saved on this device',
+    '이 기기에 초안을 저장했습니다',
+  ),
+}
+
 /** The owner's fill form for an open comm: three steps, one card at a time,
  *  and a sticky bar that says what the open step still lacks. Next is shut
  *  until the open step is complete, confirm until all three are; the stepper
@@ -38,6 +47,7 @@ import { BAR_BUTTON, CommFormBar, CommFormSteps, type FormProblem } from './comm
  *  beside this form, and only the owner's press moves a part into it. */
 
 export function CommFillWorkspace({ record }: { record: DebriefView }) {
+  const { t } = useI18n()
   const confirm = useConfirmComm()
   const saved = useMemo(() => readCommDraft(record.id), [record.id])
   const form = useCommForm(record, saved ?? EMPTY_COMM_DRAFT)
@@ -53,7 +63,7 @@ export function CommFillWorkspace({ record }: { record: DebriefView }) {
   const save = () => {
     const { title, summary, picked, draft } = form
     writeCommDraft(record.id, { title, summary, picked, step: draft })
-    toastDone('Đã lưu nháp trên máy này')
+    toastDone(t(TEXT.draftSavedOnThisDevice))
   }
   const submit = () => {
     if (blocker || confirm.isPending) return
@@ -68,7 +78,9 @@ export function CommFillWorkspace({ record }: { record: DebriefView }) {
       {
         onSuccess: () => {
           clearCommDraft(record.id)
-          toastDone('Đã xác nhận liên hệ')
+          toastDone(
+            t(message('Đã xác nhận liên hệ', 'Interaction confirmed', '연락 기록을 확인했습니다')),
+          )
         },
       },
     )
@@ -85,13 +97,19 @@ export function CommFillWorkspace({ record }: { record: DebriefView }) {
   return (
     <CommRecordFrame
       record={record}
-      title={`Ghi lại ${COMM_NOUN[record.channel]}`}
+      title={t(
+        message(
+          `Ghi lại ${commNoun(record.channel, 'vi')}`,
+          `Log ${commNoun(record.channel, 'en')}`,
+          `${commNoun(record.channel, 'ko')} 기록`,
+        ),
+      )}
       meta={<FillMeta record={record} />}
       actions={
         record.channel !== 'meeting' && (
           <Button size="lg" variant="secondary" onClick={() => setUnreached(true)}>
             <Icon icon={PhoneOff} size={16} />
-            Không liên lạc được
+            {t(message('Không liên lạc được', 'Could not reach', '연락되지 않음'))}
           </Button>
         )
       }
@@ -99,12 +117,12 @@ export function CommFillWorkspace({ record }: { record: DebriefView }) {
         <CommFormBar problem={problem}>
           <Button size="md" variant="secondary" className={BAR_BUTTON} onClick={save}>
             <Icon icon={Save} size={16} />
-            Lưu nháp
+            {t(message('Lưu nháp', 'Save draft', '초안 저장'))}
           </Button>
           {at > 0 && (
             <Button size="md" variant="ghost" className={BAR_BUTTON} onClick={() => go(at - 1)}>
               <Icon icon={ArrowLeft} size={16} />
-              Bước trước
+              {t(message('Bước trước', 'Previous step', '이전 단계'))}
             </Button>
           )}
           {at < last && (
@@ -114,7 +132,7 @@ export function CommFillWorkspace({ record }: { record: DebriefView }) {
               disabled={gaps[at] !== null}
               onClick={() => go(at + 1)}
             >
-              Tiếp tục
+              {t(message('Tiếp tục', 'Continue', '계속'))}
               <Icon icon={ArrowRight} size={16} />
             </Button>
           )}
@@ -125,7 +143,7 @@ export function CommFillWorkspace({ record }: { record: DebriefView }) {
               disabled={blocker !== null || confirm.isPending}
               onClick={submit}
             >
-              Xác nhận
+              {t(message('Xác nhận', 'Confirm', '확인'))}
             </Button>
           )}
         </CommFormBar>

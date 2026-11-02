@@ -17,6 +17,7 @@ import {
   type PolicyDraft,
 } from '@/data/notification-policy'
 import { PolicyGrid } from './admin-notifications-parts'
+import { message, useI18n } from '@/app/i18n'
 
 /** One Core · Admin · Notifications — which role hears which kind, and which
  *  kinds pop up (ADR 0093 §2).
@@ -30,7 +31,26 @@ import { PolicyGrid } from './admin-notifications-parts'
 
 const NO_KINDS: NotificationKind[] = []
 
+const TEXT = {
+  couldNotSaveNotificationSettings: message(
+    'Không lưu được cài đặt thông báo. Thử lại.',
+    'Could not save notification settings. Please try again.',
+    '알림 설정을 저장하지 못했습니다. 다시 시도해 주세요.',
+  ),
+  notificationSettingsSaved: message(
+    'Đã lưu cài đặt thông báo',
+    'Notification settings saved',
+    '알림 설정을 저장했습니다',
+  ),
+  chooseWhichRolesReceiveEach: message(
+    'Chọn vai trò nhận từng loại thông báo; loại quan trọng hiện ngay ở góc màn hình.',
+    'Choose which roles receive each notification. Important notifications also appear as a toast.',
+    '각 알림을 받을 역할을 선택하세요. 중요 알림은 화면 토스트로도 표시됩니다.',
+  ),
+}
+
 export function AdminNotificationsPage() {
+  const { t } = useI18n()
   const { data, isPending, error, refetch } = useQuery(notificationPolicyQuery)
   const save = useSavePolicy()
 
@@ -64,20 +84,30 @@ export function AdminNotificationsPage() {
         /* Say what did land: the loop commits kind by kind. */
         const said = isApiError(refusal)
           ? userMessage(refusal)
-          : 'Không lưu được cài đặt thông báo. Thử lại.'
-        setFailure(saved > 0 ? `Đã lưu ${saved} loại thông báo. ${said}` : said)
+          : t(TEXT.couldNotSaveNotificationSettings)
+        setFailure(
+          saved > 0
+            ? t(
+                message(
+                  `Đã lưu ${saved} loại thông báo. ${said}`,
+                  `Saved ${saved} notification types. ${said}`,
+                  `알림 유형 ${saved}개를 저장했습니다. ${said}`,
+                ),
+              )
+            : said,
+        )
         return
       }
     }
     setEdited(null)
-    toastDone('Đã lưu cài đặt thông báo')
+    toastDone(t(TEXT.notificationSettingsSaved))
   }
 
   return (
     <SettingsShell>
       <ScreenHeader
-        title="Thông báo theo vai trò"
-        description="Chọn vai trò nhận từng loại thông báo; loại quan trọng hiện ngay ở góc màn hình."
+        title={t(message('Thông báo theo vai trò', 'Notifications by role', '역할별 알림'))}
+        description={t(TEXT.chooseWhichRolesReceiveEach)}
         meta={
           failure || dirty.length > 0 ? (
             <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -91,7 +121,15 @@ export function AdminNotificationsPage() {
               ) : null}
               {dirty.length > 0 ? (
                 <MetaPill tone="warning">
-                  <span className="tnum">{`Chưa lưu ${dirty.length} loại thông báo`}</span>
+                  <span className="tnum">
+                    {t(
+                      message(
+                        `Chưa lưu ${dirty.length} loại thông báo`,
+                        `${dirty.length} notification types have unsaved changes`,
+                        `저장되지 않은 알림 유형 ${dirty.length}개`,
+                      ),
+                    )}
+                  </span>
                 </MetaPill>
               ) : null}
             </span>
@@ -110,7 +148,7 @@ export function AdminNotificationsPage() {
               }}
             >
               <Icon icon={RotateCcw} size={16} />
-              Hoàn tác
+              {t(message('Hoàn tác', 'Undo changes', '변경 취소'))}
             </Button>
             <Button
               size="lg"
@@ -119,7 +157,9 @@ export function AdminNotificationsPage() {
               onClick={() => void saveDirty()}
             >
               <Icon icon={Save} size={16} />
-              {save.isPending ? 'Đang lưu…' : 'Lưu thay đổi'}
+              {save.isPending
+                ? t(message('Đang lưu…', 'Saving…', '저장 중…'))
+                : t(message('Lưu thay đổi', 'Save changes', '변경 사항 저장'))}
             </Button>
           </>
         }
@@ -138,10 +178,15 @@ export function AdminNotificationsPage() {
             <EmptyState
               tone="danger"
               icon={TriangleAlert}
-              message={`Không tải được cài đặt thông báo. ${
-                isApiError(error) ? userMessage(error) : 'Thử lại.'
+              message={`${t(message('Không tải được cài đặt thông báo.', 'Could not load notification settings.', '알림 설정을 불러오지 못했습니다.'))} ${
+                isApiError(error)
+                  ? userMessage(error)
+                  : t(message('Thử lại.', 'Please try again.', '다시 시도해 주세요.'))
               }`}
-              action={{ label: 'Thử lại', onClick: () => void refetch() }}
+              action={{
+                label: t(message('Thử lại', 'Try again', '다시 시도')),
+                onClick: () => void refetch(),
+              }}
               className="py-12"
             />
           ) : (

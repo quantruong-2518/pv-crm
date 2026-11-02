@@ -58,7 +58,7 @@ export function AuthCard({
                 alt="PV One"
                 className="h-10 object-contain"
               />
-              <LangSwitch />
+              <LanguagePicker />
             </div>
             <div className="flex flex-col gap-2">
               <h1 className="font-display m-0 text-[20px] font-semibold">{title}</h1>
@@ -90,13 +90,10 @@ export function AuthCard({
   )
 }
 
-/** VN · KO · EN, in that fixed order — a pick, not a dial. `setLang` in
- *  `app/i18n.ts` sets the code directly, so landing on the one you want never
- *  costs more than one click. Every word on the four auth screens reads off
- *  this value. */
+/** A direct choice shared by auth and the signed-in account screen. */
 const LANGS: Lang[] = ['vi', 'ko', 'en']
 
-function LangSwitch() {
+export function LanguagePicker() {
   const lang = useLang()
   return (
     <div

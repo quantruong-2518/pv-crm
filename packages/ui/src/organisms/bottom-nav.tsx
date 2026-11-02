@@ -2,6 +2,7 @@ import type { IconGlyph } from '../icons'
 import { House, Lock, Orbit, Search, SquareCheckBig } from '../icons'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
+import { DEFAULT_SHELL_COPY, type ShellCopy } from './shell-copy'
 
 /** O-07 · BottomNav — thay Sidebar dưới lg (1024px).
  *  Bốn mục cố định theo "Ba thiết bị là ba vai" (docs/design-system/laws.md): Home · Duyệt ·
@@ -12,13 +13,11 @@ import { cn } from '../lib/cn'
  *  chưa dựng, mà một mục bấm không ra gì tệ hơn một mục nói thẳng là chưa mở. */
 export type BottomNavKey = 'home' | 'approvals' | 'search' | 'assistant'
 
-const ITEMS: { key: BottomNavKey; icon: IconGlyph; label: string }[] = [
-  /* Luật 14: năng lực bên trong luôn tiếng Việt — chỉ TÊN NHÁNH (Sales ·
-     Supply · Factory · Finance) mới giữ tiếng Anh. Bốn mục này là One Core. */
-  { key: 'home', icon: House, label: 'Trang chủ' },
-  { key: 'approvals', icon: SquareCheckBig, label: 'Duyệt' },
-  { key: 'search', icon: Search, label: 'Tìm' },
-  { key: 'assistant', icon: Orbit, label: 'Trợ lý' },
+const ITEMS: { key: BottomNavKey; icon: IconGlyph }[] = [
+  { key: 'home', icon: House },
+  { key: 'approvals', icon: SquareCheckBig },
+  { key: 'search', icon: Search },
+  { key: 'assistant', icon: Orbit },
 ]
 
 export type BottomNavProps = {
@@ -30,6 +29,7 @@ export type BottomNavProps = {
   approvalsCount?: number
   /** mục chưa có màn — nút tắt, ổ khoá 14 đứng chỗ badge số */
   locked?: BottomNavKey[]
+  copy?: ShellCopy
   onNavigate?: (key: BottomNavKey) => void
   className?: string
 }
@@ -38,12 +38,13 @@ export function BottomNav({
   active,
   approvalsCount,
   locked,
+  copy = DEFAULT_SHELL_COPY,
   onNavigate,
   className,
 }: BottomNavProps) {
   return (
     <nav
-      aria-label="Điều hướng chính"
+      aria-label={copy.navigation}
       className={cn(
         'glass-b fixed inset-x-0 bottom-0 z-10 flex items-center justify-around px-2 lg:hidden',
         'h-[calc(84px+env(safe-area-inset-bottom))] pb-[env(safe-area-inset-bottom)]',
@@ -77,11 +78,11 @@ export function BottomNav({
                 locked_ && 'opacity-55',
               )}
             />
-            <span className="text-[10px] font-medium">{item.label}</span>
+            <span className="text-[10px] font-medium">{copy.navItems[item.key]}</span>
             {locked_ ? (
               <span className="text-muted-foreground absolute right-2 top-0">
                 <Icon icon={Lock} size={14} className="opacity-55" />
-                <span className="sr-only">chưa mở</span>
+                <span className="sr-only">{copy.locked}</span>
               </span>
             ) : item.key === 'approvals' && Boolean(approvalsCount) ? (
               <span className="bg-destructive text-primary-foreground absolute right-2 top-0 rounded-sm px-[5px] py-px text-[9.5px] font-semibold">

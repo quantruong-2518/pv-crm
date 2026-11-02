@@ -2,6 +2,8 @@ import { Badge, Check, GlassCard, Icon, Stepper, cn } from '@pv/ui'
 import type { KpiAllocation, KpiAllocationLine } from '@pv/contracts'
 import type { ApiError } from '@/app/api'
 import { num } from './home-model'
+import { message, useI18n } from '@/app/i18n'
+import { kpiAckText, kpiPackageText } from '@/data/kpi-i18n'
 import { NOTE } from './home-tiles'
 import { ACK_LABEL, PACKAGE_LABEL, ackCounts, actedAt, failText } from './kpi-allocate-model'
 
@@ -9,9 +11,11 @@ import { ACK_LABEL, PACKAGE_LABEL, ackCounts, actedAt, failText } from './kpi-al
  *  answers, its four-step bar, and a refused write said in place. */
 
 export function PackageBadge({ pkg }: { pkg: KpiAllocation | undefined }) {
-  if (!pkg) return <Badge tone="draft">Chưa phân bổ</Badge>
+  const { t } = useI18n()
+  if (!pkg)
+    return <Badge tone="draft">{t(message('Chưa phân bổ', 'Not allocated', '미배분'))}</Badge>
   const label = PACKAGE_LABEL[pkg.status]
-  return <Badge tone={label.tone}>{label.text}</Badge>
+  return <Badge tone={label.tone}>{kpiPackageText(pkg.status)}</Badge>
 }
 
 /** One badge per answer; counts only when the lines differ. */
@@ -21,7 +25,7 @@ export function AckCounts({ lines }: { lines: readonly Pick<KpiAllocationLine, '
     <span className="flex flex-wrap gap-2">
       {counts.map(({ state, count }) => (
         <Badge key={state} tone={ACK_LABEL[state].tone}>
-          {counts.length === 1 ? ACK_LABEL[state].text : `${ACK_LABEL[state].text} · ${num(count)}`}
+          {counts.length === 1 ? kpiAckText(state) : `${kpiAckText(state)} · ${num(count)}`}
         </Badge>
       ))}
     </span>
@@ -46,11 +50,14 @@ export function FailLine({
   )
 }
 
-const STEPS = [
-  { key: 'total', label: 'Chỉ tiêu vai trò' },
-  { key: 'split', label: 'Phân bổ' },
-  { key: 'ack', label: 'Người nhận xác nhận' },
-  { key: 'lock', label: 'Duyệt và khoá' },
+const stepLabels = (t: (copy: ReturnType<typeof message>) => string) => [
+  { key: 'total', label: t(message('Chỉ tiêu vai trò', 'Role targets', '역할 목표')) },
+  { key: 'split', label: t(message('Phân bổ', 'Allocation', '배분')) },
+  {
+    key: 'ack',
+    label: t(message('Người nhận xác nhận', 'Recipient acknowledgements', '수신자 확인')),
+  },
+  { key: 'lock', label: t(message('Duyệt và khoá', 'Approve and lock', '승인 및 확정')) },
 ]
 
 /** Where a role stands: no agreed role target, being split, handed down and
@@ -75,9 +82,14 @@ function stampOf(pkg: KpiAllocation | undefined): string | null {
 /** An agreed package has passed every step, which `Stepper` cannot draw (one
  *  step is always open), so the four are read out as done instead. */
 function AllDone() {
+  const { t } = useI18n()
+  const steps = stepLabels(t)
   return (
-    <ol aria-label="Các bước" className="flex flex-wrap items-center gap-x-3 gap-y-1">
-      {STEPS.map((step) => (
+    <ol
+      aria-label={t(message('Các bước', 'Steps', '단계'))}
+      className="flex flex-wrap items-center gap-x-3 gap-y-1"
+    >
+      {steps.map((step) => (
         <li key={step.key} className="inline-flex items-center gap-2 text-[12px] font-medium">
           <Icon icon={Check} size={14} className="text-success shrink-0" />
           {step.label}
@@ -95,13 +107,15 @@ export function PackageSteps({
   /** The role has at least one agreed role target this month. */
   hasTotal: boolean
 }) {
+  const { t } = useI18n()
+  const steps = stepLabels(t)
   const stamp = stampOf(pkg)
   const done = pkg?.status === 'agreed' || pkg?.status === 'superseded'
   /* On `.glass-b`, not the bare page: the badge text only clears 4.5:1 on that surface (law 13). */
   return (
     <GlassCard variant="b" className="flex flex-col gap-2 p-4">
       <div className="flex flex-wrap items-center gap-3">
-        {done ? <AllDone /> : <Stepper steps={STEPS} current={stepOf(pkg, hasTotal)} />}
+        {done ? <AllDone /> : <Stepper steps={steps} current={stepOf(pkg, hasTotal)} />}
         <PackageBadge pkg={pkg} />
       </div>
       {stamp && <p className={cn(NOTE, 'tnum font-num')}>{stamp}</p>}

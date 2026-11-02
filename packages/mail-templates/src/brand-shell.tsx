@@ -77,6 +77,7 @@ import {
  *  bằng chữ thật, nên không có lá thư nào ra ngoài mà người nhận không đọc
  *  được là ai gửi. */
 export type BrandShellProps = {
+  lang?: 'vi' | 'en' | 'ko'
   /** Dòng xem trước trong danh sách hộp thư — sau tiêu đề, đây là thứ quyết
    *  định thư có được mở hay không. Không bỏ trống. */
   preview: string
@@ -155,6 +156,7 @@ const HEADER_STYLE = {
 const CONTENT_STYLE = { padding: '28px 24px' } as const
 
 export function BrandShell({
+  lang = 'vi',
   preview,
   assetBaseUrl,
   children,
@@ -162,7 +164,7 @@ export function BrandShell({
   sender,
 }: BrandShellProps) {
   return (
-    <Html lang="vi">
+    <Html lang={lang}>
       <Head>
         {/* Webfont là phép nâng cấp cơ hội — xem `FONT_HREF`. Client nào bóc
             thẻ này thì đọc bằng phông hệ thống, và `FONT_STACK` được dựng để
@@ -188,7 +190,7 @@ export function BrandShell({
 
           <Hr style={{ borderColor: COLOR_SURFACE, margin: '0 24px' }} />
 
-          <BrandFooter assetBaseUrl={assetBaseUrl} note={footerNote} sender={sender} />
+          <BrandFooter assetBaseUrl={assetBaseUrl} note={footerNote} sender={sender} lang={lang} />
         </Container>
       </Body>
     </Html>
@@ -208,10 +210,12 @@ function BrandFooter({
   assetBaseUrl,
   note,
   sender,
+  lang,
 }: {
   assetBaseUrl: string
   note?: ReactNode
   sender?: { name: string; address: string }
+  lang: 'vi' | 'en' | 'ko'
 }) {
   return (
     <Section style={{ padding: '20px 24px 24px' }}>
@@ -262,7 +266,12 @@ function BrandFooter({
       <Hr style={{ borderColor: COLOR_SURFACE, margin: '18px 0 12px' }} />
 
       <Text style={{ margin: 0, fontSize: 12, lineHeight: '18px', color: COLOR_MUTED, ...TEXT }}>
-        {note ?? `Thư gửi tự động từ ${BRAND.product}, không cần trả lời.`}
+        {note ??
+          {
+            vi: `Thư gửi tự động từ ${BRAND.product}, không cần trả lời.`,
+            en: `This is an automated email from ${BRAND.product}. Please do not reply.`,
+            ko: `${BRAND.product}에서 자동으로 보낸 이메일입니다. 회신하지 마세요.`,
+          }[lang]}
       </Text>
     </Section>
   )

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { CircleCheck, GlassCard, Icon, TriangleAlert, cn, type IconGlyph } from '@pv/ui'
 import type { CampaignProfile } from '@pv/contracts'
+import { formatNumber, message, useI18n } from '@/app/i18n'
 import {
   bounceOver,
   shareOf,
@@ -25,10 +26,30 @@ const BOUNCE_SCALE = 1.2
 /** The best click rate shown fills this much of its track, leaving headroom. */
 const TOP_CLICK_FILL = 0.85
 
-const n = (v: number) => v.toLocaleString('vi-VN')
+const n = (v: number) => formatNumber(v)
 const ratio = (part: number, whole: number) => (whole > 0 ? part / whole : 0)
 
+const TEXT = {
+  noEmailsHaveBeenSent: message(
+    'Chưa gửi thư nào. Kết quả sẽ hiện sau khi đợt đầu bắt đầu gửi.',
+    'No emails have been sent yet. Results will appear once the first wave starts.',
+    '아직 발송된 이메일이 없습니다. 첫 발송 차수가 시작되면 결과가 표시됩니다.',
+  ),
+  clicksAsAShareOf: message(
+    'Số người bấm trên số thư tới nơi',
+    'Clicks as a share of delivered emails',
+    '도착 이메일 중 클릭 비율',
+  ),
+  theActiveWaveStopsAutomatically: message(
+    'Vượt ngưỡng sẽ tự dừng đợt đang gửi',
+    'The active wave stops automatically when it exceeds the limit',
+    '한도를 초과하면 진행 중인 차수가 자동으로 중지됩니다',
+  ),
+}
+
 export function CampaignResults({ campaign }: { campaign: CampaignProfile }) {
+  const { t, number } = useI18n()
+  const n = number
   /* Waves that are only scheduled have sent nothing: still an absence. */
   const gone = wavesInOrder(campaign).filter((w) => w.run.sent > 0)
   if (gone.length === 0) {
@@ -36,9 +57,11 @@ export function CampaignResults({ campaign }: { campaign: CampaignProfile }) {
        charts on a campaign that had not sent yet and could not find them. */
     return (
       <GlassCard className="flex flex-col items-center gap-2 px-6 py-12 text-center">
-        <h2 className="m-0 text-[14px] font-semibold">Hiệu quả chiến dịch</h2>
+        <h2 className="m-0 text-[14px] font-semibold">
+          {t(message('Hiệu quả chiến dịch', 'Campaign performance', '캠페인 성과'))}
+        </h2>
         <p className="text-muted-foreground m-0 max-w-[480px] text-pretty text-[12px] leading-[1.6]">
-          Chưa gửi thư nào. Kết quả sẽ hiện sau khi đợt đầu bắt đầu gửi.
+          {t(TEXT.noEmailsHaveBeenSent)}
         </p>
       </GlassCard>
     )
@@ -47,75 +70,55 @@ export function CampaignResults({ campaign }: { campaign: CampaignProfile }) {
   const recent = gone.slice(-CHART_WAVES)
   const total = waveTotals(gone)
   const risks = campaign.state === 'STOPPED' ? [] : waveRisks(campaign)
-  const title = `Hiệu quả sau ${gone.length} đợt gửi`
+  const title = t(
+    message(
+      `Hiệu quả sau ${gone.length} đợt gửi`,
+      `Performance across ${gone.length} waves`,
+      `${gone.length}개 발송 차수 성과`,
+    ),
+  )
 
   const topRate = Math.max(...recent.map((w) => ratio(w.run.clicked, w.run.delivered)))
   const bounceScale = (campaign.bounceCeilingPercent / 100) * BOUNCE_SCALE
-  const ceiling = `trần ${campaign.bounceCeilingPercent}%`
+  const ceiling = t(
+    message(
+      `Ngưỡng ${campaign.bounceCeilingPercent}%`,
+      `${campaign.bounceCeilingPercent}% limit`,
+      `${campaign.bounceCeilingPercent}% 한도`,
+    ),
+  )
 
   return (
     <section aria-label={title} className="grid gap-4 lg:grid-cols-12">
-      <GlassCard className="flex min-w-0 flex-col gap-5 p-5 lg:col-span-6">
-        <div className="flex flex-col gap-3">
-          <h2 className="m-0 text-[16px] font-semibold">{title}</h2>
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span className="tnum font-num text-[48px] font-semibold leading-none tracking-[-1.5px]">
-              {n(total.clicked)}
-            </span>
-            <span className="text-muted-foreground tnum text-[13px]">
-              người đã bấm liên kết · {shareOf(total.clicked, total.delivered, 1)} số thư tới nơi
-            </span>
-          </div>
-        </div>
-        <div className="flex flex-1 flex-col gap-3">
-          <span className="text-muted-foreground text-[11.5px]">Từ thư gửi đi tới lượt bấm</span>
-          <ul className="m-0 flex flex-1 list-none flex-col justify-between gap-3 p-0">
-            <FunnelRow label="Đã gửi" value={total.sent} note="thư" fill={1} />
-            <FunnelRow
-              label="Tới nơi"
-              value={total.delivered}
-              note={`${shareOf(total.delivered, total.sent, 1)} số đã gửi`}
-              fill={ratio(total.delivered, total.sent)}
-            />
-            {/* No share for opens: `opened` is a lower bound, and the note says so. */}
-            <FunnelRow
-              label="Có người mở"
-              value={total.opened}
-              note="mức tối thiểu"
-              fill={ratio(total.opened, total.sent)}
-            />
-            <FunnelRow
-              label="Đã bấm"
-              value={total.clicked}
-              note={`${shareOf(total.clicked, total.delivered, 1)} số tới nơi`}
-              fill={ratio(total.clicked, total.sent)}
-              tone="bg-success"
-            />
-          </ul>
-        </div>
-      </GlassCard>
+      <FunnelCard title={title} total={total} />
 
       <Tile
-        title="Tỉ lệ bấm theo đợt"
-        subtitle="Số người bấm trên số thư tới nơi"
+        title={t(message('Tỉ lệ bấm theo đợt', 'Click rate by wave', '발송 차수별 클릭률'))}
+        subtitle={t(TEXT.clicksAsAShareOf)}
         className="lg:col-span-3"
       >
         <Columns
           items={recent.map(({ waveNo, run }) => ({
             key: waveNo,
-            label: `Đợt ${waveNo}`,
+            label: t(message(`Đợt ${waveNo}`, `Wave ${waveNo}`, `${waveNo}차`)),
             value: shareOf(run.clicked, run.delivered, 1),
             /* Scaled to the best wave shown: click rates are a few percent,
                and on a 0–100 scale every column would be the same sliver. */
             fill: topRate > 0 ? (ratio(run.clicked, run.delivered) / topRate) * TOP_CLICK_FILL : 0,
-            caption: `${n(run.clicked)} trên ${n(run.delivered)}`,
+            caption: t(
+              message(
+                `${n(run.clicked)} trên ${n(run.delivered)}`,
+                `${n(run.clicked)} of ${n(run.delivered)}`,
+                `${n(run.delivered)}개 중 ${n(run.clicked)}개`,
+              ),
+            ),
           }))}
         />
       </Tile>
 
       <Tile
-        title="Bounce theo đợt"
-        subtitle="Vượt trần thì đợt đang gửi tự dừng"
+        title={t(message('Thư bị trả lại theo đợt', 'Bounces by wave', '발송 차수별 반송'))}
+        subtitle={t(TEXT.theActiveWaveStopsAutomatically)}
         aside={
           <span className="text-muted-foreground flex shrink-0 items-center gap-2 text-[12px]">
             <span aria-hidden="true" className="bg-destructive h-0.5 w-4" />
@@ -130,39 +133,113 @@ export function CampaignResults({ campaign }: { campaign: CampaignProfile }) {
             const over = bounceOver(run, campaign) === true
             return {
               key: waveNo,
-              label: `Đợt ${waveNo}`,
+              label: t(message(`Đợt ${waveNo}`, `Wave ${waveNo}`, `${waveNo}차`)),
               value: shareOf(run.bounced, run.sent, 1),
               fill: bounceScale > 0 ? ratio(run.bounced, run.sent) / bounceScale : 0,
               tone: over ? 'bg-destructive' : 'bg-warning',
-              caption: `${n(run.bounced)} trên ${n(run.sent)}${over ? ' · vượt trần' : ''}`,
+              caption: t(
+                message(
+                  `${n(run.bounced)} trên ${n(run.sent)}${over ? ' · vượt ngưỡng' : ''}`,
+                  `${n(run.bounced)} of ${n(run.sent)}${over ? ' · over limit' : ''}`,
+                  `${n(run.sent)}개 중 ${n(run.bounced)}개${over ? ' · 한도 초과' : ''}`,
+                ),
+              ),
             }
           })}
         />
       </Tile>
 
-      {risks.length > 0 && (
-        <Tile title={`Rủi ro trước đợt ${campaign.waveCount + 1}`} className="lg:col-span-12">
-          <ul className="m-0 grid list-none grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-x-8 gap-y-5 p-0">
-            {risks.map((risk) => (
-              <li key={risk.key} className="flex min-w-0 gap-3">
-                <Icon
-                  icon={RISK_ICON[risk.sign]}
-                  size={20}
-                  className={cn('shrink-0', RISK_TONE[risk.sign])}
-                />
-                <div className="flex min-w-0 flex-col gap-1">
-                  <span className="text-muted-foreground text-[11.5px]">{risk.tag}</span>
-                  <span className="text-[13px] font-semibold">{risk.title}</span>
-                  <span className="text-muted-foreground tnum text-pretty text-[12px] leading-[1.5]">
-                    {risk.text}
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </Tile>
-      )}
+      {risks.length > 0 && <RiskTile waveCount={campaign.waveCount} risks={risks} />}
     </section>
+  )
+}
+
+function FunnelCard({ title, total }: { title: string; total: ReturnType<typeof waveTotals> }) {
+  const { t, number: n } = useI18n()
+  return (
+    <GlassCard className="flex min-w-0 flex-col gap-5 p-5 lg:col-span-6">
+      <div className="flex flex-col gap-3">
+        <h2 className="m-0 text-[16px] font-semibold">{title}</h2>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span className="tnum font-num text-[48px] font-semibold leading-none tracking-[-1.5px]">
+            {n(total.clicked)}
+          </span>
+          <span className="text-muted-foreground tnum text-[13px]">
+            {t(message('người đã bấm liên kết', 'recipients clicked a link', '명이 링크를 클릭함'))}{' '}
+            · {shareOf(total.clicked, total.delivered, 1)}{' '}
+            {t(message('số thư tới nơi', 'of delivered emails', '도착한 이메일 중'))}
+          </span>
+        </div>
+      </div>
+      <div className="flex flex-1 flex-col gap-3">
+        <span className="text-muted-foreground text-[11.5px]">
+          {t(message('Từ lúc gửi đến lượt bấm', 'From sent to clicked', '발송부터 클릭까지'))}
+        </span>
+        <ul className="m-0 flex flex-1 list-none flex-col justify-between gap-3 p-0">
+          <FunnelRow
+            label={t(message('Đã gửi', 'Sent', '발송'))}
+            value={total.sent}
+            note={t(message('thư', 'emails', '이메일'))}
+            fill={1}
+          />
+          <FunnelRow
+            label={t(message('Tới nơi', 'Delivered', '도착'))}
+            value={total.delivered}
+            note={`${shareOf(total.delivered, total.sent, 1)} ${t(message('số đã gửi', 'of sent emails', '발송된 이메일 중'))}`}
+            fill={ratio(total.delivered, total.sent)}
+          />
+          {/* No share for opens: `opened` is a lower bound, and the note says so. */}
+          <FunnelRow
+            label={t(message('Có người mở', 'Opened', '열람'))}
+            value={total.opened}
+            note={t(message('mức tối thiểu', 'minimum', '최소치'))}
+            fill={ratio(total.opened, total.sent)}
+          />
+          <FunnelRow
+            label={t(message('Đã bấm', 'Clicked', '클릭'))}
+            value={total.clicked}
+            note={`${shareOf(total.clicked, total.delivered, 1)} ${t(message('số tới nơi', 'of delivered emails', '도착한 이메일 중'))}`}
+            fill={ratio(total.clicked, total.sent)}
+            tone="bg-success"
+          />
+        </ul>
+      </div>
+    </GlassCard>
+  )
+}
+
+function RiskTile({ waveCount, risks }: { waveCount: number; risks: WaveRisk[] }) {
+  const { t } = useI18n()
+  return (
+    <Tile
+      title={t(
+        message(
+          `Rủi ro trước đợt ${waveCount + 1}`,
+          `Risks before wave ${waveCount + 1}`,
+          `${waveCount + 1}차 발송 전 위험 요소`,
+        ),
+      )}
+      className="lg:col-span-12"
+    >
+      <ul className="m-0 grid list-none grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-x-8 gap-y-5 p-0">
+        {risks.map((risk) => (
+          <li key={risk.key} className="flex min-w-0 gap-3">
+            <Icon
+              icon={RISK_ICON[risk.sign]}
+              size={20}
+              className={cn('shrink-0', RISK_TONE[risk.sign])}
+            />
+            <div className="flex min-w-0 flex-col gap-1">
+              <span className="text-muted-foreground text-[11.5px]">{risk.tag}</span>
+              <span className="text-[13px] font-semibold">{risk.title}</span>
+              <span className="text-muted-foreground tnum text-pretty text-[12px] leading-[1.5]">
+                {risk.text}
+              </span>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </Tile>
   )
 }
 

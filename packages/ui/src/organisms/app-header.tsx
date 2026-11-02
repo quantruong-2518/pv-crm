@@ -8,6 +8,7 @@ import { useThemeMode } from '../ui/theme-switch'
 import { AccountMenu, MenuCaret } from './account-menu'
 import { AppNav } from './app-nav'
 import { HeaderSearch, type SearchRecords } from './header-search'
+import { DEFAULT_SHELL_COPY, type ShellCopy } from './shell-copy'
 
 export type { SearchRecords } from './header-search'
 export type { SearchGroup, SearchRow, SearchScope } from './header-search-panel'
@@ -64,6 +65,7 @@ export type AppHeaderProps = {
   /** Tier 2, in groups — a hairline separates each group from the next. */
   apps: HeaderApp[][]
   user: { name: string; role?: string }
+  copy?: ShellCopy
   unread?: boolean
   assistantLabel?: string
   /** `records` turns the box into a record search; without it it lists screens. */
@@ -111,11 +113,13 @@ function CoreButton({
   action,
   unread,
   expanded,
+  copy = DEFAULT_SHELL_COPY,
 }: {
   action: HeaderAction
   unread?: boolean
   /** Set when the button opens a panel; `undefined` for a plain link. */
   expanded?: boolean
+  copy?: ShellCopy
 }) {
   return (
     <button
@@ -125,7 +129,7 @@ function CoreButton({
       aria-haspopup={expanded === undefined ? undefined : 'dialog'}
       aria-label={
         action.count
-          ? `${action.label} · ${action.count} ${action.slot === 'notifications' ? 'chưa đọc' : 'đang chờ'}`
+          ? `${action.label} · ${action.count} ${action.slot === 'notifications' ? copy.unread : copy.pending}`
           : action.label
       }
       aria-current={action.active ? 'page' : undefined}
@@ -142,7 +146,7 @@ function CoreButton({
       {action.locked ? (
         <span className="text-muted-foreground absolute right-0.5 top-0.5">
           <Icon icon={Lock} size={14} className="opacity-55" />
-          <span className="sr-only">chưa mở</span>
+          <span className="sr-only">{copy.locked}</span>
         </span>
       ) : action.count ? (
         <CountBadge
@@ -166,10 +170,12 @@ function BellMenu({
   action,
   unread,
   children,
+  copy = DEFAULT_SHELL_COPY,
 }: {
   action: HeaderAction
   unread?: boolean
   children: (close: () => void) => ReactNode
+  copy?: ShellCopy
 }) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -196,6 +202,7 @@ function BellMenu({
         action={{ ...action, onClick: () => setOpen((o) => !o) }}
         unread={unread}
         expanded={open}
+        copy={copy}
       />
       {open ? <MenuCaret className="left-1/2 top-[calc(100%+7px)]" /> : null}
       {/* 72px = the avatar trigger (64) plus the row gap: the panel ends where the
@@ -224,6 +231,7 @@ export function AppHeader({
   core,
   apps,
   user,
+  copy = DEFAULT_SHELL_COPY,
   unread,
   assistantLabel = 'Trợ lý',
   search,
@@ -295,6 +303,10 @@ export function AppHeader({
         <div className="flex min-w-0 flex-1 items-center lg:ml-auto lg:flex-none lg:gap-6">
           <HeaderSearch
             placeholder={search?.placeholder}
+            screensLabel={copy.searchScreens}
+            noScreensLabel={copy.searchNoScreens}
+            scopeLabel={copy.searchScope}
+            allLabel={copy.searchAll}
             targets={targets}
             records={search?.records}
             onOpenChange={setSearchOpen}
@@ -303,15 +315,15 @@ export function AppHeader({
         </div>
 
         <div className={cn('flex shrink-0 items-center justify-end gap-2', dim)}>
-          {approvals ? <CoreButton action={approvals} /> : null}
+          {approvals ? <CoreButton action={approvals} copy={copy} /> : null}
           {notificationAction && notificationsMenu ? (
-            <BellMenu action={notificationAction} unread={unread}>
+            <BellMenu action={notificationAction} unread={unread} copy={copy}>
               {notificationsMenu}
             </BellMenu>
           ) : notificationAction ? (
-            <CoreButton action={notificationAction} unread={unread} />
+            <CoreButton action={notificationAction} unread={unread} copy={copy} />
           ) : null}
-          {unread ? <span className="sr-only">có thông báo chưa đọc</span> : null}
+          {unread ? <span className="sr-only">{copy.hasUnread}</span> : null}
           <AccountMenu
             user={user}
             org={org}
@@ -319,6 +331,7 @@ export function AppHeader({
             assistantLabel={assistantLabel}
             onOpenAssistant={onOpenAssistant}
             actions={accountActions}
+            copy={copy}
           />
         </div>
       </div>

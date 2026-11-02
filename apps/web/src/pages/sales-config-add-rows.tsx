@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { Plus } from '@pv/ui'
 import { Button, Icon, Input, Select } from '@pv/ui'
 import { OPPORTUNITY_STAGE_LABEL, StageKey } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 import { useCan } from '@/app/auth'
 import { toastDone } from '@/app/toast'
 import { useProposeLossReason, useProposeProduct, useProposeStopReason } from '@/data/sales-config'
-import { SENT, WaitingAdds } from './sales-config-section'
+import { WaitingAdds } from './sales-config-section'
+import { SENT } from './sales-config-copy'
 
 /** The three "add one row" forms of the config screen — split out of
  *  `sales-config.tsx` on size alone (`max-lines`). Each sends on its own, one
@@ -17,6 +19,7 @@ import { SENT, WaitingAdds } from './sales-config-section'
  *  The box clears itself once the send lands, because the next thing typed
  *  is a different row, not an edit of the one just sent. */
 export function AddProduct() {
+  const { t } = useI18n()
   const [name, setName] = useState('')
   const canPropose = useCan('config.propose')
   const propose = useProposeProduct()
@@ -26,10 +29,14 @@ export function AddProduct() {
     <div className="flex flex-wrap items-end gap-3">
       <WaitingAdds list="PRODUCT" />
       <Input
-        aria-label="Thêm sản phẩm/dịch vụ"
+        aria-label={t(
+          message('Thêm sản phẩm/dịch vụ', 'Add a product or service', '제품 또는 서비스 추가'),
+        )}
         value={name}
         onChange={(e) => setName(e.target.value)}
-        placeholder="Tên sản phẩm hoặc dịch vụ"
+        placeholder={t(
+          message('Tên sản phẩm hoặc dịch vụ', 'Product or service name', '제품 또는 서비스 이름'),
+        )}
         className="pointer-coarse:h-12 min-w-0 flex-1"
       />
 
@@ -41,13 +48,21 @@ export function AddProduct() {
           propose.mutate(name.trim(), {
             onSuccess: () => {
               setName('')
-              toastDone(SENT)
+              toastDone(
+                t(
+                  message(
+                    SENT,
+                    'Proposal sent · awaiting approval.',
+                    '제안 전송 완료 · 승인 대기 중',
+                  ),
+                ),
+              )
             },
           })
         }
       >
         <Icon icon={Plus} size={16} />
-        Gửi đề nghị
+        {t(message('Gửi đề nghị', 'Submit proposal', '제안 제출'))}
       </Button>
     </div>
   )
@@ -56,10 +71,22 @@ export function AddProduct() {
 /** Options for the create form's column picker: the 5 columns plus a clearing
  *  choice (empty value), which sends no `stage` at all — an absent `stage` is
  *  what makes a reason apply everywhere (ADR 0064 §6). */
-const LOSS_REASON_STAGE_OPTIONS = [
-  { value: '', label: 'Mọi giai đoạn' },
-  ...StageKey.options.map((key) => ({ value: key, label: OPPORTUNITY_STAGE_LABEL[key] })),
-]
+const stageCopy = (key: (typeof StageKey.options)[number], t: ReturnType<typeof useI18n>['t']) => {
+  const labels = {
+    new: message('Khởi tạo', 'New', '신규'),
+    assigned: message('Đang phân công', 'Assigned', '담당 배정'),
+    engaged: message('Chăm sóc', 'Engaged', '상담 중'),
+    quotation: message('Báo giá', 'Quotation', '견적'),
+  }
+  return t(
+    labels[key] ??
+      message(
+        OPPORTUNITY_STAGE_LABEL[key],
+        OPPORTUNITY_STAGE_LABEL[key],
+        OPPORTUNITY_STAGE_LABEL[key],
+      ),
+  )
+}
 
 /** 5.4b · add one deal stop reason to the catalog, optionally scoped to a column.
  *
@@ -68,6 +95,7 @@ const LOSS_REASON_STAGE_OPTIONS = [
  *  `stage` travels, matching the rule "absent means every column"; picking one
  *  scopes the reason to that column. */
 export function AddLossReason() {
+  const { t } = useI18n()
   const [name, setName] = useState('')
   const [stage, setStage] = useState('')
   const canPropose = useCan('config.propose')
@@ -78,18 +106,29 @@ export function AddLossReason() {
     <div className="flex flex-wrap items-end gap-3">
       <WaitingAdds list="LOSS_REASON" />
       <Input
-        aria-label="Thêm lý do dừng cơ hội"
+        aria-label={t(
+          message(
+            'Thêm lý do dừng cơ hội',
+            'Add an opportunity stop reason',
+            '영업 기회 중단 사유 추가',
+          ),
+        )}
         value={name}
         onChange={(e) => setName(e.target.value)}
-        placeholder="Lý do dừng cơ hội"
+        placeholder={t(
+          message('Lý do dừng cơ hội', 'Opportunity stop reason', '영업 기회 중단 사유'),
+        )}
         className="pointer-coarse:h-12 min-w-0 flex-1"
       />
       <Select
-        label="Áp dụng ở giai đoạn"
+        label={t(message('Áp dụng ở giai đoạn', 'Apply to stage', '단계에 적용'))}
         className="pointer-coarse:[&>button]:h-12"
         value={stage}
         onChange={setStage}
-        options={LOSS_REASON_STAGE_OPTIONS}
+        options={[
+          { value: '', label: t(message('Mọi giai đoạn', 'All stages', '모든 단계')) },
+          ...StageKey.options.map((key) => ({ value: key, label: stageCopy(key, t) })),
+        ]}
       />
 
       <Button
@@ -103,14 +142,22 @@ export function AddLossReason() {
               onSuccess: () => {
                 setName('')
                 setStage('')
-                toastDone(SENT)
+                toastDone(
+                  t(
+                    message(
+                      SENT,
+                      'Proposal sent · awaiting approval.',
+                      '제안 전송 완료 · 승인 대기 중',
+                    ),
+                  ),
+                )
               },
             },
           )
         }
       >
         <Icon icon={Plus} size={16} />
-        Gửi đề nghị
+        {t(message('Gửi đề nghị', 'Submit proposal', '제안 제출'))}
       </Button>
     </div>
   )
@@ -120,6 +167,7 @@ export function AddLossReason() {
  *  (ADR 0070). No stage picker: unlike `LOSS_REASON`, this list is not scoped
  *  to a board column. */
 export function AddStopReason() {
+  const { t } = useI18n()
   const [name, setName] = useState('')
   const canPropose = useCan('config.propose')
   const propose = useProposeStopReason()
@@ -129,10 +177,12 @@ export function AddStopReason() {
     <div className="flex flex-wrap items-end gap-3">
       <WaitingAdds list="EXIT_REASON" />
       <Input
-        aria-label="Thêm lý do dừng chăm sóc"
+        aria-label={t(
+          message('Thêm lý do dừng chăm sóc', 'Add a lead stop reason', '리드 중단 사유 추가'),
+        )}
         value={name}
         onChange={(e) => setName(e.target.value)}
-        placeholder="Lý do dừng chăm sóc"
+        placeholder={t(message('Lý do dừng chăm sóc', 'Lead stop reason', '리드 중단 사유'))}
         className="pointer-coarse:h-12 min-w-0 flex-1"
       />
 
@@ -144,13 +194,21 @@ export function AddStopReason() {
           propose.mutate(name.trim(), {
             onSuccess: () => {
               setName('')
-              toastDone(SENT)
+              toastDone(
+                t(
+                  message(
+                    SENT,
+                    'Proposal sent · awaiting approval.',
+                    '제안 전송 완료 · 승인 대기 중',
+                  ),
+                ),
+              )
             },
           })
         }
       >
         <Icon icon={Plus} size={16} />
-        Gửi đề nghị
+        {t(message('Gửi đề nghị', 'Submit proposal', '제안 제출'))}
       </Button>
     </div>
   )

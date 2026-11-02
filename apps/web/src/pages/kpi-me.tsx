@@ -9,6 +9,8 @@ import {
 } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { useSession } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
+import { kpiRoleText } from '@/data/kpi-i18n'
 import { useAppChrome } from '@/app/chrome'
 import { toastDone, toastFail } from '@/app/toast'
 import { kpiMeQuery, useAcknowledgeKpi } from '@/data/kpi'
@@ -17,7 +19,6 @@ import { kpiCatalogQuery, withCatalog, type KpiCatalog } from '@/data/kpi-catalo
 import { flagsOf } from '@/data/kpi-forecast'
 import { kpiTeamRosterQuery } from '@/data/kpi-team-roster'
 import { answerable, kpiForecastMeQuery, myPackages, type MyPackage } from '@/data/kpi-personal'
-import { ROLE_LABEL } from '@/data/users'
 import { keyOf } from './home-model'
 import { NOTE, TILE } from './home-tiles'
 import { AbsenceBlock } from './kpi-absence'
@@ -66,6 +67,7 @@ function RoleBoard({
   allocated: boolean
   forecast: KpiForecastResponse | undefined
 }) {
+  const { t, lang } = useI18n()
   const acknowledge = useAcknowledgeKpi(period, card.role)
   const ack = acknowledgementOf(card)
 
@@ -77,7 +79,7 @@ function RoleBoard({
           size="lg"
           hint={allocated ? undefined : <span className="tnum font-num">{ack.text}</span>}
         >
-          {ROLE_LABEL[card.role]}
+          {kpiRoleText(card.role, lang)}
         </SectionTitle>
         {!closed && !allocated && !isTieredPeriod(period) && needsAcknowledgement(ack) && (
           <Button
@@ -85,12 +87,15 @@ function RoleBoard({
             disabled={acknowledge.isPending}
             onClick={() =>
               acknowledge.mutate(undefined, {
-                onSuccess: () => toastDone('Đã nhận chỉ tiêu'),
+                onSuccess: () =>
+                  toastDone(
+                    t(message('Đã nhận chỉ tiêu', 'Target acknowledged', '목표를 확인했습니다')),
+                  ),
                 onError: (e) => toastFail(userMessage(e)),
               })
             }
           >
-            Xác nhận đã nhận chỉ tiêu
+            {t(message('Xác nhận đã nhận chỉ tiêu', 'Acknowledge targets', '목표 확인'))}
           </Button>
         )}
       </div>
@@ -121,9 +126,12 @@ function AssignedTargets({
   packages: readonly KpiAllocation[]
   me: string | undefined
 }) {
+  const { t } = useI18n()
   return (
     <section className="flex flex-col gap-6">
-      <SectionTitle size="lg">Chỉ tiêu được giao</SectionTitle>
+      <SectionTitle size="lg">
+        {t(message('Chỉ tiêu được giao', 'Assigned targets', '배정된 목표'))}
+      </SectionTitle>
       {packs.map((pack) => (
         <ReceivePackage
           key={`${pack.role}/${pack.status}`}
@@ -139,6 +147,7 @@ function AssignedTargets({
 }
 
 export function KpiMePage() {
+  const { t } = useI18n()
   const chrome = useAppChrome()
   const [pick, setPick] = useMonthParam()
   const period = keyOf(pick)
@@ -164,8 +173,14 @@ export function KpiMePage() {
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <ScreenHeader
-          title="KPI của tôi"
-          description={DESCRIPTION}
+          title={t(message('KPI của tôi', 'My KPIs', '내 KPI'))}
+          description={t(
+            message(
+              DESCRIPTION,
+              'Track your monthly performance against assigned targets.',
+              '월간 실적과 배정된 목표를 확인하세요.',
+            ),
+          )}
           actions={<MonthPicker pick={pick} onPick={setPick} />}
         />
 
@@ -199,17 +214,28 @@ export function KpiMePage() {
             return (
               <>
                 {data.closed && (
-                  <p className={NOTE}>Tháng đã kết thúc, chỉ tiêu không đổi được nữa.</p>
+                  <p className={NOTE}>
+                    {t(
+                      message(
+                        'Tháng đã kết thúc, chỉ tiêu không đổi được nữa.',
+                        'This month is closed. Targets can no longer be changed.',
+                        '월이 마감되어 목표를 더 이상 변경할 수 없습니다.',
+                      ),
+                    )}
+                  </p>
                 )}
                 {actorId && data.scorecards.length > 0 && (
                   <FrozenNote period={data.period} actorId={actorId} />
                 )}
                 {allocations.error && (
-                  <SideFailure what="chỉ tiêu được giao" retry={() => void allocations.refetch()} />
+                  <SideFailure
+                    what={t(message('chỉ tiêu được giao', 'assigned targets', '배정된 목표'))}
+                    retry={() => void allocations.refetch()}
+                  />
                 )}
                 {forecast.error && (
                   <SideFailure
-                    what="cảnh báo sắp trượt, sắp đạt"
+                    what={t(message('cảnh báo sắp trượt, sắp đạt', 'forecast alerts', '예측 알림'))}
                     retry={() => void forecast.refetch()}
                   />
                 )}
@@ -227,7 +253,13 @@ export function KpiMePage() {
                 {legend && seen && <ThresholdNote thresholds={seen.thresholds} />}
                 {data.scorecards.length === 0 && packs.length === 0 && (
                   <GlassCard className={cn(TILE, 'text-[12.5px]')}>
-                    Bạn chưa được giao chỉ tiêu KPI nào.
+                    {t(
+                      message(
+                        'Bạn chưa được giao chỉ tiêu KPI nào.',
+                        'You have no KPI targets assigned yet.',
+                        '아직 배정된 KPI 목표가 없습니다.',
+                      ),
+                    )}
                   </GlassCard>
                 )}
                 {data.scorecards.map((card) => (

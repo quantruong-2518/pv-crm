@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ComponentProps } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import { AppShell, ScreenHeader, ScreenLayout, SectionTitle, Skeleton } from '@pv/ui'
 import { isTieredPeriod, type RoleId } from '@pv/contracts'
 import { useCan, useSession } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { useAppChrome } from '@/app/chrome'
 import { kpiPeopleQuery, kpiTargetsQuery } from '@/data/kpi'
 import { kpiAllocationsQuery, kpiCountersQuery } from '@/data/kpi-allocation'
@@ -60,7 +61,48 @@ function useStepJump(
   }, [target, ready, shown, clearJump, clearLanding])
 }
 
+const TEXT = {
+  youHaveViewOnlyAccess: message(
+    'Bạn chỉ có quyền xem.',
+    'You have view-only access.',
+    '보기 권한만 있습니다.',
+  ),
+  thisMonthIsClosedTargets: message(
+    'Tháng đã kết thúc, chỉ tiêu không đổi được nữa.',
+    'This month is closed. Targets can no longer be changed.',
+    '월이 마감되어 목표를 더 이상 변경할 수 없습니다.',
+  ),
+  noRolesHaveKPITargets: message(
+    'Chưa có vai trò nào có KPI.',
+    'No roles have KPI targets yet.',
+    '아직 KPI 목표가 설정된 역할이 없습니다.',
+  ),
+}
+
+/** "Needs your attention": the queue once its reads settled, a placeholder until then. */
+function WaitingSection({
+  ready,
+  tiered,
+  waiting,
+  ...list
+}: ComponentProps<typeof WaitingList> & { ready: boolean; tiered: boolean }) {
+  const { t } = useI18n()
+  return (
+    <section className="flex flex-col gap-3">
+      <SectionTitle size="lg">
+        {t(message('Chờ bạn xử lý', 'Needs your attention', '처리할 항목'))}
+      </SectionTitle>
+      {ready ? (
+        <WaitingList {...list} waiting={tiered ? { ...waiting, items: [] } : waiting} />
+      ) : (
+        <Skeleton className="h-24 w-full" />
+      )}
+    </section>
+  )
+}
+
 export function KpiTargetsPage() {
+  const { t: tx } = useI18n()
   const chrome = useAppChrome()
   const canSet = useCan('kpi.set-target')
   const canApprove = useCan('contract.approve-overdue-reason')
@@ -127,12 +169,16 @@ export function KpiTargetsPage() {
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <ScreenHeader
-          title="Chỉ tiêu tháng"
-          description={canSet ? undefined : 'Bạn chỉ có quyền xem.'}
+          title={tx(message('Chỉ tiêu tháng', 'Monthly targets', '월간 목표'))}
+          description={canSet ? undefined : tx(TEXT.youHaveViewOnlyAccess)}
           actions={<MonthPicker pick={pick} onPick={setPick} />}
         />
 
-        <QueryBlock query={all} what="chỉ tiêu tháng" variant="b">
+        <QueryBlock
+          query={all}
+          what={tx(message('chỉ tiêu tháng', 'monthly targets', '월간 목표'))}
+          variant="b"
+        >
           {([defs, t, a, p, c]) => {
             const teams = roster.data?.teams ?? []
             const waiting = waitingOf({
@@ -152,30 +198,23 @@ export function KpiTargetsPage() {
             return (
               <>
                 {(canSet || canApprove) && (
-                  <section className="flex flex-col gap-3">
-                    <SectionTitle size="lg">Chờ bạn xử lý</SectionTitle>
-                    {waitReady ? (
-                      <WaitingList
-                        catalog={defs}
-                        waiting={tiered ? { ...waiting, items: [] } : waiting}
-                        reasonsFailed={reasons.isError}
-                        onOpenStep={openStep}
-                        onOpenCounter={(x) =>
-                          setOwner({ actorId: x.actorId, role: x.role, teamId: x.team?.id ?? null })
-                        }
-                      />
-                    ) : (
-                      <Skeleton className="h-24 w-full" />
-                    )}
-                  </section>
+                  <WaitingSection
+                    ready={waitReady}
+                    tiered={tiered}
+                    catalog={defs}
+                    waiting={waiting}
+                    reasonsFailed={reasons.isError}
+                    onOpenStep={openStep}
+                    onOpenCounter={(x) =>
+                      setOwner({ actorId: x.actorId, role: x.role, teamId: x.team?.id ?? null })
+                    }
+                  />
                 )}
 
                 {a.monthClose ? (
                   <MonthCloseBar period={period} monthClose={a.monthClose} />
                 ) : (
-                  t.closed && (
-                    <p className={NOTE}>Tháng đã kết thúc, chỉ tiêu không đổi được nữa.</p>
-                  )
+                  t.closed && <p className={NOTE}>{tx(TEXT.thisMonthIsClosedTargets)}</p>
                 )}
 
                 {tiered ? (
@@ -197,7 +236,7 @@ export function KpiTargetsPage() {
                     onOpenCounters={setOwner}
                   />
                 ) : (
-                  <p className={NOTE}>Chưa có vai trò nào có KPI.</p>
+                  <p className={NOTE}>{tx(TEXT.noRolesHaveKPITargets)}</p>
                 )}
 
                 {!tiered && (

@@ -320,6 +320,7 @@ async function toApiError(raw: unknown, req: ApiRequest): Promise<ApiError> {
          the app that reads the body's `type`, and it has to stay the only one —
          two readers are two translation tables waiting to drift. */
       kind: PROBLEM_KIND[problem.type ?? ''] ?? failureOf(raw.status),
+      code: problem.code,
       path: req.path,
       status: raw.status,
       /* `title` là câu tiếng Việt máy chủ tự viết cho người dùng. Dùng nó khi

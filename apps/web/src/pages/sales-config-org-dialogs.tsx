@@ -18,18 +18,12 @@ import {
   type OrgTreeResponse,
   type OrgUnit,
 } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import { RadioCard } from '@/components/radio-card'
 import { StepFooter } from '@/components/step-footer'
 import { useOrgWrite } from '@/data/org-tree'
-import {
-  HEAD_LABEL,
-  KIND_LABEL,
-  UNPLACED,
-  parentsFor,
-  splitError,
-  unitOf,
-} from './sales-config-org-model'
+import { UNPLACED, parentsFor, splitError, unitOf } from './sales-config-org-model'
 
 /** The dialogs of the org section (5.18), as the app draws a dialog:
  *  the right-hand `Drawer`, full width on a phone. The month an edit lands on
@@ -39,6 +33,22 @@ import {
 
 const PROBLEM = 'text-destructive-foreground m-0 text-[11px] leading-[1.5]'
 const Problem = ({ text }: { text?: string }) => (text ? <p className={PROBLEM}>{text}</p> : null)
+const kindCopy = (kind: OrgUnit['kind'], t: ReturnType<typeof useI18n>['t']) =>
+  t(
+    kind === 'company'
+      ? message('Công ty', 'Company', '회사')
+      : kind === 'department'
+        ? message('Phòng', 'Department', '부서')
+        : message('Nhóm', 'Team', '팀'),
+  )
+const headCopy = (kind: OrgUnit['kind'], t: ReturnType<typeof useI18n>['t']) =>
+  t(
+    kind === 'company'
+      ? message('người đứng đầu công ty', 'company head', '회사 대표')
+      : kind === 'department'
+        ? message('trưởng phòng', 'department head', '부서장')
+        : message('trưởng nhóm', 'team lead', '팀장'),
+  )
 
 type Kind = 'department' | 'team'
 
@@ -56,6 +66,7 @@ export function AddUnitDrawer({
   onClose: () => void
   onCreated: (unitId: string) => void
 }) {
+  const { t } = useI18n()
   const write = useOrgWrite()
   const [kind, setKind] = useState<Kind>('team')
   const [name, setName] = useState('')
@@ -83,7 +94,15 @@ export function AddUnitDrawer({
       { kind: 'create', body: body.data },
       {
         onSuccess: (fresh) => {
-          toastDone(`Đã thêm ${body.data.name}`)
+          toastDone(
+            t(
+              message(
+                `Đã thêm ${body.data.name}`,
+                `Added ${body.data.name}`,
+                `${body.data.name} 추가 완료`,
+              ),
+            ),
+          )
           const added = fresh.units.find((u) => !before.has(u.id))
           if (added) onCreated(added.id)
           onClose()
@@ -96,7 +115,7 @@ export function AddUnitDrawer({
     <Drawer
       open={open}
       onClose={onClose}
-      title="Thêm đơn vị"
+      title={t(message('Thêm đơn vị', 'Add an organization unit', '조직 단위 추가'))}
       footer={
         <StepFooter
           error={footer}
@@ -105,7 +124,11 @@ export function AddUnitDrawer({
           onClose={onClose}
           confirm={{
             icon: Plus,
-            label: kind === 'team' ? 'Thêm nhóm' : 'Thêm phòng',
+            label: t(
+              kind === 'team'
+                ? message('Thêm nhóm', 'Add team', '팀 추가')
+                : message('Thêm phòng', 'Add department', '부서 추가'),
+            ),
             disabled: !body.success,
             onClick: save,
           }}
@@ -114,18 +137,20 @@ export function AddUnitDrawer({
     >
       <div className="flex flex-col gap-5">
         <SegmentedControl
-          label="Loại"
+          label={t(message('Loại', 'Type', '유형'))}
           tone="quiet"
           value={kind}
           onChange={(v) => setKind(v === 'department' ? 'department' : 'team')}
           options={[
-            { value: 'department', label: 'Phòng' },
-            { value: 'team', label: 'Nhóm' },
+            { value: 'department', label: t(message('Phòng', 'Department', '부서')) },
+            { value: 'team', label: t(message('Nhóm', 'Team', '팀')) },
           ]}
         />
         <div className="flex flex-col gap-2">
           <label className="flex flex-col gap-2">
-            <span className="text-muted-foreground text-[11px]">Tên</span>
+            <span className="text-muted-foreground text-[11px]">
+              {t(message('Tên', 'Name', '이름'))}
+            </span>
             <Input
               value={name}
               maxLength={80}
@@ -139,7 +164,7 @@ export function AddUnitDrawer({
         {parents.length > 1 && (
           <div className="flex flex-col gap-2">
             <Select
-              label="Thuộc đơn vị"
+              label={t(message('Thuộc đơn vị', 'Parent unit', '상위 조직'))}
               size="lg"
               value={parent}
               onChange={setParentId}
@@ -165,6 +190,7 @@ export function EditUnitDrawer({
   tree: OrgTreeResponse
   onClose: () => void
 }) {
+  const { t } = useI18n()
   const write = useOrgWrite()
   const [name, setName] = useState('')
   const [parentId, setParentId] = useState('')
@@ -191,7 +217,7 @@ export function EditUnitDrawer({
       { kind: 'update', unitId: unit.id, body: body.data },
       {
         onSuccess: () => {
-          toastDone('Đã lưu')
+          toastDone(t(message('Đã lưu', 'Changes saved', '변경 사항 저장 완료')))
           onClose()
         },
       },
@@ -202,7 +228,9 @@ export function EditUnitDrawer({
     <Drawer
       open={unit !== null}
       onClose={onClose}
-      title={`Sửa ${unit?.name ?? ''}`}
+      title={t(
+        message(`Sửa ${unit?.name ?? ''}`, `Edit ${unit?.name ?? ''}`, `${unit?.name ?? ''} 수정`),
+      )}
       footer={
         <StepFooter
           error={footer}
@@ -211,7 +239,7 @@ export function EditUnitDrawer({
           onClose={onClose}
           confirm={{
             icon: Check,
-            label: 'Lưu',
+            label: t(message('Lưu', 'Save', '저장')),
             disabled: !typed.success || !body.success,
             onClick: save,
           }}
@@ -221,7 +249,9 @@ export function EditUnitDrawer({
       <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-2">
           <label className="flex flex-col gap-2">
-            <span className="text-muted-foreground text-[11px]">Tên</span>
+            <span className="text-muted-foreground text-[11px]">
+              {t(message('Tên', 'Name', '이름'))}
+            </span>
             <Input
               value={name}
               maxLength={80}
@@ -235,7 +265,7 @@ export function EditUnitDrawer({
         {parents.length > 1 && (
           <div className="flex flex-col gap-2">
             <Select
-              label="Thuộc đơn vị"
+              label={t(message('Thuộc đơn vị', 'Parent unit', '상위 조직'))}
               size="lg"
               value={parentId}
               onChange={setParentId}
@@ -259,6 +289,7 @@ export function RemoveUnitDrawer({
   unit: OrgUnit | null
   onClose: () => void
 }) {
+  const { t } = useI18n()
   const write = useOrgWrite()
   const { reset } = write
   useEffect(() => {
@@ -271,7 +302,9 @@ export function RemoveUnitDrawer({
       { kind: 'remove', unitId: unit.id },
       {
         onSuccess: () => {
-          toastDone(`Đã xoá ${unit.name}`)
+          toastDone(
+            t(message(`Đã xoá ${unit.name}`, `Deleted ${unit.name}`, `${unit.name} 삭제 완료`)),
+          )
           onClose()
         },
       },
@@ -282,19 +315,37 @@ export function RemoveUnitDrawer({
     <Drawer
       open={unit !== null}
       onClose={onClose}
-      title={`Xoá ${unit?.name ?? ''}`}
+      title={t(
+        message(
+          `Xoá ${unit?.name ?? ''}`,
+          `Delete ${unit?.name ?? ''}`,
+          `${unit?.name ?? ''} 삭제`,
+        ),
+      )}
       footer={
         <StepFooter
           error={write.error}
           pending={write.isPending}
           hint=""
           onClose={onClose}
-          confirm={{ icon: Trash2, label: 'Xoá', disabled: unit === null, onClick: remove }}
+          confirm={{
+            icon: Trash2,
+            label: t(message('Xoá', 'Delete', '삭제')),
+            disabled: unit === null,
+            onClick: remove,
+          }}
         />
       }
     >
       <p className="m-0 text-[13px] leading-5">
-        {unit ? KIND_LABEL[unit.kind] : ''} này sẽ không còn trên cây.
+        {unit ? kindCopy(unit.kind, t) : ''}{' '}
+        {t(
+          message(
+            'này sẽ không còn trên sơ đồ tổ chức.',
+            'will be removed from the organization chart.',
+            '조직도에서 삭제됩니다.',
+          ),
+        )}
       </p>
     </Drawer>
   )
@@ -309,6 +360,7 @@ export function HeadDrawer({
   tree: OrgTreeResponse
   onClose: () => void
 }) {
+  const { t } = useI18n()
   const write = useOrgWrite()
   const [picked, setPicked] = useState('')
 
@@ -321,7 +373,7 @@ export function HeadDrawer({
 
   const people = new Map(tree.people.map((p) => [p.actorId, p]))
   const { problems, footer } = splitError(write.error, ['headId'])
-  const title = unit ? HEAD_LABEL[unit.kind].toLowerCase() : ''
+  const title = unit ? headCopy(unit.kind, t) : ''
 
   /* '' is the "no head" choice: the contract clears the head with `null`. */
   const current = unit?.headId ?? ''
@@ -331,7 +383,7 @@ export function HeadDrawer({
       { kind: 'update', unitId: unit.id, body: { headId: picked === '' ? null : picked } },
       {
         onSuccess: () => {
-          toastDone('Đã lưu')
+          toastDone(t(message('Đã lưu', 'Changes saved', '변경 사항 저장 완료')))
           onClose()
         },
       },
@@ -342,7 +394,7 @@ export function HeadDrawer({
     <Drawer
       open={unit !== null}
       onClose={onClose}
-      title={`Đổi ${title}`}
+      title={t(message(`Đổi ${title}`, `Change ${title}`, `${title} 변경`))}
       subtitle={unit?.name}
       footer={
         <StepFooter
@@ -352,7 +404,7 @@ export function HeadDrawer({
           onClose={onClose}
           confirm={{
             icon: Check,
-            label: 'Lưu',
+            label: t(message('Lưu', 'Save', '저장')),
             disabled: picked === current,
             onClick: save,
           }}
@@ -360,16 +412,20 @@ export function HeadDrawer({
       }
     >
       <fieldset className="m-0 flex flex-col gap-2 p-0">
-        <legend className="text-muted-foreground pb-2 text-[11px]">Chọn người</legend>
+        <legend className="text-muted-foreground pb-2 text-[11px]">
+          {t(message('Chọn người', 'Choose a person', '사람 선택'))}
+        </legend>
         {[...(unit?.memberIds ?? []), ''].map((id) => (
           <RadioCard
             key={id}
             name="org-head"
             checked={picked === id}
             onSelect={() => setPicked(id)}
-            hint={id === current ? 'Hiện tại' : undefined}
+            hint={id === current ? t(message('Hiện tại', 'Current', '현재')) : undefined}
           >
-            {id === '' ? `Không có ${title}` : (people.get(id)?.name ?? id)}
+            {id === ''
+              ? t(message(`Không có ${title}`, `No ${title}`, `${title} 없음`))
+              : (people.get(id)?.name ?? id)}
           </RadioCard>
         ))}
         <Problem text={problems.headId} />
@@ -392,6 +448,7 @@ export function PlaceDrawer({
   tree: OrgTreeResponse
   onClose: () => void
 }) {
+  const { t } = useI18n()
   const write = useOrgWrite()
   const [choice, setChoice] = useState('')
   const [head, setHead] = useState(false)
@@ -413,20 +470,26 @@ export function PlaceDrawer({
   const options = person
     ? [
         ...tree.units.filter((u) => u.id !== from?.id).map((u) => ({ value: u.id, label: u.name })),
-        ...(from ? [{ value: UNPLACED, label: 'Chưa xếp đơn vị' }] : []),
+        ...(from
+          ? [{ value: UNPLACED, label: t(message('Chưa xếp đơn vị', 'Unassigned', '미배치')) }]
+          : []),
       ]
     : tree.people
         .filter((p) => !fixedUnit?.memberIds.includes(p.actorId))
         .map((p) => ({
           value: p.actorId,
-          label: `${p.name} · ${unitOf(tree, p.actorId)?.name ?? 'Chưa xếp đơn vị'}`,
+          label: `${p.name} · ${unitOf(tree, p.actorId)?.name ?? t(message('Chưa xếp đơn vị', 'Unassigned', '미배치'))}`,
         }))
   const { problems, footer } = splitError(write.error, ['unitId', 'actorId', 'head'])
 
   const save = () => {
     if (!who) return
     const done = () => {
-      toastDone(fixedUnit ? `Đã thêm ${who.name}` : `Đã chuyển ${who.name}`)
+      toastDone(
+        fixedUnit
+          ? t(message(`Đã thêm ${who.name}`, `Added ${who.name}`, `${who.name} 추가 완료`))
+          : t(message(`Đã chuyển ${who.name}`, `Moved ${who.name}`, `${who.name} 이동 완료`)),
+      )
       onClose()
     }
     if (choice === UNPLACED) {
@@ -443,8 +506,30 @@ export function PlaceDrawer({
     <Drawer
       open={target !== null}
       onClose={onClose}
-      title={person ? `Chuyển ${person.name}` : `Thêm người vào ${fixedUnit?.name ?? ''}`}
-      subtitle={person ? (from ? `Đang ở ${from.name}` : 'Chưa xếp đơn vị') : undefined}
+      title={
+        person
+          ? t(message(`Chuyển ${person.name}`, `Move ${person.name}`, `${person.name} 이동`))
+          : t(
+              message(
+                `Thêm người vào ${fixedUnit?.name ?? ''}`,
+                `Add a person to ${fixedUnit?.name ?? ''}`,
+                `${fixedUnit?.name ?? ''}에 사람 추가`,
+              ),
+            )
+      }
+      subtitle={
+        person
+          ? from
+            ? t(
+                message(
+                  `Đang ở ${from.name}`,
+                  `Currently in ${from.name}`,
+                  `현재 ${from.name} 소속`,
+                ),
+              )
+            : t(message('Chưa xếp đơn vị', 'Unassigned', '미배치'))
+          : undefined
+      }
       footer={
         <StepFooter
           error={footer}
@@ -453,7 +538,9 @@ export function PlaceDrawer({
           onClose={onClose}
           confirm={{
             icon: fixedUnit ? UserPlus : ArrowRight,
-            label: fixedUnit ? 'Thêm người' : 'Chuyển',
+            label: fixedUnit
+              ? t(message('Thêm người', 'Add person', '사람 추가'))
+              : t(message('Chuyển', 'Move', '이동')),
             disabled: choice === '',
             onClick: save,
           }}
@@ -463,12 +550,24 @@ export function PlaceDrawer({
       <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-2">
           <Select
-            label={person ? 'Chuyển sang' : 'Người'}
+            label={
+              person
+                ? t(message('Chuyển sang', 'Move to', '이동 대상'))
+                : t(message('Người', 'Person', '사람'))
+            }
             size="lg"
             value={choice}
             neutralValue=""
             onChange={setChoice}
-            options={[{ value: '', label: person ? 'Chọn đơn vị' : 'Chọn người' }, ...options]}
+            options={[
+              {
+                value: '',
+                label: person
+                  ? t(message('Chọn đơn vị', 'Choose a unit', '조직 선택'))
+                  : t(message('Chọn người', 'Choose a person', '사람 선택')),
+              },
+              ...options,
+            ]}
           />
           <Problem text={problems.unitId ?? problems.actorId} />
         </div>
@@ -478,7 +577,13 @@ export function PlaceDrawer({
               className="pointer-coarse:min-h-12"
               checked={head}
               onChange={setHead}
-              label={`Làm ${HEAD_LABEL[toUnit.kind].toLowerCase()} mới`}
+              label={t(
+                message(
+                  `Đặt làm ${headCopy(toUnit.kind, t)} mới`,
+                  `Make ${headCopy(toUnit.kind, t)}`,
+                  `새 ${headCopy(toUnit.kind, t)}으로 지정`,
+                ),
+              )}
             />
             <Problem text={problems.head} />
           </div>

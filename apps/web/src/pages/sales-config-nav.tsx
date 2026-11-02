@@ -12,7 +12,9 @@ import {
   cn,
   type IconGlyph,
 } from '@pv/ui'
+import { message, useI18n } from '@/app/i18n'
 import { CONFIG_AREAS, OVERVIEW, type ConfigArea, type ConfigView } from './sales-config-model'
+import { areaCopy, sectionCopy } from './sales-config-copy'
 
 /** The screen's views, drawn twice from ONE list: nested under the Sales setup
  *  entry of the settings nav from `lg` up, and as a wrapping bar on the page
@@ -42,14 +44,25 @@ type NavProps = { view: ConfigView; onOpen: (view: ConfigView) => void }
 
 /** The `subNav` of `SettingsShell`: one indented row per view. */
 export function ConfigSubNav({ view, onOpen }: NavProps) {
+  const { t } = useI18n()
   return (
-    <div role="group" aria-label="Khu cấu hình" className="flex flex-col gap-1">
+    <div
+      role="group"
+      aria-label={t(message('Khu cấu hình', 'Configuration', '설정'))}
+      className="flex flex-col gap-1"
+    >
       {ENTRIES.map((e) => (
         <NavItem
           key={e.key}
           depth={1}
           icon={VIEW_ICON[e.key]}
-          label={e.step === null ? e.label : `${e.step} · ${e.label}`}
+          label={
+            e.step === null
+              ? e.key === OVERVIEW
+                ? t(message('Tổng quan', 'Overview', '개요'))
+                : t(areaCopy(e.key))
+              : `${e.step} · ${t(areaCopy(e.key))}`
+          }
           active={e.key === view}
           onClick={() => onOpen(e.key)}
           className="pointer-coarse:h-12"
@@ -62,8 +75,12 @@ export function ConfigSubNav({ view, onOpen }: NavProps) {
 /** Below `lg` only. A wrapping bar, not a `SegmentedControl`: seven labelled
  *  views do not fit one row on a phone, and a segmented control cannot wrap. */
 export function ConfigNav({ view, onOpen }: NavProps) {
+  const { t } = useI18n()
   return (
-    <nav aria-label="Khu cấu hình" className="min-w-0 xl:hidden">
+    <nav
+      aria-label={t(message('Khu cấu hình', 'Configuration', '설정'))}
+      className="min-w-0 xl:hidden"
+    >
       <GlassCard className="flex flex-wrap gap-1 p-2">
         {ENTRIES.map((e) => {
           const active = e.key === view
@@ -80,7 +97,9 @@ export function ConfigNav({ view, onOpen }: NavProps) {
             >
               <Icon icon={VIEW_ICON[e.key]} size={16} />
               {e.step !== null && <span className="tnum font-num">{e.step}</span>}
-              {e.label}
+              {e.key === OVERVIEW
+                ? t(message('Tổng quan', 'Overview', '개요'))
+                : t(areaCopy(e.key))}
             </button>
           )
         })}
@@ -93,15 +112,16 @@ export function ConfigNav({ view, onOpen }: NavProps) {
  *  in history and the page scrolls to the hash. A single-section area has
  *  nothing to jump between. */
 export function SectionLinks({ area }: { area: ConfigArea }) {
+  const { t } = useI18n()
   if (area.sections.length < 2) return null
   return (
     <nav aria-labelledby={`${area.key}-jump`} className="flex flex-wrap items-center gap-2">
       <span id={`${area.key}-jump`} className="text-muted-foreground text-[11.5px]">
-        Trong phần này
+        {t(message('Trong phần này', 'In this section', '이 섹션'))}
       </span>
       {area.sections.map((s) => (
         <a key={s.id} href={`#${s.id}`} className={cn(TAB, 'bg-surface-ink/5 font-medium', IDLE)}>
-          {s.title}
+          {t(sectionCopy(s.id))}
         </a>
       ))}
     </nav>

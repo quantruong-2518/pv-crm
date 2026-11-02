@@ -1,8 +1,11 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { Button, GlassCard, Icon, MetaPill, Plus, SectionTitle, Timeline, Trash2 } from '@pv/ui'
 import { CAMPAIGN_START_MAX_WAVES } from '@pv/contracts'
+import { message, translate } from '@/app/i18n'
 import { dmhm } from '@/lib/date'
 import { dropCommitted, effectiveWaves, emptyComposerState, type ComposerState } from './wave-draft'
+
+const tr = (vi: string, en: string, ko: string) => translate(message(vi, en, ko))
 
 /** THE CHAIN BESIDE THE LETTER BEING WRITTEN, in the two shapes its two doors
  *  can hold.
@@ -48,7 +51,11 @@ export function WaveTimeline({
           ...state.committed.map((wave, index) => ({
             id: wave.localId,
             state: 'next' as const,
-            marker: `Đợt ${alreadyFired + index + 1}`,
+            marker: tr(
+              `Đợt ${alreadyFired + index + 1}`,
+              `Wave ${alreadyFired + index + 1}`,
+              `${alreadyFired + index + 1}차`,
+            ),
             title: wave.label,
             meta: <MetaPill>{waveWhen(wave.scheduledAt)}</MetaPill>,
             children: <span className="line-clamp-1">{wave.subject}</span>,
@@ -57,15 +64,19 @@ export function WaveTimeline({
           {
             id: 'live-draft',
             state: 'current' as const,
-            marker: `Đợt ${nextIndex}`,
+            marker: tr(`Đợt ${nextIndex}`, `Wave ${nextIndex}`, `${nextIndex}차`),
             title: state.label.trim() || (
-              <span className="text-muted-foreground">(đang soạn…)</span>
+              <span className="text-muted-foreground">
+                {tr('(đang soạn…)', '(drafting…)', '(작성 중…)')}
+              </span>
             ),
             meta: <MetaPill>{draftLabel(draftValid)}</MetaPill>,
             children: state.subject.trim() ? (
               <span className="line-clamp-1">{state.subject}</span>
             ) : (
-              <span className="text-muted-foreground">Chưa có tiêu đề</span>
+              <span className="text-muted-foreground">
+                {tr('Chưa có tiêu đề', 'No subject yet', '제목 없음')}
+              </span>
             ),
             ...(draftTouched(state)
               ? { actions: <DropButton onClick={() => setState(clearDraft)} /> }
@@ -100,15 +111,21 @@ export function WaveStrip({
         {state.committed.map((wave, index) => (
           <Row
             key={wave.localId}
-            marker={`Đợt ${alreadyFired + index + 1}`}
+            marker={tr(
+              `Đợt ${alreadyFired + index + 1}`,
+              `Wave ${alreadyFired + index + 1}`,
+              `${alreadyFired + index + 1}차`,
+            )}
             title={wave.label || wave.subject}
             when={waveWhen(wave.scheduledAt)}
             onDrop={() => setState((s) => dropCommitted(s, wave.localId))}
           />
         ))}
         <Row
-          marker={`Đợt ${nextIndex}`}
-          title={state.label.trim() || state.subject.trim() || 'Đang soạn…'}
+          marker={tr(`Đợt ${nextIndex}`, `Wave ${nextIndex}`, `${nextIndex}차`)}
+          title={
+            state.label.trim() || state.subject.trim() || tr('Đang soạn…', 'Drafting…', '작성 중…')
+          }
           when={draftLabel(draftValid)}
           {...(draftTouched(state) ? { onDrop: () => setState(clearDraft) } : {})}
         />
@@ -116,7 +133,11 @@ export function WaveStrip({
       {/* G6 as decision 3 reads it: "met" is a meeting recorded on the lead —
           the board's booking wording predates the Calendly retirement. */}
       <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.5]">
-        Từ Đợt 2, người đã trả lời thư hoặc đã có cuộc gặp sau Đợt 1 sẽ tự bị loại.
+        {tr(
+          'Từ đợt 2, những người đã trả lời email hoặc có cuộc gặp sau đợt 1 sẽ tự động bị loại.',
+          'From wave 2 onward, recipients who replied or met with your team after wave 1 are automatically excluded.',
+          '2차부터 1차 발송 후 답장을 했거나 미팅을 진행한 수신자는 자동으로 제외됩니다.',
+        )}
       </p>
     </GlassCard>
   )
@@ -156,8 +177,12 @@ function ChainHeader({
     <div className="flex items-center justify-between gap-2">
       <SectionTitle>
         {showAdd
-          ? `Chuỗi đợt · ${effectiveWaves(state).length}/${CAMPAIGN_START_MAX_WAVES}`
-          : `Đợt ${nextIndex}`}
+          ? tr(
+              `Chuỗi đợt · ${effectiveWaves(state).length}/${CAMPAIGN_START_MAX_WAVES}`,
+              `Wave sequence · ${effectiveWaves(state).length}/${CAMPAIGN_START_MAX_WAVES}`,
+              `발송 차수 · ${effectiveWaves(state).length}/${CAMPAIGN_START_MAX_WAVES}`,
+            )
+          : tr(`Đợt ${nextIndex}`, `Wave ${nextIndex}`, `${nextIndex}차`)}
       </SectionTitle>
       {showAdd && (
         <Button
@@ -168,7 +193,7 @@ function ChainHeader({
           disabled={!canAdd}
         >
           <Icon icon={Plus} size={14} />
-          Thêm đợt
+          {tr('Thêm đợt', 'Add wave', '차수 추가')}
         </Button>
       )}
     </div>
@@ -179,7 +204,7 @@ function DropButton({ onClick }: { onClick: () => void }) {
   return (
     <Button size="sm" variant="ghost" className="pointer-coarse:h-12" onClick={onClick}>
       <Icon icon={Trash2} size={14} />
-      Xoá
+      {tr('Xoá', 'Remove', '삭제')}
     </Button>
   )
 }
@@ -193,7 +218,19 @@ const draftTouched = (s: ComposerState) =>
   s.label.trim() !== '' || s.subject.trim() !== '' || s.body.trim() !== ''
 
 const waveWhen = (scheduledAt?: string) =>
-  scheduledAt ? `Hẹn · ${dmhm(scheduledAt)}` : 'Gửi ngay khi bắt đầu chạy'
+  scheduledAt
+    ? tr(
+        `Hẹn · ${dmhm(scheduledAt)}`,
+        `Scheduled · ${dmhm(scheduledAt)}`,
+        `예약 · ${dmhm(scheduledAt)}`,
+      )
+    : tr('Gửi ngay khi bắt đầu chạy', 'Send when the campaign starts', '캠페인 시작 시 발송')
 
 const draftLabel = (valid: boolean) =>
-  valid ? 'Đang soạn, sẽ gửi' : 'Chưa đủ để gửi. Điền tiêu đề và nội dung.'
+  valid
+    ? tr('Đang soạn, sẽ gửi', 'Drafted and ready to send', '작성 완료, 발송 준비됨')
+    : tr(
+        'Chưa đủ để gửi. Điền tiêu đề và nội dung.',
+        'Not ready to send. Add a subject and message.',
+        '발송 준비가 되지 않았습니다. 제목과 내용을 입력하세요.',
+      )

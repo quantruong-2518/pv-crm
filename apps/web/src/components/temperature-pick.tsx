@@ -1,11 +1,8 @@
 import { Badge, cn, type BadgeProps } from '@pv/ui'
-import {
-  CUSTOMER_TEMPERATURE_LABEL,
-  CustomerTemperature,
-  type CustomerTemperature as Temperature,
-} from '@pv/contracts'
+import { CustomerTemperature, type CustomerTemperature as Temperature } from '@pv/contracts'
 import { BADGE_INK } from '@/data/opportunities'
-import { NO_READING_LABEL } from '@/data/after-sale'
+import { AFTER_SALE_COPY as COPY, temperatureText } from '@/data/after-sale-copy'
+import { useI18n } from '@/app/i18n'
 import { RadioCard } from './radio-card'
 
 /** A bought customer's temperature (ADR 0121): the required pick of a
@@ -28,13 +25,14 @@ export function TemperatureBadge({
   title?: string
   className?: string
 }) {
+  const { lang } = useI18n()
   return (
     <Badge
       tone={value ? TEMPERATURE_TONE[value] : 'draft'}
       title={title}
       className={cn(BADGE_INK, className)}
     >
-      {value ? CUSTOMER_TEMPERATURE_LABEL[value] : NO_READING_LABEL}
+      {temperatureText(value, lang)}
     </Badge>
   )
 }
@@ -46,10 +44,11 @@ export function TemperaturePick({
   value: Temperature | null
   onPick: (value: Temperature) => void
 }) {
+  const { lang, t } = useI18n()
   return (
     <fieldset className="m-0 min-w-0 p-0">
       <legend className="mb-3 p-0 text-[14px] font-semibold leading-[1.5]">
-        Nhiệt độ khách hàng
+        {t(COPY.temperature)}
       </legend>
       <div className="grid grid-cols-3 gap-2">
         {CustomerTemperature.options.map((t) => (
@@ -59,7 +58,7 @@ export function TemperaturePick({
             checked={value === t}
             onSelect={() => onPick(t)}
           >
-            {CUSTOMER_TEMPERATURE_LABEL[t]}
+            {temperatureText(t, lang)}
           </RadioCard>
         ))}
       </div>

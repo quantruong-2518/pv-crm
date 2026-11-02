@@ -75,9 +75,15 @@ export type ToastProps = {
   item: ToastItem
   onDismiss: (id: string) => void
   defaultTtlMs: number
+  closeLabel?: string
 }
 
-export function Toast({ item, onDismiss, defaultTtlMs }: ToastProps) {
+export function Toast({
+  item,
+  onDismiss,
+  defaultTtlMs,
+  closeLabel = 'Đóng thông báo',
+}: ToastProps) {
   const tone = item.tone ?? 'info'
   const [leaving, setLeaving] = useState(false)
   /* Hovered or focused: the reader is reaching for the action, so the clock waits. */
@@ -151,7 +157,7 @@ export function Toast({ item, onDismiss, defaultTtlMs }: ToastProps) {
       <button
         type="button"
         onClick={close}
-        aria-label="Đóng thông báo"
+        aria-label={closeLabel}
         className="motion-std text-muted-foreground hover:text-foreground hover:bg-surface-ink/9 pointer-coarse:size-12 -mr-1 flex shrink-0 items-center justify-center rounded-md p-1"
       >
         <Icon icon={X} size={16} />
@@ -165,10 +171,17 @@ export type ToastHostProps = {
   onDismiss: (id: string) => void
   /** Mặc định 6 giây — đủ đọc một câu mười chữ hai lần. */
   defaultTtlMs?: number
+  closeLabel?: string
   className?: string
 }
 
-export function ToastHost({ items, onDismiss, defaultTtlMs = 6_000, className }: ToastHostProps) {
+export function ToastHost({
+  items,
+  onDismiss,
+  defaultTtlMs = 6_000,
+  closeLabel,
+  className,
+}: ToastHostProps) {
   if (items.length === 0) return null
 
   return (
@@ -187,7 +200,13 @@ export function ToastHost({ items, onDismiss, defaultTtlMs = 6_000, className }:
       )}
     >
       {items.map((item) => (
-        <Toast key={item.id} item={item} onDismiss={onDismiss} defaultTtlMs={defaultTtlMs} />
+        <Toast
+          key={item.id}
+          item={item}
+          onDismiss={onDismiss}
+          defaultTtlMs={defaultTtlMs}
+          closeLabel={closeLabel}
+        />
       ))}
     </div>
   )

@@ -1,4 +1,5 @@
 import { GlassCard } from '@pv/ui'
+import { message, useI18n } from '@/app/i18n'
 import { useMyConfigProposals } from '@/data/sales-config'
 import { MotionPickerSection } from './lead-origins-motions'
 import { AddStopReason } from './sales-config-add-rows'
@@ -12,9 +13,19 @@ import { EntryCount, Section, WaitingCount, type AreaProps } from './sales-confi
 /** Intake — how a lead may come in. `MotionPickerSection` is the same list the
  *  lead-origins screen mounts; `bare` leaves the heading to this `Section`. */
 export function IntakeArea() {
+  const { t } = useI18n()
   const waiting = motionPickerWaiting(useMyConfigProposals())
   return (
-    <Section at="motions" hint="Tên, bật/tắt và form hỏi tiếp của mỗi phương án.">
+    <Section
+      at="motions"
+      hint={t(
+        message(
+          'Tên, bật/tắt và form hỏi tiếp của mỗi phương án.',
+          'Edit each option’s name, availability, and follow-up form.',
+          '각 옵션의 이름, 사용 여부, 후속 질문 양식을 관리합니다.',
+        ),
+      )}
+    >
       <WaitingCount count={waiting} />
       <MotionPickerSection bare />
     </Section>
@@ -38,6 +49,7 @@ export function AssignArea({ catalog }: Pick<AreaProps, 'catalog'>) {
  *  waiting group, the vocabulary of the contact confirm form, and the care
  *  cycle of a bought customer. */
 export function CareArea({ catalog }: AreaProps) {
+  const { t } = useI18n()
   const stops = [...(catalog?.EXIT_REASON ?? [])].sort(byOrd)
   const labels = [...(catalog?.WAITING_LABEL ?? [])].sort(byOrd)
   return (
@@ -66,11 +78,19 @@ export function CareArea({ catalog }: AreaProps) {
       {/* 5.4e — ADR 0097 §5: the lead book and the campaign picker filter by these. */}
       <Section
         at="waiting-labels"
-        hint="Gắn cho lead ở Khách đã dừng để lọc và chọn vào chiến dịch."
+        hint={t(
+          message(
+            'Gắn cho lead ở Khách đã dừng để lọc và chọn vào chiến dịch.',
+            'Apply labels to stopped leads so you can filter them and add them to campaigns.',
+            '중단된 리드에 라벨을 지정해 필터링하고 캠페인에 추가할 수 있습니다.',
+          ),
+        )}
         summary={<EntryCount rows={labels} noun="nhãn" />}
       >
         {labels.length === 0 ? (
-          <p className="text-muted-foreground text-[11.5px]">Chưa có nhãn nào.</p>
+          <p className="text-muted-foreground text-[11.5px]">
+            {t(message('Chưa có nhãn nào.', 'No labels yet.', '라벨이 없습니다.'))}
+          </p>
         ) : (
           <GlassCard variant="b" className="p-4">
             <ul className="flex flex-col gap-2">
@@ -87,7 +107,12 @@ export function CareArea({ catalog }: AreaProps) {
             </ul>
           </GlassCard>
         )}
-        <AddEntry list="WAITING_LABEL" placeholder="Thêm nhãn nhóm chờ" />
+        <AddEntry
+          list="WAITING_LABEL"
+          placeholder={t(
+            message('Thêm nhãn nhóm chờ', 'Add a waiting-group label', '대기 그룹 라벨 추가'),
+          )}
+        />
       </Section>
 
       <Section
@@ -101,7 +126,16 @@ export function CareArea({ catalog }: AreaProps) {
         <FlatListConfig list="STEP_KIND" unit="bước" addLabel="Thêm loại bước tiếp theo" />
       </Section>
 
-      <Section at="recare-cycles" hint="Số ngày không liên hệ trước khi nhắc chăm sóc.">
+      <Section
+        at="recare-cycles"
+        hint={t(
+          message(
+            'Số ngày không liên hệ trước khi nhắc chăm sóc.',
+            'Days without contact before a care reminder.',
+            '연락이 없을 때 후속 관리를 알릴 기준 일수입니다.',
+          ),
+        )}
+      >
         <RecareCyclesConfig />
       </Section>
     </>

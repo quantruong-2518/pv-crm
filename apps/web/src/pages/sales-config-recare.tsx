@@ -9,6 +9,7 @@ import {
 } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import {
   recareCyclesQuery,
@@ -16,7 +17,8 @@ import {
   useProposeRecareCycles,
 } from '@/data/sales-config'
 import { recareWaiting } from './sales-config-model'
-import { SENT, WaitingNote } from './sales-config-section'
+import { WaitingNote } from './sales-config-section'
+import { sentCopy } from './sales-config-copy'
 
 /** Config section 5.19 — how many quiet days before a bought customer is due
  *  for care, one cycle per temperature (ADR 0121). The three go as ONE
@@ -36,12 +38,10 @@ const FIELDS = [
 type Typed = Record<keyof RecareCycles, string>
 
 /* The cold cycle also covers a customer with no reading yet. */
-const labelOf = (f: (typeof FIELDS)[number]) =>
-  `${CUSTOMER_TEMPERATURE_LABEL[f.temperature]}${f.temperature === 'cold' ? ' · chưa đánh giá' : ''} (ngày)`
-
 const toDays = (value: string) => (/^\d+$/.test(value.trim()) ? Number(value) : Number.NaN)
 
 export function RecareCyclesConfig() {
+  const { t } = useI18n()
   const { data, error } = useQuery(recareCyclesQuery)
   const canPropose = useCan('config.propose')
   const propose = useProposeRecareCycles()
@@ -61,7 +61,7 @@ export function RecareCyclesConfig() {
   /* The range is worded from the setting's own bounds; zod's default is English. */
   const bad = typed && !parsed.success ? FIELDS.find((f) => !isInRange(f, shown[f.axis])) : null
   const issue = bad
-    ? `${labelOf(bad)}: số nguyên từ ${SETTING_REGISTRY[bad.setting].min} đến ${SETTING_REGISTRY[bad.setting].max}.`
+    ? `${labelOf(bad.temperature, t)}: ${t(message('số nguyên từ', 'enter a whole number from', '정수를 입력하세요:'))} ${SETTING_REGISTRY[bad.setting].min} ${t(message('đến', 'to', '부터'))} ${SETTING_REGISTRY[bad.setting].max}.`
     : null
   const unchanged = !parsed.success || FIELDS.every((f) => data?.[f.axis] === parsed.data[f.axis])
 
@@ -70,7 +70,7 @@ export function RecareCyclesConfig() {
     propose.mutate(parsed.data, {
       onSuccess: () => {
         setTyped(null)
-        toastDone(SENT)
+        toastDone(sentCopy())
       },
     })
   }
@@ -78,7 +78,16 @@ export function RecareCyclesConfig() {
   if (error) {
     return (
       <p role="alert" className="text-destructive-foreground m-0 text-[11.5px]">
-        Không tải được kỳ chăm sóc hiện tại. {isApiError(error) ? userMessage(error) : 'Thử lại.'}
+        {t(
+          message(
+            'Không tải được kỳ chăm sóc hiện tại.',
+            'Could not load current care cycles.',
+            '현재 관리 주기를 불러오지 못했습니다.',
+          ),
+        )}{' '}
+        {isApiError(error)
+          ? userMessage(error)
+          : t(message('Thử lại.', 'Try again.', '다시 시도해 주세요.'))}
       </p>
     )
   }
@@ -88,7 +97,7 @@ export function RecareCyclesConfig() {
       <div className="flex flex-wrap items-end gap-4">
         {FIELDS.map((f) => (
           <label key={f.axis} className="flex w-40 flex-col gap-1">
-            <span className="text-muted-foreground text-[11px]">{labelOf(f)}</span>
+            <span className="text-muted-foreground text-[11px]">{labelOf(f.temperature, t)}</span>
             <Input
               value={shown[f.axis]}
               inputMode="numeric"
@@ -106,7 +115,7 @@ export function RecareCyclesConfig() {
             disabled={unchanged || propose.isPending}
             onClick={send}
           >
-            Gửi đề nghị
+            {t(message('Gửi đề nghị', 'Submit proposal', '변경 제안'))}
           </Button>
         )}
       </div>
@@ -118,6 +127,20 @@ export function RecareCyclesConfig() {
       )}
     </GlassCard>
   )
+}
+
+function labelOf(
+  temperature: keyof typeof CUSTOMER_TEMPERATURE_LABEL,
+  t: ReturnType<typeof useI18n>['t'],
+) {
+  const name = t(
+    message(
+      CUSTOMER_TEMPERATURE_LABEL[temperature],
+      temperature === 'hot' ? 'High' : temperature === 'warm' ? 'Medium' : 'Low',
+      temperature === 'hot' ? '높음' : temperature === 'warm' ? '보통' : '낮음',
+    ),
+  )
+  return `${name}${temperature === 'cold' ? ` · ${t(message('chưa đánh giá', 'not rated', '미평가'))}` : ''} (${t(message('ngày', 'days', '일'))})`
 }
 
 function isInRange(f: (typeof FIELDS)[number], value: string) {

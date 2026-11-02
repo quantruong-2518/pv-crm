@@ -1,4 +1,5 @@
 import { BRAND_PALETTE } from '@pv/tokens'
+import { MAIL_LOCALE, type MailLang } from './mail-locale'
 
 /** Màu, phông và bốn phép định dạng dùng chung của hai mail sổ cơ hội.
  *
@@ -118,10 +119,10 @@ export const CONTAINER_STYLE = { maxWidth: 560, margin: '0 auto', padding: '0 24
 
 /** Giờ Việt Nam, luôn luôn. Người đọc mail này ngồi ở đây, và một mốc UTC in
  *  thẳng ra là một phép trừ bảy tiếng bắt người đọc tự làm. */
-export function formatMoment(iso: string): string {
+export function formatMoment(iso: string, lang: MailLang = 'vi'): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return iso
-  return new Intl.DateTimeFormat('vi-VN', {
+  return new Intl.DateTimeFormat(MAIL_LOCALE[lang], {
     dateStyle: 'medium',
     timeStyle: 'short',
     timeZone: 'Asia/Ho_Chi_Minh',

@@ -23,7 +23,8 @@ import {
   MotionSend,
 } from './lead-origins-motions'
 import { motionWaiting } from './sales-config-model'
-import { SENT, WaitingNote } from './sales-config-section'
+import { WaitingNote } from './sales-config-section'
+import { sentCopy } from './sales-config-copy'
 
 /** Section 5.9 · how fast each of the six lead motions must be first
  *  touched. Each row proposes on its own and answers with a receipt.
@@ -101,7 +102,7 @@ function MotionRow({ row }: { row: MotionPolicy }) {
   const sent = () => {
     setValue(split === null ? '' : String(split.value))
     setUnit(split?.unit ?? 'hour')
-    toastDone(SENT)
+    toastDone(sentCopy())
   }
 
   /* Only a value that differs from the stored row travels. */

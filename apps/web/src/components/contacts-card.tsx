@@ -33,6 +33,7 @@ import {
 } from '@/data/contacts'
 import { CommActions, type CommMail } from './comm-actions'
 import { Field } from './ops-fields'
+import { message, useI18n } from '@/app/i18n'
 import { QUIET } from './run/run-person'
 
 /** The "Contacts" card on the lead profile — who we know at this company.
@@ -205,6 +206,7 @@ function ContactLine({
   commActions: boolean
   onEdit: () => void
 }) {
+  const { t } = useI18n()
   const promote = useSetPrimaryContact(row.code, leadCode)
   const drop = useDropContact(row.code, leadCode)
 
@@ -218,7 +220,9 @@ function ContactLine({
           className="motion-std pointer-coarse:min-h-12 flex min-w-0 items-center gap-2 text-left text-[12px] enabled:hover:underline"
         >
           <span className="truncate font-semibold">{row.name}</span>
-          {row.isPrimary && <Badge tone="success">Chính</Badge>}
+          {row.isPrimary && (
+            <Badge tone="success">{t(message('Chính', 'Primary', '주 연락처'))}</Badge>
+          )}
         </button>
 
         {canEdit && (
@@ -228,7 +232,13 @@ function ContactLine({
                 size="sm"
                 variant="ghost"
                 className={QUIET}
-                title="Đặt làm người liên hệ chính"
+                title={t(
+                  message(
+                    'Đặt làm người liên hệ chính',
+                    'Set as primary contact',
+                    '주 연락처로 설정',
+                  ),
+                )}
                 disabled={promote.isPending}
                 onClick={() => promote.mutate()}
               >
@@ -239,7 +249,7 @@ function ContactLine({
               size="sm"
               variant="ghost"
               className={QUIET}
-              title="Xoá người liên hệ"
+              title={t(message('Xoá người liên hệ', 'Delete contact', '연락처 삭제'))}
               disabled={drop.isPending}
               onClick={() =>
                 /* No confirmation dialog, and that is not an oversight: the
@@ -259,7 +269,13 @@ function ContactLine({
 
       <span className="text-muted-foreground text-[11px] leading-[1.5]">
         {[row.title, row.email, row.phone].filter((x) => x !== undefined).join(' · ') ||
-          'Chưa có kênh liên lạc nào'}
+          t(
+            message(
+              'Chưa có kênh liên lạc nào',
+              'No contact details yet',
+              '연락처 정보가 없습니다',
+            ),
+          )}
       </span>
 
       {/* Not gated on `canEdit`: a reader who only reaches the lead through a
@@ -274,6 +290,24 @@ function ContactLine({
       )}
     </li>
   )
+}
+
+const TEXT = {
+  theFirstContactIsThe: message(
+    'Người đầu tiên là người liên hệ chính.',
+    'The first contact is the primary contact.',
+    '첫 번째 연락처가 주 연락처가 됩니다.',
+  ),
+  onlyTheNameIsRequired: message(
+    'Chỉ tên là bắt buộc.',
+    'Only the name is required.',
+    '이름만 필수 항목입니다.',
+  ),
+  messagesAreSentToThe: message(
+    'Thư gửi theo hộp thư của lead.',
+    'Messages are sent to the lead’s email address.',
+    '메시지는 리드의 이메일 주소로 전송됩니다.',
+  ),
 }
 
 /** One Drawer for BOTH adding and editing.
@@ -295,6 +329,7 @@ function ContactDrawer({
   row: ContactRow | null
   first: boolean
 }) {
+  const { t } = useI18n()
   const [draft, setDraft] = useState<ContactDraft>(BLANK_CONTACT)
   const [errors, setErrors] = useState<FieldErrors>({})
 
@@ -325,7 +360,7 @@ function ContactDrawer({
     if (row === null) {
       add.mutate(contactCreateBodyOf(draft), {
         onSuccess: () => {
-          toastDone('Đã thêm người liên hệ')
+          toastDone(t(message('Đã thêm người liên hệ', 'Contact added', '연락처를 추가했습니다')))
           onClose()
         },
         onError,
@@ -344,71 +379,81 @@ function ContactDrawer({
       open={open}
       onClose={onClose}
       width="md"
-      title={row === null ? 'Thêm người liên hệ' : `Sửa ${row.name}`}
+      title={
+        row === null
+          ? t(message('Thêm người liên hệ', 'Add contact', '연락처 추가'))
+          : t(message(`Sửa ${row.name}`, `Edit ${row.name}`, `${row.name} 수정`))
+      }
       subtitle={
-        row === null && first ? 'Người đầu tiên là người liên hệ chính.' : 'Chỉ tên là bắt buộc.'
+        row === null && first ? t(TEXT.theFirstContactIsThe) : t(TEXT.onlyTheNameIsRequired)
       }
       footer={
         <div className="flex items-center justify-end gap-3">
           <Button size="md" variant="ghost" onClick={onClose}>
-            Đóng
+            {t(message('Đóng', 'Close', '닫기'))}
           </Button>
           <Button size="md" disabled={!ready} onClick={submit}>
-            {busy ? 'Đang lưu…' : 'Lưu'}
+            {busy
+              ? t(message('Đang lưu…', 'Saving…', '저장 중…'))
+              : t(message('Lưu', 'Save', '저장'))}
           </Button>
         </div>
       }
     >
       <div className="flex flex-col gap-4 p-4 sm:p-5">
-        <Field label="Tên" required errors={errors.name}>
+        <Field label={t(message('Tên', 'Name', '이름'))} required errors={errors.name}>
           <Input
             value={draft.name}
             maxLength={120}
-            aria-label="Tên người liên hệ"
+            aria-label={t(message('Tên người liên hệ', 'Contact name', '연락처 이름'))}
             aria-required
             invalid={Boolean(errors.name)}
             onChange={(e) => set('name', e.target.value)}
           />
         </Field>
 
-        <Field label="Chức danh" errors={errors.title}>
+        <Field label={t(message('Chức danh', 'Job title', '직함'))} errors={errors.title}>
           <Input
             value={draft.title}
             maxLength={120}
-            aria-label="Chức danh"
+            aria-label={t(message('Chức danh', 'Job title', '직함'))}
             invalid={Boolean(errors.title)}
             onChange={(e) => set('title', e.target.value)}
           />
         </Field>
 
-        <Field label="Email" errors={errors.email} hint="Thư gửi theo hộp thư của lead.">
+        <Field label="Email" errors={errors.email} hint={t(TEXT.messagesAreSentToThe)}>
           <Input
             type="email"
             value={draft.email}
-            aria-label="Email người liên hệ"
+            aria-label={t(message('Email người liên hệ', 'Contact email', '연락처 이메일'))}
             invalid={Boolean(errors.email)}
             onChange={(e) => set('email', e.target.value)}
           />
         </Field>
 
-        <Field label="Điện thoại" errors={errors.phone}>
+        <Field label={t(message('Điện thoại', 'Phone', '전화번호'))} errors={errors.phone}>
           <Input
             value={draft.phone}
-            aria-label="Điện thoại"
+            aria-label={t(message('Điện thoại', 'Phone', '전화번호'))}
             invalid={Boolean(errors.phone)}
             onChange={(e) => set('phone', e.target.value)}
           />
         </Field>
 
-        <Field label="Kênh hay trả lời" plain errors={errors.channel}>
+        <Field
+          label={t(message('Kênh hay trả lời', 'Preferred channel', '선호 연락 채널'))}
+          plain
+          errors={errors.channel}
+        >
           <Select
-            label="Kênh hay trả lời"
+            label={t(message('Kênh hay trả lời', 'Preferred channel', '선호 연락 채널'))}
             hideLabel
             value={draft.channel}
             neutralValue=""
             onChange={(v) => set('channel', v)}
             options={[
-              { value: '', label: 'Chưa biết' },
+              { value: '', label: t(message('Chưa biết', 'Not known', '알 수 없음')) },
               /* The wire key is not a label: `zalo-oa` and `in-app` are stored
                  keys. One table for every channel name in the app. */
               ...ContactChannel.options.map((c) => ({ value: c, label: CHANNEL_LABEL[c] })),
@@ -417,13 +462,13 @@ function ContactDrawer({
           />
         </Field>
 
-        <Field label="Ghi chú" errors={errors.note}>
+        <Field label={t(message('Ghi chú', 'Notes', '메모'))} errors={errors.note}>
           <Textarea
             autoGrow
             rows={3}
             maxLength={500}
             value={draft.note}
-            aria-label="Ghi chú về người liên hệ"
+            aria-label={t(message('Ghi chú về người liên hệ', 'Contact notes', '연락처 메모'))}
             invalid={Boolean(errors.note)}
             onChange={(e) => set('note', e.target.value)}
           />

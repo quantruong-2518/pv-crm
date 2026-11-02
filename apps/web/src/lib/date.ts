@@ -19,20 +19,35 @@
  *  The result depends on the input string and the machine's zone, never on when
  *  it was rendered, so a screen drawn twice still reads the same. */
 
-/** Formatters built ONCE per session. `Intl.DateTimeFormat` is expensive to
- *  construct and cheap to call, and the three functions below run on every cell
- *  of every table row. */
-const DM = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit' })
-const DMY = new Intl.DateTimeFormat('vi-VN', {
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-})
-const HM = new Intl.DateTimeFormat('vi-VN', {
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-})
+import { getLang, LOCALE_TAG, type Lang } from '@/app/i18n'
+
+/** Cache formatters by language; constructing one per table cell is expensive. */
+const DM: Record<Lang, Intl.DateTimeFormat> = Object.fromEntries(
+  (['vi', 'en', 'ko'] as const).map((lang) => [
+    lang,
+    new Intl.DateTimeFormat(LOCALE_TAG[lang], { day: '2-digit', month: '2-digit' }),
+  ]),
+) as Record<Lang, Intl.DateTimeFormat>
+const DMY: Record<Lang, Intl.DateTimeFormat> = Object.fromEntries(
+  (['vi', 'en', 'ko'] as const).map((lang) => [
+    lang,
+    new Intl.DateTimeFormat(LOCALE_TAG[lang], {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }),
+  ]),
+) as Record<Lang, Intl.DateTimeFormat>
+const HM: Record<Lang, Intl.DateTimeFormat> = Object.fromEntries(
+  (['vi', 'en', 'ko'] as const).map((lang) => [
+    lang,
+    new Intl.DateTimeFormat(LOCALE_TAG[lang], {
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }),
+  ]),
+) as Record<Lang, Intl.DateTimeFormat>
 
 /** A DATE with no time and no zone is a calendar day, not an instant.
  *
@@ -55,19 +70,19 @@ function moment(iso: string): Date | null {
 /** '2026-08-30T23:00:00Z' → '31/08' (at +07) */
 export function dm(iso: string): string {
   const date = moment(iso)
-  return date ? DM.format(date) : iso
+  return date ? DM[getLang()].format(date) : iso
 }
 
 /** '2026-08-30T23:00:00Z' → '31/08/2026' (at +07) */
 export function dmy(iso: string): string {
   const date = moment(iso)
-  return date ? DMY.format(date) : iso
+  return date ? DMY[getLang()].format(date) : iso
 }
 
 /** '2026-08-30T23:00:00Z' → '06:00' (at +07) */
 export function hm(iso: string): string {
   const date = moment(iso)
-  return date ? HM.format(date) : iso
+  return date ? HM[getLang()].format(date) : iso
 }
 
 /** '2026-08-30T23:00:00Z' → '31/08 06:00' (at +07).
@@ -79,7 +94,7 @@ export function hm(iso: string): string {
  *  answer a question nobody asked. */
 export function dmhm(iso: string): string {
   const date = moment(iso)
-  return date ? `${DM.format(date)} ${HM.format(date)}` : iso
+  return date ? `${DM[getLang()].format(date)} ${HM[getLang()].format(date)}` : iso
 }
 
 /** A value for `<input type="datetime-local">`, N minutes from now.

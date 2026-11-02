@@ -1,7 +1,8 @@
 import { ContractBookQuery, type ContractStatusFilter } from '@pv/contracts'
 import type { useBookQuery } from '@/app/book-query'
+import { useI18n } from '@/app/i18n'
+import { CONTRACT_COPY as COPY } from '@/data/contract-copy'
 import { useSalesPeople } from '@/data/directory'
-import { NO_CLOSER } from '@/data/contracts'
 import { useContractKindFilterOptions, useContractKindLabel } from '@/data/sales-config'
 import {
   amountChip,
@@ -29,6 +30,7 @@ const FIRST_DIR: Record<SortKey, ContractBookQuery['dir']> = {
 }
 
 export function useContractFilters(book: Book) {
+  const { t } = useI18n()
   const { query } = book
   const people = useSalesPeople()
   const kindOptions = useContractKindFilterOptions()
@@ -37,8 +39,8 @@ export function useContractFilters(book: Book) {
   const filters = {
     owner: (
       <ListFilter
-        label="Người chốt"
-        options={peopleOptions(people, NO_CLOSER)}
+        label={t(COPY.closer)}
+        options={peopleOptions(people, t(COPY.noCloser))}
         value={query.owner}
         onChange={(owner) => book.patch({ owner })}
       />
@@ -46,7 +48,7 @@ export function useContractFilters(book: Book) {
     kind:
       kindOptions.length === 0 ? undefined : (
         <ListFilter
-          label="Loại hợp đồng"
+          label={t(COPY.contractKind)}
           options={kindOptions}
           searchable={false}
           value={query.kind}
@@ -55,7 +57,7 @@ export function useContractFilters(book: Book) {
       ),
     signed: (
       <DayRangeFilter
-        label="Ngày ký"
+        label={t(COPY.signedDay)}
         from={query.signedFrom}
         to={query.signedTo}
         onChange={({ from, to }) => book.patch({ signedFrom: from, signedTo: to })}
@@ -63,7 +65,7 @@ export function useContractFilters(book: Book) {
     ),
     amount: (
       <AmountRangeFilter
-        label="Giá trị (₫)"
+        label={t(COPY.valueVnd)}
         min={query.amountMin}
         max={query.amountMax}
         onChange={({ min, max }) => book.patch({ amountMin: min, amountMax: max })}
@@ -73,7 +75,7 @@ export function useContractFilters(book: Book) {
     due:
       query.status === 'terminated' ? undefined : (
         <DayRangeFilter
-          label="Đợt thu tiếp theo"
+          label={t(COPY.nextPayment)}
           from={query.dueFrom}
           to={query.dueTo}
           onChange={({ from, to }) => book.patch({ dueFrom: from, dueTo: to })}
@@ -82,19 +84,19 @@ export function useContractFilters(book: Book) {
   }
 
   const chips: ActiveFilter[] = [
-    ...listChip('owner', 'Người chốt', query.owner, personNameOf(people, NO_CLOSER), () =>
+    ...listChip('owner', t(COPY.closer), query.owner, personNameOf(people, t(COPY.noCloser)), () =>
       book.patch({ owner: undefined }),
     ),
-    ...listChip('kind', 'Loại hợp đồng', query.kind, kindName, () =>
+    ...listChip('kind', t(COPY.contractKind), query.kind, kindName, () =>
       book.patch({ kind: undefined }),
     ),
-    ...dayRangeChip('signed', 'Ngày ký', query.signedFrom, query.signedTo, () =>
+    ...dayRangeChip('signed', t(COPY.signedDay), query.signedFrom, query.signedTo, () =>
       book.patch({ signedFrom: undefined, signedTo: undefined }),
     ),
-    ...amountChip('amount', 'Giá trị', query.amountMin, query.amountMax, () =>
+    ...amountChip('amount', t(COPY.value), query.amountMin, query.amountMax, () =>
       book.patch({ amountMin: undefined, amountMax: undefined }),
     ),
-    ...dayRangeChip('due', 'Đợt thu tiếp theo', query.dueFrom, query.dueTo, () =>
+    ...dayRangeChip('due', t(COPY.nextPayment), query.dueFrom, query.dueTo, () =>
       book.patch({ dueFrom: undefined, dueTo: undefined }),
     ),
   ]

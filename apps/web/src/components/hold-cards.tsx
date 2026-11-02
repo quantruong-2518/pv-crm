@@ -1,4 +1,6 @@
 import type { HoldRow, HoldSubjectType } from '@pv/contracts'
+import { useI18n } from '@/app/i18n'
+import { HOLD_COPY as COPY } from '@/data/hold-copy'
 import { HoldUntilCell } from './hold-strip'
 import { BOOK_CARD } from './book-cards'
 import {
@@ -17,6 +19,7 @@ import {
 type Lookup = Record<HoldSubjectType, string>
 
 function HoldCard({ row, kinds, paths }: { row: HoldRow; kinds: Lookup; paths: Lookup }) {
+  const { t } = useI18n()
   return (
     <article className={BOOK_CARD}>
       <CardHead
@@ -34,7 +37,7 @@ function HoldCard({ row, kinds, paths }: { row: HoldRow; kinds: Lookup; paths: L
       />
       <span className="flex min-w-0 flex-col gap-1">
         <span className="flex min-w-0 items-baseline gap-1 text-[12.5px]">
-          <span className="text-muted-foreground shrink-0">Đang ở bước</span>
+          <span className="text-muted-foreground shrink-0">{t(COPY.currentStep)}</span>
           <span className="truncate" title={row.stepLabel}>
             {row.stepLabel}
           </span>

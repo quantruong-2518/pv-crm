@@ -3,6 +3,7 @@ import { ArrowRight, Badge, CircleAlert } from '@pv/ui'
 import { Button, Icon, Skeleton, cn } from '@pv/ui'
 import type { LeadProfile } from '@pv/contracts'
 import { useCan } from '@/app/auth'
+import { useI18n } from '@/app/i18n'
 import { leadStopReasonsQuery } from '@/data/leads'
 import { LEAD_STATE_FACE } from '@/data/lead-state'
 import { leadTouchesQuery, leadVectorQuery } from '@/data/touches'
@@ -12,6 +13,7 @@ import { RecordHeader } from '@/components/record/record-header'
 import { TodoCard } from '@/components/record/todo-card'
 import { NextStepCard } from '@/components/run/next-step'
 import { leadRungsOf, leadStepSubject, momentText } from './lead-model'
+import { LEAD_COPY, leadStateText } from '@/data/lead-copy'
 
 /** Module 2 · the header and stepper of the lead profile; the meetings sit on
  *  the floating bar (`MeetingsDock`), shared with the deal profile.
@@ -27,6 +29,7 @@ export function LeadHeader({
   /** Set when this reader may open a deal from the lead; omit to draw no button. */
   onConvert?: () => void
 }) {
+  const { t, lang } = useI18n()
   return (
     <RecordHeader
       title={
@@ -39,7 +42,7 @@ export function LeadHeader({
               LEAD_STATE_FACE[lead.state].badge === 'draft' && 'text-foreground',
             )}
           >
-            {LEAD_STATE_FACE[lead.state].label}
+            {leadStateText(lead.state, lang)}
           </Badge>
         </>
       }
@@ -47,7 +50,7 @@ export function LeadHeader({
         onConvert && (
           <Button size="lg" onClick={onConvert}>
             <Icon icon={ArrowRight} size={16} />
-            Mở cơ hội
+            {t(LEAD_COPY.openOpportunity)}
           </Button>
         )
       }
@@ -59,6 +62,7 @@ export function LeadHeader({
  *  Only a `lead.disable` holder ever sees it: for anyone else the profile is
  *  a 404. Same tinted block as the config screen's "nothing here yet" notice. */
 export function LeadDisabledNotice({ code, since }: { code: string; since: string }) {
+  const { t } = useI18n()
   const { pending, restore } = useRestoreLeads()
 
   return (
@@ -68,7 +72,9 @@ export function LeadDisabledNotice({ code, since }: { code: string; since: strin
     >
       <span className="flex min-w-0 items-center gap-3 text-[13px] font-semibold">
         <Icon icon={CircleAlert} size={20} className="text-warning shrink-0" />
-        <span className="tnum">Lead đã vô hiệu hoá từ {momentText(since)}</span>
+        <span className="tnum">
+          {t(LEAD_COPY.disabledSince)} {momentText(since)}
+        </span>
       </span>
       <Button
         size="md"
@@ -76,7 +82,7 @@ export function LeadDisabledNotice({ code, since }: { code: string; since: strin
         disabled={pending}
         onClick={() => restore([code])}
       >
-        Khôi phục
+        {t(LEAD_COPY.restore)}
       </Button>
     </div>
   )
@@ -92,6 +98,7 @@ export function LeadTodo({
   /** May write the next step: holder rights on a lead still in the funnel. */
   canStep: boolean
 }) {
+  const { t } = useI18n()
   const runReadable = useCan('workstream.view') && lead.workstreamCode !== null
   const journey = useQuery({
     ...workstreamJourneyQuery(lead.workstreamCode ?? ''),
@@ -108,7 +115,7 @@ export function LeadTodo({
   return (
     <TodoCard
       rungs={leadRungsOf(lead, served, touches, firstHeld, reasons?.rows)}
-      rungsLabel="Các bậc của lead"
+      rungsLabel={t(LEAD_COPY.rungs)}
       next={
         <NextStepCard
           key={lead.code}

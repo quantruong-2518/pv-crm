@@ -1,7 +1,8 @@
 import { useNavigate } from 'react-router-dom'
+import { message, useI18n } from '@/app/i18n'
+import { kpiMetricText } from '@/data/kpi-i18n'
 import { Button, GlassCard, cn } from '@pv/ui'
 import {
-  KPI_METRIC_LABEL,
   type KpiAllocation,
   type KpiCounter,
   type OverdueReasonRow,
@@ -30,17 +31,43 @@ import { stepId, teamStepId, type QueueItem, type Waiting } from './kpi-targets-
  *  not add up across people has `allocated: null`, and no sum is made here. */
 
 /** Who sent which role's package on which day, and its primary total where it has one. */
-function packageSentence(catalog: KpiCatalog, pkg: KpiAllocation): string {
-  const role = pkg.team ? `${ROLE_LABEL[pkg.role]} của nhóm ${pkg.team.name}` : ROLE_LABEL[pkg.role]
+function packageSentence(
+  catalog: KpiCatalog,
+  pkg: KpiAllocation,
+  lang: 'vi' | 'en' | 'ko',
+): string {
+  const role = pkg.team
+    ? lang === 'vi'
+      ? `${ROLE_LABEL[pkg.role]} của nhóm ${pkg.team.name}`
+      : lang === 'en'
+        ? `${ROLE_LABEL[pkg.role]} · ${pkg.team.name} team`
+        : `${ROLE_LABEL[pkg.role]} · ${pkg.team.name} 팀`
+    : ROLE_LABEL[pkg.role]
   const head = pkg.submittedBy
-    ? `${pkg.submittedBy.name} gửi gói chỉ tiêu ${role}`
-    : `Gói chỉ tiêu ${role} đã gửi`
-  const day = pkg.submittedAt ? ` ngày ${dm(pkg.submittedAt)}` : ''
+    ? lang === 'vi'
+      ? `${pkg.submittedBy.name} gửi gói chỉ tiêu ${role}`
+      : lang === 'en'
+        ? `${pkg.submittedBy.name} submitted the ${role} target package`
+        : `${pkg.submittedBy.name}님이 ${role} 목표 패키지를 제출했습니다`
+    : lang === 'vi'
+      ? `Gói chỉ tiêu ${role} đã gửi`
+      : lang === 'en'
+        ? `${role} target package submitted`
+        : `${role} 목표 패키지 제출됨`
+  const day = pkg.submittedAt
+    ? lang === 'vi'
+      ? ` ngày ${dm(pkg.submittedAt)}`
+      : ` · ${dm(pkg.submittedAt)}`
+    : ''
   const def = primaryOf(catalog, pkg.role)
   const total = def && pkg.totals.find((t) => t.metricKey === def.key)?.allocated
   const sum =
     def && typeof total === 'number'
-      ? `, tổng ${KPI_METRIC_LABEL[def.key].toLowerCase()} ${printShort(def.unit, total)}`
+      ? lang === 'vi'
+        ? `, tổng ${kpiMetricText(def.key, lang).toLowerCase()} ${printShort(def.unit, total)}`
+        : lang === 'en'
+          ? `, total ${kpiMetricText(def.key, lang).toLowerCase()} ${printShort(def.unit, total)}`
+          : `, 합계 ${kpiMetricText(def.key, lang)} ${printShort(def.unit, total)}`
       : ''
   return `${head}${day}${sum}.`
 }
@@ -55,15 +82,32 @@ type Row = {
   go: { step: RoleId; ids: string[] } | { counter: KpiCounter } | { href: string }
 }
 
-function rowOf(catalog: KpiCatalog, item: QueueItem): Row {
+function rowOf(
+  catalog: KpiCatalog,
+  item: QueueItem,
+  lang: 'vi' | 'en' | 'ko',
+  t: (copy: ReturnType<typeof message>) => string,
+): Row {
   const base = { id: item.id, at: item.at }
   switch (item.kind) {
     case 'targets':
       return {
         ...base,
-        what: `${item.who} đề nghị chỉ tiêu ${ROLE_LABEL[item.role]} ngày ${dm(item.at)}.`,
-        under: `${num(item.metrics)} chỉ số chờ duyệt`,
-        open: 'Duyệt chỉ tiêu',
+        what: t(
+          message(
+            `${item.who} đề nghị chỉ tiêu ${ROLE_LABEL[item.role]} ngày ${dm(item.at)}.`,
+            `${item.who} proposed ${ROLE_LABEL[item.role]} targets on ${dm(item.at)}.`,
+            `${item.who}님이 ${dm(item.at)} ${ROLE_LABEL[item.role]} 목표를 제안했습니다.`,
+          ),
+        ),
+        under: t(
+          message(
+            `${num(item.metrics)} chỉ số chờ duyệt`,
+            `${num(item.metrics)} metrics awaiting review`,
+            `검토 대기 지표 ${num(item.metrics)}개`,
+          ),
+        ),
+        open: t(message('Duyệt chỉ tiêu', 'Review targets', '목표 검토')),
         go: { step: item.role, ids: [stepId(item.role, 'total')] },
       }
     case 'package': {
@@ -71,18 +115,24 @@ function rowOf(catalog: KpiCatalog, item: QueueItem): Row {
       const ids = team ? [teamStepId(role, team.id)] : [stepId(role, 'lock'), stepId(role, 'ack')]
       return {
         ...base,
-        what: packageSentence(catalog, item.pkg),
+        what: packageSentence(catalog, item.pkg, lang),
         under: null,
-        open: 'Duyệt gói chỉ tiêu',
+        open: t(message('Duyệt gói chỉ tiêu', 'Review target package', '목표 패키지 검토')),
         go: { step: role, ids },
       }
     }
     case 'returned':
       return {
         ...base,
-        what: `${item.pkg.decidedBy?.name ?? 'Quản lý'} trả lại gói chỉ tiêu ${ROLE_LABEL[item.pkg.role]} ngày ${dm(item.at)}.`,
+        what: t(
+          message(
+            `${item.pkg.decidedBy?.name ?? 'Quản lý'} trả lại gói chỉ tiêu ${ROLE_LABEL[item.pkg.role]} ngày ${dm(item.at)}.`,
+            `${item.pkg.decidedBy?.name ?? 'Manager'} returned the ${ROLE_LABEL[item.pkg.role]} target package on ${dm(item.at)}.`,
+            `${item.pkg.decidedBy?.name ?? '관리자'}님이 ${dm(item.at)} ${ROLE_LABEL[item.pkg.role]} 목표 패키지를 반려했습니다.`,
+          ),
+        ),
         under: null,
-        open: 'Sửa phân bổ',
+        open: t(message('Sửa phân bổ', 'Edit allocation', '배분 수정')),
         go: { step: item.pkg.role, ids: [stepId(item.pkg.role, 'split')] },
       }
     case 'counter': {
@@ -91,20 +141,32 @@ function rowOf(catalog: KpiCatalog, item: QueueItem): Row {
       return {
         ...base,
         what: `${def ? headlineOf(c, def) : c.name}.`,
-        under: `${ROLE_LABEL[c.role]}${teamSuffix(c.team)} · gửi ngày ${dm(c.createdAt)}`,
-        open: 'Xem đề xuất',
+        under: `${ROLE_LABEL[c.role]}${teamSuffix(c.team)} · ${t(message('gửi ngày', 'sent', '제출'))} ${dm(c.createdAt)}`,
+        open: t(message('Xem đề xuất', 'View proposal', '제안 보기')),
         go: { counter: c },
       }
     }
   }
 }
 
-const reasonRow = (r: OverdueReasonRow): Row => ({
+const reasonRow = (r: OverdueReasonRow, t: (copy: ReturnType<typeof message>) => string): Row => ({
   id: `reason/${r.id}`,
   at: r.writtenAt,
-  what: `${r.writtenBy.name} ghi lý do quá hạn cho hợp đồng ${r.contractCode}, đợt ${r.installmentNo}.`,
-  under: `Hạn đợt ${dm(r.due)} · ghi ngày ${dm(r.writtenAt)}`,
-  open: 'Mở đợt thanh toán',
+  what: t(
+    message(
+      `${r.writtenBy.name} ghi lý do quá hạn cho hợp đồng ${r.contractCode}, đợt ${r.installmentNo}.`,
+      `${r.writtenBy.name} added an overdue reason for contract ${r.contractCode}, installment ${r.installmentNo}.`,
+      `${r.writtenBy.name}님이 계약 ${r.contractCode}의 ${r.installmentNo}회차 연체 사유를 기록했습니다.`,
+    ),
+  ),
+  under: t(
+    message(
+      `Hạn đợt ${dm(r.due)} · ghi ngày ${dm(r.writtenAt)}`,
+      `Due ${dm(r.due)} · added ${dm(r.writtenAt)}`,
+      `${dm(r.due)} 납기 · ${dm(r.writtenAt)} 기록`,
+    ),
+  ),
+  open: t(message('Mở đợt thanh toán', 'Open installment', '할부 회차 열기')),
   go: {
     href: `/sales/contracts/${encodeURIComponent(r.contractCode)}/installments/${r.installmentNo}`,
   },
@@ -129,10 +191,12 @@ export function WaitingList({
   onOpenStep: (role: RoleId, ids: string[]) => void
   onOpenCounter: (counter: KpiCounter) => void
 }) {
+  const { t, lang } = useI18n()
   const navigate = useNavigate()
-  const rows = [...items.map((i) => rowOf(catalog, i)), ...reasons.map(reasonRow)].sort((a, b) =>
-    a.at.localeCompare(b.at),
-  )
+  const rows = [
+    ...items.map((i) => rowOf(catalog, i, lang, t)),
+    ...reasons.map((r) => reasonRow(r, t)),
+  ].sort((a, b) => a.at.localeCompare(b.at))
   const open = ({ go }: Row) => {
     if ('step' in go) onOpenStep(go.step, go.ids)
     else if ('counter' in go) onOpenCounter(go.counter)
@@ -140,14 +204,30 @@ export function WaitingList({
   }
   const failed = reasonsFailed && (
     <p className={cn(NOTE, 'text-destructive-foreground px-5 py-2')}>
-      Không tải được lý do quá hạn chờ duyệt.
+      {t(
+        message(
+          'Không tải được lý do quá hạn chờ duyệt.',
+          'Could not load overdue reasons awaiting review.',
+          '검토 대기 중인 연체 사유를 불러오지 못했습니다.',
+        ),
+      )}
     </p>
   )
 
   if (rows.length === 0 && !closing) {
     return (
       <GlassCard variant="b" className="p-5">
-        {failed || <p className={NOTE}>{NOTHING_WAITING}</p>}
+        {failed || (
+          <p className={NOTE}>
+            {t(
+              message(
+                'Không có mục nào chờ bạn xử lý.',
+                'Nothing needs your attention.',
+                '처리할 항목이 없습니다.',
+              ),
+            )}
+          </p>
+        )}
       </GlassCard>
     )
   }
@@ -156,7 +236,10 @@ export function WaitingList({
      of sitting past a sideways scroll. */
   return (
     <GlassCard variant="b" className="py-2">
-      <ul aria-label="Chờ bạn xử lý" className="divide-surface-ink/6 flex flex-col divide-y">
+      <ul
+        aria-label={t(message('Chờ bạn xử lý', 'Needs your attention', '처리할 항목'))}
+        className="divide-surface-ink/6 flex flex-col divide-y"
+      >
         {rows.map((row) => (
           <li
             key={row.id}

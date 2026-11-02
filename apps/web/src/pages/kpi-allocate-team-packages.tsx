@@ -1,11 +1,8 @@
 import { useNavigate } from 'react-router-dom'
 import { Button, GlassCard, SectionTitle, cn } from '@pv/ui'
-import {
-  KPI_METRIC_LABEL,
-  type KpiAllocation,
-  type KpiCounter,
-  type KpiMetricDef,
-} from '@pv/contracts'
+import { type KpiAllocation, type KpiCounter, type KpiMetricDef } from '@pv/contracts'
+import { kpiMetricText } from '@/data/kpi-i18n'
+import { message, useI18n } from '@/app/i18n'
 import { StackTable, type StackColumn } from '@/components/stack-table'
 import { NOTE } from './home-tiles'
 import { teamPath } from './kpi-allocate-model'
@@ -24,11 +21,12 @@ import { teamStepId } from './kpi-targets-model'
  *  it is not split yet. */
 
 function LinesTable({ defs, pkg }: { defs: readonly KpiMetricDef[]; pkg: KpiAllocation }) {
+  const { t } = useI18n()
   const people = [...new Map(pkg.lines.map((l) => [l.actorId, l.name]))]
   const columns: StackColumn[] = [
-    { header: 'Thành viên', width: 'minmax(160px,1.2fr)' },
+    { header: t(message('Thành viên', 'Member', '구성원')), width: 'minmax(160px,1.2fr)' },
     ...defs.map((def) => ({
-      header: KPI_METRIC_LABEL[def.key],
+      header: kpiMetricText(def.key),
       width: 'minmax(168px,1fr)',
       align: 'right' as const,
     })),
@@ -80,6 +78,7 @@ function TeamPackage({
   onOpenCounters: (actorId: string, teamId: string) => void
 }) {
   const navigate = useNavigate()
+  const { t } = useI18n()
   const team = pkg.team
   if (!team) return null
   const holders = [...new Map(pkg.lines.map((l) => [l.actorId, l.name]))].map(
@@ -95,15 +94,23 @@ function TeamPackage({
             className="pointer-coarse:h-12"
             onClick={() => navigate(teamPath(team.id, period))}
           >
-            Mở trang nhóm
+            {t(message('Mở trang nhóm', 'Open team page', '팀 페이지 열기'))}
           </Button>
         }
       >
-        Nhóm {team.name}
+        {t(message(`Nhóm ${team.name}`, `Team ${team.name}`, `${team.name} 팀`))}
       </SectionTitle>
       <PackageSteps pkg={pkg} hasTotal />
       {pkg.shareChanged && (
-        <p className={cn(NOTE, 'font-semibold')}>Phần của nhóm đã đổi, chờ chia lại.</p>
+        <p className={cn(NOTE, 'font-semibold')}>
+          {t(
+            message(
+              'Phần của nhóm đã đổi, chờ chia lại.',
+              'The team share changed. Reallocate it.',
+              '팀 배정량이 변경되었습니다. 다시 배분하세요.',
+            ),
+          )}
+        </p>
       )}
       {pkg.status === 'returned' && <ReturnedNote pkg={pkg} />}
       <LinesTable defs={defs} pkg={pkg} />

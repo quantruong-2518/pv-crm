@@ -4,13 +4,110 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AppShell, Button, GlassCard, Icon, SectionTitle, type RailObject } from '@pv/ui'
 import { useCan } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { useAppChrome } from '@/app/chrome'
 import { dm } from '@/lib/date'
 import { ContactEditDrawer } from '@/components/contacts-card'
+import type { ContactBookRow } from '@pv/contracts'
 import { contactProfileQuery, useSetPrimaryContact } from '@/data/contacts'
 import { RecordShell } from '@/components/record/record-shell'
 import { RecordHeader } from '@/components/record/record-header'
 import { ContextStrip } from '@/components/record/run-strip'
+
+const TEXT = {
+  setAsPrimaryContact: message('Đặt làm người chính', 'Set as primary contact', '주 연락처로 설정'),
+  emailIsSentToThe: message(
+    'Thư gửi tới email của lead.',
+    'Email is sent to the lead email address.',
+    '이메일은 리드의 이메일 주소로 전송됩니다.',
+  ),
+  noEmailOrPhoneNumber: message(
+    'Chưa có email hay số điện thoại.',
+    'No email or phone number yet.',
+    '아직 이메일이나 전화번호가 없습니다.',
+  ),
+  companyInformationComesFromThe: message(
+    'Công ty lấy theo lead.',
+    'Company information comes from the lead.',
+    '회사 정보는 리드에서 가져옵니다.',
+  ),
+}
+
+/** Shown when the read fails or the code is not in scope. */
+function ContactNotFound(props: { code: string; pending: boolean; error: unknown }) {
+  const { t } = useI18n()
+  const navigate = useNavigate()
+  const { code, pending, error } = props
+  return (
+    <RecordShell
+      pending={pending}
+      failure={{
+        error,
+        notFound: t(
+          message(
+            `Không mở được ${code}. Mã không có trong sổ, hoặc lead không do bạn phụ trách.`,
+            `Could not open ${code}. It is missing or its lead is outside your scope.`,
+            `${code}을(를) 열 수 없습니다. 목록에 없거나 담당 리드 범위 밖입니다.`,
+          ),
+        ),
+        fallback: t(
+          message(
+            `Không mở được ${code}.`,
+            `Could not open ${code}.`,
+            `${code}을(를) 열 수 없습니다.`,
+          ),
+        ),
+        back: {
+          label: t(message('Về sổ người liên hệ', 'Back to contacts', '연락처 목록으로')),
+          onClick: () => navigate('/sales/contacts'),
+        },
+      }}
+    />
+  )
+}
+
+/** The rail card: which company the contact belongs to and when it was added. */
+function ContactRail({ contact }: { contact: ContactBookRow }) {
+  const { t } = useI18n()
+  return (
+    <GlassCard
+      variant="b"
+      className="flex flex-col gap-4 p-5 lg:p-6"
+      aria-label={t(message('Bối cảnh', 'Context', '정보'))}
+    >
+      <SectionTitle size="sm" hint={t(TEXT.companyInformationComesFromThe)}>
+        {t(message('Công ty', 'Company', '회사'))}
+      </SectionTitle>
+
+      {contact.accountCode !== undefined ? (
+        <p className="flex items-center gap-2 text-[12px] leading-[1.5]">
+          <Icon icon={Factory} size={16} className="text-muted-foreground" />
+          {contact.accountName ?? contact.company}
+        </p>
+      ) : (
+        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+          {t(
+            message(
+              `Lead chưa gắn với công ty trong sổ. Tên công ty ghi trên lead: ${contact.company}.`,
+              `This lead is not linked to a company record. Company name on the lead: ${contact.company}.`,
+              `리드가 회사 정보와 연결되지 않았습니다. 리드에 입력된 회사명: ${contact.company}.`,
+            ),
+          )}
+        </p>
+      )}
+
+      <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+        {t(
+          message(
+            `Thêm vào sổ ngày ${dm(contact.createdAt)} · ${contact.by}`,
+            `Added ${dm(contact.createdAt)} · ${contact.by}`,
+            `${dm(contact.createdAt)} 추가 · ${contact.by}`,
+          ),
+        )}
+      </p>
+    </GlassCard>
+  )
+}
 
 /** A contact's profile — `/sales/contacts/:code`, on the record shell without
  *  the run parts (ADR 0078): the body says how to reach them, the rail where.
@@ -21,6 +118,7 @@ import { ContextStrip } from '@/components/record/run-strip'
  *  and "set as primary"; the second needs no form (ADR 0078, amendment 14/10).
  *  No floating bar: nobody is reached from here. */
 export default function ContactDetailPage() {
+  const { t } = useI18n()
   const chrome = useAppChrome()
   const navigate = useNavigate()
   const { code = '' } = useParams()
@@ -36,15 +134,7 @@ export default function ContactDetailPage() {
        covers both: telling them apart would leak what the server just hid. */
     return (
       <AppShell {...chrome.shell}>
-        <RecordShell
-          pending={isPending}
-          failure={{
-            error,
-            notFound: `Không mở được ${code}. Mã không có trong sổ, hoặc lead không do bạn phụ trách.`,
-            fallback: `Không mở được ${code}.`,
-            back: { label: 'Về sổ người liên hệ', onClick: () => navigate('/sales/contacts') },
-          }}
-        />
+        <ContactNotFound code={code} pending={isPending} error={error} />
       </AppShell>
     )
   }
@@ -79,12 +169,14 @@ export default function ContactDetailPage() {
                 <>
                   <Button size="lg" variant="ghost" onClick={() => setEditing(true)}>
                     <Icon icon={Pencil} size={16} />
-                    Sửa
+                    {t(message('Sửa', 'Edit', '수정'))}
                   </Button>
                   {!contact.isPrimary && (
                     <Button size="lg" disabled={promote.isPending} onClick={() => promote.mutate()}>
                       <Icon icon={Check} size={16} />
-                      {promote.isPending ? 'Đang lưu…' : 'Đặt làm người chính'}
+                      {promote.isPending
+                        ? t(message('Đang lưu…', 'Saving…', '저장 중…'))
+                        : t(TEXT.setAsPrimaryContact)}
                     </Button>
                   )}
                 </>
@@ -93,14 +185,17 @@ export default function ContactDetailPage() {
           />
         }
         main={
-          <GlassCard className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Liên lạc">
-            <SectionTitle size="sm" hint="Thư gửi tới email của lead.">
-              Gọi thế nào
+          <GlassCard
+            className="flex flex-col gap-4 p-5 lg:p-6"
+            aria-label={t(message('Thông tin liên hệ', 'Contact information', '연락처 정보'))}
+          >
+            <SectionTitle size="sm" hint={t(TEXT.emailIsSentToThe)}>
+              {t(message('Liên hệ', 'Contact', '연락처'))}
             </SectionTitle>
 
             {reach.length === 0 ? (
               <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Chưa có email hay số điện thoại.
+                {t(TEXT.noEmailOrPhoneNumber)}
               </p>
             ) : (
               <ul className="flex flex-col gap-3">
@@ -115,34 +210,15 @@ export default function ContactDetailPage() {
 
             {contact.note !== undefined && (
               <>
-                <span className="text-muted-foreground text-[12px] leading-[1.5]">Ghi chú</span>
+                <span className="text-muted-foreground text-[12px] leading-[1.5]">
+                  {t(message('Ghi chú', 'Note', '메모'))}
+                </span>
                 <p className="text-[12px] leading-[1.6]">{contact.note}</p>
               </>
             )}
           </GlassCard>
         }
-        rail={
-          <GlassCard variant="b" className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Bối cảnh">
-            <SectionTitle size="sm" hint="Công ty lấy theo lead.">
-              Ở đâu
-            </SectionTitle>
-
-            {contact.accountCode !== undefined ? (
-              <p className="flex items-center gap-2 text-[12px] leading-[1.5]">
-                <Icon icon={Factory} size={16} className="text-muted-foreground" />
-                {contact.accountName ?? contact.company}
-              </p>
-            ) : (
-              <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Lead chưa gắn với công ty trong sổ. Tên công ty ghi trên lead: {contact.company}.
-              </p>
-            )}
-
-            <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-              Ghi vào sổ {dm(contact.createdAt)} · {contact.by}
-            </p>
-          </GlassCard>
-        }
+        rail={<ContactRail contact={contact} />}
       />
       <ContactEditDrawer
         open={editing}

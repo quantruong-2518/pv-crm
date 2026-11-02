@@ -5,6 +5,7 @@ import type { AccountRow } from '@pv/contracts'
 import { userMessage, type FieldErrors } from '@/app/api'
 import { accountBodyOf, BLANK_ACCOUNT, useCreateAccount, type AccountDraft } from '@/data/accounts'
 import { AccountFields } from './account-fields'
+import { message, useI18n } from '@/app/i18n'
 
 /** Open a new company by hand.
  *
@@ -33,6 +34,7 @@ export function AccountCreateDialog({
   onClose: () => void
   onCreated?: (row: AccountRow) => void
 }) {
+  const { t } = useI18n()
   const [draft, setDraft] = useState<AccountDraft>(BLANK_ACCOUNT)
   const [errors, setErrors] = useState<FieldErrors>({})
   const create = useCreateAccount()
@@ -66,7 +68,7 @@ export function AccountCreateDialog({
       open={open}
       onClose={onClose}
       width="lg"
-      title="Mở công ty mới"
+      title={t(message('Mở công ty mới', 'Add a company', '회사 추가'))}
       footer={
         <div className="flex flex-wrap items-center justify-between gap-4">
           <span
@@ -83,12 +85,24 @@ export function AccountCreateDialog({
             {create.error
               ? userMessage(create.error)
               : draft.name.trim() === ''
-                ? 'Còn thiếu tên công ty.'
-                : 'Chỉ tên là bắt buộc.'}
+                ? t(
+                    message(
+                      'Còn thiếu tên công ty.',
+                      'Company name is required.',
+                      '회사명은 필수입니다.',
+                    ),
+                  )
+                : t(
+                    message(
+                      'Chỉ tên là bắt buộc.',
+                      'Only the name is required.',
+                      '이름만 필수 항목입니다.',
+                    ),
+                  )}
           </span>
           <div className="flex items-center gap-3">
             <Button size="md" variant="ghost" onClick={onClose}>
-              Đóng
+              {t(message('Đóng', 'Close', '닫기'))}
             </Button>
             <Button
               size="md"
@@ -104,7 +118,9 @@ export function AccountCreateDialog({
               }
             >
               <Icon icon={Factory} size={16} />
-              {create.isPending ? 'Đang mở…' : 'Mở công ty'}
+              {create.isPending
+                ? t(message('Đang mở…', 'Creating…', '생성 중…'))
+                : t(message('Mở công ty', 'Create company', '회사 생성'))}
             </Button>
           </div>
         </div>

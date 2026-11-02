@@ -312,7 +312,7 @@ export const RESET_TICKET_TTL_MINUTES = 30
 
 /** Asking for a reset link. Answered with 204 whether or not the mailbox is
  *  known — see the service for why the honest-looking alternative is worse. */
-export const ForgotPasswordBody = z.object({ email })
+export const ForgotPasswordBody = z.object({ email, lang: z.enum(['vi', 'en', 'ko']).optional() })
 
 export const ResetPasswordBody = z.object({
   token: z.string().min(16).max(200),

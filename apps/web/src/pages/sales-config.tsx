@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { EmptyState, GlassCard, ScreenHeader, Skeleton, TriangleAlert } from '@pv/ui'
 import { isApiError, userMessage } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 import { SettingsShell } from '@/components/settings-shell'
 import { pendingApprovalsQuery } from '@/data/approvals'
 import { salesCatalogQuery } from '@/data/sales-config'
@@ -38,6 +39,7 @@ const SECTION_IDS: SectionId[] = CONFIG_AREAS.flatMap((a) => a.sections.map((s) 
  *
  *  No ContextRail (law 10): a config list holds no object code to anchor one. */
 export function SalesConfigPage() {
+  const { t } = useI18n()
   const { data: catalog, isPending, error, refetch } = useQuery(salesCatalogQuery)
 
   const navigate = useNavigate()
@@ -73,12 +75,18 @@ export function SalesConfigPage() {
 
   return (
     <SettingsShell
-      searchPlaceholder="Tìm mục cấu hình…"
+      searchPlaceholder={t(message('Tìm mục cấu hình…', 'Search settings…', '설정 검색…'))}
       subNav={<ConfigSubNav view={view} onOpen={open} />}
     >
       <ScreenHeader
-        title="Thiết lập bán hàng"
-        description="Thay đổi có hiệu lực sau khi được duyệt."
+        title={t(message('Thiết lập bán hàng', 'Sales settings', '영업 설정'))}
+        description={t(
+          message(
+            'Thay đổi có hiệu lực sau khi được duyệt.',
+            'Changes take effect after approval.',
+            '변경 사항은 승인 후 적용됩니다.',
+          ),
+        )}
         actions={<PendingLink />}
       />
 
@@ -99,10 +107,25 @@ export function SalesConfigPage() {
             icon={TriangleAlert}
             message={
               isApiError(error)
-                ? `Không tải được thiết lập. ${userMessage(error)}`
-                : 'Không tải được thiết lập.'
+                ? t(
+                    message(
+                      `Không tải được thiết lập. ${userMessage(error)}`,
+                      `Could not load settings. ${userMessage(error)}`,
+                      `설정을 불러올 수 없습니다. ${userMessage(error)}`,
+                    ),
+                  )
+                : t(
+                    message(
+                      'Không tải được thiết lập.',
+                      'Could not load settings.',
+                      '설정을 불러올 수 없습니다.',
+                    ),
+                  )
             }
-            action={{ label: 'Thử lại', onClick: () => void refetch() }}
+            action={{
+              label: t(message('Thử lại', 'Try again', '다시 시도')),
+              onClick: () => void refetch(),
+            }}
             className="py-12"
           />
         </GlassCard>
@@ -134,6 +157,7 @@ export function SalesConfigPage() {
  *  screen links there rather than drawing a second list of the same rows. A
  *  proposer's own outstanding requests are not in this read. */
 function PendingLink() {
+  const { t, number } = useI18n()
   const { data: rows } = useQuery(pendingApprovalsQuery())
   const count = rows?.filter((r) => r.kind === 'config-change').length ?? 0
   if (count === 0) return null
@@ -143,7 +167,13 @@ function PendingLink() {
       to="/approvals"
       className="bg-warning/20 stone:bg-warning/12 text-on-tint-warning motion-std pointer-coarse:h-12 inline-flex h-10 items-center gap-2 rounded-md px-3 text-[12px] font-semibold"
     >
-      <span className="tnum font-num">{count}</span> đề nghị cấu hình chờ bạn duyệt
+      {t(
+        message(
+          `${number(count)} đề nghị cấu hình chờ bạn duyệt`,
+          `${number(count)} configuration proposals await your approval`,
+          `설정 제안 ${number(count)}건이 승인 대기 중입니다`,
+        ),
+      )}
     </Link>
   )
 }

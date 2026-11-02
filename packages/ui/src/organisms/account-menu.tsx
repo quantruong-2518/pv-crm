@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, Lock, Orbit } from '../icons'
 import { Avatar } from '../ui/avatar'
 import { Icon } from '../ui/icon'
-import { THEME_LABEL, THEMES, setTheme, useThemeMode, type ThemeMode } from '../ui/theme-switch'
+import { THEMES, setTheme, useThemeMode, type ThemeMode } from '../ui/theme-switch'
 import { cn } from '../lib/cn'
 import type { HeaderAction } from './app-header'
+import { DEFAULT_SHELL_COPY, type ShellCopy } from './shell-copy'
 
 /** The avatar trigger and its menu, private to AppHeader.
  *
@@ -22,6 +23,7 @@ type AccountMenuProps = {
   assistantLabel: string
   onOpenAssistant?: () => void
   actions?: HeaderAction[]
+  copy?: ShellCopy
 }
 
 /** The arrow tying a dropdown to its trigger, drawn over the panel's top edge.
@@ -48,10 +50,12 @@ export function MenuRow({
   action,
   trailing,
   onSelect,
+  copy = DEFAULT_SHELL_COPY,
 }: {
   action: HeaderAction
   trailing?: string
   onSelect: () => void
+  copy?: ShellCopy
 }) {
   return (
     <button
@@ -88,7 +92,7 @@ export function MenuRow({
       {action.locked ? (
         <>
           <Icon icon={Lock} size={14} className="text-muted-foreground opacity-55" />
-          <span className="sr-only">chưa mở</span>
+          <span className="sr-only">{copy.locked}</span>
         </>
       ) : null}
     </button>
@@ -98,11 +102,11 @@ export function MenuRow({
 /** Menu radios rather than a SegmentedControl: inside `role="menu"` only menu
  *  items are announced, and the quiet ground keeps the lit cell at 4.5:1 in
  *  Aurora where white on primary does not reach it. */
-function ThemePicker({ theme }: { theme: ThemeMode }) {
+function ThemePicker({ theme, copy }: { theme: ThemeMode; copy: ShellCopy }) {
   return (
-    <div role="group" aria-label="Giao diện" className="flex flex-col gap-1 px-3 py-1">
+    <div role="group" aria-label={copy.theme} className="flex flex-col gap-1 px-3 py-1">
       <span aria-hidden className="text-muted-foreground text-[12px]">
-        Giao diện
+        {copy.theme}
       </span>
       <div className="bg-surface-ink/5 grid grid-cols-3 gap-1 rounded-md p-1">
         {THEMES.map((mode) => (
@@ -119,7 +123,7 @@ function ThemePicker({ theme }: { theme: ThemeMode }) {
                 : 'text-muted-foreground hover:bg-surface-ink/8',
             )}
           >
-            {THEME_LABEL[mode]}
+            {copy.themeNames[mode]}
           </button>
         ))}
       </div>
@@ -134,6 +138,7 @@ export function AccountMenu({
   assistantLabel,
   onOpenAssistant,
   actions = [],
+  copy = DEFAULT_SHELL_COPY,
 }: AccountMenuProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -160,7 +165,7 @@ export function AccountMenu({
     <div ref={rootRef} className="relative shrink-0">
       <button
         type="button"
-        aria-label={`Mở tài khoản của ${user.name}`}
+        aria-label={copy.openAccount(user.name)}
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => setOpen((o) => !o)}
@@ -183,7 +188,7 @@ export function AccountMenu({
       {open ? (
         <div
           role="menu"
-          aria-label={`Tài khoản của ${user.name}`}
+          aria-label={copy.accountOf(user.name)}
           className="glass-overlay absolute right-0 top-[calc(100%+12px)] z-50 flex max-h-[min(640px,calc(100vh-88px))] w-[min(272px,calc(100vw-32px))] flex-col overflow-y-auto rounded-lg p-2"
         >
           <div className="flex items-center gap-3 px-3 py-2">
@@ -198,7 +203,7 @@ export function AccountMenu({
 
           <Divider />
           {destinations.map((action) => (
-            <MenuRow key={action.label} action={action} onSelect={close} />
+            <MenuRow key={action.label} action={action} onSelect={close} copy={copy} />
           ))}
           <MenuRow
             action={{
@@ -208,15 +213,16 @@ export function AccountMenu({
               onClick: onOpenAssistant,
             }}
             onSelect={close}
+            copy={copy}
           />
 
           <Divider />
           {/* Stays open on purpose: the point of the click is to watch the
               theme change, and closing would hide the very panel that changed. */}
-          <ThemePicker theme={theme} />
+          <ThemePicker theme={theme} copy={copy} />
           <Divider />
           {actions.map((action) => (
-            <MenuRow key={action.label} action={action} onSelect={close} />
+            <MenuRow key={action.label} action={action} onSelect={close} copy={copy} />
           ))}
         </div>
       ) : null}

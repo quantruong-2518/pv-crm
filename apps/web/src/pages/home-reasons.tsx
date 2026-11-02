@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { GlassCard, Ban, Icon, Lightbulb, cn, percent } from '@pv/ui'
 import {
   LEAD_STATE_LABEL,
-  OPPORTUNITY_STAGE_LABEL,
   type SalesExitReason,
   type SalesExitsResponse,
   type SalesStopReason,
@@ -13,6 +12,19 @@ import { CHART_TILE, ToneTile } from './home-funnel'
 import { MARK_EASE } from './home-look'
 import { daysOfPeriod, num, rateOf, stopLogHref, stoppedDealsHref } from './home-model'
 import { periodLabel } from '@/data/period-pick'
+import { message, translate } from '@/app/i18n'
+
+const tr = (vi: string, en: string, ko: string) => translate(message(vi, en, ko))
+const stageLabel = (stage: SalesStopReason['stage']) => {
+  const copy: Record<SalesStopReason['stage'], [string, string, string]> = {
+    new: ['Khởi tạo', 'New', '신규'],
+    assigned: ['Đang phân công', 'Assigned', '담당 배정'],
+    engaged: ['Chăm sóc', 'Engaged', '상담 중'],
+    quotation: ['Báo giá', 'Quotation', '견적'],
+  }
+  const [vi, en, ko] = copy[stage]
+  return tr(vi, en, ko)
+}
 
 /** Why leads, deals and signed contracts left in the picked period: one panel
  *  per group, each a donut and a legend of reasons, most frequent first, with
@@ -262,11 +274,13 @@ function ReasonGroup({
       <span className="tnum font-num">
         {distinct === 1 ? (
           <>
-            Chỉ có một lý do: <strong className="font-semibold">{first.label}</strong>.
+            {tr('Chỉ có một lý do:', 'Only one reason:', '사유 한 가지:')}{' '}
+            <strong className="font-semibold">{first.label}</strong>.
           </>
         ) : (
           <>
-            Nhiều nhất: <strong className="font-semibold">{first.label}</strong> ·{' '}
+            {tr('Nhiều nhất:', 'Most common:', '가장 많은 사유:')}{' '}
+            <strong className="font-semibold">{first.label}</strong> ·{' '}
             <strong className="font-semibold">{percent(share)}</strong>
           </>
         )}
@@ -293,7 +307,15 @@ function ReasonGroup({
               key={`${r.stage ?? ''}-${r.key}`}
               swatch={look.fill[i]!}
               label={r.label}
-              tag={r.stage ? `ở ${OPPORTUNITY_STAGE_LABEL[r.stage]}` : undefined}
+              tag={
+                r.stage
+                  ? tr(
+                      `ở ${stageLabel(r.stage)}`,
+                      `at ${stageLabel(r.stage)}`,
+                      `${stageLabel(r.stage)} 단계`,
+                    )
+                  : undefined
+              }
               count={r.count}
               share={rateOf(r.count, total)}
               to={hrefOf(r)}
@@ -302,7 +324,11 @@ function ReasonGroup({
           {rest.n > 0 && (
             <LegendRow
               swatch={look.fill[3]!}
-              label={`${num(rest.n)} lý do khác`}
+              label={tr(
+                `${num(rest.n)} lý do khác`,
+                `${num(rest.n)} other reasons`,
+                `기타 사유 ${num(rest.n)}개`,
+              )}
               count={rest.count}
               share={rateOf(rest.count, total)}
             />
@@ -375,20 +401,27 @@ export function ReasonsTile({
         <div className="flex items-center gap-3">
           <ToneTile icon={Ban} tone="destructive" />
           <div className="flex min-w-0 flex-col">
-            <h3 className="text-[16px] font-semibold leading-6">Lý do dừng</h3>
+            <h3 className="text-[16px] font-semibold leading-6">
+              {tr('Lý do dừng', 'Reasons for stopping', '중단 사유')}
+            </h3>
             {total > 0 && (
               <span className="text-muted-foreground tnum font-num text-[12px] leading-4">
-                <strong className="text-foreground font-semibold">{num(leadTotal)} lead</strong> vào{' '}
-                {LEAD_STATE_LABEL.nurturing} ·{' '}
-                <strong className="text-foreground font-semibold">{num(dealTotal)} cơ hội</strong>{' '}
-                đã dừng
+                <strong className="text-foreground font-semibold">
+                  {num(leadTotal)} {tr('lead', 'leads', '리드')}
+                </strong>{' '}
+                {tr('chuyển sang', 'moved to', '전환')}{' '}
+                {tr(LEAD_STATE_LABEL.nurturing, 'Nurturing', '육성')} ·{' '}
+                <strong className="text-foreground font-semibold">
+                  {num(dealTotal)} {tr('cơ hội', 'opportunities', '영업 기회')}
+                </strong>{' '}
+                {tr('đã dừng', 'stopped', '중단됨')}
                 {endedTotal > 0 && (
                   <>
                     {' · '}
                     <strong className="text-foreground font-semibold">
-                      {num(endedTotal)} hợp đồng
+                      {num(endedTotal)} {tr('hợp đồng', 'contracts', '계약')}
                     </strong>{' '}
-                    đã chấm dứt
+                    {tr('đã chấm dứt', 'terminated', '해지됨')}
                   </>
                 )}
               </span>
@@ -401,7 +434,11 @@ export function ReasonsTile({
       </div>
       {total === 0 ? (
         <p className="text-muted-foreground my-auto py-8 text-center text-[12px] leading-4">
-          Kỳ này chưa có lead vào {LEAD_STATE_LABEL.nurturing}, cơ hội dừng hay hợp đồng chấm dứt.
+          {tr(
+            `Kỳ này chưa có lead chuyển sang ${LEAD_STATE_LABEL.nurturing}, cơ hội dừng hay hợp đồng chấm dứt.`,
+            `No leads moved to nurturing, opportunities stopped, or contracts terminated in this period.`,
+            `이번 기간에는 육성 단계로 전환된 리드, 중단된 영업 기회 또는 해지된 계약이 없습니다.`,
+          )}
         </p>
       ) : (
         // At most three columns, each at least 320px; auto-fit drops the tracks no
@@ -417,8 +454,12 @@ export function ReasonsTile({
             <ReasonGroup
               kind="lead"
               side={side}
-              title={`Lead vào ${LEAD_STATE_LABEL.nurturing}`}
-              unit="lead"
+              title={tr(
+                `Lead chuyển sang ${LEAD_STATE_LABEL.nurturing}`,
+                `Leads moved to nurturing`,
+                `육성 단계로 전환된 리드`,
+              )}
+              unit={tr('lead', 'leads', '리드')}
               rows={data.leadExits}
               hrefOf={() => (canLeads ? stopLogHref('lead', days) : undefined)}
             />
@@ -427,8 +468,8 @@ export function ReasonsTile({
             <ReasonGroup
               kind="deal"
               side={side}
-              title="Cơ hội đã dừng"
-              unit="cơ hội"
+              title={tr('Cơ hội đã dừng', 'Stopped opportunities', '중단된 영업 기회')}
+              unit={tr('cơ hội', 'opportunities', '영업 기회')}
               rows={data.dealStops}
               hrefOf={(r) =>
                 canDeals && r.stage ? stoppedDealsHref(r.key, r.stage, days) : undefined
@@ -439,8 +480,8 @@ export function ReasonsTile({
             <ReasonGroup
               kind="contract"
               side={side}
-              title="Hợp đồng đã chấm dứt"
-              unit="hợp đồng"
+              title={tr('Hợp đồng đã chấm dứt', 'Terminated contracts', '해지된 계약')}
+              unit={tr('hợp đồng', 'contracts', '계약')}
               rows={data.contractTerminations}
               hrefOf={() => (canLeads && canContracts ? stopLogHref('contract', days) : undefined)}
             />

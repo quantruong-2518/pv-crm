@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { AiFillButton, SegmentedControl, Textarea, type SegmentedOption } from '@pv/ui'
 import { useLeadDesk } from '@/app/desk'
+import { useI18n } from '@/app/i18n'
 import type { LeadDraft } from '@/data/lead-draft'
 import type { SaveState } from '@/data/lead-patch'
 import { fieldsOf, PROFILE_GROUPS, readField, type FormMode } from '@/data/lead-form'
@@ -8,6 +9,7 @@ import { RecordCard } from '@/components/record/record-card'
 import { LeadAdmissionPanel } from './lead-admission-panel'
 import type { AiFillRun } from './lead-ai-fill'
 import { FieldRow } from './lead-fields'
+import { LEAD_COPY, leadGroupText } from '@/data/lead-copy'
 
 /** Module 2 · The profile card — one tab row and the boxes of the open tab.
  *
@@ -67,6 +69,7 @@ export function LeadForm({
   /** Edit door only: the AI fill run, its button beside the save state. */
   ai?: AiFillRun
 }) {
+  const { t, lang } = useI18n()
   const [tab, setTab] = useState<TabKey>(() => firstTab(draft))
   /* Same reset-during-render as the draft itself: stepping to another lead must
      not leave the previous lead's tab open for one painted frame. */
@@ -77,22 +80,27 @@ export function LeadForm({
   }
 
   const options: SegmentedOption[] = tabsOf(draft.mode).map((entry) => {
-    if (entry.key === 'note') return { value: entry.key, label: entry.label }
+    if (entry.key === 'note')
+      return { value: entry.key, label: leadGroupText(entry.key, 'label', lang) }
     /* Counted over the BOXES of the tab, not over the ten init-data slots: the
        number answers "how much of this tab is still empty", which is what the
        reader is looking at. The slot score lives on the lead book. */
     const boxes = countedOf(entry.key, draft.mode)
     const got = boxes.filter((box) => readField(draft.values, box.key) !== '').length
-    return { value: entry.key, label: entry.label, count: `${got}/${boxes.length}` }
+    return {
+      value: entry.key,
+      label: leadGroupText(entry.key, 'label', lang),
+      count: `${got}/${boxes.length}`,
+    }
   })
 
-  const purpose = TABS.find((entry) => entry.key === tab)?.purpose
+  const purpose = leadGroupText(tab, 'purpose', lang)
 
   const editing = draft.mode === 'edit'
 
   return (
     <RecordCard
-      title="Thông tin lead"
+      title={t(LEAD_COPY.profileTitle)}
       tone={editing ? 'reference' : 'work'}
       hint={purpose}
       actions={
@@ -114,7 +122,7 @@ export function LeadForm({
       }
     >
       <SegmentedControl
-        label="Phần hồ sơ"
+        label={t(LEAD_COPY.profileParts)}
         hideLabel
         tone="quiet"
         value={tab}
@@ -132,7 +140,7 @@ export function LeadForm({
           against the boxes themselves — this line only says so out loud. */}
       {draft.mode === 'create' && (
         <span className="text-muted-foreground text-[12.5px] leading-[1.5]">
-          Ô có dấu sao là bắt buộc.
+          {t(LEAD_COPY.requiredMark)}
         </span>
       )}
 
@@ -184,13 +192,14 @@ function firstTab(draft: LeadDraft): TabKey {
  *  a tab beside server data, which makes it easier to mistake for a record and
  *  worse to lose. Hence the line under the box until a table holds it. */
 function NoteBox({ code }: { code: string | null }) {
+  const { t } = useI18n()
   const note = useLeadDesk((s) => (code === null ? '' : (s.notes[code] ?? '')))
   const setNote = useLeadDesk((s) => s.setNote)
 
   if (code === null) {
     return (
       <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
-        Tạo lead xong mới ghi chú được.
+        {t(LEAD_COPY.noteAfterCreate)}
       </p>
     )
   }
@@ -201,12 +210,12 @@ function NoteBox({ code }: { code: string | null }) {
         value={plainNote(note)}
         rows={4}
         autoGrow
-        aria-label="Ghi chú về lead"
+        aria-label={t(LEAD_COPY.noteAria)}
         onChange={(event) => setNote(code, event.target.value)}
-        placeholder="Ví dụ: chỉ gọi trước 9h; người duyệt mới chưa tham gia buổi trao đổi…"
+        placeholder={t(LEAD_COPY.notePlaceholder)}
       />
       <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-        Ghi chú chỉ lưu trên máy này, đồng nghiệp không thấy.
+        {t(LEAD_COPY.noteLocal)}
       </span>
     </div>
   )
@@ -229,6 +238,7 @@ function plainNote(value: string): string {
  *  the only thing telling a person whether what they typed reached the server,
  *  and two cards wording it two ways would be two answers to one question. */
 export function SaveStateNote({ state }: { state: SaveState }) {
+  const { t } = useI18n()
   if (state.kind === 'idle') return null
 
   if (state.kind === 'failed') {
@@ -241,7 +251,7 @@ export function SaveStateNote({ state }: { state: SaveState }) {
 
   return (
     <span className="text-muted-foreground text-[12.5px] leading-[1.5]">
-      {state.kind === 'saving' ? 'Đang lưu…' : 'Mọi thay đổi đã lưu'}
+      {state.kind === 'saving' ? t(LEAD_COPY.saving) : t(LEAD_COPY.saved)}
     </span>
   )
 }

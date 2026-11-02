@@ -11,14 +11,17 @@ import {
   cn,
 } from '@pv/ui'
 import { useSession } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import {
   ACCOUNT_PATH,
   SETTINGS_GROUP_LABEL,
+  settingsGroupLabel,
   useAppChrome,
   type SettingsEntry,
   type SettingsGroup,
 } from '@/app/chrome'
 import { ROLE_LABEL } from '@/data/users'
+import { LanguagePicker } from '@/components/auth-card'
 
 /** The parent list a phone picks a settings screen from.
  *
@@ -83,6 +86,7 @@ function EntryRow({
 }
 
 export function SettingsPage() {
+  const { lang, t } = useI18n()
   const chrome = useAppChrome()
   const navigate = useNavigate()
   const actor = useSession((s) => s.actor)
@@ -93,7 +97,10 @@ export function SettingsPage() {
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
-        <ScreenHeader title="Cài đặt" />
+        <ScreenHeader
+          title={t(message('Cài đặt', 'Settings', '설정'))}
+          actions={<LanguagePicker />}
+        />
         {actor && account ? (
           <GlassCard className="overflow-hidden">
             <Row onClick={() => navigate(account.path)}>
@@ -116,11 +123,11 @@ export function SettingsPage() {
           return (
             <section
               key={group}
-              aria-label={SETTINGS_GROUP_LABEL[group]}
+              aria-label={settingsGroupLabel(group, lang)}
               className="flex flex-col gap-2"
             >
               <h2 className="text-muted-foreground m-0 px-1 text-[12px] font-semibold">
-                {SETTINGS_GROUP_LABEL[group]}
+                {settingsGroupLabel(group, lang)}
               </h2>
               <GlassCard variant="b" className="overflow-hidden">
                 {entries.map((entry, i) => (

@@ -5,6 +5,7 @@ import { AppHeader, type AppHeaderProps } from '../organisms/app-header'
 import { BottomNav, type BottomNavKey } from '../organisms/bottom-nav'
 import { ActionBannerHost, type ActionBannerItem } from '../organisms/action-banner'
 import { cn } from '../lib/cn'
+import type { ShellCopy } from '../organisms/shell-copy'
 
 /** AppShell — khung màn, mobile-first.
  *
@@ -42,6 +43,7 @@ const SHELL = {
 
 export type AppShellProps = {
   header: Omit<AppHeaderProps, 'onOpenAssistant'>
+  copy?: ShellCopy
   /** Mục đang active trên BottomNav (< lg). Bỏ trống = không mục nào sáng —
    *  đúng cho tám màn nhánh, chỗ chúng sáng là tầng 2 của AppHeader. */
   activeNav?: BottomNavKey
@@ -63,6 +65,7 @@ export type AppShellProps = {
 
 export function AppShell({
   header,
+  copy,
   activeNav,
   approvalsCount,
   lockedNav,
@@ -79,6 +82,7 @@ export function AppShell({
         <div className={SHELL.stick}>
           <AppHeader
             {...header}
+            copy={copy}
             onOpenAssistant={onOpenAssistant}
             className="z-[1]"
             frameClassName={SHELL.headerFrame}
@@ -97,10 +101,15 @@ export function AppShell({
           tệ hơn hẳn việc không có nút: nó hứa một màn không tồn tại, và nó hứa
           trên MỌI màn. Có màn rồi thì màn truyền hàm vào, nút tự hiện lại. */}
       {onOpenAssistant ? (
-        <AssistantFab onClick={onOpenAssistant} className="hidden lg:flex" />
+        <AssistantFab
+          onClick={onOpenAssistant}
+          label={header.assistantLabel ? `${header.assistantLabel} AI` : undefined}
+          className="hidden lg:flex"
+        />
       ) : null}
 
       <BottomNav
+        copy={copy}
         active={activeNav}
         approvalsCount={approvalsCount}
         locked={lockedNav}
@@ -108,7 +117,11 @@ export function AppShell({
       />
 
       {banners ? (
-        <ActionBannerHost items={banners} onDismiss={onDismissBanner ?? (() => {})} />
+        <ActionBannerHost
+          items={banners}
+          onDismiss={onDismissBanner ?? (() => {})}
+          closeLabel={copy?.closeBanner}
+        />
       ) : null}
     </AuroraField>
   )

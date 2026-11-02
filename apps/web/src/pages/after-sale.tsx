@@ -11,13 +11,10 @@ import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { useAppChrome } from '@/app/chrome'
+import { useI18n } from '@/app/i18n'
 import { searchHint } from '@/lib/search-box'
-import {
-  AFTER_SALE_FILTER_KEYS,
-  CARE_STATUS_LABEL,
-  TEMPERATURE_FILTER_LABEL,
-  afterSaleBookQuery,
-} from '@/data/after-sale'
+import { AFTER_SALE_FILTER_KEYS, afterSaleBookQuery } from '@/data/after-sale'
+import { AFTER_SALE_COPY as COPY, careStatusText, temperatureText } from '@/data/after-sale-copy'
 import { useSalesPeople } from '@/data/directory'
 import { personNameOf, dayRangeChip, type ActiveFilter } from '@/components/active-filters'
 import { AfterSaleCards, OpenDealButton } from '@/components/after-sale-cards'
@@ -35,46 +32,40 @@ import { afterSaleCells, afterSaleColumns } from './after-sale-columns'
  *  here sorts. The tabs split due from not yet; a hot row offers a repeat
  *  deal on the same lead. Filters, search and page live in the address. */
 
-const SEARCH_HINT = 'Tìm theo mã hành trình hoặc tên công ty…'
 const ALL = 'all'
 
-const CARE_TABS = AfterSaleCareStatus.options.map((value) => ({
-  value,
-  label: CARE_STATUS_LABEL[value],
-}))
-
-const TEMPERATURE_OPTIONS = [
-  { value: ALL, label: 'Mọi nhiệt độ' },
-  ...AfterSaleTemperatureFilter.options.map((value) => ({
-    value,
-    label: TEMPERATURE_FILTER_LABEL[value],
-  })),
-]
-
 function useFilters(book: ReturnType<typeof useBookQuery<AfterSaleBookQuery>>) {
+  const { lang, t } = useI18n()
   const { query } = book
   const people = useSalesPeople()
   const carerName = personNameOf(people)
+  const temperatureOptions = [
+    { value: ALL, label: t(COPY.anyTemperature) },
+    ...AfterSaleTemperatureFilter.options.map((value) => ({
+      value,
+      label: temperatureText(value, lang),
+    })),
+  ]
 
   const temperature = (
     <Select
-      label="Nhiệt độ"
+      label={t(COPY.temperature)}
       hideLabel
       className="pointer-coarse:[&>button]:h-12"
       value={query.temperature ?? ALL}
-      options={TEMPERATURE_OPTIONS}
+      options={temperatureOptions}
       neutralValue={ALL}
       onChange={(v) => book.patch({ temperature: AfterSaleTemperatureFilter.safeParse(v).data })}
     />
   )
   const carer = (
     <Select
-      label="Người chăm sóc"
+      label={t(COPY.carer)}
       hideLabel
       className="pointer-coarse:[&>button]:h-12"
       value={query.carer ?? ALL}
       options={[
-        { value: ALL, label: 'Mọi người chăm sóc' },
+        { value: ALL, label: t(COPY.anyCarer) },
         ...people.map((p) => ({ value: p.id, label: p.name })),
       ]}
       neutralValue={ALL}
@@ -83,7 +74,7 @@ function useFilters(book: ReturnType<typeof useBookQuery<AfterSaleBookQuery>>) {
   )
   const completed = (iconOnly: boolean) => (
     <DayRangeFilter
-      label="Ngày hoàn tất"
+      label={t(COPY.completedDay)}
       iconOnly={iconOnly}
       from={query.completedFrom}
       to={query.completedTo}
@@ -96,7 +87,7 @@ function useFilters(book: ReturnType<typeof useBookQuery<AfterSaleBookQuery>>) {
       ? [
           {
             id: 'temperature',
-            label: `Nhiệt độ: ${TEMPERATURE_FILTER_LABEL[query.temperature]}`,
+            label: `${t(COPY.temperature)}: ${temperatureText(query.temperature, lang)}`,
             onDrop: () => book.patch({ temperature: undefined }),
           },
         ]
@@ -105,12 +96,12 @@ function useFilters(book: ReturnType<typeof useBookQuery<AfterSaleBookQuery>>) {
       ? [
           {
             id: 'carer',
-            label: `Người chăm sóc: ${carerName(query.carer)}`,
+            label: `${t(COPY.carer)}: ${carerName(query.carer)}`,
             onDrop: () => book.patch({ carer: undefined }),
           },
         ]
       : []),
-    ...dayRangeChip('completed', 'Hoàn tất', query.completedFrom, query.completedTo, () =>
+    ...dayRangeChip('completed', t(COPY.completed), query.completedFrom, query.completedTo, () =>
       book.patch({ completedFrom: undefined, completedTo: undefined }),
     ),
   ]
@@ -119,7 +110,9 @@ function useFilters(book: ReturnType<typeof useBookQuery<AfterSaleBookQuery>>) {
 }
 
 export default function AfterSalePage() {
-  const chrome = useAppChrome({ searchPlaceholder: SEARCH_HINT })
+  const { lang, t } = useI18n()
+  const searchHintText = t(COPY.search)
+  const chrome = useAppChrome({ searchPlaceholder: searchHintText })
   const navigate = useNavigate()
   const canOpenJourney = useCan('workstream.view')
   const [view, setView] = useBookView('pv.after-sale.view')
@@ -135,12 +128,16 @@ export default function AfterSalePage() {
   const filters = useFilters(book)
 
   /* One `size=1` read per tab: its `total` under the other filters in force. */
+  const careTabs = AfterSaleCareStatus.options.map((value) => ({
+    value,
+    label: careStatusText(value, lang),
+  }))
   const tabCounts = useQueries({
-    queries: CARE_TABS.map((tab) =>
+    queries: careTabs.map((tab) =>
       afterSaleBookQuery({ ...book.urlQuery, care: tab.value, page: 1, size: 1 }),
     ),
   })
-  const tabs = CARE_TABS.map((tab, i) => ({ ...tab, count: tabCounts[i]?.data?.total }))
+  const tabs = careTabs.map((tab, i) => ({ ...tab, count: tabCounts[i]?.data?.total }))
 
   const openJourney = (row: AfterSaleRow) =>
     navigate(`/sales/workstreams/${encodeURIComponent(row.code)}`)
@@ -149,10 +146,10 @@ export default function AfterSalePage() {
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <BookPage
-          title="Khách đã mua"
+          title={t(COPY.title)}
           tabs={
             <SegmentedControl
-              label="Kỳ chăm sóc"
+              label={t(COPY.carePeriod)}
               hideLabel
               tone="quiet"
               value={query.care}
@@ -160,13 +157,17 @@ export default function AfterSalePage() {
               onChange={(v) => book.patch({ care: AfterSaleCareStatus.safeParse(v).data })}
             />
           }
-          count={data && <BookCount total={data.total} noun="khách" hidden={data.hidden} />}
+          count={
+            data && (
+              <BookCount total={data.total} noun={t(COPY.customerCount)} hidden={data.hidden} />
+            )
+          }
           filters={filters.chips}
           onClearFilters={book.dirty ? book.clear : undefined}
           tools={
             <>
               <SearchField
-                placeholder={SEARCH_HINT}
+                placeholder={searchHintText}
                 value={book.text}
                 meta={searchHint(book.text)}
                 onChange={book.setText}
@@ -182,9 +183,7 @@ export default function AfterSalePage() {
           failure={
             error
               ? {
-                  message: `Không tải được danh sách khách đã mua. ${
-                    isApiError(error) ? userMessage(error) : 'Thử lại.'
-                  }`,
+                  message: `${t(COPY.loadFailed)} ${isApiError(error) ? userMessage(error) : t(COPY.retry)}`,
                   onRetry: () => void refetch(),
                 }
               : undefined
@@ -193,13 +192,13 @@ export default function AfterSalePage() {
             rows.length === 0
               ? book.dirty
                 ? {
-                    message: 'Không có khách nào khớp bộ lọc.',
-                    action: { label: 'Bỏ hết bộ lọc', onClick: book.clear },
+                    message: t(COPY.noMatch),
+                    action: { label: t(COPY.clearFilters), onClick: book.clear },
                   }
                 : {
-                    message: 'Chưa có khách nào trả đủ tiền hợp đồng.',
+                    message: t(COPY.noCustomers),
                     action: {
-                      label: 'Xem sổ hợp đồng',
+                      label: t(COPY.viewContracts),
                       onClick: () => navigate('/sales/contracts'),
                     },
                   }
@@ -213,11 +212,11 @@ export default function AfterSalePage() {
           table={
             view === 'table'
               ? {
-                  columns: afterSaleColumns(filters.completed(true)),
+                  columns: afterSaleColumns(filters.completed(true), lang),
                   rows: rows.map((row) => ({
                     id: row.code,
                     onOpen: canOpenJourney ? () => openJourney(row) : undefined,
-                    cells: afterSaleCells(row, <OpenDealButton row={row} go={navigate} />),
+                    cells: afterSaleCells(row, <OpenDealButton row={row} go={navigate} />, lang),
                   })),
                   pageSize: BOOK_PAGE_SIZE,
                 }

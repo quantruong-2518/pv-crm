@@ -7,8 +7,20 @@ import { salesMoneyEntriesQuery } from '@/data/home-charts'
 import { rangeLabel } from '@/data/period-pick'
 import { money } from './home-model'
 import { CARD_WIDTH, type MoneyCard, type useMoneyCard } from './home-revenue-hover'
-import { KIND_INK, KIND_TITLE, signedMoney } from './home-revenue-model'
+import { KIND_INK, signedMoney } from './home-revenue-model'
 import { NOTE } from './home-tiles'
+import { message, translate } from '@/app/i18n'
+
+const tr = (vi: string, en: string, ko: string) => translate(message(vi, en, ko))
+const kindTitle = (kind: SalesMoneyFigureKind) =>
+  ({
+    collected: tr('Đã thu', 'Collected', '수금'),
+    'due-unpaid': tr('Đến hạn chưa thu', 'Due and unpaid', '기한 초과 미수금'),
+    settled: tr('Đến hạn trong kỳ, đã thu', 'Due this period and collected', '이번 기간 수금 완료'),
+    upcoming: tr('Sắp đến hạn', 'Upcoming', '예정'),
+    'penalty-in': tr('Khách thanh toán', 'Customer paid', '고객 지급'),
+    'penalty-out': tr('Mình thanh toán', 'We paid', '당사 지급'),
+  })[kind]
 
 /** The rows behind one money zone: contract, installment or label, day, amount,
  *  one line each. Local because `@pv/ui` has no hover card (InfoTip has no
@@ -38,7 +50,11 @@ function Day({ first, last }: { first: string; last: string }) {
 
 const installmentOf = (e: SalesMoneyEntry) =>
   e.installmentNo !== null && e.installmentCount !== null
-    ? `Đợt ${e.installmentNo}/${e.installmentCount}`
+    ? tr(
+        `Đợt ${e.installmentNo}/${e.installmentCount}`,
+        `Installment ${e.installmentNo}/${e.installmentCount}`,
+        `${e.installmentNo}/${e.installmentCount}회차`,
+      )
     : (e.label ?? '')
 
 /** One contract's rows in a section: what it nets, and how. */
@@ -77,13 +93,17 @@ function Detail({ kind, group }: { kind: SalesMoneyFigureKind; group: Group }) {
   if (kind === 'penalty-in' || kind === 'penalty-out') {
     return (
       <>
-        Chấm dứt
+        {tr('Chấm dứt', 'Terminated', '해지')}
         <Day first={first.day} last={first.day} />
         {first.pending
-          ? 'chưa trả'
+          ? tr('chưa trả', 'unpaid', '미납')
           : first.signedOn
-            ? `đã trả · ký ${monthOf(first.signedOn, first.day)}`
-            : 'đã trả'}
+            ? tr(
+                `đã trả · ký ${monthOf(first.signedOn, first.day)}`,
+                `paid · signed ${monthOf(first.signedOn, first.day)}`,
+                `수금 완료 · ${monthOf(first.signedOn, first.day)} 체결`,
+              )
+            : tr('đã trả', 'paid', '지급 완료')}
       </>
     )
   }
@@ -98,11 +118,13 @@ function Detail({ kind, group }: { kind: SalesMoneyFigureKind; group: Group }) {
   const paidRows = group.entries.filter((e) => e.amountVnd >= 0).length
   return (
     <>
-      {paidRows} đợt
+      {tr(`${paidRows} đợt`, `${paidRows} installments`, `${paidRows}회차`)}
       <Day first={days[0]!} last={days[days.length - 1]!} />
       {group.refund > 0 && (
         <>
-          thu <b className="text-on-tint-success font-semibold">{money(group.paid)}</b> hoàn{' '}
+          {tr('thu', 'collected', '수금')}{' '}
+          <b className="text-on-tint-success font-semibold">{money(group.paid)}</b>{' '}
+          {tr('hoàn', 'refunded', '환불')}{' '}
           <b className="text-destructive-foreground font-semibold">{money(group.refund)}</b>
         </>
       )}
@@ -134,7 +156,9 @@ function GroupRow({
             {first.title}
           </span>
         )}
-        {first.terminated && <span className={TERMINATED}>Đã chấm dứt</span>}
+        {first.terminated && (
+          <span className={TERMINATED}>{tr('Đã chấm dứt', 'Terminated', '해지됨')}</span>
+        )}
       </span>
       <span
         className={cn('tnum font-num font-bold', group.net === 0 ? 'text-muted-foreground' : ink)}
@@ -168,7 +192,7 @@ function GroupRow({
               className="text-muted-foreground tnum font-num flex justify-between gap-2 py-1"
             >
               <span className="flex items-center">
-                {e.amountVnd < 0 ? 'Hoàn tiền' : installmentOf(e)}
+                {e.amountVnd < 0 ? tr('Hoàn tiền', 'Refund', '환불') : installmentOf(e)}
                 <Day first={e.day} last={e.day} />
               </span>
               <span
@@ -211,14 +235,16 @@ function Section({
     <section className="bg-muted flex flex-col rounded-xl px-3 pb-2">
       {heading && (
         <div className="flex items-baseline justify-between pt-2">
-          <h4 className="text-[13px] font-semibold leading-[18px]">{KIND_TITLE[kind]}</h4>
+          <h4 className="text-[13px] font-semibold leading-[18px]">{kindTitle(kind)}</h4>
           {total}
         </div>
       )}
       {read.data ? (
         <>
           {read.data.entries.length === 0 && (
-            <span className={cn(NOTE, 'flex h-7 items-center')}>Không có khoản nào.</span>
+            <span className={cn(NOTE, 'flex h-7 items-center')}>
+              {tr('Không có khoản nào.', 'No entries.', '항목이 없습니다.')}
+            </span>
           )}
           <div>
             {groupOf(read.data.entries).map((g) => (
@@ -236,7 +262,9 @@ function Section({
       ) : read.error ? (
         <div className="flex flex-col items-start gap-2">
           <span className={cn(NOTE, 'text-destructive-foreground')}>
-            {isApiError(read.error) ? userMessage(read.error) : 'Không tải được.'}
+            {isApiError(read.error)
+              ? userMessage(read.error)
+              : tr('Không tải được.', 'Could not load.', '불러오지 못했습니다.')}
           </span>
           <Button
             variant="ghost"
@@ -244,7 +272,7 @@ function Section({
             className="pointer-coarse:h-12"
             onClick={() => void read.refetch()}
           >
-            Thử lại
+            {tr('Thử lại', 'Try again', '다시 시도')}
           </Button>
         </div>
       ) : (
@@ -266,25 +294,25 @@ function Summary({ period, bucket }: { period: string; bucket: SalesMoneyBucket 
   const paid = rows?.reduce((n, e) => (e.amountVnd > 0 ? n + e.amountVnd : n), 0)
   const cells: { label: string; value: string | null; dot: string; ink: string }[] = [
     {
-      label: 'Đã thu',
+      label: kindTitle('collected'),
       value: paid === undefined ? null : money(paid),
       dot: 'bg-success',
       ink: 'text-on-tint-success',
     },
     {
-      label: 'Hoàn tiền',
+      label: tr('Hoàn tiền', 'Refunds', '환불'),
       value: refund === undefined ? null : refund > 0 ? `−${money(refund)}` : money(0),
       dot: 'bg-destructive',
       ink: 'text-destructive-foreground',
     },
     {
-      label: 'Phải thu',
+      label: tr('Phải thu', 'Due', '수금 예정'),
       value: money(bucket.dueUnpaidVnd),
       dot: 'bg-warning',
       ink: 'text-on-tint-warning',
     },
     {
-      label: 'Sắp đến hạn',
+      label: kindTitle('upcoming'),
       value: money(bucket.upcomingVnd),
       dot: 'bg-primary',
       ink: 'text-accent-foreground',
@@ -366,7 +394,7 @@ export function MoneyCardView({
             <button
               ref={closer}
               type="button"
-              aria-label="Đóng"
+              aria-label={tr('Đóng', 'Close', '닫기')}
               onClick={() => {
                 onClose()
                 card.opener.focus()
@@ -395,7 +423,9 @@ export function MoneyCardView({
         </div>
         {single && (
           <div className={TOTAL_BLOCK}>
-            <span className="whitespace-nowrap text-[13px] font-semibold">Cộng</span>
+            <span className="whitespace-nowrap text-[13px] font-semibold">
+              {tr('Cộng', 'Total', '합계')}
+            </span>
             {sum.data ? (
               <span className="tnum font-num text-[20px] font-bold leading-7">
                 {amountOf(single, sum.data.totalVnd)}
@@ -407,7 +437,9 @@ export function MoneyCardView({
         )}
         {card.kinds.length > 1 && (
           <div className={TOTAL_BLOCK}>
-            <span className="whitespace-nowrap text-[13px] font-semibold">Doanh thu thực tế</span>
+            <span className="whitespace-nowrap text-[13px] font-semibold">
+              {tr('Doanh thu thực tế', 'Actual revenue', '실제 매출')}
+            </span>
             <span className="tnum font-num text-[20px] font-bold leading-7">
               {signedMoney(bucket.actualVnd)}
             </span>

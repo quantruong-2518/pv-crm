@@ -20,7 +20,7 @@ import type { ApprovalKind, ApprovalRequestView } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { isApiError, userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
-import { dmhm } from '@/lib/date'
+import { message, useI18n, type Message } from '@/app/i18n'
 import { pendingApprovalsQuery, useDecideApproval } from '@/data/approvals'
 
 /** One Core · the approval inbox — pipeline #10, a queue of PEOPLE.
@@ -53,6 +53,7 @@ import { pendingApprovalsQuery, useDecideApproval } from '@/data/approvals'
  *  a platform screen decoding a branch's private shape would make that shape
  *  part of the platform's contract. */
 export default function ApprovalInboxScreen() {
+  const { t, number } = useI18n()
   const chrome = useAppChrome()
   const { data: rows, isPending, error, refetch } = useQuery(pendingApprovalsQuery())
 
@@ -61,11 +62,25 @@ export default function ApprovalInboxScreen() {
       <ScreenLayout>
         <ScreenHeader
           kicker="One Core"
-          title="Hộp duyệt"
-          description="Duyệt xong, thay đổi có hiệu lực ngay."
+          title={t(message('Hộp duyệt', 'Approvals', '승인함'))}
+          description={t(
+            message(
+              'Duyệt xong, thay đổi có hiệu lực ngay.',
+              'Changes take effect as soon as you approve.',
+              '승인하면 변경 사항이 바로 적용됩니다.',
+            ),
+          )}
           meta={
             rows && rows.length > 0 ? (
-              <MetaPill tone="warning">{rows.length} yêu cầu đang chờ</MetaPill>
+              <MetaPill tone="warning">
+                {t(
+                  message(
+                    `${number(rows.length)} yêu cầu đang chờ`,
+                    `${number(rows.length)} pending requests`,
+                    `대기 중인 요청 ${number(rows.length)}건`,
+                  ),
+                )}
+              </MetaPill>
             ) : null
           }
         />
@@ -79,10 +94,15 @@ export default function ApprovalInboxScreen() {
           <EmptyState
             tone="danger"
             icon={TriangleAlert}
-            message={`Không tải được danh sách yêu cầu. ${
-              isApiError(error) ? userMessage(error) : 'Thử lại.'
+            message={`${t(message('Không tải được yêu cầu.', 'Requests could not be loaded.', '요청을 불러올 수 없습니다.'))} ${
+              isApiError(error)
+                ? userMessage(error)
+                : t(message('Thử lại.', 'Try again.', '다시 시도하세요.'))
             }`}
-            action={{ label: 'Thử lại', onClick: () => void refetch() }}
+            action={{
+              label: t(message('Thử lại', 'Try again', '다시 시도')),
+              onClick: () => void refetch(),
+            }}
             className="py-12"
           />
         ) : rows.length === 0 ? (
@@ -90,11 +110,20 @@ export default function ApprovalInboxScreen() {
              it means rather than offering something to create. */
           <EmptyState
             icon={Inbox}
-            message="Không có yêu cầu nào chờ bạn duyệt."
+            message={t(
+              message(
+                'Không có yêu cầu nào chờ bạn duyệt.',
+                'No requests are waiting for your approval.',
+                '승인 대기 중인 요청이 없습니다.',
+              ),
+            )}
             /* The one next step an inbox has: look again. It fills from other
                people's screens, so a reader who expected something has nothing
                to create here — only a reason to re-ask. */
-            action={{ label: 'Tải lại', onClick: () => void refetch() }}
+            action={{
+              label: t(message('Tải lại', 'Refresh', '새로고침')),
+              onClick: () => void refetch(),
+            }}
             className="py-12"
           />
         ) : (
@@ -111,9 +140,9 @@ export default function ApprovalInboxScreen() {
 
 /** The kind as a reader says it. Keyed by the contract's enum, so a new kind
  *  fails to compile here instead of printing its wire key. */
-const KIND_LABEL: Record<ApprovalKind, string> = {
-  'config-change': 'Thay đổi cấu hình',
-  'contract-sign': 'Ký hợp đồng',
+const KIND_LABEL: Record<ApprovalKind, Message> = {
+  'config-change': message('Thay đổi cấu hình', 'Settings change', '설정 변경'),
+  'contract-sign': message('Ký hợp đồng', 'Contract signing', '계약 체결'),
 }
 
 /** The chain as M-03 draws it: `ok` behind, `current` on the person waited on,
@@ -127,6 +156,7 @@ function chainSteps(request: ApprovalRequestView): ChainStep[] {
 }
 
 function RequestCard({ request }: { request: ApprovalRequestView }) {
+  const { t, date } = useI18n()
   const decide = useDecideApproval(request.id)
   /* The refusal box opens on demand rather than sitting under every row: a
      reason is required to refuse, and a textarea permanently under a card the
@@ -150,21 +180,38 @@ function RequestCard({ request }: { request: ApprovalRequestView }) {
     <GlassCard variant="b" className="flex flex-col gap-4 p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
-          <Kicker tone="muted">{KIND_LABEL[request.kind]}</Kicker>
+          <Kicker tone="muted">{t(KIND_LABEL[request.kind])}</Kicker>
           <p className="font-display text-[15px] font-semibold">{request.consequence}</p>
           <p className="text-muted-foreground text-[11.5px]">
-            {request.raisedBy} gửi yêu cầu · {dmhm(request.raisedAt)}
+            {t(
+              message(
+                `${request.raisedBy} gửi yêu cầu`,
+                `${request.raisedBy} requested`,
+                `${request.raisedBy}님이 요청함`,
+              ),
+            )}{' '}
+            ·{' '}
+            {date(request.raisedAt, {
+              day: '2-digit',
+              month: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
           </p>
         </div>
 
         {/* Rule 9 on screen: a proposal from the assistant says so, and says on
             what grounds, before anybody presses anything. */}
-        {request.fromAi ? <Badge tone="running">Do trợ lý AI đề xuất</Badge> : null}
+        {request.fromAi ? (
+          <Badge tone="running">
+            {t(message('Do trợ lý AI đề xuất', 'Suggested by AI assistant', 'AI 도우미의 제안'))}
+          </Badge>
+        ) : null}
       </div>
 
       {request.fromAi && request.basis ? (
         <p className="text-glass-foreground text-[12px] leading-[1.7]">
-          Cơ sở đề xuất: {request.basis}
+          {t(message('Căn cứ:', 'Basis:', '근거:'))} {request.basis}
         </p>
       ) : null}
 
@@ -191,7 +238,7 @@ function RequestCard({ request }: { request: ApprovalRequestView }) {
           <Textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Lý do từ chối"
+            placeholder={t(message('Lý do từ chối', 'Reason for rejection', '거절 사유'))}
             rows={3}
           />
           <div className="flex flex-wrap gap-2">
@@ -199,13 +246,16 @@ function RequestCard({ request }: { request: ApprovalRequestView }) {
               variant="destructive"
               disabled={reason.trim() === '' || decide.isPending}
               onClick={() =>
-                send({ decision: 'rejected', reason: reason.trim() }, 'Đã từ chối yêu cầu.')
+                send(
+                  { decision: 'rejected', reason: reason.trim() },
+                  t(message('Đã từ chối yêu cầu.', 'Request rejected.', '요청을 거절했습니다.')),
+                )
               }
             >
-              Xác nhận từ chối
+              {t(message('Xác nhận từ chối', 'Reject request', '요청 거절'))}
             </Button>
             <Button variant="ghost" onClick={() => setRefusing(false)}>
-              Hủy
+              {t(message('Hủy', 'Cancel', '취소'))}
             </Button>
           </div>
         </div>
@@ -213,12 +263,23 @@ function RequestCard({ request }: { request: ApprovalRequestView }) {
         <div className="flex flex-wrap gap-2">
           <Button
             disabled={decide.isPending}
-            onClick={() => send({ decision: 'approved' }, 'Đã phê duyệt. Thay đổi đã có hiệu lực.')}
+            onClick={() =>
+              send(
+                { decision: 'approved' },
+                t(
+                  message(
+                    'Đã duyệt. Thay đổi đã có hiệu lực.',
+                    'Approved. The change is now in effect.',
+                    '승인했습니다. 변경 사항이 적용되었습니다.',
+                  ),
+                ),
+              )
+            }
           >
-            Phê duyệt
+            {t(message('Phê duyệt', 'Approve', '승인'))}
           </Button>
           <Button variant="ghost" disabled={decide.isPending} onClick={() => setRefusing(true)}>
-            Từ chối
+            {t(message('Từ chối', 'Reject', '거절'))}
           </Button>
         </div>
       )}

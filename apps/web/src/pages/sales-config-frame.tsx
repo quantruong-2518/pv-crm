@@ -12,6 +12,7 @@ import {
 import { StageKey, type StateAddress, type StepFrameResponse } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import { ladderRows, useMyConfigProposals } from '@/data/sales-config'
 import {
@@ -28,11 +29,11 @@ import {
   DeadlineBox,
   LadderSend,
   LadderTable,
-  SENT,
   Section,
   WaitingCount,
   type AreaProps,
 } from './sales-config-section'
+import { sentCopy } from './sales-config-copy'
 
 /** The journey frame (ADR 0080) — phase › state › next steps: what a seller
  *  may set as the next step in each state, and whether they may type their own.
@@ -44,6 +45,7 @@ import {
  *  draft and goes with that ladder's `LadderSend`. Lead states have no deadline
  *  (open question 33); the lead TIER ladder below is a different clock. */
 export function FrameArea({ catalog, draft }: AreaProps) {
+  const { t } = useI18n()
   const tiers = ladderRows(catalog, 'TIER')
   const waiting = frameWaiting(useMyConfigProposals())
   return (
@@ -55,7 +57,13 @@ export function FrameArea({ catalog, draft }: AreaProps) {
 
       <Section at="tier-limits">
         <GlassCard variant="b" className="p-4">
-          <LadderTable list="TIER" head="Bậc" rows={tiers} unit="lead" draft={draft} />
+          <LadderTable
+            list="TIER"
+            head={t(message('Bậc', 'Tier', '등급'))}
+            rows={tiers}
+            unit={t(message('lead', 'leads', '리드'))}
+            draft={draft}
+          />
         </GlassCard>
         <LadderSend list="TIER" rows={tiers} draft={draft} />
       </Section>
@@ -65,15 +73,18 @@ export function FrameArea({ catalog, draft }: AreaProps) {
 
 type Phase = StateAddress['kind']
 
-const PHASES: { value: Phase; label: string }[] = [
-  { value: 'lead', label: 'Presale · Lead' },
-  { value: 'opportunity', label: 'Sale · Cơ hội' },
-  { value: 'customer', label: 'Khách đã mua' },
-]
-
 function StepFrame({ catalog, draft }: AreaProps) {
+  const { t } = useI18n()
   const { data: frame, isPending, error, refetch } = useQuery(stepFrameQuery)
   const [phase, setPhase] = useState<Phase>('lead')
+  const phases: { value: Phase; label: string }[] = [
+    { value: 'lead', label: t(message('Presale · Lead', 'Presales · Lead', '사전 영업 · 리드')) },
+    {
+      value: 'opportunity',
+      label: t(message('Sale · Cơ hội', 'Sales · Opportunity', '영업 · 기회')),
+    },
+    { value: 'customer', label: t(message('Khách đã mua', 'Customer', '구매 고객')) },
+  ]
   /* One open state per phase, so flipping the phase and back returns to it. */
   const [open, setOpen] = useState<Record<Phase, StateAddress>>({
     lead: FRAME_STATES.lead[0]!,
@@ -88,7 +99,13 @@ function StepFrame({ catalog, draft }: AreaProps) {
   const paired = StageKey.options.every((key) => stages.some((row) => row.key === key))
   const stageTable = stages.length > 0 && (
     <GlassCard variant="b" className="p-4">
-      <LadderTable list="STAGE" head="Giai đoạn" rows={stages} unit="cơ hội" draft={draft} />
+      <LadderTable
+        list="STAGE"
+        head={t(message('Giai đoạn', 'Stage', '단계'))}
+        rows={stages}
+        unit={t(message('cơ hội', 'opportunities', '기회'))}
+        draft={draft}
+      />
     </GlassCard>
   )
   /* Mounted ONCE, outside the keyed state detail: a send in flight must
@@ -106,10 +123,19 @@ function StepFrame({ catalog, draft }: AreaProps) {
           icon={TriangleAlert}
           message={
             isApiError(error)
-              ? `Không tải được khung hành trình. ${userMessage(error)}`
-              : 'Không tải được khung hành trình.'
+              ? `${t(message('Không tải được khung hành trình.', 'Could not load the sales journey.', '영업 여정을 불러오지 못했습니다.'))} ${userMessage(error)}`
+              : t(
+                  message(
+                    'Không tải được khung hành trình.',
+                    'Could not load the sales journey.',
+                    '영업 여정을 불러오지 못했습니다.',
+                  ),
+                )
           }
-          action={{ label: 'Thử lại', onClick: () => void refetch() }}
+          action={{
+            label: t(message('Thử lại', 'Try again', '다시 시도')),
+            onClick: () => void refetch(),
+          }}
           className="py-12"
         />
         {stageTable}
@@ -122,10 +148,10 @@ function StepFrame({ catalog, draft }: AreaProps) {
   return (
     <>
       <SegmentedControl
-        label="Giai đoạn"
+        label={t(message('Giai đoạn', 'Phase', '구간'))}
         hideLabel
         tone="quiet"
-        options={PHASES}
+        options={phases}
         value={phase}
         onChange={(next) => setPhase(next as Phase)}
       />
@@ -163,6 +189,7 @@ function StateList({
   current: StateAddress
   onPick: (address: StateAddress) => void
 }) {
+  const { t, number } = useI18n()
   return (
     <GlassCard variant="b" className="self-start p-2">
       <ul className="flex flex-row flex-wrap gap-1 lg:flex-col lg:flex-nowrap">
@@ -186,7 +213,9 @@ function StateList({
                   {stateLabelOf(address)}
                 </span>
                 <span className="text-muted-foreground tnum font-num shrink-0 text-[11px]">
-                  {live === 0 ? 'Chưa có bước' : `${live} bước`}
+                  {live === 0
+                    ? t(message('Chưa có bước', 'No steps', '단계 없음'))
+                    : t(message(`${live} bước`, `${number(live)} steps`, `단계 ${number(live)}개`))}
                 </span>
               </button>
             </li>
@@ -203,6 +232,7 @@ function StateDetail({
   catalog,
   draft,
 }: AreaProps & { frame: StepFrameResponse; address: StateAddress }) {
+  const { t } = useI18n()
   const rows = templatesAt(frame, address)
   const kinds = catalog?.STEP_KIND ?? []
   const ids = rows.map((t) => t.id)
@@ -217,10 +247,18 @@ function StateDetail({
 
       <GlassCard variant="b" className="flex flex-col gap-3 p-4">
         <span className="text-[12.5px] font-semibold">
-          Bước tiếp theo ở “{stateLabelOf(address)}”
+          {t(
+            message(
+              `Bước tiếp theo ở “${stateLabelOf(address)}”`,
+              `Next steps for “${stateLabelOf(address)}”`,
+              `“${stateLabelOf(address)}”의 다음 단계`,
+            ),
+          )}
         </span>
         {rows.length === 0 ? (
-          <p className="text-muted-foreground m-0 text-[11.5px]">Chưa có bước.</p>
+          <p className="text-muted-foreground m-0 text-[11.5px]">
+            {t(message('Chưa có bước.', 'No steps yet.', '단계가 없습니다.'))}
+          </p>
         ) : (
           <ul className="flex flex-col gap-2">
             {rows.map((t, at) => (
@@ -247,6 +285,7 @@ function RuleBlock({
   catalog,
   draft,
 }: AreaProps & { address: StateAddress; freeEntry: boolean }) {
+  const { t } = useI18n()
   const canPropose = useCan('config.propose')
   const propose = useProposeFrame()
   const [pick, setPick] = useState<boolean | null>(null)
@@ -261,22 +300,36 @@ function RuleBlock({
     <GlassCard variant="b" className="flex flex-col gap-3 p-4">
       <div className="flex min-w-0 flex-wrap items-center gap-3">
         <span className="min-w-0 flex-1 basis-64 text-[12.5px] font-medium">
-          Sale được tự điền việc khác ngoài danh sách
+          {t(
+            message(
+              'Sale được tự điền việc khác ngoài danh sách',
+              'Allow sales reps to enter steps outside this list',
+              '영업 담당자가 목록에 없는 단계를 직접 입력하도록 허용',
+            ),
+          )}
         </span>
         {canPropose ? (
           <SegmentedControl
-            label="Sale được tự điền việc khác ngoài danh sách"
+            label={t(
+              message(
+                'Sale được tự điền việc khác ngoài danh sách',
+                'Allow sales reps to enter steps outside this list',
+                '영업 담당자가 목록에 없는 단계를 직접 입력하도록 허용',
+              ),
+            )}
             hideLabel
             tone="quiet"
             options={[
-              { value: YES, label: 'Có' },
-              { value: NO, label: 'Không' },
+              { value: YES, label: t(message('Có', 'Yes', '예')) },
+              { value: NO, label: t(message('Không', 'No', '아니요')) },
             ]}
             value={shown ? YES : NO}
             onChange={(next) => setPick(next === YES)}
           />
         ) : (
-          <span className="text-[12.5px] font-semibold">{freeEntry ? 'Có' : 'Không'}</span>
+          <span className="text-[12.5px] font-semibold">
+            {freeEntry ? t(message('Có', 'Yes', '예')) : t(message('Không', 'No', '아니요'))}
+          </span>
         )}
         {pick !== null && pick !== freeEntry && (
           <>
@@ -290,13 +343,13 @@ function RuleBlock({
                   {
                     onSuccess: () => {
                       setPick(null)
-                      toastDone(SENT)
+                      toastDone(sentCopy())
                     },
                   },
                 )
               }
             >
-              Gửi đề nghị
+              {t(message('Gửi đề nghị', 'Submit proposal', '변경 제안'))}
             </Button>
             <Button
               size="sm"
@@ -304,7 +357,7 @@ function RuleBlock({
               className="pointer-coarse:h-12"
               onClick={() => setPick(null)}
             >
-              Huỷ
+              {t(message('Huỷ', 'Cancel', '취소'))}
             </Button>
           </>
         )}
@@ -312,7 +365,9 @@ function RuleBlock({
 
       {stage && (
         <div className="flex min-w-0 flex-wrap items-center gap-3">
-          <span className="min-w-0 flex-1 basis-64 text-[12.5px] font-medium">Hạn · ngày</span>
+          <span className="min-w-0 flex-1 basis-64 text-[12.5px] font-medium">
+            {t(message('Hạn · ngày', 'Due in · days', '기한 · 일'))}
+          </span>
           <DeadlineBox list="STAGE" row={stage} draft={draft} />
         </div>
       )}

@@ -2,7 +2,6 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Badge, Button, GlassCard, Icon, TriangleAlert, Users, cn, percent } from '@pv/ui'
 import {
-  KPI_METRIC_LABEL,
   type KpiForecast,
   type KpiForecastResponse,
   type KpiReading,
@@ -22,6 +21,8 @@ import { boardOf, printTile, printValue } from './kpi-model'
 import { ReadingTile } from './kpi-parts'
 import { counterActors, isClosed, packageOf, sharedRoles } from './kpi-team-model'
 import { WeeklyChart } from './kpi-weekly-chart'
+import { message, useI18n } from '@/app/i18n'
+import { kpiMetricText } from '@/data/kpi-i18n'
 
 /** The blocks the personal KPI screen adds to the role board for ADR 0098: the
  *  team lead's way in, the slip / hit flags, and the board with the weekly chart
@@ -57,6 +58,7 @@ export function TeamLeadLink({
   team: { id: string; name: string }
   period: string
 }) {
+  const { t } = useI18n()
   const navigate = useNavigate()
   const view = useQuery(kpiTeamViewQuery(period, team.id))
   const me = useSession((s) => s.actor?.id)
@@ -69,10 +71,18 @@ export function TeamLeadLink({
         onClick={() => navigate(teamPath(team.id, period))}
       >
         <Icon icon={Users} size={16} />
-        Mở trang nhóm {team.name}
+        {t(message(`Mở trang nhóm ${team.name}`, `Open ${team.name} team`, `${team.name} 팀 열기`))}
       </Button>
       {waiting > 0 && (
-        <span className={cn(NOTE, 'tnum font-num')}>{num(waiting)} mục chờ bạn xử lý</span>
+        <span className={cn(NOTE, 'tnum font-num')}>
+          {t(
+            message(
+              `${num(waiting)} mục chờ bạn xử lý`,
+              `${num(waiting)} items need your attention`,
+              `처리할 항목 ${num(waiting)}개`,
+            ),
+          )}
+        </span>
       )}
     </div>
   )
@@ -80,24 +90,44 @@ export function TeamLeadLink({
 
 /** A side read failed: one line with its own retry, the board stays up. */
 export function SideFailure({ what, retry }: { what: string; retry: () => void }) {
+  const { t } = useI18n()
   return (
     <p className={cn(NOTE, 'text-destructive-foreground flex flex-wrap items-center gap-2')}>
       <Icon icon={TriangleAlert} size={16} className="text-destructive-foreground shrink-0" />
-      Không tải được {what}.
+      {t(
+        message(
+          `Không tải được ${what}.`,
+          `Could not load ${what}.`,
+          `${what}을(를) 불러오지 못했습니다.`,
+        ),
+      )}
       <Button variant="ghost" size="sm" className="pointer-coarse:h-12" onClick={retry}>
-        Thử lại
+        {t(message('Thử lại', 'Retry', '다시 시도'))}
       </Button>
     </p>
   )
 }
 
-function flagSentence(f: KpiForecast, unit: KpiUnit): string {
-  const label = KPI_METRIC_LABEL[f.metricKey]
+function flagSentence(f: KpiForecast, unit: KpiUnit, lang: 'vi' | 'en' | 'ko'): string {
+  const label = kpiMetricText(f.metricKey, lang)
   if (f.flag === 'hit' && f.value !== null && f.target) {
-    return `${label}: đã đạt ${percent(f.value / f.target)} chỉ tiêu.`
+    return lang === 'vi'
+      ? `${label}: đã đạt ${percent(f.value / f.target)} chỉ tiêu.`
+      : lang === 'en'
+        ? `${label}: ${percent(f.value / f.target)} of target reached.`
+        : `${label}: 목표의 ${percent(f.value / f.target)} 달성.`
   }
-  const target = f.target === null ? '' : ` / chỉ tiêu ${printValue(unit, f.target, true)}`
-  return `${label}: dự báo cuối tháng ${printTile(unit, f.projected)}${target}.`
+  const target =
+    f.target === null
+      ? ''
+      : lang === 'vi'
+        ? ` / chỉ tiêu ${printValue(unit, f.target, true)}`
+        : lang === 'en'
+          ? ` / target ${printValue(unit, f.target, true)}`
+          : ` / 목표 ${printValue(unit, f.target, true)}`
+  const projected =
+    lang === 'vi' ? 'dự báo cuối tháng' : lang === 'en' ? 'month-end forecast' : '월말 예상'
+  return `${label}: ${projected} ${printTile(unit, f.projected)}${target}.`
 }
 
 export function ForecastFlags({
@@ -109,6 +139,7 @@ export function ForecastFlags({
   role: RoleId
   forecast: KpiForecastResponse
 }) {
+  const { t, lang } = useI18n()
   const unitOf = new Map(catalog[role].map((d) => [d.key, d.unit]))
   const flagged = flagsOf(catalog, role, forecast)
   if (flagged.length === 0) return null
@@ -122,10 +153,12 @@ export function ForecastFlags({
             className="flex flex-wrap items-center gap-2 text-[12.5px] leading-5"
           >
             <Badge tone={f.flag === 'slip' ? 'warning' : 'success'}>
-              {f.flag === 'slip' ? 'Sắp trượt' : 'Sắp đạt'}
+              {f.flag === 'slip'
+                ? t(message('Sắp trượt', 'At risk', '미달 위험'))
+                : t(message('Sắp đạt', 'On track', '목표 달성 임박'))}
             </Badge>
             <span className="tnum font-num">
-              {flagSentence(f, unitOf.get(f.metricKey) ?? 'count')}
+              {flagSentence(f, unitOf.get(f.metricKey) ?? 'count', lang)}
             </span>
           </li>
         ))}
@@ -136,10 +169,16 @@ export function ForecastFlags({
 
 /** What the two flags mean, once for the whole screen however many roles carry one. */
 export function ThresholdNote({ thresholds }: { thresholds: KpiForecastResponse['thresholds'] }) {
+  const { t } = useI18n()
   return (
     <p className={cn(NOTE, 'tnum font-num')}>
-      Sắp trượt khi dự báo cuối tháng dưới {percent(thresholds.slipRatio)} chỉ tiêu. Sắp đạt khi đã
-      đạt từ {percent(thresholds.hitRatio)}.
+      {t(
+        message(
+          `Sắp trượt khi dự báo cuối tháng dưới ${percent(thresholds.slipRatio)} chỉ tiêu. Sắp đạt khi đã đạt từ ${percent(thresholds.hitRatio)}.`,
+          `At risk when the month-end forecast is below ${percent(thresholds.slipRatio)} of target. On track when at or above ${percent(thresholds.hitRatio)}.`,
+          `월말 예상이 목표의 ${percent(thresholds.slipRatio)} 미만이면 미달 위험, ${percent(thresholds.hitRatio)} 이상이면 목표 달성 임박으로 표시됩니다.`,
+        ),
+      )}
     </p>
   )
 }

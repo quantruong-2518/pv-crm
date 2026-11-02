@@ -1,5 +1,6 @@
 import { DenyReason as WireDenyReasonEnum, type DenyReason as WireDenyReason } from '@pv/contracts'
 import type { DenyReason } from '@pv/engines'
+import { getLang, message, translate } from '@/app/i18n'
 
 /** Lỗi của tầng "dữ liệu từ ngoài vào" — MỘT kiểu lỗi, phân loại sẵn.
  *
@@ -73,6 +74,7 @@ export type FieldErrors = Record<string, string[]>
 
 export class ApiError extends Error {
   readonly kind: ApiFailure
+  readonly code?: string
   readonly path: string
   readonly status?: number
   /** Lý do E2 từ chối, chỉ có khi `kind === 'forbidden'`. Giữ nguyên chữ của
@@ -94,6 +96,7 @@ export class ApiError extends Error {
 
   constructor(init: {
     kind: ApiFailure
+    code?: string
     path: string
     message: string
     status?: number
@@ -106,6 +109,7 @@ export class ApiError extends Error {
     super(init.message, { cause: init.cause })
     this.name = 'ApiError'
     this.kind = init.kind
+    this.code = init.code
     this.path = init.path
     this.status = init.status
     this.reason = init.reason
@@ -158,11 +162,26 @@ export function failureOf(status: number): ApiFailure {
 /** Câu hiện cho người dùng. Không kèm mã lỗi, không kèm tên hàm — người đọc câu
  *  này đang muốn biết mình làm gì tiếp, không muốn biết tầng nào hỏng. */
 export function userMessage(error: ApiError): string {
+  const lang = getLang()
   switch (error.kind) {
     case 'network':
-      return 'Không kết nối được. Kiểm tra mạng rồi thử lại.'
+      return translate(
+        message(
+          'Không kết nối được. Kiểm tra mạng rồi thử lại.',
+          'Could not connect. Check your connection and try again.',
+          '연결할 수 없습니다. 연결 상태를 확인한 후 다시 시도하세요.',
+        ),
+        lang,
+      )
     case 'unauthenticated':
-      return 'Đã hết thời gian đăng nhập. Đăng nhập lại để tiếp tục.'
+      return translate(
+        message(
+          'Đã hết thời gian đăng nhập. Đăng nhập lại để tiếp tục.',
+          'Your session has expired. Sign in to continue.',
+          '세션이 만료되었습니다. 계속하려면 다시 로그인하세요.',
+        ),
+        lang,
+      )
     /* Three of E2's four refusals land on this one kind, and each one sends the
        user somewhere different — that is why they get three sentences, not one.
        Missing licence is the company's purchase; missing permission is a role
@@ -174,26 +193,69 @@ export function userMessage(error: ApiError): string {
        `unauthenticated` deliberately has no branch here: it arrives as kind
        `unauthenticated`, and that one is auth's business, not a screen's. */
     case 'forbidden':
-      if (error.reason === 'branch-not-licensed') return 'Công ty chưa mở nhánh này.'
+      if (error.reason === 'branch-not-licensed')
+        return translate(
+          message(
+            'Công ty chưa mở nhánh này.',
+            'This product is not available to your company.',
+            '회사에서 이 제품을 사용할 수 없습니다.',
+          ),
+          lang,
+        )
       if (error.reason === 'out-of-scope')
-        return 'Dữ liệu này không do bạn phụ trách. Nhờ người phụ trách mở giúp.'
-      return 'Bị ẩn theo quyền của bạn.'
+        return translate(
+          message(
+            'Dữ liệu này không do bạn phụ trách. Nhờ người phụ trách mở giúp.',
+            'This record belongs to another owner. Ask them for access.',
+            '이 기록은 다른 담당자가 관리합니다. 담당자에게 접근을 요청하세요.',
+          ),
+          lang,
+        )
+      return translate(
+        message(
+          'Bị ẩn theo quyền của bạn.',
+          'Hidden by your permissions.',
+          '접근 권한이 없어 표시되지 않습니다.',
+        ),
+        lang,
+      )
     /* Only reachable when the user pressed Cancel on the confirmation box —
        every other path was settled by `confirmOnReauthRequired` before a screen
        ever saw the error. So this says "not confirmed", not "blocked": they
        just chose not to, and a sentence that sounds like a refusal would send
        them off to ask for permissions they already have. */
     case 'reauth-required':
-      return 'Chưa xác nhận mật khẩu. Làm lại và xác nhận để tiếp tục.'
+      return translate(
+        message(
+          'Chưa xác nhận mật khẩu. Làm lại và xác nhận để tiếp tục.',
+          'Confirm your password to continue.',
+          '계속하려면 비밀번호를 확인하세요.',
+        ),
+        lang,
+      )
     /* Barely reachable: the guard sends the person to the change-password
        screen off `SessionView.mustChangePassword`, before any request goes out.
        What lands here is a session whose flag went stale mid-visit - an
        administrator pressed reset while the tab was open - so the sentence has
        to say what happened as well as what to do. */
     case 'password-change-required':
-      return 'Tài khoản đang dùng mật khẩu mặc định. Đổi mật khẩu rồi làm lại.'
+      return translate(
+        message(
+          'Tài khoản đang dùng mật khẩu mặc định. Đổi mật khẩu rồi làm lại.',
+          'Change your temporary password, then try again.',
+          '임시 비밀번호를 변경한 후 다시 시도하세요.',
+        ),
+        lang,
+      )
     case 'not-found':
-      return 'Không tìm thấy dữ liệu này. Có thể đã bị xoá.'
+      return translate(
+        message(
+          'Không tìm thấy dữ liệu này. Có thể đã bị xoá.',
+          'This record was not found. It may have been deleted.',
+          '기록을 찾을 수 없습니다. 삭제되었을 수 있습니다.',
+        ),
+        lang,
+      )
     /* `error.message` is the server's own `title` when it sent one (see
        `toApiError` in `client.ts`) — a duplicate-email 409 and a stale-write
        409 are both `'conflict'`, but they are not the same sentence: only the
@@ -201,26 +263,65 @@ export function userMessage(error: ApiError): string {
        which is which, so its sentence wins; the canned line below only covers
        the rare case where the server said nothing at all. */
     case 'conflict':
-      return error.message || 'Người khác vừa sửa dữ liệu này. Tải lại rồi làm lại.'
+      return lang === 'vi' && error.serverTitle
+        ? error.serverTitle
+        : translate(
+            message(
+              'Dữ liệu đã thay đổi. Tải lại rồi thử lại.',
+              'This record has changed. Reload and try again.',
+              '기록이 변경되었습니다. 새로고침한 후 다시 시도하세요.',
+            ),
+            lang,
+          )
     /* Unlike the kinds above, this one IS the screen's business: it is a
        complaint about what the user just typed, not about the session or the
        server. `error.errors` often names the offending field, but a screen
        cannot always show a per-field message (list filters, query params), so
        this sentence must stand on its own even when `errors` is empty. */
     case 'invalid-data':
-      return 'Dữ liệu chưa hợp lệ. Kiểm tra lại.'
+      return translate(
+        message(
+          'Dữ liệu chưa hợp lệ. Kiểm tra lại.',
+          'Check the entered information.',
+          '입력한 내용을 확인하세요.',
+        ),
+        lang,
+      )
     /* Every 429 the server sends carries its own sentence (a daily quota is not
        "too fast"), so it wins, as for `conflict` above. */
     case 'rate-limited':
-      return error.serverTitle ?? 'Bạn thao tác quá nhanh. Chờ một lát rồi thử lại.'
+      return lang === 'vi' && error.serverTitle
+        ? error.serverTitle
+        : translate(
+            message(
+              'Bạn thao tác quá nhanh. Chờ một lát rồi thử lại.',
+              'Too many attempts. Wait a moment and try again.',
+              '요청이 너무 많습니다. 잠시 후 다시 시도하세요.',
+            ),
+            lang,
+          )
     case 'aborted':
       return ''
     /* Name the action that actually helps. "Try again in a few minutes" is the
        wrong sentence here: a contract skew does not heal with time, and that
        line leaves someone pressing F5 at a screen that will never come back. */
     case 'contract-mismatch':
-      return 'Dữ liệu không khớp với màn hình. Báo quản trị viên.'
+      return translate(
+        message(
+          'Dữ liệu không khớp với màn hình. Báo quản trị viên.',
+          'The screen cannot read this data. Contact your administrator.',
+          '화면에서 데이터를 읽을 수 없습니다. 관리자에게 문의하세요.',
+        ),
+        lang,
+      )
     case 'server-error':
-      return 'Hệ thống đang gặp sự cố. Thử lại sau ít phút.'
+      return translate(
+        message(
+          'Hệ thống đang gặp sự cố. Thử lại sau ít phút.',
+          'Something went wrong. Try again in a few minutes.',
+          '문제가 발생했습니다. 잠시 후 다시 시도하세요.',
+        ),
+        lang,
+      )
   }
 }

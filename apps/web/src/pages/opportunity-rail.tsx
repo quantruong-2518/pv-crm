@@ -1,4 +1,5 @@
 import type { OpportunityProfileResponse } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 import { CHANGE_SALE_PRIMARY } from '@/data/opportunities'
 import { QuotationRail } from '@/components/deal-money/quotation-rail'
 import { CommJourney } from '@/components/run/comm-journey'
@@ -22,6 +23,7 @@ export function DealRail({
   assignHere: boolean
   onAssign: () => void
 }) {
+  const { t } = useI18n()
   const run = op.workstream?.code ?? null
   const subject = { kind: 'opportunity', code: op.code } as const
 
@@ -37,10 +39,16 @@ export function DealRail({
             ? {
                 [op.code]: {
                   label: op.pendingSign
-                    ? CHANGE_SALE_PRIMARY
+                    ? t(
+                        message(
+                          CHANGE_SALE_PRIMARY,
+                          'Change primary salesperson',
+                          '주 담당자 변경',
+                        ),
+                      )
                     : op.hasSeller
-                      ? 'Đổi Sale'
-                      : 'Giao Sale',
+                      ? t(message('Đổi Sale', 'Change salesperson', '영업 담당자 변경'))
+                      : t(message('Giao Sale', 'Assign salesperson', '영업 담당자 지정')),
                   onClick: onAssign,
                 },
               }

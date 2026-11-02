@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { message, useI18n } from '@/app/i18n'
 import { Button, GlassCard, SectionTitle, SegmentedControl, Skeleton } from '@pv/ui'
 import type {
   KpiAllocation,
@@ -10,7 +11,7 @@ import type {
   RoleId,
 } from '@pv/contracts'
 import type { KpiCatalog } from '@/data/kpi-catalog'
-import { ROLE_LABEL } from '@/data/users'
+import { kpiRoleText } from '@/data/kpi-i18n'
 import { teamRowsOf } from './kpi-allocate-model'
 import { PackageSteps } from './kpi-allocate-parts'
 import { AnswersBlock, DecideBlock, ReturnedNote } from './kpi-allocate-review'
@@ -62,9 +63,12 @@ function OtherCounters({
   names: readonly (readonly [string, string])[]
   onOpen: (actorId: string) => void
 }) {
+  const { t } = useI18n()
   return (
     <section className={SECTION}>
-      <SectionTitle size="lg">Đề xuất của người nhận</SectionTitle>
+      <SectionTitle size="lg">
+        {t(message('Đề xuất của người nhận', 'Recipient proposals', '수신자 제안'))}
+      </SectionTitle>
       <GlassCard variant="b" className="py-2">
         <ul className="divide-surface-ink/6 flex flex-col divide-y">
           {names.map(([actorId, name]) => (
@@ -79,7 +83,7 @@ function OtherCounters({
                 className="pointer-coarse:h-12 shrink-0"
                 onClick={() => onOpen(actorId)}
               >
-                Xem đề xuất
+                {t(message('Xem đề xuất', 'View proposal', '제안 보기'))}
               </Button>
             </li>
           ))}
@@ -104,6 +108,7 @@ function RoleAllocation({
   me,
   onOpenCounters,
 }: PaneProps) {
+  const { t } = useI18n()
   const [editing, setEditing] = useState(false)
   const role = entry.role
   const defs = catalog[role]
@@ -127,12 +132,22 @@ function RoleAllocation({
       <section id={stepId(role, 'split')} className={SECTION}>
         <SectionTitle
           size="lg"
-          hint={editable ? 'Để trống thì người đó theo chỉ tiêu của vai trò.' : undefined}
+          hint={
+            editable
+              ? t(
+                  message(
+                    'Để trống thì người đó theo chỉ tiêu của vai trò.',
+                    'Leave blank to use the role target.',
+                    '비워 두면 역할 목표를 따릅니다.',
+                  ),
+                )
+              : undefined
+          }
           actions={
             <TargetHistoryButton period={period} role={role} defs={defs} subject={{ holders }} />
           }
         >
-          Phân bổ
+          {t(message('Phân bổ', 'Allocation', '배분'))}
         </SectionTitle>
         {pkg && status === 'returned' && (
           <ReturnedNote
@@ -158,7 +173,9 @@ function RoleAllocation({
 
       {ackShown && (
         <section id={stepId(role, 'ack')} className={SECTION}>
-          <SectionTitle size="lg">Người nhận xác nhận</SectionTitle>
+          <SectionTitle size="lg">
+            {t(message('Người nhận xác nhận', 'Recipient acknowledgements', '수신자 확인'))}
+          </SectionTitle>
           <AnswersBlock pkg={pkg} holders={holders} counters={room} onOpenCounters={openRoom} />
         </section>
       )}
@@ -167,7 +184,9 @@ function RoleAllocation({
 
       {pkg && status === 'submitted' && writable && (
         <section id={stepId(role, 'lock')} className={SECTION}>
-          <SectionTitle size="lg">Duyệt và khoá</SectionTitle>
+          <SectionTitle size="lg">
+            {t(message('Duyệt và khoá', 'Approve and lock', '승인 및 확정'))}
+          </SectionTitle>
           <DecideBlock period={period} role={role} pkg={pkg} me={me} />
         </section>
       )}
@@ -187,6 +206,7 @@ function RoleAllocation({
 }
 
 function RolePane(props: PaneProps) {
+  const { t } = useI18n()
   const { catalog, period, entry, pkg, closed, canSet, me } = props
   const hasTotal = hasTotalOf(entry, pkg)
   const writable = canSet && !closed
@@ -195,8 +215,21 @@ function RolePane(props: PaneProps) {
     <>
       <PackageSteps pkg={pkg} hasTotal={hasTotal} />
       <section id={stepId(entry.role, 'total')} className={SECTION}>
-        <SectionTitle size="lg" hint={writable ? 'Đề nghị mới cần người khác duyệt.' : undefined}>
-          Chỉ tiêu vai trò
+        <SectionTitle
+          size="lg"
+          hint={
+            writable
+              ? t(
+                  message(
+                    'Đề nghị mới cần người khác duyệt.',
+                    'New proposals need approval from another person.',
+                    '새 제안은 다른 사람의 승인이 필요합니다.',
+                  ),
+                )
+              : undefined
+          }
+        >
+          {t(message('Chỉ tiêu vai trò', 'Role targets', '역할 목표'))}
         </SectionTitle>
         <RoleTargets catalog={catalog} period={period} entry={entry} canSet={writable} me={me} />
       </section>
@@ -237,16 +270,17 @@ export function RoleSteps({
   onPick: (role: string) => void
   onOpenCounters: (who: CounterOwner) => void
 }) {
+  const { t, lang } = useI18n()
   if (!roster) return <Skeleton className="h-24 w-full" />
   return (
     <>
       <div className="overflow-x-auto">
         <SegmentedControl
-          label="Vai trò"
+          label={t(message('Vai trò', 'Role', '역할'))}
           tone="quiet"
           value={shown}
           onChange={onPick}
-          options={targets.roles.map((r) => ({ value: r.role, label: ROLE_LABEL[r.role] }))}
+          options={targets.roles.map((r) => ({ value: r.role, label: kpiRoleText(r.role, lang) }))}
         />
       </div>
       {targets.roles.map((entry) => (

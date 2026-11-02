@@ -7,6 +7,7 @@ import type {
   DebriefView,
   StepOptionsResponse,
 } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 import { userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
 import { CommRecordFrame, CommStepCard } from '@/components/comm-record-frame'
@@ -37,6 +38,7 @@ export function CommEditWorkspace({
   record: DebriefView
   onClose: () => void
 }) {
+  const { t } = useI18n()
   const edit = useEditComm()
   const seed = useMemo(() => editSeedOf(record), [record])
   const form = useCommForm(record, seed, record.meeting === null)
@@ -84,7 +86,7 @@ export function CommEditWorkspace({
       { id: record.id, body },
       {
         onSuccess: () => {
-          toastDone('Đã lưu thay đổi')
+          toastDone(t(message('Đã lưu thay đổi', 'Changes saved', '변경 사항을 저장했습니다')))
           onClose()
         },
       },
@@ -94,12 +96,12 @@ export function CommEditWorkspace({
   return (
     <CommRecordFrame
       record={record}
-      title="Sửa lượt liên hệ"
+      title={t(message('Sửa lượt liên hệ', 'Edit interaction', '연락 기록 수정'))}
       meta={<ReadMeta record={record} />}
       bar={
         <CommFormBar problem={problem}>
           <Button size="md" variant="ghost" className={BAR_BUTTON} onClick={onClose}>
-            Huỷ
+            {t(message('Huỷ', 'Cancel', '취소'))}
           </Button>
           <Button
             size="md"
@@ -107,7 +109,7 @@ export function CommEditWorkspace({
             disabled={blocker !== null || !dirty || edit.isPending}
             onClick={submit}
           >
-            Lưu thay đổi
+            {t(message('Lưu thay đổi', 'Save changes', '변경 사항 저장'))}
           </Button>
         </CommFormBar>
       }
@@ -116,7 +118,13 @@ export function CommEditWorkspace({
         record={record}
         form={form}
         gaps={gaps}
-        fileNote="lưu ngay khi tải lên hoặc xoá"
+        fileNote={t(
+          message(
+            'lưu ngay khi tải lên hoặc xoá',
+            'saved immediately after upload or removal',
+            '업로드 또는 삭제 후 즉시 저장됩니다',
+          ),
+        )}
         stepCard={
           stepEditable ? (
             <NextStepStep

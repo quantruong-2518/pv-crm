@@ -1,14 +1,16 @@
 import { ArrowLeft, ArrowRight, Badge, Icon, cn } from '@pv/ui'
-import {
-  CONTRACT_PENALTY_DIRECTION_LABEL,
-  OPPORTUNITY_STATE_LABEL,
-  type ContractPenalty,
-} from '@pv/contracts'
+import { type ContractPenalty } from '@pv/contracts'
 import type { DueLevel } from '@pv/engines'
-import type { ConditionSide, InstallmentView } from '@/data/contracts'
-import { COLLECTED_LABEL, DUE_LABEL, daysPhrase, standingOf } from '@/data/contracts'
-import { PENALTY_STATE_WORD } from '@/data/contract-penalty'
-import { dmy } from '@/lib/date'
+import type { ConditionSide, ContractBookRow, InstallmentView } from '@/data/contracts'
+import { COLLECTED_LABEL, COLLECTING_LABEL, OVERDUE_LABEL, standingOf } from '@/data/contracts'
+import { useI18n } from '@/app/i18n'
+import {
+  CONTRACT_COPY as COPY,
+  dueLevelText,
+  installmentCaption,
+  penaltyDirectionText,
+  penaltyStatusText,
+} from '@/data/contract-copy'
 import { MoneyCell } from '@/components/money-cell'
 import { BADGE_INK } from '@/data/opportunities'
 
@@ -34,6 +36,7 @@ export function ContractStanding({
   views: InstallmentView[]
   className?: string
 }) {
+  const { t } = useI18n()
   const { tone, label } = standingOf(
     views.map((v) => ({
       overdue: v.level === 'overdue' || v.level === 'long-overdue',
@@ -42,7 +45,13 @@ export function ContractStanding({
   )
   return (
     <Badge tone={tone} className={className}>
-      {label}
+      {label === OVERDUE_LABEL
+        ? t(COPY.overdue)
+        : label === COLLECTED_LABEL
+          ? t(COPY.collected)
+          : label === COLLECTING_LABEL
+            ? t(COPY.collecting)
+            : label}
     </Badge>
   )
 }
@@ -52,9 +61,10 @@ export function ContractStanding({
  *  `BADGE_INK` at every level: the tone inks fell under 4.5:1 on a selected
  *  light row (danger 4.05, warning 4.35); the tint still carries the colour. */
 export function DueBadge({ level, className }: { level: DueLevel; className?: string }) {
+  const { lang } = useI18n()
   return (
     <Badge tone={TONE[level]} className={cn(BADGE_INK, className)}>
-      {DUE_LABEL[level]}
+      {dueLevelText(level, lang)}
     </Badge>
   )
 }
@@ -62,9 +72,10 @@ export function DueBadge({ level, className }: { level: DueLevel; className?: st
 /** In place of a standing or level badge once the contract was terminated
  *  (ADR 0107): muted, since nothing is owed any more. Same ink rescue as above. */
 export function TerminatedBadge({ className }: { className?: string }) {
+  const { t } = useI18n()
   return (
     <Badge tone="draft" className={cn(BADGE_INK, className)}>
-      {OPPORTUNITY_STATE_LABEL.terminated}
+      {t(COPY.terminated)}
     </Badge>
   )
 }
@@ -73,12 +84,12 @@ export function TerminatedBadge({ className }: { className?: string }) {
  *  colours on these screens already mean "how late", and a second meaning laid
  *  over the same hue would make both unreadable. */
 export function SideTag({ side, long = false }: { side: ConditionSide; long?: boolean }) {
+  const { t } = useI18n()
   const ours = side === 'ours'
   return (
     <span className="text-muted-foreground bg-surface-ink/9 inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[12px]">
       <Icon icon={ours ? ArrowRight : ArrowLeft} size={14} />
-      {ours ? 'Ta' : 'Khách'}
-      {long && ' phải làm'}
+      {ours ? t(long ? COPY.oursAction : COPY.ours) : t(long ? COPY.customerAction : COPY.customer)}
     </span>
   )
 }
@@ -120,39 +131,86 @@ export function NextDueCell({
   /** A terminated contract's penalty, printed under its badge. */
   penalty?: ContractPenalty | null
 }) {
+  const { lang, t, number } = useI18n()
   if (ended) {
-    const word = penalty && PENALTY_STATE_WORD[penalty.direction]
     return (
       <span className="flex min-w-0 flex-col items-end gap-1">
         <TerminatedBadge />
-        {penalty && word && (
+        {penalty && (
           <span className="text-muted-foreground tnum font-num max-w-full truncate text-[11.5px]">
-            {CONTRACT_PENALTY_DIRECTION_LABEL[penalty.direction]}{' '}
-            {penalty.amount.toLocaleString('vi-VN')}
+            {penaltyDirectionText(penalty.direction, lang)} {number(penalty.amount)}
             {currency && currency !== 'VND' ? ` ${currency}` : ''} ·{' '}
-            {penalty.settledOn ? word.done.toLowerCase() : word.wait.toLowerCase()}
+            {penaltyStatusText(penalty.direction, Boolean(penalty.settledOn), lang)}
           </span>
         )}
       </span>
     )
   }
   if (!next) {
-    return <span className="text-success block text-right text-[11.5px]">{COLLECTED_LABEL}</span>
+    return <span className="text-success block text-right text-[11.5px]">{t(COPY.collected)}</span>
   }
   /* The days lead: a truncated caption then loses the date, never the lateness. */
-  const caption = `${daysPhrase(next.daysLeft)} · đợt ${next.installment.no} · ${dmy(next.installment.due)}`
+  const caption = installmentCaption(next.installment.no, next.installment.due, next.daysLeft, lang)
   return (
     <span className="flex min-w-0 flex-col items-end gap-1">
       <MoneyCell
         amount={next.installment.amount}
         currency={currency}
-        missing="Đợt chưa nhập số tiền"
+        missing={t(COPY.missingInstallmentAmount)}
       />
       <span
         className="text-muted-foreground tnum font-num max-w-full truncate text-[11.5px]"
         title={caption}
       >
         {caption}
+      </span>
+    </span>
+  )
+}
+
+/** Progress as words where words are shorter than numbers: nothing collected and
+ *  fully collected need no percentage. Between the two, share then amount. */
+export function CollectedCell({
+  row,
+  atRisk,
+  ended,
+}: {
+  row: ContractBookRow
+  atRisk: number
+  ended: boolean
+}) {
+  const { t, number } = useI18n()
+  const { contract, collected } = row
+  const amount = contract.amount ?? 0
+  const money = (
+    <MoneyCell amount={collected} currency={contract.currency} muted={ended || collected === 0} />
+  )
+  if (ended || amount === 0) return money
+  if (collected === 0) {
+    return (
+      <span
+        className={cn(
+          'block text-right text-[12.5px]',
+          atRisk > 0 ? 'text-warning' : 'text-muted-foreground',
+        )}
+      >
+        {t(COPY.notCollected)}
+      </span>
+    )
+  }
+  if (collected >= amount) {
+    return <span className="text-success block text-right text-[12.5px]">{t(COPY.collected)}</span>
+  }
+  return (
+    <span className="flex min-w-0 flex-col items-end">
+      {money}
+      <span
+        className={cn(
+          'tnum font-num text-[11.5px]',
+          atRisk > 0 ? 'text-warning' : 'text-muted-foreground',
+        )}
+      >
+        {number(Math.round((collected / amount) * 100))}% {t(COPY.percentOfValue)}
       </span>
     </span>
   )

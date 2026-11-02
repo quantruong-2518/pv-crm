@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { Badge, Button, Chip, GlassCard, Icon, Info, InfoTip, Minus, Plus, cn } from '@pv/ui'
 import { JOURNEY_BORN_BY_LABEL, JOURNEY_DEAL_OUTCOME_LABEL } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 import { DUE_LABEL } from '@/data/contracts'
 import {
   CARD,
@@ -120,6 +121,7 @@ function useFrame(frame: RefObject<HTMLElement | null>) {
 const SMALL = 'pointer-coarse:size-12 size-8 px-0'
 
 export function TreeLegend() {
+  const { t } = useI18n()
   const dots = [
     { word: STATE_WORD.done, rung: { state: 'done', late: null } },
     { word: STATE_WORD.current, rung: { state: 'current', late: null } },
@@ -141,7 +143,7 @@ export function TreeLegend() {
       width={320}
       content={
         <div className="flex flex-col gap-3 py-1 text-[12px]">
-          <p className={title}>Bước</p>
+          <p className={title}>{t(message('Bước', 'Steps', '단계'))}</p>
           <ul className="m-0 grid list-none grid-cols-2 gap-x-4 gap-y-2 p-0">
             {dots.map((d) => (
               <li key={d.word} className="flex items-center gap-2">
@@ -150,7 +152,7 @@ export function TreeLegend() {
               </li>
             ))}
           </ul>
-          <p className={title}>Nét nối</p>
+          <p className={title}>{t(message('Nét nối', 'Connections', '연결'))}</p>
           <ul className="m-0 grid list-none grid-cols-2 gap-x-4 gap-y-2 p-0">
             {edges.map((e) => (
               <li key={e.word} className="flex items-center gap-2">
@@ -161,16 +163,21 @@ export function TreeLegend() {
               </li>
             ))}
           </ul>
-          <p className={title}>Chip trên thẻ</p>
+          <p className={title}>{t(message('Chip trên thẻ', 'Card labels', '카드 라벨'))}</p>
           <span className="flex flex-wrap items-center gap-2">
-            <Chip>Mã</Chip>
-            <MoneyPill>Giá trị</MoneyPill>
-            <Badge tone="warning">Trạng thái</Badge>
+            <Chip>{t(message('Mã', 'Code', '코드'))}</Chip>
+            <MoneyPill>{t(message('Giá trị', 'Value', '금액'))}</MoneyPill>
+            <Badge tone="warning">{t(message('Trạng thái', 'Status', '상태'))}</Badge>
           </span>
         </div>
       }
     >
-      <Button size="sm" variant="ghost" className={SMALL} aria-label="Chú thích">
+      <Button
+        size="sm"
+        variant="ghost"
+        className={SMALL}
+        aria-label={t(message('Chú thích', 'Legend', '범례'))}
+      >
         <Icon icon={Info} size={16} />
       </Button>
     </InfoTip>
@@ -179,20 +186,21 @@ export function TreeLegend() {
 
 /** The zoom controls, drawn in the floating bar beside the tree's key. */
 export function TreeZoomBar({ ctl }: { ctl: TreeZoom }) {
+  const { t } = useI18n()
   const { zoom, floor } = ctl.view
   const fitted = ctl.asked === null
   const onZoom = ctl.ask
   return (
     <div
       role="group"
-      aria-label="Phóng to thu nhỏ"
+      aria-label={t(message('Phóng to thu nhỏ', 'Zoom controls', '확대/축소 컨트롤'))}
       className="bg-muted flex items-center gap-1 rounded-md p-1"
     >
       <Button
         variant="ghost"
         size="sm"
         className={cn(QUIET, SMALL)}
-        aria-label="Thu nhỏ"
+        aria-label={t(message('Thu nhỏ', 'Zoom out', '축소'))}
         disabled={zoom <= floor}
         onClick={() => onZoom(clampZoom(zoom - ZOOM.step))}
       >
@@ -208,7 +216,7 @@ export function TreeZoomBar({ ctl }: { ctl: TreeZoom }) {
         variant="ghost"
         size="sm"
         className={cn(QUIET, SMALL)}
-        aria-label="Phóng to"
+        aria-label={t(message('Phóng to', 'Zoom in', '확대'))}
         disabled={zoom >= ZOOM.max}
         onClick={() => onZoom(clampZoom(zoom + ZOOM.step))}
       >
@@ -223,7 +231,7 @@ export function TreeZoomBar({ ctl }: { ctl: TreeZoom }) {
         aria-pressed={fitted}
         onClick={() => onZoom(null)}
       >
-        Vừa khung
+        {t(message('Vừa khung', 'Fit to view', '화면에 맞춤'))}
       </Button>
     </div>
   )

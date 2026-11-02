@@ -2,15 +2,18 @@ import type { ReactNode } from 'react'
 import { Check } from '@pv/ui'
 import { Badge, Button, Chip, Icon } from '@pv/ui'
 import {
-  LEAD_STATE_LABEL,
-  OPPORTUNITY_CONTACT_ROLE_LABEL,
-  OPPORTUNITY_STAGE_LABEL,
   type OpportunityContactPick,
   type OpportunityCreateResponse,
   type OpportunityOpenContext,
 } from '@pv/contracts'
 import { CURRENCIES } from '@pv/engines/fixtures/das-vina'
 import { dmy } from '@/lib/date'
+import { message, translate, useI18n } from '@/app/i18n'
+import {
+  leadStateLabel,
+  opportunityContactRoleLabel,
+  opportunityStageLabel,
+} from '@/data/sales-labels-i18n'
 import {
   BD_LANE,
   SALE_LANE,
@@ -45,43 +48,57 @@ const Pair = ({ label, children }: { label: string; children: ReactNode }) => (
   </div>
 )
 
-function contactLine(created: Created): string {
+function contactLine(created: Created, lang: ReturnType<typeof useI18n>['lang']): string {
   return created.picks
     .map((pick) => {
       const name = created.contactNames[pick.contactCode] ?? pick.contactCode
       const note = pick.primary
         ? 'chính'
         : pick.role
-          ? OPPORTUNITY_CONTACT_ROLE_LABEL[pick.role].toLowerCase()
+          ? opportunityContactRoleLabel(pick.role, lang).toLowerCase()
           : null
       return note ? `${name} · ${note}` : name
     })
     .join(', ')
 }
 
-function nextText(created: Created): string {
+function nextText(created: Created, lang: ReturnType<typeof useI18n>['lang']): string {
   const { row, context, convertsLead, leadCode } = created
   const ws = context.workstream?.code
   const days = context.newStageLimitDays
+  const assigned = opportunityStageLabel('assigned', lang)
+  const newStage = opportunityStageLabel('new', lang)
+  const converted = leadStateLabel('converted', lang)
   const first =
     row.stage === 'new'
-      ? `Cơ hội chờ trưởng phòng Nhận PIC và giao Sale${
-          days === null ? '' : `, hạn ${days} ngày`
-        }. Trên bảng lượt bán, thẻ ${ws ?? 'lượt bán'} đã chuyển sang cơ hội · Khởi tạo${
-          days === null ? '' : ', quá hạn thì hiện trễ'
-        }.`
-      : `Cơ hội đã nhận PIC và nằm ở cột ${OPPORTUNITY_STAGE_LABEL.assigned}. Trên bảng lượt bán, thẻ ${
-          ws ?? 'lượt bán'
-        } đã chuyển sang cơ hội · ${OPPORTUNITY_STAGE_LABEL.assigned}.`
+      ? translate(
+          message(
+            `Cơ hội chờ trưởng phòng Nhận PIC và giao Sale${days === null ? '' : `, hạn ${days} ngày`}. Trên bảng lượt bán, thẻ ${ws ?? 'lượt bán'} đã chuyển sang cơ hội · ${newStage}${days === null ? '' : ', quá hạn thì hiện trễ'}.`,
+            `The opportunity is waiting for a manager to assign an owner and salesperson${days === null ? '' : `, due in ${days} days`}. Workstream ${ws ?? ''} now includes the ${newStage} opportunity${days === null ? '' : '; overdue items are marked late'}.`,
+            `영업 기회 담당자와 영업 담당자를 관리자에게 배정 대기 중${days === null ? '' : `, 기한 ${days}일`}. 영업 건 ${ws ?? ''}에 ${newStage} 영업 기회가 추가되었습니다${days === null ? '' : '; 기한이 지나면 지연으로 표시됩니다'}.`,
+          ),
+          lang,
+        )
+      : translate(
+          message(
+            `Cơ hội đã nhận PIC và nằm ở cột ${assigned}. Trên bảng lượt bán, thẻ ${ws ?? 'lượt bán'} đã chuyển sang cơ hội · ${assigned}.`,
+            `The opportunity has an owner and is in ${assigned}. Workstream ${ws ?? ''} now includes it.`,
+            `영업 기회 담당자가 지정되어 ${assigned} 단계입니다. 영업 건 ${ws ?? ''}에 해당 기회가 추가되었습니다.`,
+          ),
+          lang,
+        )
   return convertsLead
-    ? `${first} Lead ${leadCode} chuyển sang ${LEAD_STATE_LABEL.converted}.`
+    ? `${first} ${translate(message(`Lead ${leadCode} chuyển sang ${converted}.`, `Lead ${leadCode} moved to ${converted}.`, `리드 ${leadCode}이(가) ${converted}(으)로 전환되었습니다.`), lang)}`
     : first
 }
 
-function moneyText(row: OpportunityCreateResponse): string {
+function moneyText(
+  row: OpportunityCreateResponse,
+  lang: ReturnType<typeof useI18n>['lang'],
+): string {
   if (row.amount === null) return '—'
   const symbol = CURRENCIES.find((c) => c.code === row.currency)?.symbol ?? ''
-  return `${row.amount.toLocaleString('vi-VN')} ${symbol || row.currency || ''}`.trim()
+  return `${row.amount.toLocaleString(lang === 'vi' ? 'vi-VN' : lang === 'ko' ? 'ko-KR' : 'en-US')} ${symbol || row.currency || ''}`.trim()
 }
 
 export function CreatedPanel({
@@ -95,6 +112,7 @@ export function CreatedPanel({
   onOpen: () => void
   onStay: () => void
 }) {
+  const { t, lang } = useI18n()
   const { row, context } = created
   const { workstream } = context
   const bd = namesOf(bdOwnersOf(row))
@@ -116,23 +134,39 @@ export function CreatedPanel({
 
       <div className="flex flex-col" aria-label="Tóm tắt cơ hội vừa mở">
         {workstream && (
-          <Pair label="Lượt bán">
+          <Pair label={t(message('Lượt bán', 'Workstream', '영업 건'))}>
             <Chip>{workstream.code}</Chip>
             {workstream.customer !== null && (
               <Badge tone={workstream.customer === 'new' ? 'running' : 'success'}>
-                {workstream.customer === 'new' ? 'Khách mới' : 'Khách cũ'}
+                {t(
+                  message(
+                    workstream.customer === 'new' ? 'Khách mới' : 'Khách cũ',
+                    workstream.customer === 'new' ? 'New customer' : 'Existing customer',
+                    workstream.customer === 'new' ? '신규 고객' : '기존 고객',
+                  ),
+                )}
               </Badge>
             )}
           </Pair>
         )}
-        <Pair label="Giá trị đơn">
-          <span className="tnum font-mono">{moneyText(row)}</span>
+        <Pair label={t(message('Giá trị đơn', 'Opportunity value', '영업 기회 금액'))}>
+          <span className="tnum font-mono">{moneyText(row, lang)}</span>
         </Pair>
-        <Pair label="Ngày chốt dự kiến">{row.expectedClose ? dmy(row.expectedClose) : '—'}</Pair>
-        <Pair label="Người liên hệ">{contactLine(created)}</Pair>
-        <Pair label={BD_LANE.label}>{bd.length > 0 ? bd.join(', ') : '—'}</Pair>
-        {sale.length > 0 && <Pair label={SALE_LANE.label}>{laneText(sale)}</Pair>}
-        <Pair label="Công ty">
+        <Pair label={t(message('Ngày chốt dự kiến', 'Expected close date', '예상 종료일'))}>
+          {row.expectedClose ? dmy(row.expectedClose) : '—'}
+        </Pair>
+        <Pair label={t(message('Người liên hệ', 'Contacts', '연락처'))}>
+          {contactLine(created, lang)}
+        </Pair>
+        <Pair label={t(message(BD_LANE.label, 'Business development', '사업 개발'))}>
+          {bd.length > 0 ? bd.join(', ') : '—'}
+        </Pair>
+        {sale.length > 0 && (
+          <Pair label={t(message(SALE_LANE.label, 'Salesperson', '영업 담당자'))}>
+            {laneText(sale)}
+          </Pair>
+        )}
+        <Pair label={t(message('Công ty', 'Account', '고객사'))}>
           {row.accountCode ? (
             <>
               <Chip>{row.accountCode}</Chip>
@@ -140,24 +174,28 @@ export function CreatedPanel({
             </>
           ) : (
             <>
-              <Badge tone="warning">Chưa gắn</Badge>
-              <span className="text-muted-foreground text-[12px]">cần có trước khi ký</span>
+              <Badge tone="warning">{t(message('Chưa gắn', 'Not linked', '연결되지 않음'))}</Badge>
+              <span className="text-muted-foreground text-[12px]">
+                {t(message('cần có trước khi ký', 'required before signing', '서명 전에 필요'))}
+              </span>
             </>
           )}
         </Pair>
-        <Pair label="Cột hiện tại">
-          <Badge tone="draft">{row.stage ? OPPORTUNITY_STAGE_LABEL[row.stage] : '—'}</Badge>
+        <Pair label={t(message('Cột hiện tại', 'Current stage', '현재 단계'))}>
+          <Badge tone="draft">{row.stage ? opportunityStageLabel(row.stage, lang) : '—'}</Badge>
         </Pair>
       </div>
 
       <div className="bg-surface-ink/9 flex flex-col gap-1 rounded-md px-5 py-4">
-        <span className="text-[14px] font-semibold">Tiếp theo</span>
-        <span className="text-muted-foreground text-[13px] leading-[1.6]">{nextText(created)}</span>
+        <span className="text-[14px] font-semibold">{t(message('Tiếp theo', 'Next', '다음'))}</span>
+        <span className="text-muted-foreground text-[13px] leading-[1.6]">
+          {nextText(created, lang)}
+        </span>
       </div>
 
       <div className="flex flex-wrap gap-3">
         <Button size="lg" onClick={onOpen}>
-          Mở <span className="font-mono">{row.code}</span>
+          {t(message('Mở', 'Open', '열기'))} <span className="font-mono">{row.code}</span>
         </Button>
         <Button size="lg" variant="ghost" onClick={onStay}>
           {stayLabel}

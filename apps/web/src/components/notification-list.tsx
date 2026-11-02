@@ -4,6 +4,7 @@ import { dm } from '@/lib/date'
 import { VN_DAY, vnToday } from '@/data/opportunities'
 import { useNotificationPath } from '@/data/notifications'
 import { NotificationLine } from './notification-line'
+import { message, useI18n } from '@/app/i18n'
 
 /** Rows under a day heading (today, yesterday, then dd/MM) so the line itself
  *  only needs the hour. The server sends newest first, so a day is a run of
@@ -12,10 +13,11 @@ import { NotificationLine } from './notification-line'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-function dayLabel(row: NotificationRow, today: string): string {
+function dayLabel(row: NotificationRow, today: string, lang: 'vi' | 'en' | 'ko'): string {
   const day = VN_DAY.format(new Date(row.createdAt))
-  if (day === today) return 'Hôm nay'
-  if (day === new Date(Date.parse(today) - DAY_MS).toISOString().slice(0, 10)) return 'Hôm qua'
+  if (day === today) return message('Hôm nay', 'Today', '오늘')[lang]
+  if (day === new Date(Date.parse(today) - DAY_MS).toISOString().slice(0, 10))
+    return message('Hôm qua', 'Yesterday', '어제')[lang]
   return dm(row.createdAt)
 }
 
@@ -29,12 +31,13 @@ export function NotificationList({
   /** Every row of the pressed line, so a folded line marks all of them read. */
   onPress: (rows: NotificationRow[], path: string | null) => void
 }) {
+  const { lang } = useI18n()
   const id = useId()
   const today = vnToday()
   const pathOf = useNotificationPath()
   const days: { label: string; runs: Run[] }[] = []
   for (const row of rows) {
-    const label = dayLabel(row, today)
+    const label = dayLabel(row, today, lang)
     const path = pathOf(row)
     const same = `${row.kind}|${row.subject.code}|${path}`
     let day = days.at(-1)

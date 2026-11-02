@@ -13,7 +13,6 @@ import {
   cn,
 } from '@pv/ui'
 import {
-  LEAD_STATE_LABEL,
   LOSS_REASON_DO_NOT_CONTACT_LABEL,
   type JourneyContract,
   type JourneyDeal,
@@ -23,6 +22,8 @@ import {
   type WorkstreamHolder,
 } from '@pv/contracts'
 import { dm, dmy } from '@/lib/date'
+import { message, useI18n } from '@/app/i18n'
+import { leadStateLabel, salesLabel } from '@/data/sales-labels-i18n'
 import { BADGE_INK } from '@/data/opportunities'
 import { useContractKindLabel } from '@/data/sales-config'
 import { DueBadge } from '@/components/contract-bits'
@@ -97,12 +98,16 @@ export function MoneyPill({ children }: { children: ReactNode }) {
 }
 
 export function StatusPill({ status }: { status: Status }) {
+  const { lang } = useI18n()
   return (
     <Badge
       tone={status.tone}
       className={cn('min-w-0 whitespace-normal text-left', status.tone === 'draft' && BADGE_INK)}
     >
-      {status.label}
+      {status.label
+        .split(' · ')
+        .map((part) => salesLabel(part, lang))
+        .join(' · ')}
     </Badge>
   )
 }
@@ -176,16 +181,18 @@ function Half({ side, lit }: { side: 'in' | 'out'; lit: boolean }) {
 /** The rungs are a picture, not buttons: the whole card opens the drawer that
  *  reads them. A rung names itself for a screen reader and for a hover. */
 function Rail({ rungs }: { rungs: RailRung[] }) {
+  const { lang } = useI18n()
   return (
     <ol className={cn('m-0 grid list-none p-0', gridCols(rungs.length))}>
       {rungs.map((r, i) => {
-        const word = rungStatus(r.state, r.late).label
+        const word = salesLabel(rungStatus(r.state, r.late).label, lang)
+        const rung = salesLabel(r.label, lang)
         return (
           <li
             key={r.key}
             aria-current={r.state === 'current' ? 'step' : undefined}
-            aria-label={[r.label, word].filter(Boolean).join(' · ')}
-            title={r.label}
+            aria-label={[rung, word].filter(Boolean).join(' · ')}
+            title={rung}
             className="flex min-w-0 flex-col items-center pt-1"
           >
             <span className="relative block h-4 w-full">
@@ -246,6 +253,7 @@ function Card({
   className?: string
   children: ReactNode
 }) {
+  const { t } = useI18n()
   return (
     <div
       data-node={id}
@@ -260,7 +268,9 @@ function Card({
         <button
           type="button"
           aria-haspopup="dialog"
-          aria-label={`Mở chi tiết ${id}`}
+          aria-label={t(
+            message(`Mở chi tiết ${id}`, `Open details for ${id}`, `${id} 상세 정보 열기`),
+          )}
           onClick={() => onPick(id)}
           className="hover:bg-surface-ink/5 pointer-coarse:min-h-12 motion-std absolute inset-0 rounded-lg"
         />
@@ -272,7 +282,13 @@ function Card({
 
 /** The card's holder, plain text: the people behind it read in the drawer. */
 function Holder({ person }: { person: WorkstreamHolder | null }) {
-  if (!person) return <span className="text-muted-foreground text-[12px]">{POOL}</span>
+  const { t } = useI18n()
+  if (!person)
+    return (
+      <span className="text-muted-foreground text-[12px]">
+        {t(message(POOL, 'Unassigned', '담당자 없음'))}
+      </span>
+    )
   return (
     <span className="flex min-w-0 items-center gap-2 text-[12px]">
       <Avatar name={person.name} size="sm" />
@@ -304,13 +320,20 @@ export function LeadCard({ lead, box, ...track }: Track & { lead: Journey['lead'
 }
 
 function Expander({ code, open, onToggle }: { code: string; open: boolean; onToggle: () => void }) {
+  const { t } = useI18n()
   return (
     <Button
       variant="ghost"
       size="lg"
       className="hover:bg-surface-ink/9 relative w-12 shrink-0 bg-transparent px-0 shadow-none"
       aria-expanded={open}
-      aria-label={`${open ? 'Thu gọn' : 'Mở rộng'} ${code}`}
+      aria-label={t(
+        message(
+          `${open ? 'Thu gọn' : 'Mở rộng'} ${code}`,
+          `${open ? 'Collapse' : 'Expand'} ${code}`,
+          `${code} ${open ? '접기' : '펼치기'}`,
+        ),
+      )}
       onClick={onToggle}
     >
       <Icon icon={ChevronDown} size={16} className={cn('motion-std', open && 'rotate-180')} />
@@ -319,11 +342,12 @@ function Expander({ code, open, onToggle }: { code: string; open: boolean; onTog
 }
 
 export function NextAction({ action }: { action: NonNullable<JourneyDeal['nextAction']> }) {
+  const { t } = useI18n()
   return (
     <div className="flex flex-wrap items-center gap-2 text-[12px]">
       <Icon icon={ArrowRight} size={16} className="text-muted-foreground" />
       <span className="min-w-0 grow break-words">{action.text}</span>
-      <DateText iso={action.due} title="Hạn" />
+      <DateText iso={action.due} title={t(message('Hạn', 'Due', '기한'))} />
       <DueBadge level={action.dueLevel} className="shrink-0" />
     </div>
   )
@@ -353,6 +377,7 @@ export function DealCard({
   onToggle,
   ...track
 }: Track & { deal: JourneyDeal; box: Box; full: boolean; onToggle: () => void }) {
+  const { t } = useI18n()
   const status = dealStatus(deal)
   const finished = deal.outcome !== 'open'
   if (!full) {
@@ -392,7 +417,10 @@ export function DealCard({
           <CodePill kind="OP" code={deal.code} {...track} />
           {deal.amount !== null && <MoneyPill>{moneyShort(deal.amount)}</MoneyPill>}
           {deal.expectedClose !== null && (
-            <DateText iso={deal.expectedClose} title="Dự kiến chốt" />
+            <DateText
+              iso={deal.expectedClose}
+              title={t(message('Dự kiến chốt', 'Expected close', '예상 종료일'))}
+            />
           )}
         </div>
         {/* Its own column, never wrapped under the code: the 48px target would
@@ -423,12 +451,20 @@ export function DealCard({
 function contractPeople(
   contract: JourneyContract,
   sameHand: boolean,
+  t: (copy: ReturnType<typeof message>) => string,
 ): [string, WorkstreamHolder | null][] {
   const rows: [string, WorkstreamHolder | null][] = [
-    [sameHand ? 'Người chốt, thu tiền' : 'Người chốt', contract.holder],
+    [
+      sameHand
+        ? t(message('Người chốt, thu tiền', 'Closer and collector', '계약 및 수금 담당자'))
+        : t(message('Người chốt', 'Closer', '계약 담당자')),
+      contract.holder,
+    ],
   ]
-  if (contract.collector && !sameHand) rows.push(['Người thu tiền', contract.collector])
-  if (contract.implementer) rows.push(['Người triển khai', contract.implementer])
+  if (contract.collector && !sameHand)
+    rows.push([t(message('Người thu tiền', 'Collector', '수금 담당자')), contract.collector])
+  if (contract.implementer)
+    rows.push([t(message('Người triển khai', 'Implementer', '수행 담당자')), contract.implementer])
   return rows
 }
 
@@ -441,6 +477,7 @@ export function ContractCard({
   onToggle,
   ...track
 }: Track & { contract: JourneyContract; box: Box; open: boolean; onToggle: () => void }) {
+  const { t } = useI18n()
   const late = contractLate(contract)
   const kindLabel = useContractKindLabel()
   /* One person closing and collecting is one line, never the same face twice. */
@@ -475,7 +512,7 @@ export function ContractCard({
       <Rail rungs={railOf('contract', contract.rungs, late)} />
       <span className="flex min-w-0 flex-col gap-1">
         <span className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1">
-          {contractPeople(contract, sameHand).map(([job, person]) => (
+          {contractPeople(contract, sameHand, t).map(([job, person]) => (
             <Fragment key={job}>
               <span className="text-muted-foreground text-[12px]">{job}</span>
               <Holder person={person} />
@@ -485,7 +522,7 @@ export function ContractCard({
         {contract.canEdit === false && contract.canCollect !== true && (
           <span className="text-muted-foreground flex items-center gap-2 text-[12px]">
             <Icon icon={Lock} size={14} className="shrink-0" />
-            Chỉ xem
+            {t(message('Chỉ xem', 'View only', '보기 전용'))}
           </span>
         )}
       </span>
@@ -530,6 +567,7 @@ function DoorShell({
   pathOf,
   children,
 }: DoorProps & { door: JourneyDoor; title: string; children: ReactNode }) {
+  const { t } = useI18n()
   const code = door.kind === 'growth' ? door.dealCode : door.leadCode
   const path = pathOf(door.kind === 'growth' ? 'OP' : 'LD', code)
   return (
@@ -537,7 +575,9 @@ function DoorShell({
       <button
         type="button"
         disabled={!path}
-        aria-label={`${title} — mở ${code}`}
+        aria-label={t(
+          message(`${title} — mở ${code}`, `${title} — open ${code}`, `${title} — ${code} 열기`),
+        )}
         onClick={() => path && go(path)}
         className={cn(
           'motion-std -mx-2 -mt-1 flex min-h-12 items-center rounded-md px-2 text-left text-[14px] font-semibold',
@@ -552,11 +592,12 @@ function DoorShell({
 }
 
 function Person({ who, role }: { who: WorkstreamHolder | null; role: string }) {
+  const { t } = useI18n()
   return (
     <span className="flex min-w-0 items-center gap-2 text-[12px]">
       {who && <Avatar name={who.name} size="sm" />}
       <span className="min-w-0 break-words">
-        {who?.name ?? 'Hệ thống'}
+        {who?.name ?? t(message('Hệ thống', 'System', '시스템'))}
         <span className="text-muted-foreground"> · {role}</span>
       </span>
     </span>
@@ -568,19 +609,24 @@ function GrowthDoor({
   from,
   ...props
 }: DoorProps & { door: JourneyGrowthDoor; from: PickKind }) {
+  const { t } = useI18n()
   return (
-    <DoorShell door={door} title={DOOR_TEXT.growthTitle} {...props}>
+    <DoorShell
+      door={door}
+      title={t(message(DOOR_TEXT.growthTitle, 'New opportunity', '새 영업 기회'))}
+      {...props}
+    >
       <div className="flex flex-wrap items-center gap-2">
         <CodePill kind="OP" code={door.dealCode} {...props} />
-        <DateText iso={door.at} title="Mở" />
+        <DateText iso={door.at} title={t(message('Mở', 'Opened', '개설'))} />
       </div>
       <p className="m-0 break-words text-[12px]">{door.need}</p>
       <span className="text-muted-foreground break-words text-[12px]">
-        {DOOR_TEXT.arose} {fromText(door.from, from)}
+        {t(message(DOOR_TEXT.arose, 'Started from', '시작 출처'))} {fromText(door.from, from)}
       </span>
-      <Person who={door.decidedBy} role={DOOR_TEXT.opener} />
+      <Person who={door.decidedBy} role={t(message(DOOR_TEXT.opener, 'owner', '담당자'))} />
       <span className="text-muted-foreground flex flex-wrap items-center gap-2 text-[12px]">
-        {DOOR_TEXT.temperature}
+        {t(message(DOOR_TEXT.temperature, 'Temperature at creation', '생성 당시 온도'))}
         <TemperatureBadge value={door.temperature} />
       </span>
     </DoorShell>
@@ -592,22 +638,27 @@ function WaitingDoor({
   from,
   ...props
 }: DoorProps & { door: JourneyWaitingDoor; from: PickKind }) {
+  const { t, lang } = useI18n()
   const fromLabel = rungLabel(from, door.from.rung)
   return (
-    <DoorShell door={door} title={LEAD_STATE_LABEL.nurturing} {...props}>
+    <DoorShell door={door} title={leadStateLabel('nurturing', lang)} {...props}>
       <div className="flex flex-wrap items-center gap-2">
         <CodePill kind="LD" code={door.leadCode} {...props} />
         {door.doNotContact && <Badge tone="warning">{LOSS_REASON_DO_NOT_CONTACT_LABEL}</Badge>}
       </div>
       <span className="flex flex-wrap items-center gap-2 text-[12px]">
-        {fromLabel !== undefined && <span>Từ {fromLabel}</span>}
-        <DateText iso={door.at} title="Chuyển" />
+        {fromLabel !== undefined && (
+          <span>
+            {t(message('Từ', 'From', '출처'))} {fromLabel}
+          </span>
+        )}
+        <DateText iso={door.at} title={t(message('Chuyển', 'Moved', '이동'))} />
       </span>
       <p className="m-0 break-words text-[12px]">{door.reason}</p>
-      <Person who={door.concludedBy} role="kết luận" />
+      <Person who={door.concludedBy} role={t(message('kết luận', 'concluded', '결론 담당'))} />
       {door.campaignName !== null && (
         <span className="text-muted-foreground break-words text-[12px]">
-          Chiến dịch {door.campaignName}
+          {t(message('Chiến dịch', 'Campaign', '캠페인'))} {door.campaignName}
         </span>
       )}
       {door.lastTouch !== null && (
@@ -618,10 +669,28 @@ function WaitingDoor({
       {/* null = not recorded: promise nothing, unlike false. */}
       <p className="text-muted-foreground m-0 break-words text-[12px]">
         {door.doNotContact === null
-          ? DOOR_TEXT.wakeUnknown
+          ? t(
+              message(
+                DOOR_TEXT.wakeUnknown,
+                'It is not known whether the customer agreed to be contacted again.',
+                '고객이 재연락에 동의했는지 확인되지 않았습니다.',
+              ),
+            )
           : door.doNotContact
-            ? DOOR_TEXT.wakeManual
-            : DOOR_TEXT.wakeAny}
+            ? t(
+                message(
+                  DOOR_TEXT.wakeManual,
+                  'Only selecting “Pick up lead” resumes follow-up. This lead is excluded from campaigns and email.',
+                  '“리드 인수”를 선택해야 후속 연락이 재개됩니다. 이 리드는 캠페인과 이메일에서 제외됩니다.',
+                ),
+              )
+            : t(
+                message(
+                  DOOR_TEXT.wakeAny,
+                  'Selecting “Pick up lead” or a customer reply to a campaign resumes follow-up.',
+                  '“리드 인수”를 선택하거나 고객이 캠페인에 답장하면 후속 연락이 재개됩니다.',
+                ),
+              )}
       </p>
     </DoorShell>
   )

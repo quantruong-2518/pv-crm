@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactElement, type ReactNode } from 'react'
 import { SegmentedControl, Select, type IconGlyph, type SelectOption } from '@pv/ui'
+import { message, useI18n } from '@/app/i18n'
 import type { BookView } from './book-view'
 
 /** What a book needs to draw its rows as cards beside its table: the card face,
@@ -18,11 +19,6 @@ export const CARD_LINK =
   "text-foreground no-underline outline-none after:absolute after:inset-0 after:rounded-lg after:content-['']"
 
 export type ViewOption<V extends string> = { value: V; label: string; icon?: IconGlyph }
-
-const GRID_OR_TABLE: readonly ViewOption<BookView>[] = [
-  { value: 'grid', label: 'Lưới' },
-  { value: 'table', label: 'Bảng' },
-]
 
 /** A switch can swap the whole screen, destroying the pressed button mid-press
  *  so focus falls to `<body>`. A module flag, not state: the component that
@@ -44,13 +40,20 @@ export function ViewSwitch<V extends string>({
   value,
   onChange,
   /* The overloads let only a `BookView` switch omit `options`. */
-  options = GRID_OR_TABLE as readonly ViewOption<string>[] as readonly ViewOption<V>[],
+  options,
 }: {
   value: V
   onChange: (v: V) => void
   options?: readonly ViewOption<V>[]
 }) {
   const root = useRef<HTMLDivElement>(null)
+  const { t } = useI18n()
+  const shownOptions =
+    options ??
+    ([
+      { value: 'grid', label: t(message('Lưới', 'Grid', '격자')) },
+      { value: 'table', label: t(message('Bảng', 'Table', '표')) },
+    ] as readonly ViewOption<BookView>[] as readonly ViewOption<V>[])
 
   /* Runs on mount (the screen was swapped) and on a value change (it was not). */
   useEffect(() => {
@@ -62,13 +65,13 @@ export function ViewSwitch<V extends string>({
   return (
     <div ref={root} className="contents">
       <SegmentedControl
-        label="Kiểu hiển thị"
+        label={t(message('Kiểu hiển thị', 'View', '보기 방식'))}
         hideLabel
         tone="quiet"
         value={value}
-        options={[...options]}
+        options={[...shownOptions]}
         onChange={(v) => {
-          const next = options.find((o) => o.value === v)
+          const next = shownOptions.find((o) => o.value === v)
           if (!next || next.value === value) return
           viewJustSwitched = true
           onChange(next.value)
@@ -90,14 +93,21 @@ export function SortSelect({
   dir: string
   onChange: (sort: string, dir: 'asc' | 'desc') => void
 }) {
+  const { t } = useI18n()
   const current = `${sort}:${dir}`
   /* A header click on the table can leave a sort the list does not offer. */
   const shown = options.some((s) => s.value === current)
     ? options
-    : [...options, { value: current, label: 'Theo cột đã chọn ở bảng' }]
+    : [
+        ...options,
+        {
+          value: current,
+          label: t(message('Theo cột đã chọn ở bảng', 'Current table sort', '현재 표 정렬')),
+        },
+      ]
   return (
     <Select
-      label="Sắp xếp"
+      label={t(message('Sắp xếp', 'Sort by', '정렬'))}
       className="pointer-coarse:[&>button]:h-12"
       value={current}
       options={shown}

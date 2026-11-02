@@ -1,7 +1,8 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import { Button, Eye, GlassCard, Icon, Input, SegmentedControl, Select, SectionTitle } from '@pv/ui'
-import { CAMPAIGN_START_MAX_WAVES, MAIL_DOOR_LABEL } from '@pv/contracts'
+import { CAMPAIGN_START_MAX_WAVES } from '@pv/contracts'
 import type { MailDoor, MailTemplateRow } from '@pv/contracts'
+import { message, translate } from '@/app/i18n'
 import { MailFloatingAids, MailPreviewCard } from '@/components/mail-compose-bits'
 import { MailGuideDrawer } from '@/components/mail-guide-drawer'
 import { mailHints } from '@/data/mail-hints'
@@ -10,6 +11,17 @@ import { localSlot } from '@/lib/date'
 import { BodyField } from './body-field'
 import { WaveStrip, WaveTimeline } from './wave-chain'
 import { commitDraft, composerDraftValid, withTemplate, type ComposerState } from './wave-draft'
+
+const tr = (vi: string, en: string, ko: string) => translate(message(vi, en, ko))
+const doorName = (door: MailDoor) =>
+  ({
+    mas: tr('MAS', 'MAS', 'MAS'),
+    campaign: tr('chiến dịch', 'campaigns', '캠페인'),
+    lead: tr('lead', 'leads', '리드'),
+    opportunity: tr('cơ hội', 'opportunities', '기회'),
+    quote: tr('báo giá', 'quotes', '견적'),
+    contract: tr('hợp đồng', 'contracts', '계약'),
+  })[door]
 
 /** THE MAIL SEQUENCE — one wave composed on the left, the whole chain beside
  *  it.
@@ -173,6 +185,39 @@ export function WaveComposer({
   )
 }
 
+const TEXT = {
+  emailTemplateOptional: message(
+    'Mẫu thư (không bắt buộc)',
+    'Email template (optional)',
+    '이메일 템플릿 (선택 사항)',
+  ),
+  waveNameDefaultsToTemplate: message(
+    'Tên đợt · mặc định lấy từ tên mẫu',
+    'Wave name · defaults to template name',
+    '차수 이름 · 기본값은 템플릿 이름',
+  ),
+  eGWave1Introduction: message(
+    'Ví dụ: Đợt 1 · giới thiệu',
+    'e.g. Wave 1 · introduction',
+    '예: 1차 · 소개',
+  ),
+  subjectRecipientsWillSeeIn: message(
+    'Tiêu đề người nhận sẽ thấy trong hộp thư',
+    'Subject recipients will see in their inbox',
+    '수신자의 받은 편지함에 표시될 제목',
+  ),
+  emailButtonLabelOptional: message(
+    'Nút trong email · nhãn (không bắt buộc)',
+    'Email button · label (optional)',
+    '이메일 버튼 · 문구 (선택 사항)',
+  ),
+  reviewTheEmailBeforeAdding: message(
+    'Xem lại email trước khi thêm đợt',
+    'Review the email before adding a wave',
+    '차수를 추가하기 전에 이메일을 확인하세요',
+  ),
+}
+
 function ComposeCard({
   state,
   setState,
@@ -218,7 +263,11 @@ function ComposeCard({
 
   return (
     <GlassCard className="flex flex-col gap-4 p-5 lg:p-6">
-      <SectionTitle>{letterOnly ? 'Nội dung thư' : `Soạn Đợt ${index}`}</SectionTitle>
+      <SectionTitle>
+        {letterOnly
+          ? tr('Nội dung thư', 'Email content', '이메일 내용')
+          : tr(`Soạn đợt ${index}`, `Compose wave ${index}`, `${index}차 작성`)}
+      </SectionTitle>
 
       {/* No template picker in the run editor: swapping a whole letter into a
           batch that is already addressed is not the job that panel is for. */}
@@ -226,17 +275,21 @@ function ComposeCard({
         <label className="flex flex-col gap-2">
           <span className="text-muted-foreground text-[11px]">
             {door
-              ? `Mẫu thư · chỉ mẫu dùng ở ${MAIL_DOOR_LABEL[door].toLowerCase()}`
-              : 'Mẫu thư (không bắt buộc)'}
+              ? tr(
+                  `Mẫu thư · chỉ mẫu dùng ở ${doorName(door)}`,
+                  `Email template · available for ${doorName(door)} only`,
+                  `이메일 템플릿 · ${doorName(door)} 전용`,
+                )
+              : translate(TEXT.emailTemplateOptional)}
           </span>
           <Select
-            label="Mẫu thư"
+            label={tr('Mẫu thư', 'Email template', '이메일 템플릿')}
             hideLabel
             size="lg"
             value={state.templateCode}
             onChange={pickTemplate}
             options={[
-              { value: '', label: 'Tự soạn' },
+              { value: '', label: tr('Tự soạn', 'Write from scratch', '직접 작성') },
               ...templates.map((t) => ({ value: t.code, label: t.name })),
             ]}
           />
@@ -246,12 +299,14 @@ function ComposeCard({
       {showLabel && (
         <label className="flex flex-col gap-2">
           <span className="text-muted-foreground text-[11px]">
-            {letterOnly ? 'Phase / tên đợt' : 'Phase / tên đợt · tự lấy tên mẫu'}
+            {letterOnly
+              ? tr('Tên đợt', 'Wave name', '차수 이름')
+              : translate(TEXT.waveNameDefaultsToTemplate)}
           </span>
           <Input
             value={state.label}
             onChange={(e) => setState((s) => ({ ...s, label: e.target.value }))}
-            placeholder="Ví dụ: Đợt 1 · giới thiệu"
+            placeholder={translate(TEXT.eGWave1Introduction)}
             maxLength={200}
           />
         </label>
@@ -259,13 +314,13 @@ function ComposeCard({
 
       <label className="flex flex-col gap-2">
         <span className="text-muted-foreground text-[11px]">
-          Tiêu đề email · {state.subject.length}/200
+          {tr('Tiêu đề email', 'Email subject', '이메일 제목')} · {state.subject.length}/200
         </span>
         <Input
           value={state.subject}
           onChange={(e) => edit((s) => ({ ...s, subject: e.target.value }))}
           maxLength={200}
-          placeholder="Tiêu đề người nhận đọc thấy trong hộp thư"
+          placeholder={translate(TEXT.subjectRecipientsWillSeeIn)}
         />
       </label>
 
@@ -274,7 +329,7 @@ function ComposeCard({
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-2">
           <span className="text-muted-foreground text-[11px]">
-            Nút trong email · nhãn (không bắt buộc)
+            {translate(TEXT.emailButtonLabelOptional)}
           </span>
           <Input
             value={state.ctaLabel}
@@ -283,7 +338,9 @@ function ComposeCard({
           />
         </label>
         <label className="flex flex-col gap-2">
-          <span className="text-muted-foreground text-[11px]">Nút trong email · URL</span>
+          <span className="text-muted-foreground text-[11px]">
+            {tr('Nút trong email · URL', 'Email button · URL', '이메일 버튼 · URL')}
+          </span>
           <Input
             value={state.ctaUrl}
             onChange={(e) => setState((s) => ({ ...s, ctaUrl: e.target.value }))}
@@ -299,7 +356,9 @@ function ComposeCard({
           pushes the rest of this card down. */}
       {onTogglePreview && (
         <div className="flex items-center justify-between gap-3">
-          <span className="text-muted-foreground text-[11px]">Kiểm lại thư trước khi thêm đợt</span>
+          <span className="text-muted-foreground text-[11px]">
+            {translate(TEXT.reviewTheEmailBeforeAdding)}
+          </span>
           <Button
             size="sm"
             variant="secondary"
@@ -309,7 +368,9 @@ function ComposeCard({
             onClick={onTogglePreview}
           >
             <Icon icon={Eye} size={14} />
-            {previewOpen ? 'Đóng xem trước' : 'Xem trước'}
+            {previewOpen
+              ? tr('Đóng xem trước', 'Close preview', '미리 보기 닫기')
+              : tr('Xem trước', 'Preview', '미리 보기')}
           </Button>
         </div>
       )}
@@ -330,7 +391,7 @@ export function SendWhen({
   return (
     <div className="flex flex-col gap-2">
       <SegmentedControl
-        label="Thời điểm gửi"
+        label={tr('Thời điểm gửi', 'Send time', '발송 시간')}
         /* `quiet`: this sits inside the wave drawer, where azure is spoken for
            by the one button that cannot be taken back (law 3). */
         tone="quiet"
@@ -346,13 +407,19 @@ export function SendWhen({
           }))
         }
         options={[
-          { value: 'now', label: 'Gửi ngay' },
-          { value: 'later', label: 'Đặt lịch gửi' },
+          { value: 'now', label: tr('Gửi ngay', 'Send now', '지금 발송') },
+          { value: 'later', label: tr('Đặt lịch gửi', 'Schedule send', '발송 예약') },
         ]}
       />
       {state.timing === 'later' && (
         <label className="flex flex-col gap-2">
-          <span className="text-muted-foreground text-[11px]">Giờ gửi (giờ máy bạn)</span>
+          <span className="text-muted-foreground text-[11px]">
+            {tr(
+              'Giờ gửi (giờ địa phương của bạn)',
+              'Send time (your local time)',
+              '발송 시간 (현지 시간)',
+            )}
+          </span>
           <Input
             type="datetime-local"
             value={state.at}

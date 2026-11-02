@@ -13,6 +13,7 @@ import {
 import { isTieredPeriod, type KpiTeamViewResponse, type RoleId } from '@pv/contracts'
 import { isApiError } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { useAppChrome } from '@/app/chrome'
 import { kpiCatalogQuery, withCatalog, type KpiCatalog } from '@/data/kpi-catalog'
 import { kpiTeamViewQuery } from '@/data/kpi-team-view'
@@ -42,8 +43,6 @@ import { TeamMembers, TeamReadings } from './kpi-team-stats'
  *  No ContextRail (law 10 debt, as on the other KPI screens): a team's month is
  *  a sum over many records and opens no single object a chain could anchor on. */
 
-const NOT_YOURS = 'Bạn không phụ trách nhóm này.'
-
 function Body({
   catalog,
   view,
@@ -55,6 +54,7 @@ function Body({
   me: string | undefined
   seesAll: boolean
 }) {
+  const { t } = useI18n()
   const closed = isClosed(view)
   const roles = sharedRoles(view.shares)
   const canEdit = view.actsForLead && !closed
@@ -64,14 +64,32 @@ function Body({
     <>
       {view.monthClose ? (
         <p className={cn(NOTE, 'tnum font-num')}>
-          Đã chốt {dm(view.monthClose.closedAt)} · {view.monthClose.closedBy.name}
+          {t(
+            message(
+              `Đã chốt ${dm(view.monthClose.closedAt)} · ${view.monthClose.closedBy.name}`,
+              `Closed on ${dm(view.monthClose.closedAt)} · ${view.monthClose.closedBy.name}`,
+              `${dm(view.monthClose.closedAt)} 마감 · ${view.monthClose.closedBy.name}`,
+            ),
+          )}
         </p>
       ) : (
-        closed && <p className={NOTE}>Tháng đã kết thúc, chỉ tiêu không đổi được nữa.</p>
+        closed && (
+          <p className={NOTE}>
+            {t(
+              message(
+                'Tháng đã kết thúc, chỉ tiêu không đổi được nữa.',
+                'This month is closed. Targets can no longer be changed.',
+                '월이 마감되어 목표를 더 이상 변경할 수 없습니다.',
+              ),
+            )}
+          </p>
+        )
       )}
 
       <section className="flex flex-col gap-3">
-        <SectionTitle size="lg">Thống kê nhóm</SectionTitle>
+        <SectionTitle size="lg">
+          {t(message('Thống kê nhóm', 'Team performance', '팀 실적'))}
+        </SectionTitle>
         {view.readings.length > 0 && <TeamReadings catalog={catalog} readings={view.readings} />}
         <TeamMembers period={view.period} catalog={catalog} people={view.people} />
       </section>
@@ -79,14 +97,30 @@ function Body({
       {/* A head of the company who does not lead this team reads the whole tree instead. */}
       {isTieredPeriod(view.period) &&
         (seesAll && !view.actsForLead ? (
-          <TieredNote to={statusHref(view.period)} label="Mở Tình trạng giao" />
+          <TieredNote
+            to={statusHref(view.period)}
+            label={t(message('Mở tình trạng giao', 'Open assignment status', '배정 현황 열기'))}
+          />
         ) : (
-          <TieredNote to={assignHref(view.period)} label="Mở Giao chỉ tiêu" />
+          <TieredNote
+            to={assignHref(view.period)}
+            label={t(message('Mở giao chỉ tiêu', 'Open target assignment', '목표 배정 열기'))}
+          />
         ))}
       {!isTieredPeriod(view.period) && roles.length === 0 && (
         <section className="flex flex-col gap-3">
-          <SectionTitle size="lg">Chia cho thành viên</SectionTitle>
-          <p className={NOTE}>Phòng chưa giao phần cho nhóm.</p>
+          <SectionTitle size="lg">
+            {t(message('Chia cho thành viên', 'Split targets among members', '팀원별 목표 배분'))}
+          </SectionTitle>
+          <p className={NOTE}>
+            {t(
+              message(
+                'Phòng chưa giao phần cho nhóm.',
+                'The department has not assigned a share to this team.',
+                '부서에서 이 팀에 목표를 배정하지 않았습니다.',
+              ),
+            )}
+          </p>
         </section>
       )}
       {(isTieredPeriod(view.period) ? [] : roles).map((role) => {
@@ -111,7 +145,7 @@ function Body({
 
       {!isTieredPeriod(view.period) && (
         <section className="flex flex-col gap-3">
-          <SectionTitle size="lg">Đề xuất</SectionTitle>
+          <SectionTitle size="lg">{t(message('Đề xuất', 'Proposals', '제안'))}</SectionTitle>
           <TeamCounters
             period={view.period}
             teamId={view.team.id}
@@ -128,6 +162,7 @@ function Body({
 }
 
 export function KpiTeamPage() {
+  const { t } = useI18n()
   const chrome = useAppChrome()
   const navigate = useNavigate()
   const { teamId = '' } = useParams()
@@ -144,8 +179,8 @@ export function KpiTeamPage() {
   const about = [day, view.data && actingLine(view.data.team, me)].filter(Boolean)
   /* An index above 0 means this page was reached from another one inside the app. */
   const from = seesAll
-    ? { label: 'KPI công ty', path: COMPANY_PATH }
-    : { label: 'KPI của tôi', path: ME_PATH }
+    ? { label: t(message('KPI công ty', 'Company KPIs', '회사 KPI')), path: COMPANY_PATH }
+    : { label: t(message('KPI của tôi', 'My KPIs', '내 KPI')), path: ME_PATH }
   const goBack = () =>
     window.history.state?.idx > 0 ? navigate(-1) : navigate(`${from.path}${monthQuery(period)}`)
   const refused = isApiError(view.error) && view.error.kind === 'forbidden'
@@ -155,7 +190,17 @@ export function KpiTeamPage() {
       <ScreenLayout>
         <ScreenHeader
           back={{ label: from.label, onClick: goBack }}
-          title={view.data ? `KPI nhóm ${view.data.team.name}` : 'KPI nhóm'}
+          title={
+            view.data
+              ? t(
+                  message(
+                    `KPI nhóm ${view.data.team.name}`,
+                    `${view.data.team.name} team KPIs`,
+                    `${view.data.team.name} 팀 KPI`,
+                  ),
+                )
+              : t(message('KPI nhóm', 'Team KPIs', '팀 KPI'))
+          }
           description={
             about.length > 0 && <span className="tnum font-num">{about.join(' · ')}</span>
           }
@@ -171,11 +216,21 @@ export function KpiTeamPage() {
           <GlassCard className={TILE}>
             <p className="flex items-center gap-2 text-[12.5px] leading-5">
               <Icon icon={Lock} size={16} className="shrink-0" />
-              {NOT_YOURS}
+              {t(
+                message(
+                  'Bạn không phụ trách nhóm này.',
+                  'You are not responsible for this team.',
+                  '이 팀을 담당하지 않습니다.',
+                ),
+              )}
             </p>
           </GlassCard>
         ) : (
-          <QueryBlock query={withCatalog(view, catalog)} what="KPI của nhóm" variant="b">
+          <QueryBlock
+            query={withCatalog(view, catalog)}
+            what={t(message('KPI của nhóm', 'team KPIs', '팀 KPI'))}
+            variant="b"
+          >
             {([data, defs]) => <Body catalog={defs} view={data} me={me} seesAll={seesAll} />}
           </QueryBlock>
         )}

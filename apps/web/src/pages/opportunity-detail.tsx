@@ -2,13 +2,11 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AppShell } from '@pv/ui'
-import {
-  OPPORTUNITY_CONTACT_ROLE_LABEL,
-  type OpportunityMoneyNegotiation,
-  type OpportunityProfileResponse,
-} from '@pv/contracts'
+import { type OpportunityMoneyNegotiation, type OpportunityProfileResponse } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
+import { message, useI18n } from '@/app/i18n'
+import { opportunityContactRoleLabel } from '@/data/sales-labels-i18n'
 import type { DealEditPart } from '@/data/deal-draft'
 import { eventOfferOf, opportunityProfileQuery, railOf, refusalOf } from '@/data/opportunities'
 import { AssignSaleButton } from '@/components/opportunity-assign'
@@ -44,7 +42,16 @@ import { DealTodo } from './opportunity-status'
  *  so that every hook of the profile runs only once there IS a profile. */
 
 export function OpportunityDetailPage() {
-  const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
+  const { t } = useI18n()
+  const chrome = useAppChrome({
+    searchPlaceholder: t(
+      message(
+        'Tìm khách hàng, cơ hội, báo giá, hồ sơ…',
+        'Search accounts, opportunities, quotes, and profiles…',
+        '고객사, 영업 기회, 견적 및 프로필 검색…',
+      ),
+    ),
+  })
   const navigate = useNavigate()
   const { code = '' } = useParams()
   const { data: op, isPending, error } = useQuery(opportunityProfileQuery(code))
@@ -58,9 +65,24 @@ export function OpportunityDetailPage() {
           pending={isPending}
           failure={{
             error,
-            notFound: `Không có cơ hội mã ${code} trong sổ của bạn.`,
-            fallback: 'Không mở được hồ sơ cơ hội.',
-            back: { label: 'Về sổ cơ hội', onClick: () => navigate('/sales/opportunities') },
+            notFound: t(
+              message(
+                `Không có cơ hội mã ${code} trong sổ của bạn.`,
+                `Opportunity ${code} is not in your book.`,
+                `영업 기회 ${code}이(가) 목록에 없습니다.`,
+              ),
+            ),
+            fallback: t(
+              message(
+                'Không mở được hồ sơ cơ hội.',
+                'Could not open the opportunity profile.',
+                '영업 기회를 열 수 없습니다.',
+              ),
+            ),
+            back: {
+              label: t(message('Về sổ cơ hội', 'Back to opportunities', '영업 기회 목록으로')),
+              onClick: () => navigate('/sales/opportunities'),
+            },
           }}
         />
       )}
@@ -79,7 +101,16 @@ type Recording = { open: boolean; session: number }
 /** `negotiation: null` = a new negotiation; kept while closing, as `Editing`. */
 type Quoting = { negotiation: OpportunityMoneyNegotiation | null; open: boolean; session: number }
 
+const TEXT = {
+  interactionsQuotesContactsAndFiles: message(
+    'Lịch sử liên hệ, báo giá, người liên hệ và tài liệu của cơ hội',
+    'Interactions, quotes, contacts, and files for this opportunity',
+    '영업 기회의 연락 기록, 견적, 담당자 및 파일',
+  ),
+}
+
 function DealScreen({ op }: { op: OpportunityProfileResponse }) {
+  const { t, lang } = useI18n()
   const navigate = useNavigate()
   const [signing, setSigning] = useState(false)
   /* The waiting round the sign press came from; `''` = the header's own press. */
@@ -153,7 +184,7 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
           <DescriptionPanel op={op} onEdit={() => edit('details')} />
         </>
       }
-      railLabel="Lịch sử liên hệ, báo giá, người liên hệ và tài liệu của cơ hội"
+      railLabel={t(TEXT.interactionsQuotesContactsAndFiles)}
       rail={
         <DealRail
           op={op}
@@ -169,11 +200,11 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
       actionBar={
         !final && (
           <ActionBar
-            label="Thao tác cơ hội"
+            label={t(message('Thao tác cơ hội', 'Opportunity actions', '영업 기회 작업'))}
             subject={{ code: op.code, kind: 'opportunity' }}
             contacts={op.contacts.map((c) => ({
               ...c,
-              role: c.role && OPPORTUNITY_CONTACT_ROLE_LABEL[c.role],
+              role: c.role && opportunityContactRoleLabel(c.role, lang),
             }))}
             onCompose={(contact) => setMailTo({ code: contact.code ?? null })}
             more={more}

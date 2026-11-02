@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ChevronDown, PenLine, TriangleAlert, X } from '@pv/ui'
-import { Button, Icon, Input, MetaPill, Select, billions, cn, vnd } from '@pv/ui'
+import { Button, Icon, Input, MetaPill, Select, billions, cn } from '@pv/ui'
 import {
   CURRENCIES,
   toMoneyVnd,
@@ -12,6 +12,7 @@ import { NO_COLLECTOR } from '@/data/contract-collector'
 import { localDay } from '@/data/local-day'
 import { dmy } from '@/lib/date'
 import { Field } from './ops-fields'
+import { message, useI18n } from '@/app/i18n'
 
 /** Pieces of the sign drawer, split out to keep it under the function
  *  ceiling: the footer, the payment PIC, and the one-line fold for the signing
@@ -186,6 +187,7 @@ export function SignAmount({
   onAmount: (next: number | null) => void
   onCurrency: (next: CurrencyCode | '') => void
 }) {
+  const { number, currency: formatMoney, t } = useI18n()
   const code = currency === '' ? null : currency
   const symbol = CURRENCIES.find((c) => c.code === code)?.symbol ?? ''
   const options = [
@@ -205,7 +207,7 @@ export function SignAmount({
             inputMode="numeric"
             aria-label="Số tiền ký"
             className="tnum font-num pointer-coarse:h-12 pr-8"
-            value={amount === null ? '' : amount.toLocaleString('vi-VN')}
+            value={amount === null ? '' : number(amount)}
             onChange={(e) => {
               const digits = e.target.value.replace(/\D/g, '')
               onAmount(digits === '' ? null : Number(digits))
@@ -233,8 +235,8 @@ export function SignAmount({
       {amount !== null && amount > 0 && code !== null && (
         <span className="text-muted-foreground text-[11.5px] leading-[1.5] sm:col-span-2">
           {code === 'VND'
-            ? `${vnd(amount)} · ${billions(amount)}`
-            : `${amount.toLocaleString('vi-VN')} ${symbol} · ${billions(toMoneyVnd(amount, code))} quy ra đồng`}
+            ? `${formatMoney(amount, 'VND')} · ${billions(amount)}`
+            : `${formatMoney(amount, code)} · ${billions(toMoneyVnd(amount, code))} ${t(message('quy ra đồng', 'converted to VND', 'VND 환산'))}`}
         </span>
       )}
     </section>

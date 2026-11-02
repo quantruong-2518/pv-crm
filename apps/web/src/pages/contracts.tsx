@@ -10,27 +10,19 @@ import {
   SegmentedControl,
   StatCard,
   TriangleAlert,
-  billions,
-  vnd,
-  millions,
 } from '@pv/ui'
-import {
-  ContractBookQuery,
-  OPPORTUNITY_STATE_LABEL,
-  type ContractStatusFilter,
-} from '@pv/contracts'
+import { ContractBookQuery, type ContractStatusFilter } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { useAppChrome } from '@/app/chrome'
+import { useI18n } from '@/app/i18n'
+import { CONTRACT_COPY as COPY } from '@/data/contract-copy'
 import {
-  COLLECTED_LABEL,
-  COLLECTING_LABEL,
   CONTRACT_FILTER_KEYS,
   bookRowsOf,
   contractBookQuery,
   contractDetailQuery,
   contractSummaryQuery,
-  OVERDUE_LABEL,
 } from '@/data/contracts'
 import { useContractKindLabel } from '@/data/sales-config'
 import { BookCount, BookPage, BookSearch } from '@/components/book-page'
@@ -45,16 +37,7 @@ import { useContractFilters } from './contracts-filters'
  *  of my contracts wants something from me today. Drawn on `BookPage`, like
  *  every other book. */
 
-const STATUS_TABS: { value: ContractStatusFilter; label: string }[] = [
-  { value: 'all', label: 'Tất cả' },
-  { value: 'open', label: COLLECTING_LABEL },
-  { value: 'overdue', label: OVERDUE_LABEL },
-  { value: 'collected', label: COLLECTED_LABEL },
-  { value: 'terminated', label: OPPORTUNITY_STATE_LABEL.terminated },
-]
-
 /** Only what the server's search reads: the contract code and the customer's company. */
-const SEARCH_HINT = 'Tìm theo mã hợp đồng hoặc tên khách hàng…'
 
 /** Numbers of the WHOLE book, counted in SQL.
  *
@@ -62,6 +45,7 @@ const SEARCH_HINT = 'Tìm theo mã hợp đồng hoặc tên khách hàng…'
  *  shrink to what the reader owns: someone who only sees their own contracts
  *  reads a signed count here larger than the table below. */
 function ContractScore() {
+  const { lang, t, number, currency } = useI18n()
   const { data } = useQuery(contractSummaryQuery)
 
   const signedCount = data?.signedCount ?? 0
@@ -73,61 +57,70 @@ function ContractScore() {
   const overdueCount = data?.overdueCount ?? 0
   const lateOurs = data?.lateConditionsOurs ?? 0
   const lateTheirs = data?.lateConditionsTheirs ?? 0
+  const shortMoney = (value: number, unit: 'billion' | 'million') => {
+    const divisor = unit === 'billion' ? 1_000_000_000 : 1_000_000
+    const amount = number(value / divisor, { maximumFractionDigits: 1 })
+    if (lang === 'ko') return `${amount} ${unit === 'billion' ? '십억' : '백만'} ₫`
+    if (lang === 'en') return `${amount} ${unit === 'billion' ? 'bn' : 'm'} ₫`
+    return `${amount} ${unit === 'billion' ? 'tỷ' : 'triệu'} ₫`
+  }
+  const contractCount =
+    lang === 'ko' ? `계약 ${number(signedCount)}건` : `${number(signedCount)} ${t(COPY.bookCount)}`
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <StatCard
         size="compact"
         icon={FileCheck}
-        label="Tổng giá trị hợp đồng"
-        value={billions(signed)}
+        label={t(COPY.totalValue)}
+        value={shortMoney(signed, 'billion')}
         /* Contracts carrying no amount are reported beside the sum rather than
              counted as zero: a total that quietly swallows them reads smaller
              than the truth with nothing on screen saying why. */
         source={
           blank === 0
-            ? `${signedCount} hợp đồng · ${vnd(signed)}`
-            : `${signedCount} hợp đồng · ${blank} chưa nhập giá trị`
+            ? `${contractCount} · ${currency(signed, 'VND')}`
+            : `${contractCount} · ${number(blank)} ${t(COPY.amountMissing)}`
         }
       />
       <StatCard
         size="compact"
         icon={Coins}
-        label="Đã thu tiền"
-        value={millions(collected, 0)}
+        label={t(COPY.collectedAmount)}
+        value={shortMoney(collected, 'million')}
         /* Denominator is the SCHEDULE, not the signed value: collected money
              is summed from installments, so that is the only apples-to-apples
              ratio. */
         source={
           scheduled === 0
-            ? 'Chưa có đợt thanh toán nào'
-            : `${Math.round((collected / scheduled) * 100)}% tổng tiền theo lịch thu`
+            ? t(COPY.noInstallments)
+            : `${number(Math.round((collected / scheduled) * 100))}% ${t(COPY.scheduledTotal)}`
         }
       />
       <StatCard
         size="compact"
         icon={TriangleAlert}
         tone={overdueCount > 0 ? 'danger' : 'default'}
-        label="Tiền quá hạn"
-        value={millions(overdue, 0)}
+        label={t(COPY.overdueAmount)}
+        value={shortMoney(overdue, 'million')}
         source={
           overdueCount > 0
-            ? `${overdueCount} đợt thanh toán cần xử lý`
-            : 'Không có khoản thu quá hạn'
+            ? `${number(overdueCount)} ${t(COPY.overdueInstallments)}`
+            : t(COPY.noOverdueAmount)
         }
       />
       <StatCard
         size="compact"
         icon={ListChecks}
-        label="Điều kiện quá hạn"
-        value={String(lateOurs + lateTheirs)}
+        label={t(COPY.overdueConditions)}
+        value={number(lateOurs + lateTheirs)}
         /* Counts CONDITIONS, not contracts — two late conditions on one
              contract are two phone calls. Kept split by side because one side
              is a call to the customer and the other is a call down the hall. */
         source={
           lateOurs + lateTheirs === 0
-            ? 'Không có điều kiện nào quá hạn'
-            : `${lateTheirs} từ khách hàng · ${lateOurs} từ nội bộ`
+            ? t(COPY.noOverdueConditions)
+            : `${number(lateTheirs)} ${t(COPY.fromCustomer)} · ${number(lateOurs)} ${t(COPY.fromTeam)}`
         }
       />
     </div>
@@ -135,7 +128,9 @@ function ContractScore() {
 }
 
 export function ContractsPage() {
-  const chrome = useAppChrome({ searchPlaceholder: SEARCH_HINT })
+  const { lang, t } = useI18n()
+  const searchHint = t(COPY.bookSearch)
+  const chrome = useAppChrome({ searchPlaceholder: searchHint })
   const navigate = useNavigate()
   const resolveKind = useContractKindLabel()
 
@@ -156,17 +151,24 @@ export function ContractsPage() {
 
   /* One `size=1` read per tab: `total` is the count under the OTHER filters in
      force, and no other endpoint answers that. */
+  const statusTabs: { value: ContractStatusFilter; label: string }[] = [
+    { value: 'all', label: t(COPY.all) },
+    { value: 'open', label: t(COPY.collecting) },
+    { value: 'overdue', label: t(COPY.overdue) },
+    { value: 'collected', label: t(COPY.collected) },
+    { value: 'terminated', label: t(COPY.terminated) },
+  ]
   const tabCounts = useQueries({
-    queries: STATUS_TABS.map((tab) =>
+    queries: statusTabs.map((tab) =>
       contractBookQuery({ ...book.urlQuery, status: tab.value, page: 1, size: 1 }),
     ),
   })
-  const tabs = STATUS_TABS.map((tab, i) => ({ ...tab, count: tabCounts[i]?.data?.total }))
+  const tabs = statusTabs.map((tab, i) => ({ ...tab, count: tabCounts[i]?.data?.total }))
 
   const intent = useRowIntent(contractDetailQuery, () => import('@/pages/contract-detail'))
   const tableRows = rows.map((row) => ({
     id: row.contract.code,
-    cells: contractCells(row, resolveKind),
+    cells: contractCells(row, resolveKind, lang),
     onOpen: () => navigate(`/sales/contracts/${row.contract.code}`),
     ...intent(row.contract.code),
   }))
@@ -175,11 +177,11 @@ export function ContractsPage() {
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <BookPage
-          title="Hợp đồng"
+          title={t(COPY.bookTitle)}
           score={<ContractScore />}
           tabs={
             <SegmentedControl
-              label="Tình trạng thu"
+              label={t(COPY.collectionStatus)}
               hideLabel
               tone="quiet"
               value={query.status}
@@ -187,17 +189,17 @@ export function ContractsPage() {
               onChange={(status) => onStatus(status as ContractStatusFilter)}
             />
           }
-          count={data && <BookCount total={data.total} noun="hợp đồng" hidden={data.hidden} />}
+          count={
+            data && <BookCount total={data.total} noun={t(COPY.bookCount)} hidden={data.hidden} />
+          }
           filters={chips}
-          tools={<BookSearch value={book.text} onChange={book.setText} placeholder={SEARCH_HINT} />}
+          tools={<BookSearch value={book.text} onChange={book.setText} placeholder={searchHint} />}
           onClearFilters={book.dirty ? book.clear : undefined}
           pending={isPending}
           failure={
             error
               ? {
-                  message: `Không tải được danh sách hợp đồng. ${
-                    isApiError(error) ? userMessage(error) : 'Thử lại.'
-                  }`,
+                  message: `${t(COPY.loadFailed)} ${isApiError(error) ? userMessage(error) : t(COPY.retry)}`,
                   onRetry: () => void refetch(),
                 }
               : undefined
@@ -206,13 +208,13 @@ export function ContractsPage() {
             tableRows.length === 0
               ? book.dirty
                 ? {
-                    message: 'Không có hợp đồng nào khớp bộ lọc.',
-                    action: { label: 'Bỏ hết bộ lọc', onClick: book.clear },
+                    message: t(COPY.noMatch),
+                    action: { label: t(COPY.clearFilters), onClick: book.clear },
                   }
                 : {
-                    message: 'Chưa có hợp đồng nào.',
+                    message: t(COPY.noContracts),
                     action: {
-                      label: 'Xem sổ cơ hội',
+                      label: t(COPY.viewOpportunities),
                       onClick: () => navigate('/sales/opportunities'),
                     },
                   }
@@ -221,7 +223,7 @@ export function ContractsPage() {
           table={{
             sort: { key: query.sort, dir: query.dir },
             onSort,
-            columns: contractColumns(filters),
+            columns: contractColumns(filters, lang),
             rows: tableRows,
             pageSize: BOOK_PAGE_SIZE,
           }}

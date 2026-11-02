@@ -12,10 +12,12 @@ import {
   SectionTitle,
   Skeleton,
 } from '@pv/ui'
-import { campaignLabel, type LeadProfile } from '@pv/contracts'
+import type { LeadProfile } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
+import { message, useI18n } from '@/app/i18n'
+import { campaignSourceLabel } from '@/data/sales-labels-i18n'
 import { leadProfileQuery } from '@/data/lead-profile'
 import { railOf } from '@/data/opportunities'
 import { ConvertDialog } from '@/components/convert-dialog'
@@ -36,7 +38,16 @@ import { EmptyOp } from './opportunity-parts'
  *  profile: whoever typed it sees the code the SERVER issued. */
 
 export function OpportunityNewPage() {
-  const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
+  const { t } = useI18n()
+  const chrome = useAppChrome({
+    searchPlaceholder: t(
+      message(
+        'Tìm khách hàng, cơ hội, báo giá, hồ sơ…',
+        'Search accounts, opportunities, quotes, and profiles…',
+        '고객사, 영업 기회, 견적 및 프로필 검색…',
+      ),
+    ),
+  })
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const leadCode = params.get('lead') ?? ''
@@ -52,7 +63,13 @@ export function OpportunityNewPage() {
         <GlassCard className="p-5 lg:p-6">
           <EmptyOp
             icon={Lock}
-            note="Vai của bạn chưa có quyền mở cơ hội mới."
+            note={t(
+              message(
+                'Vai trò của bạn chưa có quyền mở cơ hội mới.',
+                'Your role cannot create opportunities.',
+                '현재 역할에는 영업 기회 생성 권한이 없습니다.',
+              ),
+            )}
             onBack={() => navigate('/sales/opportunities')}
           />
         </GlassCard>
@@ -67,13 +84,31 @@ export function OpportunityNewPage() {
     return shell(
       <ScreenLayout>
         <ScreenHeader
-          back={{ label: 'Sổ cơ hội', onClick: () => navigate('/sales/opportunities') }}
-          kicker="Cơ hội"
-          title="Mở cơ hội"
+          back={{
+            label: t(message('Sổ cơ hội', 'Opportunities', '영업 기회')),
+            onClick: () => navigate('/sales/opportunities'),
+          }}
+          kicker={t(message('Cơ hội', 'Opportunity', '영업 기회'))}
+          title={t(message('Mở cơ hội', 'Create opportunity', '영업 기회 만들기'))}
         />
         <GlassCard variant="b" className="flex flex-col gap-5 p-4 sm:p-5 lg:p-6">
-          <SectionTitle size="detail" hint="Chọn lead. Tên, giá trị và Sale được điền sẵn.">
-            Đơn này của khách nào
+          <SectionTitle
+            size="detail"
+            hint={t(
+              message(
+                'Chọn lead. Tên, giá trị và Sale được điền sẵn.',
+                'Choose a lead. The name, value, and salesperson will be filled in.',
+                '리드를 선택하면 이름, 금액, 영업 담당자가 자동 입력됩니다.',
+              ),
+            )}
+          >
+            {t(
+              message(
+                'Cơ hội này dành cho khách hàng nào?',
+                'Which customer is this opportunity for?',
+                '어느 고객사의 영업 기회인가요?',
+              ),
+            )}
           </SectionTitle>
           {/* The lead rides on the ADDRESS, so a half-filled ticket survives a
               reload and a link to it opens on the right customer. */}
@@ -98,6 +133,7 @@ export default OpportunityNewPage
  *  deal profile runs on, minus the one that needs a deal. */
 function NewDealGate({ leadCode }: { leadCode: string }) {
   const navigate = useNavigate()
+  const { t } = useI18n()
   const { data: lead, isPending, error } = useQuery(leadProfileQuery(leadCode))
 
   if (isPending) {
@@ -123,10 +159,19 @@ function NewDealGate({ leadCode }: { leadCode: string }) {
             note={
               missing ? (
                 <>
-                  Không có lead mã <span className="font-mono">{leadCode}</span>.
+                  {t(message('Không tìm thấy lead mã', 'Lead', '리드'))}{' '}
+                  <span className="font-mono">{leadCode}</span>
+                  {t(message('.', ' was not found.', '을(를) 찾을 수 없습니다.'))}
                 </>
               ) : (
-                (failure && userMessage(failure)) || 'Không mở được hồ sơ lead.'
+                (failure && userMessage(failure)) ||
+                t(
+                  message(
+                    'Không mở được hồ sơ lead.',
+                    'Could not open the lead profile.',
+                    '리드 프로필을 열 수 없습니다.',
+                  ),
+                )
               )
             }
             onBack={() => navigate('/sales/opportunities')}
@@ -143,15 +188,25 @@ function NewDealGate({ leadCode }: { leadCode: string }) {
  *  is the drawer every other door uses, open from the first paint. Closing it
  *  leaves the page, since a page with no form has nothing left to show. */
 function NewDealScreen({ lead }: { lead: LeadProfile }) {
+  const { t, lang } = useI18n()
   const navigate = useNavigate()
 
   return (
     <ScreenLayout>
       <ScreenHeader
-        back={{ label: 'Sổ cơ hội', onClick: () => navigate('/sales/opportunities') }}
-        kicker="Cơ hội"
-        title="Mở cơ hội"
-        description="Mã được cấp tự động."
+        back={{
+          label: t(message('Sổ cơ hội', 'Opportunities', '영업 기회')),
+          onClick: () => navigate('/sales/opportunities'),
+        }}
+        kicker={t(message('Cơ hội', 'Opportunity', '영업 기회'))}
+        title={t(message('Mở cơ hội', 'Create opportunity', '영업 기회 만들기'))}
+        description={t(
+          message(
+            'Mã được cấp tự động.',
+            'A code will be assigned automatically.',
+            '코드는 자동으로 발급됩니다.',
+          ),
+        )}
         meta={
           <>
             {/* Law 10 — the chain of the LEAD this deal will join, in the SAME
@@ -159,7 +214,7 @@ function NewDealScreen({ lead }: { lead: LeadProfile }) {
                 until the 201 lands on its profile. */}
             <ContextRail objects={railOf(lead.chain, lead.code, navigate)} />
             <MetaPill>{lead.province ?? '—'}</MetaPill>
-            <MetaPill>{campaignLabel(lead.source)}</MetaPill>
+            <MetaPill>{campaignSourceLabel(lead.source, lang)}</MetaPill>
           </>
         }
       />

@@ -14,10 +14,10 @@ export function t(lang: Lang, text: Text): string {
   return text[lang]
 }
 
-/** Reads an `AuthError` whether it points at a translatable key or carries a
- *  server sentence verbatim (the `message` branch of `AuthError`, `data/auth.ts`). */
+/** Auth responses are shown in the chosen language. The server's own sentence
+ *  is never display copy: it may be Vietnamese while this page is in EN/KO. */
 export function authErrorText(lang: Lang, error: AuthError): string {
-  return 'key' in error ? t(lang, AUTH_ERROR_TEXT[error.key]) : error.message
+  return t(lang, AUTH_ERROR_TEXT[error.key])
 }
 
 const AUTH_ERROR_TEXT: Record<AuthErrorKey, Text> = {
@@ -28,8 +28,8 @@ const AUTH_ERROR_TEXT: Record<AuthErrorKey, Text> = {
   ),
   offline: tr(
     'Không kết nối được. Kiểm tra mạng rồi thử lại.',
-    'Could not reach the server. Check your connection and try again.',
-    '서버에 연결할 수 없습니다. 연결 상태를 확인한 후 다시 시도하세요.',
+    'Connection lost. Check your network and try again.',
+    '연결할 수 없습니다. 네트워크를 확인하고 다시 시도하세요.',
   ),
   tooFast: tr(
     'Bạn thử quá nhiều lần. Chờ một lát rồi thử lại.',
@@ -42,9 +42,9 @@ const AUTH_ERROR_TEXT: Record<AuthErrorKey, Text> = {
     '서버에 문제가 발생했습니다. 잠시 후 다시 시도하세요.',
   ),
   unreadable: tr(
-    'Không đọc được thông tin đăng nhập. Báo quản trị viên.',
-    'The server returned session data that can’t be read. Report it to your administrator.',
-    '서버가 읽을 수 없는 세션 데이터를 반환했습니다. 관리자에게 문의하세요.',
+    'Không đọc được tài khoản. Báo quản trị viên.',
+    'Your account could not be loaded. Contact an administrator.',
+    '계정 정보를 불러올 수 없습니다. 관리자에게 문의하세요.',
   ),
   missingEmail: tr('Chưa nhập email.', 'Enter your email.', '이메일을 입력하세요.'),
   missingPassword: tr('Chưa nhập mật khẩu.', 'Enter your password.', '비밀번호를 입력하세요.'),
@@ -85,18 +85,18 @@ const AUTH_ERROR_TEXT: Record<AuthErrorKey, Text> = {
   ),
   passwordMismatch: tr(
     'Hai mật khẩu chưa khớp.',
-    'The two boxes don’t match.',
-    '두 항목이 일치하지 않습니다.',
+    'Passwords do not match.',
+    '비밀번호가 일치하지 않습니다.',
   ),
   resetLinkExpired: tr(
-    'Link đặt lại đã hết hạn. Xin link mới.',
-    'The reset link has expired. Request a new one and try again.',
-    '재설정 링크가 만료되었습니다. 새 링크를 요청한 후 다시 시도하세요.',
+    'Link đã hết hạn. Xin link mới.',
+    'This link has expired. Request a new one.',
+    '링크가 만료되었습니다. 새 링크를 요청하세요.',
   ),
   passwordRequirementsNotMet: tr(
     `Mật khẩu tối thiểu ${PASSWORD_MIN} ký tự.`,
-    `Password doesn't meet requirements — at least ${PASSWORD_MIN} characters.`,
-    `비밀번호가 요구 사항을 충족하지 않습니다 — 최소 ${PASSWORD_MIN}자.`,
+    `Use at least ${PASSWORD_MIN} characters.`,
+    `최소 ${PASSWORD_MIN}자로 입력하세요.`,
   ),
   sessionExpired: tr(
     'Đã hết thời gian đăng nhập. Đăng nhập lại để tiếp tục.',
@@ -130,46 +130,46 @@ export const signInText = {
   submit: tr('Đăng nhập', 'Sign in', '로그인'),
   submitting: tr('Đang vào…', 'Signing in…', '로그인 중…'),
   resetLead: tr(
-    'Mật khẩu đã đổi. Mọi thiết bị đã đăng xuất. Đăng nhập lại bằng mật khẩu mới.',
-    'Your password has been changed. Sign in again with the new password — every old session on this account has been closed.',
-    '비밀번호가 변경되었습니다. 새 비밀번호로 다시 로그인하세요 — 이 계정의 기존 세션은 모두 종료되었습니다.',
+    'Mật khẩu đã đổi. Đăng nhập bằng mật khẩu mới.',
+    'Password changed. Sign in with your new password.',
+    '비밀번호가 변경되었습니다. 새 비밀번호로 로그인하세요.',
   ),
   expiredFallback: tr(
-    'Đã hết thời gian đăng nhập. Đăng nhập lại để quay về trang đang xem.',
-    'Your previous session has expired. Sign in again to reopen the page you were on.',
-    '이전 세션이 만료되었습니다. 다시 로그인하면 보고 있던 페이지가 열립니다.',
+    'Phiên đăng nhập đã hết hạn. Đăng nhập lại để mở trang trước.',
+    'Your session expired. Sign in to reopen the previous page.',
+    '세션이 만료되었습니다. 다시 로그인하면 이전 페이지가 열립니다.',
   ),
   why: {
     idle: tr(
-      'Bạn không thao tác quá lâu nên đã đăng xuất. Đăng nhập lại để quay về trang đang xem.',
-      'The machine sat idle too long and the session closed itself. Sign in again to reopen the page you were on.',
-      '기기가 오래 유휴 상태였기 때문에 세션이 자동으로 종료되었습니다. 다시 로그인하면 보고 있던 페이지가 열립니다.',
+      'Bạn đã đăng xuất sau thời gian không hoạt động. Đăng nhập lại để mở trang trước.',
+      'You were signed out after being inactive. Sign in to reopen the previous page.',
+      '오랫동안 사용하지 않아 로그아웃되었습니다. 다시 로그인하면 이전 페이지가 열립니다.',
     ),
     'shift-ended': tr(
-      'Đã hết ca làm việc. Đăng nhập lại để quay về trang đang xem.',
-      'Your shift has ended. Sign in again to reopen the page you were on.',
-      '근무 시간이 종료되었습니다. 다시 로그인하면 보고 있던 페이지가 열립니다.',
+      'Ca làm việc đã kết thúc. Đăng nhập lại để mở trang trước.',
+      'Your work shift ended. Sign in to reopen the previous page.',
+      '근무 시간이 끝났습니다. 다시 로그인하면 이전 페이지가 열립니다.',
     ),
     revoked: tr(
-      'Bạn đã bị đăng xuất. Đăng nhập lại để tiếp tục.',
-      'Your session was closed. Sign in again if it’s still you sitting here.',
-      '세션이 종료되었습니다. 계속 본인이 사용 중이라면 다시 로그인하세요.',
+      'Phiên đăng nhập đã bị đóng. Đăng nhập lại để tiếp tục.',
+      'Your session was closed. Sign in again to continue.',
+      '세션이 종료되었습니다. 다시 로그인해 계속하세요.',
     ),
   },
 }
 
 export const forgotPasswordText = {
-  sentTitle: tr('Kiểm tra hộp thư của bạn', 'Check your inbox', '받은편지함을 확인하세요'),
-  sentBefore: tr('Kiểm tra ', 'Check ', ''),
+  sentTitle: tr('Kiểm tra email', 'Check your email', '이메일을 확인하세요'),
+  sentBefore: tr('Nếu ', 'If ', '이메일 '),
   sentAfter: tr(
-    ' để tìm link đặt lại mật khẩu.',
-    ', the reset request has been sent.',
-    ' 주소로 재설정 메일을 보냈습니다.',
+    ' có tài khoản, link đặt lại sẽ được gửi tới địa chỉ này.',
+    ' belongs to an account, we will send a reset link there.',
+    '에 연결된 계정이 있다면 재설정 링크를 보내드립니다.',
   ),
   hint: tr(
-    'Chưa thấy thư? Kiểm tra hộp thư rác hoặc địa chỉ email. Gửi lại thì link cũ không dùng được nữa.',
-    'Please check your spam folder or verify the email address if the message takes too long to arrive. Resending replaces the previous link, which stops working.',
-    '메일이 오래도록 오지 않으면 스팸함을 확인하거나 이메일 주소를 다시 확인해 주세요. 다시 보내면 이전 링크는 더 이상 사용할 수 없습니다.',
+    'Không thấy thư? Kiểm tra thư rác. Gửi lại sẽ làm link cũ hết hiệu lực.',
+    'No email? Check spam. Resending will replace the previous link.',
+    '메일이 없다면 스팸함을 확인하세요. 다시 보내면 이전 링크는 사용할 수 없습니다.',
   ),
   /** The clock arrives already formatted as mm:ss — Korean puts the duration
    *  before its postposition, so the three sentences cannot share one split. */
@@ -180,16 +180,16 @@ export const forgotPasswordText = {
       `링크는 ${clock} 후 만료됩니다.`,
     ),
   expired: tr(
-    'Link đã hết hạn. Bấm Gửi lại.',
-    'The link has expired — press resend.',
-    '링크가 만료되었습니다 — 다시 보내기를 누르세요.',
+    'Link đã hết hạn. Gửi lại để nhận link mới.',
+    'Link expired. Resend to get a new one.',
+    '링크가 만료되었습니다. 다시 보내 새 링크를 받으세요.',
   ),
   resend: tr('Gửi lại', 'Resend', '다시 보내기'),
   title: tr('Quên mật khẩu', 'Forgot password', '비밀번호 찾기'),
   lead: tr(
-    'Nhập email để nhận link đặt lại mật khẩu.',
-    'Enter your email. We’ll send a reset link — we won’t ask for your old password, since you don’t remember it.',
-    '이메일을 입력하세요. 재설정 링크를 보내드립니다 — 이전 비밀번호는 묻지 않습니다.',
+    'Nhập email để xin link đặt lại mật khẩu.',
+    'Enter your email to request a password reset link.',
+    '비밀번호 재설정 링크를 받을 이메일을 입력하세요.',
   ),
   email: tr('Email', 'Email', '이메일'),
   submit: tr('Gửi link đặt lại', 'Send reset link', '재설정 링크 보내기'),
@@ -199,25 +199,21 @@ export const forgotPasswordText = {
 
 export const resetPasswordText = {
   checkingTitle: tr('Đang kiểm tra link…', 'Checking link…', '링크 확인 중…'),
-  checkingLead: tr(
-    'Chờ một chút.',
-    'One moment — we’re checking whether this link still works.',
-    '잠시만 기다려 주세요 — 이 링크가 아직 유효한지 확인 중입니다.',
-  ),
+  checkingLead: tr('Đang kiểm tra link.', 'Checking this link.', '링크를 확인하고 있습니다.'),
   deadTitle: tr('Link không dùng được', 'Link no longer works', '유효하지 않은 링크'),
   deadLead: tr(
-    'Link đặt lại này hỏng hoặc đã hết hạn. Xin link mới.',
-    'This reset link is broken or has expired. Request a new one — it takes about ten seconds.',
-    '이 재설정 링크가 손상되었거나 만료되었습니다. 새 링크를 요청하세요 — 10초 정도 걸립니다.',
+    'Link không hợp lệ hoặc đã hết hạn. Xin link mới.',
+    'This link is invalid or expired. Request a new one.',
+    '링크가 유효하지 않거나 만료되었습니다. 새 링크를 요청하세요.',
   ),
   requestNew: tr('Xin link mới', 'Request a new link', '새 링크 요청'),
   title: tr('Đặt mật khẩu mới', 'Set a new password', '새 비밀번호 설정'),
   leadBefore: tr('Cho tài khoản ', 'For account ', '계정: '),
   leadAfter: (n: number) =>
     tr(
-      `. Tối thiểu ${n} ký tự. Đặt xong, bạn đăng nhập ngay, các thiết bị khác bị đăng xuất.`,
-      `. At least ${n} characters. Once set, every old session on this account is closed and you are signed straight back in.`,
-      `. 최소 ${n}자. 설정하면 이 계정의 기존 세션이 모두 종료되며 바로 다시 로그인됩니다.`,
+      `. Dùng ít nhất ${n} ký tự. Các thiết bị khác sẽ đăng xuất.`,
+      `. Use at least ${n} characters. Other devices will be signed out.`,
+      `. 최소 ${n}자로 설정하세요. 다른 기기에서는 로그아웃됩니다.`,
     ),
   newPassword: tr('Mật khẩu mới', 'New password', '새 비밀번호'),
   newPasswordPlaceholder: (n: number) =>
@@ -241,14 +237,14 @@ export const resetPasswordText = {
 export const changePasswordText = {
   title: tr('Đổi mật khẩu', 'Change password', '비밀번호 변경'),
   forcedLead: tr(
-    'Đổi mật khẩu mặc định để bắt đầu.',
-    'Change the default password to start using the product.',
-    '제품 사용을 시작하려면 기본 비밀번호를 변경하세요.',
+    'Đổi mật khẩu mặc định để tiếp tục.',
+    'Change your default password to continue.',
+    '계속하려면 기본 비밀번호를 변경하세요.',
   ),
   normalLead: tr(
-    'Đặt mật khẩu mới. Các thiết bị khác sẽ bị đăng xuất.',
-    'Set a new password. Every other session of yours will be signed out; this one won’t be.',
-    '새 비밀번호를 설정하세요. 현재 세션을 제외한 다른 모든 세션은 로그아웃됩니다.',
+    'Các thiết bị khác sẽ đăng xuất sau khi đổi mật khẩu.',
+    'Other devices will be signed out when you change your password.',
+    '비밀번호를 변경하면 다른 기기에서 로그아웃됩니다.',
   ),
   back: tr('Về tài khoản của tôi', 'Back to my account', '내 계정으로'),
   currentPassword: tr('Mật khẩu hiện tại', 'Current password', '현재 비밀번호'),
@@ -268,9 +264,9 @@ export const reauthText = {
   dialogLabel: tr('Xác nhận mật khẩu', 'Confirm password', '비밀번호 확인'),
   title: tr('Xác nhận mật khẩu', 'Confirm password', '비밀번호 확인'),
   lead: tr(
-    'Thao tác này thay đổi quyền truy cập. Gõ lại mật khẩu để xác nhận.',
-    'This action changes access to the system. Retype your password to confirm it’s you.',
-    '이 작업은 시스템 접근 권한을 변경합니다. 본인 확인을 위해 비밀번호를 다시 입력하세요.',
+    'Nhập lại mật khẩu để xác nhận thao tác.',
+    'Enter your password again to confirm this action.',
+    '이 작업을 확인하려면 비밀번호를 다시 입력하세요.',
   ),
   passwordPlaceholder: tr('Mật khẩu của bạn', 'Your password', '비밀번호를 입력하세요'),
   confirm: tr('Xác nhận', 'Confirm', '확인'),

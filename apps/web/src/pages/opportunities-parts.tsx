@@ -30,6 +30,7 @@ import { opportunityStopReasonsQuery } from '@/data/opportunities-write'
 import { usePins } from '@/data/pins'
 import { BookCount } from '@/components/book-page'
 import { ANY, CLOSED_TABS, stateTabs } from './opportunities-model'
+import { message, useI18n } from '@/app/i18n'
 
 /** Module 3 · the deal book's blocks: the state tabs, the count with its hold
  *  link (the filters sit in the column headers) and the score cards
@@ -81,18 +82,19 @@ function useBookFacets(query: OpportunityBookQuery) {
 
 /** The toolbar's left end: the state tabs, and the stop reason on the stopped tab. */
 export function BookTabs({ query, onPatch }: { query: OpportunityBookQuery; onPatch: Patch }) {
+  const { t, lang } = useI18n()
   const facets = useBookFacets(query)
   const pinCount = usePins('opportunity').codes.length
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-3">
       <SegmentedControl
-        label="Trạng thái cơ hội"
+        label={t(message('Trạng thái cơ hội', 'Opportunity status', '영업 기회 상태'))}
         hideLabel
         tone="quiet"
         value={query.pinned ? PINNED : (query.state ?? ANY)}
         options={[
-          ...stateTabs(facets?.byState),
-          { value: PINNED, label: 'Đã ghim', count: pinCount },
+          ...stateTabs(facets?.byState, lang),
+          { value: PINNED, label: t(message('Đã ghim', 'Pinned', '고정됨')), count: pinCount },
         ]}
         onChange={(value) => onPatch(tabPatch(value))}
       />
@@ -111,19 +113,25 @@ export function BookCounts({
   total: number
   hidden: number
 }) {
+  const { t, number } = useI18n()
   const facets = useBookFacets(query)
   /* `/sales/holds` is a `lead.view` screen; a deal-only reader gets no dead link. */
   const canSeeHolds = useCan('lead.view')
   return (
     <>
-      <BookCount total={total} noun="cơ hội" hidden={hidden} />
+      <BookCount
+        total={total}
+        noun={t(message('cơ hội', 'opportunities', '영업 기회'))}
+        hidden={hidden}
+      />
       {/* Held deals are off the book and the board; the hold list is where they wait. */}
       {canSeeHolds && (facets?.held ?? 0) > 0 && (
         <Link
           to="/sales/holds"
           className="text-accent-foreground pointer-coarse:min-h-12 inline-flex items-center gap-1 text-[11.5px] font-semibold hover:underline"
         >
-          <span className="tnum">{facets?.held}</span> cơ hội đang tạm hoãn
+          <span className="tnum">{number(facets?.held ?? 0)}</span>{' '}
+          {t(message('cơ hội đang tạm hoãn', 'opportunities on hold', '보류 중인 영업 기회'))}
           <Icon icon={ArrowRight} size={16} />
         </Link>
       )}
@@ -136,6 +144,7 @@ export function BookCounts({
  *  department's score, not the reader's. A scoped reader therefore sees a
  *  total that differs from the book's count below. */
 export function ScoreCards() {
+  const { t, number } = useI18n()
   const { data } = useQuery(opportunityScorecardQuery)
 
   /* Until the read lands, or when it failed, no figure is true: "—", no tone. */
@@ -151,31 +160,60 @@ export function ScoreCards() {
   /* No denominator, no ratio: "—", never "0%". */
   const per = (n: number) => (!loaded || total === 0 ? '—' : percent(n / total))
   const warn = (bad: boolean) => (loaded && bad ? ('warning' as const) : ('default' as const))
-  const noTotal = loaded && total === 0 ? 'Chưa có cơ hội để tính tỷ lệ' : undefined
+  const noTotal =
+    loaded && total === 0
+      ? t(
+          message(
+            'Chưa có cơ hội để tính tỷ lệ',
+            'No opportunities to calculate a rate',
+            '비율을 계산할 영업 기회가 없습니다',
+          ),
+        )
+      : undefined
 
   const items = [
     {
       icon: Target,
-      label: 'Tổng cơ hội',
-      value: loaded ? String(total) : '—',
+      label: t(message('Tổng cơ hội', 'Total opportunities', '전체 영업 기회')),
+      value: loaded ? number(total) : '—',
       tone: warn(total === 0),
-      hint: loaded ? 'Cơ hội ở mọi trạng thái' : undefined,
+      hint: loaded
+        ? t(
+            message(
+              'Cơ hội ở mọi trạng thái',
+              'Opportunities in all statuses',
+              '모든 상태의 영업 기회',
+            ),
+          )
+        : undefined,
     },
     {
       icon: Wallet,
-      label: 'Giá trị đang theo đuổi',
+      label: t(message('Giá trị đang theo đuổi', 'Pipeline value', '영업 진행 금액')),
       value: loaded ? billions(openAmount) : '—',
       tone: warn(openAmount === 0),
       /* The server sums in dong and skips unpriced deals — then says how many. */
       hint: !loaded
         ? undefined
         : openBlank === 0
-          ? `${openCount} cơ hội đang mở`
-          : `${openCount - openBlank}/${openCount} cơ hội đang mở · ${openBlank} chưa nhập giá trị`,
+          ? t(
+              message(
+                `${openCount} cơ hội đang mở`,
+                `${number(openCount)} open opportunities`,
+                `진행 중 영업 기회 ${number(openCount)}건`,
+              ),
+            )
+          : t(
+              message(
+                `${openCount - openBlank}/${openCount} cơ hội đang mở · ${openBlank} chưa nhập giá trị`,
+                `${number(openCount - openBlank)}/${number(openCount)} open opportunities · ${number(openBlank)} without a value`,
+                `진행 중 영업 기회 ${number(openCount)}건 중 ${number(openCount - openBlank)}건 금액 입력 · ${number(openBlank)}건 미입력`,
+              ),
+            ),
     },
     {
       icon: FileCheck,
-      label: 'Đã ký hợp đồng',
+      label: t(message('Đã ký hợp đồng', 'Contracts signed', '계약 체결')),
       value: per(won),
       tone: warn(total > 0 && won === 0),
       /* Terminated deals have no card of their own (the row holds four); they
@@ -184,15 +222,36 @@ export function ScoreCards() {
         ? undefined
         : (noTotal ??
           (terminated === 0
-            ? `${won}/${total} cơ hội đã ký hợp đồng`
-            : `${won}/${total} cơ hội đã ký hợp đồng · ${terminated} đã chấm dứt`)),
+            ? t(
+                message(
+                  `${won}/${total} cơ hội đã ký hợp đồng`,
+                  `${number(won)}/${number(total)} opportunities signed`,
+                  `영업 기회 ${number(total)}건 중 ${number(won)}건 계약 체결`,
+                ),
+              )
+            : t(
+                message(
+                  `${won}/${total} cơ hội đã ký hợp đồng · ${terminated} đã chấm dứt`,
+                  `${number(won)}/${number(total)} opportunities signed · ${number(terminated)} terminated`,
+                  `영업 기회 ${number(total)}건 중 ${number(won)}건 계약 체결 · ${number(terminated)}건 종료`,
+                ),
+              ))),
     },
     {
       icon: CircleX,
-      label: OPPORTUNITY_STATE_LABEL.lost,
+      label: t(message(OPPORTUNITY_STATE_LABEL.lost, 'Lost', '실패')),
       value: per(lost),
       tone: 'default' as const,
-      hint: !loaded ? undefined : (noTotal ?? `${lost}/${total} cơ hội không tiếp tục theo đuổi`),
+      hint: !loaded
+        ? undefined
+        : (noTotal ??
+          t(
+            message(
+              `${lost}/${total} cơ hội không tiếp tục theo đuổi`,
+              `${number(lost)}/${number(total)} opportunities no longer pursued`,
+              `영업 기회 ${number(total)}건 중 ${number(lost)}건 진행 중단`,
+            ),
+          )),
     },
   ]
 
@@ -200,7 +259,9 @@ export function ScoreCards() {
     <div className="flex flex-col gap-3">
       <div
         role="group"
-        aria-label="Thẻ điểm sổ cơ hội"
+        aria-label={t(
+          message('Thẻ điểm sổ cơ hội', 'Opportunity book scorecard', '영업 기회 지표'),
+        )}
         className="grid grid-cols-2 gap-3 lg:grid-cols-4"
       >
         {items.map((item) => (
@@ -223,24 +284,28 @@ export function ScoreCards() {
  *  only: beside any other state the server would answer an empty book. The
  *  list is the stop dialog's, so a reader who cannot stop deals sees `other`. */
 export function StopReasonFilter({ query, patch }: { query: OpportunityBookQuery; patch: Patch }) {
+  const { t } = useI18n()
   const stopped = query.state === 'lost'
   const canList = useCan('opportunity.edit')
   const { data } = useQuery({ ...opportunityStopReasonsQuery, enabled: stopped && canList })
   if (!stopped) return null
 
   const options = [
-    { value: '', label: 'Tất cả' },
+    { value: '', label: t(message('Tất cả', 'All', '전체')) },
     ...(data?.rows ?? []).map((r) => ({ value: r.id, label: r.name })),
     { value: OPPORTUNITY_STOP_REASON_OTHER, label: OPPORTUNITY_STOP_REASON_OTHER_LABEL },
   ]
   /* A chosen reason still loading, unreadable or retired must not show as a raw id. */
   if (query.stopReason && !options.some((o) => o.value === query.stopReason)) {
-    options.push({ value: query.stopReason, label: 'Lý do đã chọn' })
+    options.push({
+      value: query.stopReason,
+      label: t(message('Lý do đã chọn', 'Selected reason', '선택한 사유')),
+    })
   }
 
   return (
     <Select
-      label="Lý do dừng"
+      label={t(message('Lý do dừng', 'Reason closed', '종료 사유'))}
       value={query.stopReason ?? ''}
       neutralValue=""
       options={options}

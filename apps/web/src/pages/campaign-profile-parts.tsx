@@ -3,10 +3,39 @@ import { Button, CircleAlert, Drawer, Icon, ImageFrame, Input, Modal, Select, cn
 import type { Actor } from '@pv/engines'
 import type { CampaignPatch, CampaignProfile } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 import { toast } from '@/app/toast'
 import { useCampaignCreate, type useCampaignPatch } from '@/data/campaign-book'
 import { OriginSelect } from '@/components/lead-origin-pickers'
 import { emptyProfile, profileFrom, type ProfileDraft } from './campaign-model'
+
+const TEXT = {
+  eGNorthAmericaOutreach: message(
+    'Ví dụ: Tiếp cận nhà máy Bắc Ninh · quý 3',
+    'e.g. North America outreach · Q3',
+    '예: 북미 아웃리치 · 3분기',
+  ),
+  aShortLineShownBelow: message(
+    'Câu mở đầu ngắn hiện dưới tên chiến dịch',
+    'A short line shown below the campaign name',
+    '캠페인 이름 아래에 표시할 짧은 문구',
+  ),
+  appliesToNewLeadsOnly: message(
+    'Chỉ áp dụng cho lead mới.',
+    'Applies to new leads only.',
+    '새 리드에만 적용됩니다.',
+  ),
+  endDateOptional: message(
+    'Ngày kết thúc (không bắt buộc)',
+    'End date (optional)',
+    '종료일 (선택 사항)',
+  ),
+  afterThisDateTheCampaign: message(
+    'Sau ngày này, chiến dịch không còn để chọn khi tạo lead.',
+    'After this date, the campaign is no longer available when creating a lead.',
+    '이 날짜가 지나면 리드 생성 시 캠페인을 선택할 수 없습니다.',
+  ),
+}
 
 /** Module 1 · the campaign PROFILE — the boxes naming a campaign, the modal
  *  that types a new one, and the drawer that edits an existing one.
@@ -54,6 +83,7 @@ export function ProfileFields({
    *  the reader has not said which box they came for. */
   autoFocusName?: boolean
 }) {
+  const { t } = useI18n()
   return (
     <div className="@container">
       {/* Split on the room it is given, not the viewport: the same boxes sit
@@ -61,74 +91,82 @@ export function ProfileFields({
       <div className="@3xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] @3xl:items-start grid gap-6">
         <div className="flex flex-col gap-4">
           <label className="flex flex-col gap-2">
-            <span className="text-muted-foreground text-[11px]">Tên chiến dịch</span>
+            <span className="text-muted-foreground text-[11px]">
+              {t(message('Tên chiến dịch', 'Campaign name', '캠페인 이름'))}
+            </span>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={200}
-              placeholder="Ví dụ: Tiếp cận nhà máy Bắc Ninh · quý 3"
+              placeholder={t(TEXT.eGNorthAmericaOutreach)}
               autoFocus={autoFocusName}
             />
           </label>
           <label className="flex flex-col gap-2">
-            <span className="text-muted-foreground text-[11px]">Slogan (không bắt buộc)</span>
+            <span className="text-muted-foreground text-[11px]">
+              {t(message('Slogan (không bắt buộc)', 'Tagline (optional)', '슬로건 (선택 사항)'))}
+            </span>
             <Input
               value={slogan}
               onChange={(e) => setSlogan(e.target.value)}
               maxLength={200}
-              placeholder="Câu mở đầu ngắn hiện dưới tên chiến dịch"
+              placeholder={t(TEXT.aShortLineShownBelow)}
             />
           </label>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-2">
-              <span className="text-muted-foreground text-[11px]">Chủ chiến dịch</span>
+              <span className="text-muted-foreground text-[11px]">
+                {t(message('Chủ chiến dịch', 'Campaign owner', '캠페인 담당자'))}
+              </span>
               <Select
-                label="Chủ chiến dịch"
+                label={t(message('Chủ chiến dịch', 'Campaign owner', '캠페인 담당자'))}
                 hideLabel
                 size="lg"
                 value={ownerId}
                 onChange={setOwnerId}
                 options={[
-                  { value: '', label: 'Chưa gán' },
+                  { value: '', label: t(message('Chưa gán', 'Unassigned', '미지정')) },
                   ...people.map((p) => ({ value: p.id, label: `${p.name} · ${p.role}` })),
                 ]}
               />
             </label>
             <label className="flex flex-col gap-2">
-              <span className="text-muted-foreground text-[11px]">Nguồn dẫn</span>
+              <span className="text-muted-foreground text-[11px]">
+                {t(message('Nguồn dẫn', 'Source', '유입 경로'))}
+              </span>
               <Select
-                label="Nguồn dẫn"
+                label={t(message('Nguồn dẫn', 'Source', '유입 경로'))}
                 hideLabel
                 size="lg"
                 value={sourceId}
                 onChange={setSourceId}
                 options={[
-                  { value: '', label: 'Chưa gán' },
+                  { value: '', label: t(message('Chưa gán', 'Unassigned', '미지정')) },
                   ...sources.filter((s) => s.active).map((s) => ({ value: s.id, label: s.name })),
                 ]}
               />
             </label>
           </div>
           <div className="flex flex-col gap-2">
-            <span className="text-muted-foreground text-[11px]">Nguồn của lead</span>
+            <span className="text-muted-foreground text-[11px]">
+              {t(message('Nguồn của lead', 'Lead source', '리드 출처'))}
+            </span>
             <OriginSelect
-              label="Nguồn của lead"
+              label={t(message('Nguồn của lead', 'Lead source', '리드 출처'))}
               hideLabel
               value={originId}
               onChange={setOriginId}
-              emptyLabel="Chưa gán"
+              emptyLabel={t(message('Chưa gán', 'Unassigned', '미지정'))}
             />
             <span className="text-muted-foreground text-[11px] leading-[1.5]">
-              Chỉ áp dụng cho lead mới.
+              {t(TEXT.appliesToNewLeadsOnly)}
             </span>
           </div>
           <label className="flex flex-col gap-2 sm:max-w-[240px]">
-            <span className="text-muted-foreground text-[11px]">
-              Ngày kết thúc (không bắt buộc)
-            </span>
+            <span className="text-muted-foreground text-[11px]">{t(TEXT.endDateOptional)}</span>
             <Input type="date" value={endsOn} onChange={(e) => setEndsOn(e.target.value)} />
             <span className="text-muted-foreground text-[11px] leading-[1.5]">
-              Sau ngày này, chiến dịch không còn để chọn khi tạo lead.
+              {t(TEXT.afterThisDateTheCampaign)}
             </span>
           </label>
         </div>
@@ -160,6 +198,7 @@ const THUMBNAIL_SETTLE_MS = 500
  *  frame and the verdict belong to `ThumbnailPreview`; this field owns only
  *  the settling. */
 function ThumbnailField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { t } = useI18n()
   const [settled, setSettled] = useState(value.trim())
 
   useEffect(() => {
@@ -169,7 +208,9 @@ function ThumbnailField({ value, onChange }: { value: string; onChange: (v: stri
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-muted-foreground text-[11px]">Link ảnh (không bắt buộc)</span>
+      <span className="text-muted-foreground text-[11px]">
+        {t(message('Link ảnh (không bắt buộc)', 'Image URL (optional)', '이미지 URL (선택 사항)'))}
+      </span>
       <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -178,8 +219,14 @@ function ThumbnailField({ value, onChange }: { value: string; onChange: (v: stri
 
       <ThumbnailPreview
         url={settled}
-        empty="Chưa có ảnh."
-        broken="Không tải được ảnh. Cần link ảnh trực tiếp, đuôi .jpg, .png hoặc .webp."
+        empty={t(message('Chưa có ảnh.', 'No image yet.', '아직 이미지가 없습니다.'))}
+        broken={t(
+          message(
+            'Không tải được ảnh. Hãy dùng liên kết trực tiếp tới tệp .jpg, .png hoặc .webp.',
+            'Image could not be loaded. Use a direct link to a .jpg, .png, or .webp file.',
+            '이미지를 불러올 수 없습니다. .jpg, .png 또는 .webp 파일의 직접 링크를 사용하세요.',
+          ),
+        )}
       />
     </div>
   )
@@ -275,6 +322,7 @@ export function CampaignCreateModal({
   sources: { id: string; name: string; active: boolean }[]
   onCreated: (code: string) => void
 }) {
+  const { t } = useI18n()
   const [draft, setDraft] = useState<ProfileDraft>(emptyProfile)
   const create = useCampaignCreate()
 
@@ -301,17 +349,43 @@ export function CampaignCreateModal({
       },
       {
         onSuccess: (row) => {
-          toast(`Đã mở chiến dịch ${row.code}`, {
-            tone: 'success',
-            detail: 'Chiến dịch đang nháp. Thêm người nhận để gửi đợt đầu.',
-          })
+          toast(
+            t(
+              message(
+                `Đã mở chiến dịch ${row.code}`,
+                `Campaign ${row.code} created`,
+                `캠페인 ${row.code} 생성 완료`,
+              ),
+            ),
+            {
+              tone: 'success',
+              detail: t(
+                message(
+                  'Chiến dịch đang ở trạng thái nháp. Thêm người nhận để gửi đợt đầu.',
+                  'The campaign is a draft. Add recipients to send the first wave.',
+                  '캠페인이 초안 상태입니다. 수신자를 추가해 첫 발송 차수를 보내세요.',
+                ),
+              ),
+            },
+          )
           onCreated(row.code)
         },
         onError: (err) =>
-          toast('Không tạo được chiến dịch', {
-            tone: 'danger',
-            detail: isApiError(err) ? userMessage(err) : 'Thử lại.',
-          }),
+          toast(
+            t(
+              message(
+                'Không tạo được chiến dịch',
+                'Could not create campaign',
+                '캠페인을 만들 수 없습니다',
+              ),
+            ),
+            {
+              tone: 'danger',
+              detail: isApiError(err)
+                ? userMessage(err)
+                : t(message('Hãy thử lại.', 'Please try again.', '다시 시도해 주세요.')),
+            },
+          ),
       },
     )
   }
@@ -320,19 +394,41 @@ export function CampaignCreateModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="Chiến dịch mới"
-      subtitle="Chưa gửi thư nào ở bước này."
+      title={t(message('Chiến dịch mới', 'New campaign', '새 캠페인'))}
+      subtitle={t(
+        message(
+          'Chiến dịch được tạo ở trạng thái nháp. Bạn có thể thêm người nhận và chuẩn bị đợt gửi sau.',
+          'The campaign will be created as a draft. Add recipients and prepare a wave afterward.',
+          '캠페인은 초안으로 생성됩니다. 수신자를 추가하고 발송 차수를 준비할 수 있습니다.',
+        ),
+      )}
       footer={
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-4">
           <span className="text-muted-foreground min-w-0 max-w-[560px] text-[11.5px] leading-[1.5]">
-            {name === '' ? 'Cần nhập tên chiến dịch.' : 'Tạo xong sẽ mở hồ sơ chiến dịch.'}
+            {name === ''
+              ? t(
+                  message(
+                    'Nhập tên chiến dịch để tiếp tục.',
+                    'Enter a campaign name to continue.',
+                    '계속하려면 캠페인 이름을 입력하세요.',
+                  ),
+                )
+              : t(
+                  message(
+                    'Sau khi tạo, hồ sơ chiến dịch sẽ mở.',
+                    'The campaign profile will open after creation.',
+                    '생성 후 캠페인 프로필이 열립니다.',
+                  ),
+                )}
           </span>
           <div className="flex shrink-0 gap-2">
             <Button size="lg" variant="ghost" onClick={onClose} disabled={create.isPending}>
-              Huỷ
+              {t(message('Huỷ', 'Cancel', '취소'))}
             </Button>
             <Button size="lg" onClick={submit} disabled={!canCreate}>
-              {create.isPending ? 'Đang tạo…' : 'Tạo chiến dịch nháp'}
+              {create.isPending
+                ? t(message('Đang tạo…', 'Creating…', '만드는 중…'))
+                : t(message('Tạo chiến dịch nháp', 'Create draft campaign', '캠페인 초안 만들기'))}
             </Button>
           </div>
         </div>
@@ -391,6 +487,7 @@ export function ProfileDrawer({
   sources: { id: string; name: string; active: boolean }[]
   patch: ReturnType<typeof useCampaignPatch>
 }) {
+  const { t } = useI18n()
   const original = useMemo(() => profileFrom(campaign), [campaign])
   const [draft, setDraft] = useState<ProfileDraft>(original)
 
@@ -432,14 +529,28 @@ export function ProfileDrawer({
     }
     patch.mutate(body, {
       onSuccess: () => {
-        toast('Đã lưu thông tin chiến dịch', { tone: 'success' })
+        toast(
+          t(
+            message(
+              'Đã lưu thông tin chiến dịch',
+              'Campaign details saved',
+              '캠페인 정보 저장 완료',
+            ),
+          ),
+          { tone: 'success' },
+        )
         onClose()
       },
       onError: (err) =>
-        toast('Không lưu được', {
-          tone: 'danger',
-          detail: isApiError(err) ? userMessage(err) : 'Thử lại.',
-        }),
+        toast(
+          t(message('Không lưu được', 'Could not save changes', '변경 사항을 저장할 수 없습니다')),
+          {
+            tone: 'danger',
+            detail: isApiError(err)
+              ? userMessage(err)
+              : t(message('Hãy thử lại.', 'Please try again.', '다시 시도해 주세요.')),
+          },
+        ),
     })
   }
 
@@ -448,15 +559,17 @@ export function ProfileDrawer({
       open={open}
       onClose={onClose}
       width="lg"
-      title="Sửa thông tin chiến dịch"
+      title={t(message('Sửa thông tin chiến dịch', 'Edit campaign details', '캠페인 정보 수정'))}
       subtitle={campaign.code}
       footer={
         <div className="flex justify-end gap-2">
           <Button size="lg" variant="ghost" onClick={onClose} disabled={patch.isPending}>
-            Huỷ
+            {t(message('Huỷ', 'Cancel', '취소'))}
           </Button>
           <Button size="lg" onClick={submit} disabled={!canSave}>
-            {patch.isPending ? 'Đang lưu…' : 'Lưu thay đổi'}
+            {patch.isPending
+              ? t(message('Đang lưu…', 'Saving…', '저장 중…'))
+              : t(message('Lưu thay đổi', 'Save changes', '변경 사항 저장'))}
           </Button>
         </div>
       }

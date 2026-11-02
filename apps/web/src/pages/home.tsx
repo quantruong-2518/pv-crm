@@ -10,6 +10,7 @@ import { AppShell, Icon, Phone, Plus, ScreenLayout, UserPlus, cn, type IconGlyph
 import { isApiError, userMessage } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
+import { message, useI18n } from '@/app/i18n'
 import { salesExitsQuery, salesMoneyQuery, salesPerformanceQuery } from '@/data/home-charts'
 import { currentPick, keyOf, type PeriodPick } from '@/data/period-pick'
 import { workstreamBookQuery } from '@/data/workstreams'
@@ -112,14 +113,18 @@ function QuickActions({
   canDeal: boolean
   canLog: boolean
 }) {
+  const { t } = useI18n()
   const navigate = useNavigate()
 
   return (
-    <nav aria-label="Thao tác nhanh" className="flex flex-wrap items-center gap-2">
+    <nav
+      aria-label={t(message('Thao tác nhanh', 'Quick actions', '빠른 작업'))}
+      className="flex flex-wrap items-center gap-2"
+    >
       {canLead && (
         <QuickAction
           icon={UserPlus}
-          label="Thêm lead"
+          label={t(message('Thêm lead', 'Add lead', '리드 추가'))}
           primary
           onClick={() => navigate('/sales/leads/new')}
         />
@@ -127,7 +132,7 @@ function QuickActions({
       {canDeal && (
         <QuickAction
           icon={Plus}
-          label="Tạo cơ hội"
+          label={t(message('Tạo cơ hội', 'Create opportunity', '영업 기회 만들기'))}
           primary={!canLead}
           onClick={() => navigate('/sales/opportunities/new')}
         />
@@ -135,7 +140,7 @@ function QuickActions({
       {canLog && (
         <QuickAction
           icon={Phone}
-          label="Ghi liên hệ"
+          label={t(message('Ghi liên hệ', 'Log interaction', '고객 접점 기록'))}
           primary={!canLead && !canDeal}
           onClick={() => navigate('/comms/log')}
         />
@@ -169,6 +174,7 @@ function Bento({
   runsTile,
   exitsTile,
 }: BentoProps) {
+  const { t } = useI18n()
   /* The data's own period decides, not the picker's: a kept placeholder
      still holds the old grain's buckets until the new read lands. */
   const weekly = data !== undefined && salesGrainOf(data.period) === 'week'
@@ -191,7 +197,11 @@ function Bento({
     hero(HERO)
   ) : error ? (
     <ChartsFailed
-      detail={isApiError(error) ? userMessage(error) : 'Thử lại.'}
+      detail={
+        isApiError(error)
+          ? userMessage(error)
+          : t(message('Hãy thử lại.', 'Please try again.', '다시 시도해 주세요.'))
+      }
       onRetry={onRetry}
       className={HERO}
     />
@@ -259,6 +269,7 @@ function Head({
   onPick: (next: PeriodPick) => void
   quick: ReactNode
 }) {
+  const { t } = useI18n()
   const titleId = useId()
   return (
     <header
@@ -270,7 +281,7 @@ function Head({
           id={titleId}
           className="font-display text-[30px] font-bold leading-[38px] tracking-[-0.025em]"
         >
-          Tổng quan bán hàng
+          {t(message('Tổng quan bán hàng', 'Sales overview', '영업 개요'))}
         </h2>
         {canCharts && (
           <div className="text-muted-foreground min-h-5 text-[12px] leading-[1.6]">
@@ -287,6 +298,7 @@ function Head({
 /** The hero slot. Money needs the whole contract book: an own-only reader, one
  *  without `contract.view`, or a refused read (403) gets the signed tile. */
 function useHero(period: string, canCharts: boolean) {
+  const { t } = useI18n()
   const ownOnly = useSession((s) => s.actor?.ownOnly ?? false)
   const wholeBook = useCan('contract.view') && !ownOnly
   const cashRead = useQuery({
@@ -312,7 +324,11 @@ function useHero(period: string, canCharts: boolean) {
     if (cashRead.error)
       return (
         <ChartsFailed
-          detail={isApiError(cashRead.error) ? userMessage(cashRead.error) : 'Thử lại.'}
+          detail={
+            isApiError(cashRead.error)
+              ? userMessage(cashRead.error)
+              : t(message('Hãy thử lại.', 'Please try again.', '다시 시도해 주세요.'))
+          }
           onRetry={() => void cashRead.refetch()}
           className={className}
         />
@@ -332,7 +348,16 @@ function useRunsTotal(query: WorkstreamBookQuery, enabled: boolean) {
 }
 
 export function HomePage() {
-  const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, lead, cơ hội, hợp đồng…' })
+  const { t } = useI18n()
+  const chrome = useAppChrome({
+    searchPlaceholder: t(
+      message(
+        'Tìm khách hàng, lead, cơ hội, hợp đồng…',
+        'Search customers, leads, opportunities, and contracts…',
+        '고객, 리드, 영업 기회, 계약 검색…',
+      ),
+    ),
+  })
   const canCharts = useCan('performance.view')
   const canRuns = useCan('workstream.view')
   const canLead = useCan('lead.edit')
@@ -361,7 +386,10 @@ export function HomePage() {
 
   const heroRead = useHero(keyOf(pick), canCharts)
 
-  const hidden = [!canCharts && 'số hiệu suất', !canRuns && 'hành trình'].filter(Boolean)
+  const hidden = [
+    !canCharts && t(message('số liệu hiệu suất', 'performance metrics', '성과 지표')),
+    !canRuns && t(message('hành trình', 'workstreams', '워크스트림')),
+  ].filter(Boolean)
 
   const runsTile = (className: string) =>
     canRuns && (
@@ -385,7 +413,11 @@ export function HomePage() {
       <ReasonsTile data={exitsRead.data} layout="side" className={className} />
     ) : exitsRead.error ? (
       <ChartsFailed
-        detail={isApiError(exitsRead.error) ? userMessage(exitsRead.error) : 'Thử lại.'}
+        detail={
+          isApiError(exitsRead.error)
+            ? userMessage(exitsRead.error)
+            : t(message('Hãy thử lại.', 'Please try again.', '다시 시도해 주세요.'))
+        }
         onRetry={() => void exitsRead.refetch()}
         className={className}
       />
@@ -425,7 +457,14 @@ export function HomePage() {
 
         {hidden.length > 0 && (
           <p className="text-muted-foreground text-[12px] leading-4">
-            Bị ẩn theo quyền của bạn: {hidden.join(' · ')}.
+            {t(
+              message(
+                'Bị ẩn theo quyền của bạn:',
+                'Hidden based on your permissions:',
+                '권한에 따라 숨겨진 항목:',
+              ),
+            )}{' '}
+            {hidden.join(' · ')}.
           </p>
         )}
       </ScreenLayout>

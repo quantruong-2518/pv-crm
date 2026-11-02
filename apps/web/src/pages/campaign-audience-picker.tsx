@@ -17,6 +17,7 @@ import {
 } from '@pv/ui'
 import { OWNER_NONE, type LeadBookQuery, type LeadBookResponse, type LeadTier } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
+import { message, translate } from '@/app/i18n'
 import { useSelectionGesture } from '@/components/book-selection'
 import { CompanyCell, MomentCell } from '@/components/lead-cells'
 import { LabelChips } from '@/components/lead-labels'
@@ -25,15 +26,26 @@ import { LEAD_TIERS } from '@/data/campaigns'
 import { useSalesPeople } from '@/data/directory'
 import { categoryOptions, leadIndustryOptionsQuery } from '@/data/industries'
 import { leadLabelOptionsQuery } from '@/data/lead-labels'
-import { NO_OWNER_TITLE, leadBookQuery } from '@/data/leads'
+import { leadBookQuery } from '@/data/leads'
 import { searchableText } from '@/lib/search-box'
+
+const tr = (vi: string, en: string, ko: string) => translate(message(vi, en, ko))
 
 /** Module 1 · the campaign audience's PICKER — the lead table inside the
  *  add-recipients drawer. Split from `campaign-audience-parts.tsx` (max-lines); it wears
  *  the lead book's setup (select-page box, column filters, avatar owner, reset
  *  button) but keeps its own selection, owned by `AudienceTab`. */
 
-const TIER_OPTIONS = LEAD_TIERS.map((t) => ({ value: t.key, label: t.label }))
+const tierLabel = (key: string) => {
+  const copy: Record<string, [string, string, string]> = {
+    prospect: ['Đầu mối', 'Prospect', '잠재 고객'],
+    mql: ['MQL', 'MQL', 'MQL'],
+    sql: ['SQL', 'SQL', 'SQL'],
+  }
+  const [vi, en, ko] = copy[key] ?? [key, key, key]
+  return tr(vi, en, ko)
+}
+const TIER_OPTIONS = LEAD_TIERS.map((t) => ({ value: t.key, label: tierLabel(t.key) }))
 
 const AUDIENCE_PAGE_SIZE = 100
 
@@ -143,7 +155,7 @@ export function AudiencePicker({
 
   const salesPeople = useSalesPeople()
   const ownerOptions = [
-    { value: OWNER_NONE, label: 'Chưa có người phụ trách' },
+    { value: OWNER_NONE, label: tr('Chưa có người phụ trách', 'No owner', '담당자 없음') },
     ...salesPeople.map((a) => ({ value: a.id, label: a.name })),
   ]
   const { data: labelCatalog } = useQuery(leadLabelOptionsQuery)
@@ -157,14 +169,18 @@ export function AudiencePicker({
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <SearchField
-          placeholder="Tìm theo công ty, người liên hệ hoặc mã lead…"
+          placeholder={tr(
+            'Tìm theo công ty, người liên hệ hoặc mã lead…',
+            'Search by company, contact, or lead ID…',
+            '회사, 담당자 또는 리드 ID로 검색…',
+          )}
           value={text}
           onChange={setText}
           className="min-w-0 flex-1"
         />
         {dirty && (
           <Button size="md" variant="ghost" onClick={clearFilters} className="pointer-coarse:h-12">
-            Bỏ hết bộ lọc
+            {tr('Bỏ hết bộ lọc', 'Clear filters', '필터 지우기')}
           </Button>
         )}
       </div>
@@ -173,7 +189,11 @@ export function AudiencePicker({
         pending={isPending}
         failure={
           error
-            ? `Không tải được danh sách lead. ${isApiError(error) ? userMessage(error) : 'Thử lại.'}`
+            ? tr(
+                `Không tải được danh sách lead. ${isApiError(error) ? userMessage(error) : 'Hãy thử lại.'}`,
+                `Could not load leads. ${isApiError(error) ? userMessage(error) : 'Please try again.'}`,
+                `리드 목록을 불러올 수 없습니다. ${isApiError(error) ? userMessage(error) : '다시 시도해 주세요.'}`,
+              )
             : undefined
         }
         onRetry={() => void refetch()}
@@ -200,7 +220,11 @@ export function AudiencePicker({
         onPaint={paintSelection}
       />
       <p className="text-muted-foreground text-[11px]">
-        Hiện tối đa {AUDIENCE_PAGE_SIZE} lead mới nhất.
+        {tr(
+          `Đang hiển thị tối đa ${AUDIENCE_PAGE_SIZE} lead mới nhất.`,
+          `Showing up to the ${AUDIENCE_PAGE_SIZE} most recent leads.`,
+          `최근 리드 최대 ${AUDIENCE_PAGE_SIZE}개를 표시합니다.`,
+        )}
       </p>
     </div>
   )
@@ -241,7 +265,15 @@ function pickerColumns({
               on,
             )
           }
-          label={<span className="sr-only">Chọn tất cả lead đang hiện</span>}
+          label={
+            <span className="sr-only">
+              {tr(
+                'Chọn tất cả lead đang hiện',
+                'Select all visible leads',
+                '현재 표시된 리드 모두 선택',
+              )}
+            </span>
+          }
           className="pointer-coarse:h-12 w-full justify-center gap-0 p-0"
         />
       ),
@@ -249,10 +281,16 @@ function pickerColumns({
          and cells share one grid template. */
       width: '48px',
     },
-    { header: 'Công ty / Người liên hệ', width: 'minmax(0,2.4fr)' },
+    {
+      header: tr('Công ty / Người liên hệ', 'Company / Contact', '회사 / 담당자'),
+      width: 'minmax(0,2.4fr)',
+    },
     {
       header: (
-        <ColumnFilter label="Nhóm ngành" active={Boolean(filters.categoryId)}>
+        <ColumnFilter
+          label={tr('Nhóm ngành', 'Industry group', '산업 분야')}
+          active={Boolean(filters.categoryId)}
+        >
           {(close) => (
             <ColumnFilterList
               options={groupOptions}
@@ -267,7 +305,7 @@ function pickerColumns({
     },
     {
       header: (
-        <ColumnFilter label="Bậc" active={Boolean(filters.tier)}>
+        <ColumnFilter label={tr('Bậc', 'Tier', '등급')} active={Boolean(filters.tier)}>
           {(close) => (
             <ColumnFilterList
               searchable={false}
@@ -283,14 +321,18 @@ function pickerColumns({
     },
     {
       header: (
-        <ColumnFilter label="Nhãn" active={filters.label.length > 0}>
+        <ColumnFilter label={tr('Nhãn', 'Labels', '라벨')} active={filters.label.length > 0}>
           {(close) => (
             <ColumnFilterList
               options={labelOptions}
               selected={filters.label}
               close={close}
               onApply={(label) => patch({ label })}
-              emptyText="Chưa có nhãn nào."
+              emptyText={tr(
+                'Chưa có nhãn nào.',
+                'No labels available.',
+                '사용할 수 있는 라벨이 없습니다.',
+              )}
             />
           )}
         </ColumnFilter>
@@ -299,7 +341,10 @@ function pickerColumns({
     },
     {
       header: (
-        <ColumnFilter label="Ngày tạo" active={Boolean(filters.createdFrom || filters.createdTo)}>
+        <ColumnFilter
+          label={tr('Ngày tạo', 'Created', '생성일')}
+          active={Boolean(filters.createdFrom || filters.createdTo)}
+        >
           {(close) => (
             <ColumnFilterRange
               from={filters.createdFrom}
@@ -314,7 +359,10 @@ function pickerColumns({
     },
     {
       header: (
-        <ColumnFilter label="Người phụ trách" active={filters.owner.length > 0}>
+        <ColumnFilter
+          label={tr('Người phụ trách', 'Owner', '담당자')}
+          active={filters.owner.length > 0}
+        >
           {(close) => (
             <ColumnFilterList
               options={ownerOptions}
@@ -380,7 +428,7 @@ function PickerTable({
           tone="danger"
           icon={TriangleAlert}
           message={failure}
-          action={{ label: 'Tải lại', onClick: onRetry }}
+          action={{ label: tr('Tải lại', 'Reload', '새로고침'), onClick: onRetry }}
           className="py-8"
         />
       ) : rows.length === 0 ? (
@@ -389,16 +437,35 @@ function PickerTable({
           message={
             alreadyOnPage > 0
               ? wholeMatchShown
-                ? 'Mọi lead khớp bộ lọc đã có trong danh sách.'
-                : `${alreadyOnPage} lead mới nhất đã có trong danh sách. Thu hẹp bộ lọc để thấy lead cũ hơn.`
+                ? tr(
+                    'Tất cả lead khớp bộ lọc đã có trong danh sách.',
+                    'All matching leads are already on the list.',
+                    '조건에 맞는 리드가 모두 이미 목록에 있습니다.',
+                  )
+                : tr(
+                    `${alreadyOnPage} lead mới nhất đã có trong danh sách. Thu hẹp bộ lọc để thấy lead cũ hơn.`,
+                    `The ${alreadyOnPage} newest leads are already listed. Narrow the filters to find older leads.`,
+                    `최신 리드 ${alreadyOnPage}개가 이미 목록에 있습니다. 필터를 좁혀 이전 리드를 찾아보세요.`,
+                  )
               : filtered
-                ? 'Không có lead nào khớp bộ lọc.'
-                : 'Chưa có lead nào ở trạng thái Đang hoạt động.'
+                ? tr(
+                    'Không có lead nào khớp bộ lọc.',
+                    'No leads match these filters.',
+                    '필터와 일치하는 리드가 없습니다.',
+                  )
+                : tr(
+                    'Chưa có lead nào đang hoạt động.',
+                    'There are no active leads yet.',
+                    '활성 리드가 아직 없습니다.',
+                  )
           }
           action={
             dirty
-              ? { label: 'Bỏ hết bộ lọc', onClick: onClearFilters }
-              : { label: 'Tải lại', onClick: onRetry }
+              ? {
+                  label: tr('Bỏ hết bộ lọc', 'Clear filters', '필터 지우기'),
+                  onClick: onClearFilters,
+                }
+              : { label: tr('Tải lại', 'Reload', '새로고침'), onClick: onRetry }
           }
           className="py-8"
         />
@@ -424,11 +491,15 @@ function PickerTable({
                 onChange={(on) => onSetOne(l.code, on)}
               />,
               <CompanyCell key="c" lead={l} />,
-              <PersonCell key="cat" value={l.category?.name} missing="Chưa chọn nhóm ngành" />,
+              <PersonCell
+                key="cat"
+                value={l.category?.name}
+                missing={tr('Chưa chọn nhóm ngành', 'No industry group', '산업 분야 미선택')}
+              />,
               <PersonCell
                 key="tier"
-                value={l.tier && (LEAD_TIERS.find((t) => t.key === l.tier)?.label ?? l.tier)}
-                missing="Chưa xếp bậc"
+                value={l.tier && tierLabel(l.tier)}
+                missing={tr('Chưa xếp bậc', 'No tier', '등급 미지정')}
               />,
               l.labels.length > 0 ? (
                 <LabelChips
@@ -438,10 +509,15 @@ function PickerTable({
                   className="max-w-full flex-nowrap"
                 />
               ) : (
-                <PersonCell key="labels" missing="Chưa gắn nhãn" />
+                <PersonCell key="labels" missing={tr('Chưa gắn nhãn', 'No labels', '라벨 없음')} />
               ),
               <MomentCell key="d" iso={l.createdAt} />,
-              <AvatarCell key="o" email={l.ownerEmail} name={l.ownerName} empty={NO_OWNER_TITLE} />,
+              <AvatarCell
+                key="o"
+                email={l.ownerEmail}
+                name={l.ownerName}
+                empty={tr('Chưa có người phụ trách', 'No owner', '담당자 없음')}
+              />,
             ],
           }))}
         />

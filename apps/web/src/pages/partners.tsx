@@ -29,6 +29,7 @@ import { noop, useBookView } from '@/components/book-view'
 import { CopyRef, PartnerCardGrid } from '@/components/partner-cards'
 import { FilterMenu } from '@/components/table-bits'
 import { AddPartnerModal, EditPartnerModal } from './partners-parts'
+import { message, useI18n } from '@/app/i18n'
 
 /** Partner book — who sends us leads, picked by `REFERRER`-asking
  *  motions on the create form and the import panel.
@@ -45,18 +46,11 @@ const NO_PARTNERS: Partner[] = []
 const WHOLE_BOOK = { includeInactive: true }
 
 /** `active` is the default tab, as the old "show hidden" box was off. */
-const PARTNER_TABS = [
-  { value: 'active', label: 'Đang dùng' },
-  { value: 'hidden', label: 'Đã ẩn' },
-  { value: 'all', label: 'Tất cả' },
-] as const
+const PARTNER_TABS = ['active', 'hidden', 'all'] as const
 
 /** Address keys of this book. Module-level so the hook's memo key is stable. */
 const PARTNER_FILTERS = {
-  view: oneOf(
-    PARTNER_TABS.map((t) => t.value),
-    'active',
-  ),
+  view: oneOf(PARTNER_TABS, 'active'),
   origin: listField(),
 }
 
@@ -100,16 +94,26 @@ function partnerView(all: Partner[], filters: PartnerFilters, sort: TableSort) {
 }
 
 /** Grid has no column headers, so the sorts the table offers become one pick. */
-const PARTNER_SORT_OPTIONS = [
-  { value: 'name:asc', label: 'Tên A → Z' },
-  { value: 'name:desc', label: 'Tên Z → A' },
-  { value: 'leads:desc', label: 'Nhiều lead nhất' },
-  { value: 'opportunities:desc', label: 'Nhiều cơ hội nhất' },
-  { value: 'contracts:desc', label: 'Nhiều hợp đồng nhất' },
+const partnerSortOptions = (t: (copy: ReturnType<typeof message>) => string) => [
+  { value: 'name:asc', label: t(message('Tên A → Z', 'Name A → Z', '이름 A → Z')) },
+  { value: 'name:desc', label: t(message('Tên Z → A', 'Name Z → A', '이름 Z → A')) },
+  { value: 'leads:desc', label: t(message('Nhiều lead nhất', 'Most leads', '리드 많은순')) },
+  {
+    value: 'opportunities:desc',
+    label: t(message('Nhiều cơ hội nhất', 'Most opportunities', '기회 많은순')),
+  },
+  {
+    value: 'contracts:desc',
+    label: t(message('Nhiều hợp đồng nhất', 'Most contracts', '계약 많은순')),
+  },
 ]
 
 /** Cells of one book row, in column order: who, ref, kind, three counts, state. */
-function partnerCells(p: Partner, originName: string): ReactNode[] {
+function partnerCells(
+  p: Partner,
+  originName: string,
+  t: (copy: ReturnType<typeof message>) => string,
+): ReactNode[] {
   return [
     <span key="n" className="truncate text-[12.5px] font-semibold">
       {p.name}
@@ -130,30 +134,99 @@ function partnerCells(p: Partner, originName: string): ReactNode[] {
     )),
     p.active ? (
       <Badge key="s" tone="success">
-        Đang dùng
+        {t(message('Đang dùng', 'Active', '사용 중'))}
       </Badge>
     ) : (
       <Badge key="s" tone="draft">
-        Đã ẩn
+        {t(message('Đã ẩn', 'Hidden', '숨김'))}
       </Badge>
     ),
   ]
 }
 
-const partnerColumns = (originFilter: ReactNode): TableColumn[] => [
-  { header: 'Đối tác', width: 'minmax(0,2fr)', sortKey: 'name' },
-  { header: 'Mã ref', width: '168px', align: 'center' },
+const partnerColumns = (
+  originFilter: ReactNode,
+  t: (copy: ReturnType<typeof message>) => string,
+): TableColumn[] => [
+  { header: t(message('Đối tác', 'Partner', '파트너')), width: 'minmax(0,2fr)', sortKey: 'name' },
+  { header: t(message('Mã ref', 'Referral code', '추천 코드')), width: '168px', align: 'center' },
   { header: originFilter, width: 'minmax(0,1.2fr)', align: 'center' },
   { header: 'Lead', width: '88px', sortKey: 'leads', align: 'center' },
-  { header: 'Cơ hội', width: '88px', sortKey: 'opportunities', align: 'center' },
-  { header: 'Hợp đồng', width: '104px', sortKey: 'contracts', align: 'center' },
-  { header: 'Trạng thái', width: '128px', align: 'center' },
+  {
+    header: t(message('Cơ hội', 'Opportunities', '기회')),
+    width: '88px',
+    sortKey: 'opportunities',
+    align: 'center',
+  },
+  {
+    header: t(message('Hợp đồng', 'Contracts', '계약')),
+    width: '104px',
+    sortKey: 'contracts',
+    align: 'center',
+  },
+  { header: t(message('Trạng thái', 'Status', '상태')), width: '128px', align: 'center' },
 ]
 
 const nextSort = (cur: TableSort, key: string): TableSort =>
   cur.key === key ? { key, dir: cur.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }
 
+const TEXT = {
+  searchByPartnerNameOr: message(
+    'Tìm theo tên hoặc mã đối tác…',
+    'Search by partner name or code…',
+    '파트너 이름 또는 코드 검색…',
+  ),
+  noPartnersMatchTheseFilters: message(
+    'Không có đối tác nào khớp bộ lọc.',
+    'No partners match these filters.',
+    '필터와 일치하는 파트너가 없습니다.',
+  ),
+}
+
+type Say = (copy: ReturnType<typeof message>) => string
+
+const partnerTabLabel = (value: (typeof PARTNER_TABS)[number], t: Say) =>
+  value === 'active'
+    ? t(message('Đang dùng', 'Active', '사용 중'))
+    : value === 'hidden'
+      ? t(message('Đã ẩn', 'Hidden', '숨김'))
+      : t(message('Tất cả', 'All', '전체'))
+
+/** The banner for a failed read: what failed, then why or "try again". */
+function partnerFailure(error: unknown, onRetry: () => void, t: Say) {
+  return {
+    message: `${t(message('Không tải được danh sách đối tác.', 'Could not load partners.', '파트너 목록을 불러오지 못했습니다.'))} ${
+      isApiError(error)
+        ? userMessage(error)
+        : t(message('Thử lại.', 'Please try again.', '다시 시도해 주세요.'))
+    }`,
+    onRetry,
+  }
+}
+
+/** The empty state: filters hiding every row, or a book with no partner yet. */
+function partnerEmpty(args: { dirty: boolean; clear: () => void; openAdd: () => void; t: Say }) {
+  const { dirty, clear, openAdd, t } = args
+  if (dirty) {
+    return {
+      message: t(TEXT.noPartnersMatchTheseFilters),
+      action: {
+        label: t(message('Bỏ hết bộ lọc', 'Clear filters', '필터 지우기')),
+        onClick: clear,
+      },
+    }
+  }
+  return {
+    message: t(message('Chưa có đối tác nào.', 'No partners yet.', '파트너가 없습니다.')),
+    action: {
+      label: t(message('Thêm đối tác', 'Add partner', '파트너 추가')),
+      onClick: openAdd,
+    },
+  }
+}
+
 export function PartnersPage() {
+  const { t } = useI18n()
   const chrome = useAppChrome()
   const originNames = useOriginNames()
   const [view, setView] = useBookView('pv.partners.view')
@@ -196,7 +269,10 @@ export function PartnersPage() {
     />
   )
   const originFilter = (
-    <ColumnFilter label="Nguồn lead" active={filters.origin.length > 0}>
+    <ColumnFilter
+      label={t(message('Nguồn lead', 'Lead source', '리드 출처'))}
+      active={filters.origin.length > 0}
+    >
       {originBody}
     </ColumnFilter>
   )
@@ -205,35 +281,41 @@ export function PartnersPage() {
   const tableRows: TableRowModel[] = rows.map((p) => ({
     id: p.code,
     onOpen: () => setEditingCode(p.code),
-    cells: partnerCells(p, originNameOf(p.originId)),
+    cells: partnerCells(p, originNameOf(p.originId), t),
   }))
 
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <BookPage
-          title="Đối tác"
+          title={t(message('Đối tác', 'Partners', '파트너'))}
           actions={
             <Button size="md" className="pointer-coarse:h-12 max-sm:flex-1" onClick={openAdd}>
               <Icon icon={Plus} size={16} />
-              Thêm đối tác
+              {t(message('Thêm đối tác', 'Add partner', '파트너 추가'))}
             </Button>
           }
           tabs={
             <SegmentedControl
-              label="Trạng thái"
+              label={t(message('Trạng thái', 'Status', '상태'))}
               hideLabel
               tone="quiet"
               value={filters.view}
-              onChange={(v) => patch({ view: PARTNER_TABS.find((t) => t.value === v)?.value })}
-              options={PARTNER_TABS.map((t) => ({ ...t, count: counts[t.value] }))}
+              onChange={(v) => patch({ view: PARTNER_TABS.find((value) => value === v) })}
+              options={PARTNER_TABS.map((value) => ({
+                value,
+                label: partnerTabLabel(value, t),
+                count: counts[value],
+              }))}
             />
           }
-          count={<BookCount total={rows.length} noun="đối tác" />}
+          count={
+            <BookCount total={rows.length} noun={t(message('đối tác', 'partners', '파트너'))} />
+          }
           tools={
             <>
               <SearchField
-                placeholder="Tìm theo tên hoặc mã đối tác…"
+                placeholder={t(TEXT.searchByPartnerNameOr)}
                 value={book.text}
                 onChange={book.setText}
                 className="min-w-0 flex-1 sm:max-w-[320px]"
@@ -241,13 +323,18 @@ export function PartnersPage() {
               {view === 'grid' && (
                 <>
                   <SortSelect
-                    options={PARTNER_SORT_OPTIONS}
+                    options={partnerSortOptions(t)}
                     sort={sort.key}
                     dir={sort.dir}
                     onChange={(key, dir) => setSort({ key, dir })}
                   />
-                  <FilterMenu label="Bộ lọc sổ đối tác" active={filters.origin.length > 0 ? 1 : 0}>
-                    <FilterSection title="Nguồn lead">{originBody(noop)}</FilterSection>
+                  <FilterMenu
+                    label={t(message('Bộ lọc sổ đối tác', 'Partner filters', '파트너 필터'))}
+                    active={filters.origin.length > 0 ? 1 : 0}
+                  >
+                    <FilterSection title={t(message('Nguồn lead', 'Lead source', '리드 출처'))}>
+                      {originBody(noop)}
+                    </FilterSection>
                   </FilterMenu>
                 </>
               )}
@@ -259,33 +346,16 @@ export function PartnersPage() {
                   onClick={book.clear}
                   className="pointer-coarse:h-12"
                 >
-                  Bỏ hết bộ lọc
+                  {t(message('Bỏ hết bộ lọc', 'Clear filters', '필터 지우기'))}
                 </Button>
               )}
             </>
           }
           pending={isPending}
-          failure={
-            error
-              ? {
-                  message: `Không tải được danh sách đối tác. ${
-                    isApiError(error) ? userMessage(error) : 'Thử lại.'
-                  }`,
-                  onRetry: () => void refetch(),
-                }
-              : undefined
-          }
+          failure={error ? partnerFailure(error, () => void refetch(), t) : undefined}
           empty={
             rows.length === 0
-              ? book.dirty
-                ? {
-                    message: 'Không có đối tác nào khớp bộ lọc.',
-                    action: { label: 'Bỏ hết bộ lọc', onClick: book.clear },
-                  }
-                : {
-                    message: 'Chưa có đối tác nào.',
-                    action: { label: 'Thêm đối tác', onClick: openAdd },
-                  }
+              ? partnerEmpty({ dirty: book.dirty, clear: book.clear, openAdd, t })
               : undefined
           }
           cards={
@@ -299,7 +369,7 @@ export function PartnersPage() {
                   minWidth: 'min-w-[820px]',
                   sort,
                   onSort: toggleSort,
-                  columns: partnerColumns(originFilter),
+                  columns: partnerColumns(originFilter, t),
                   rows: tableRows,
                 }
               : undefined

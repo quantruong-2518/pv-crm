@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppShell, Button, Icon, ScreenLayout, SegmentedControl } from '@pv/ui'
 import { LeadBookQuery } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
+import { useI18n } from '@/app/i18n'
 import { openMasMail } from '@/app/mas-mail-composer'
 import { useCan, useSession } from '@/app/auth'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
@@ -31,6 +32,7 @@ import { ScoreStrip } from './leads-parts'
 import { leadCells, leadColumns } from './leads-columns'
 import { useLeadFilterChips, useLeadFilters } from './leads-filters'
 import { LEAD_FILTER_KEYS, STATE_TABS, stateTabOf, tabCount, tabPatch } from './leads-model'
+import { LEAD_COPY, leadStateText } from '@/data/lead-copy'
 
 /** Module 2 · Sổ lead — a list, not a workbench: a row opens `/sales/leads/:code`.
  *
@@ -61,10 +63,9 @@ import { LEAD_FILTER_KEYS, STATE_TABS, stateTabOf, tabCount, tabPatch } from './
  *  không còn chỗ gọi nào — nó ở lại `data/intake.ts` cho tới lượt dọn. */
 const NO_LOCAL_KEYS: ReadonlySet<string> = new Set()
 
-const SEARCH_PLACEHOLDER = 'Tìm theo tên công ty, người liên hệ, mã lead hoặc mã số thuế…'
-
 export function LeadsPage() {
-  const chrome = useAppChrome({ searchPlaceholder: SEARCH_PLACEHOLDER })
+  const { lang, t, number } = useI18n()
+  const chrome = useAppChrome({ searchPlaceholder: t(LEAD_COPY.search) })
   const navigate = useNavigate()
   /* Hides rather than greys out — same call the create route's own gate makes
      (`routes.tsx`, `permission: 'lead.edit'`), so the button and the fence
@@ -127,7 +128,14 @@ export function LeadsPage() {
   const { data: counts } = useQuery(leadFacetsQuery({ ...urlQuery, disabled: undefined }))
   const tabs = STATE_TABS.map((t) => ({
     value: t.key,
-    label: t.label,
+    label:
+      t.key === 'all'
+        ? LEAD_COPY.all[lang]
+        : t.key === 'active'
+          ? LEAD_COPY.active[lang]
+          : t.key === 'held'
+            ? LEAD_COPY.held[lang]
+            : leadStateText('converted', lang),
     count: tabCount(counts, t.key),
   }))
   const tabValue = stateTabOf(query.state)
@@ -213,16 +221,16 @@ export function LeadsPage() {
        stays absent, and the panel then draws no code column at all. */
     const report = { ...run.report, ...(run.codes.length > 0 ? { codes: run.codes } : {}) }
 
-    toast(run.failure ?? `Đã thêm ${report.rows.length} lead`, {
+    toast(run.failure ?? `${t(LEAD_COPY.imported)}: ${number(report.rows.length)}`, {
       tone: run.failure ? 'danger' : 'success',
       detail: [
         report.attached &&
           report.attached.length > 0 &&
-          `${report.attached.length} người gộp vào lead chung`,
-        report.duplicates > 0 && `${report.duplicates} dòng đã có sẵn, không nạp`,
-        report.dupInFile > 0 && `${report.dupInFile} dòng trùng nhau trong tệp`,
-        report.errors.length > 0 && `${report.errors.length} dòng không nạp được`,
-        report.origins && originTally(report.origins),
+          `${number(report.attached.length)} ${t(LEAD_COPY.importedPeople)}`,
+        report.duplicates > 0 && `${number(report.duplicates)} ${t(LEAD_COPY.duplicateRows)}`,
+        report.dupInFile > 0 && `${number(report.dupInFile)} ${t(LEAD_COPY.duplicateFile)}`,
+        report.errors.length > 0 && `${number(report.errors.length)} ${t(LEAD_COPY.failedRows)}`,
+        lang === 'vi' && report.origins && originTally(report.origins),
       ]
         .filter(Boolean)
         .join(' · '),
@@ -248,11 +256,16 @@ export function LeadsPage() {
           : { sort: key, dir: key === 'company' ? 'asc' : 'desc' },
       )
     },
-    columns: leadColumns(view, filters, {
-      checked: allPageSelected,
-      indeterminate: pageSelected > 0 && !allPageSelected,
-      onChange: selectPage,
-    }),
+    columns: leadColumns(
+      view,
+      filters,
+      {
+        checked: allPageSelected,
+        indeterminate: pageSelected > 0 && !allPageSelected,
+        onChange: selectPage,
+      },
+      lang,
+    ),
     rows: rows.map((l) => ({
       id: l.code,
       state: selectedCodes.has(l.code) ? ('selected' as const) : undefined,
@@ -279,8 +292,8 @@ export function LeadsPage() {
      are not what broke. `userMessage` keeps the server's own words. */
   const failure = bookError
     ? {
-        message: `Không tải được danh sách lead. ${
-          isApiError(bookError) ? userMessage(bookError) : 'Thử lại.'
+        message: `${t(LEAD_COPY.loadFailed)} ${
+          isApiError(bookError) ? userMessage(bookError) : t(LEAD_COPY.fallbackError)
         }`,
         onRetry: () => void refetchBook(),
       }
@@ -290,24 +303,24 @@ export function LeadsPage() {
     rows.length === 0
       ? pinnedView && pinCount === 0
         ? {
-            message: 'Chưa ghim lead nào. Bấm biểu tượng ghim ở cuối dòng để thêm vào đây.',
-            action: { label: 'Xem tất cả lead', onClick: clearFilters },
+            message: t(LEAD_COPY.noPinned),
+            action: { label: t(LEAD_COPY.viewAll), onClick: clearFilters },
           }
         : dirty
           ? {
-              message: 'Không có lead nào khớp bộ lọc.',
-              action: { label: 'Bỏ hết bộ lọc', onClick: clearFilters },
+              message: t(LEAD_COPY.noMatch),
+              action: { label: t(LEAD_COPY.clearFilters), onClick: clearFilters },
             }
           : disabledView
             ? {
-                message: 'Chưa có lead nào bị vô hiệu hoá.',
-                action: { label: 'Tải lại', onClick: () => void refetchBook() },
+                message: t(LEAD_COPY.noDisabled),
+                action: { label: t(LEAD_COPY.retry), onClick: () => void refetchBook() },
               }
             : {
-                message: 'Chưa có lead nào.',
+                message: t(LEAD_COPY.noLeads),
                 action: canWrite
-                  ? { label: 'Thêm lead', onClick: () => navigate('/sales/leads/new') }
-                  : { label: 'Tải lại', onClick: () => void refetchBook() },
+                  ? { label: t(LEAD_COPY.add), onClick: () => navigate('/sales/leads/new') }
+                  : { label: t(LEAD_COPY.retry), onClick: () => void refetchBook() },
               }
       : undefined
 
@@ -315,14 +328,14 @@ export function LeadsPage() {
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <BookPage
-          title="Khách hàng tiềm năng"
+          title={t(LEAD_COPY.bookTitle)}
           actions={
             <>
               <ImportZone
                 spec={leadSpec}
                 existingKeys={NO_LOCAL_KEYS}
                 batchExtra={importBatch.extra}
-                buttonLabel="Nhập từ tệp"
+                buttonLabel={t(LEAD_COPY.importFile)}
                 onCommit={commitLeads}
                 onPrecheck={({ rows, motion, fileName, scope }) =>
                   leadImportSurvivors({
@@ -342,7 +355,7 @@ export function LeadsPage() {
                   className="pointer-coarse:h-12 max-sm:flex-1"
                 >
                   <Icon icon={ImagePlus} size={16} />
-                  Nhập từ ảnh
+                  {t(LEAD_COPY.importImage)}
                 </Button>
               )}
               {/* Typing a lead by hand is a PAGE now (`/sales/leads/new`), not a
@@ -355,7 +368,7 @@ export function LeadsPage() {
                   className="pointer-coarse:h-12 max-sm:flex-1"
                 >
                   <Icon icon={Plus} size={16} />
-                  Thêm lead
+                  {t(LEAD_COPY.add)}
                 </Button>
               )}
             </>
@@ -363,7 +376,7 @@ export function LeadsPage() {
           score={<ScoreStrip />}
           tabs={
             <SegmentedControl
-              label="Nhóm lead"
+              label={t(LEAD_COPY.group)}
               hideLabel
               tone="quiet"
               value={tabValue}
@@ -376,11 +389,11 @@ export function LeadsPage() {
           onClearFilters={dirty ? clearFilters : undefined}
           tools={
             <>
-              <BookSearch value={text} onChange={setText} placeholder={SEARCH_PLACEHOLDER} />
+              <BookSearch value={text} onChange={setText} placeholder={t(LEAD_COPY.search)} />
               {meId && (
                 <BookQueueButton
                   icon={Contact}
-                  label="Lead của tôi"
+                  label={t(LEAD_COPY.myLeads)}
                   count={undefined}
                   active={mineOnly}
                   onPress={() => patch({ owner: mineOnly ? undefined : meId })}
@@ -388,7 +401,7 @@ export function LeadsPage() {
               )}
               <BookQueueButton
                 icon={Pin}
-                label="Đã ghim"
+                label={t(LEAD_COPY.pinned)}
                 count={undefined}
                 active={pinnedView}
                 onPress={() => patch({ pinned: pinnedView ? undefined : true })}
@@ -396,7 +409,7 @@ export function LeadsPage() {
               {canDisable && (
                 <BookQueueButton
                   icon={EyeOff}
-                  label="Đã vô hiệu"
+                  label={t(LEAD_COPY.disabled)}
                   count={undefined}
                   active={disabledView}
                   onPress={onDisabledView}
@@ -421,9 +434,9 @@ export function LeadsPage() {
             meta={
               disabledView
                 ? undefined
-                : `Sẽ gửi ${selectedEmailCount} email${
+                : `${t(LEAD_COPY.sendEmail)}: ${number(selectedEmailCount)}${
                     selectedEmailCount < selectedCodes.size
-                      ? ` · bỏ qua ${selectedCodes.size - selectedEmailCount} lead chưa có email`
+                      ? ` · ${number(selectedCodes.size - selectedEmailCount)} ${t(LEAD_COPY.skipNoEmail)}`
                       : ''
                   }`
             }

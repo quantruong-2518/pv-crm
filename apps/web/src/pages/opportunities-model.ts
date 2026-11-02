@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from 'react'
 import {
-  OPPORTUNITY_STATE_LABEL,
   OpportunitySortKey,
   type OpportunityBookQuery,
   type OpportunityBookRow,
@@ -10,6 +9,8 @@ import {
 import type { TableColumn } from '@pv/ui'
 import type { MasRecipient } from '@/data/mas-mail-draft'
 import { COL } from '@/components/book-columns'
+import { message, translate, type Lang } from '@/app/i18n'
+import { opportunityStatusLabel } from '@/data/sales-labels-i18n'
 
 /** Module 3 · the deal book's logic without JSX: the address as the filter's
  *  source of truth, the tab order and the bulk-mail
@@ -93,13 +94,16 @@ export const STICKY_LEAD = [
 const TAB_ORDER: readonly OpportunityStatus[] = ['open', 'won', 'lost', 'terminated']
 
 /** Tabs with counts; "all" is the sum of `byState` under the same filters. */
-export function stateTabs(byState: OpportunityFacetsResponse['byState'] | undefined) {
+export function stateTabs(
+  byState: OpportunityFacetsResponse['byState'] | undefined,
+  lang: Lang = 'vi',
+) {
   const all = byState ? Object.values(byState).reduce((sum, n) => sum + n, 0) : undefined
   return [
-    { value: ANY, label: 'Tất cả', count: all },
+    { value: ANY, label: translate(message('Tất cả', 'All', '전체'), lang), count: all },
     ...TAB_ORDER.map((state) => ({
       value: state as string,
-      label: OPPORTUNITY_STATE_LABEL[state],
+      label: opportunityStatusLabel(state, lang),
       count: byState?.[state],
     })),
   ]
@@ -112,21 +116,42 @@ export function emptyOf(opts: {
   dirty: boolean
   onClear: () => void
   onSeeLeads: () => void
+  lang?: Lang
 }) {
+  const lang = opts.lang ?? 'vi'
+  const t = (vi: string, en: string, ko: string) => translate(message(vi, en, ko), lang)
   if (opts.pinnedView) {
     return {
-      message: 'Chưa ghim cơ hội nào. Ghim từ cột cuối của sổ.',
-      action: { label: 'Xem tất cả cơ hội', onClick: opts.onClear },
+      message: t(
+        'Chưa ghim cơ hội nào. Ghim từ cột cuối của sổ.',
+        'No pinned opportunities yet. Pin one from the last column in the book.',
+        '고정한 영업 기회가 없습니다. 목록의 마지막 열에서 고정하세요.',
+      ),
+      action: {
+        label: t('Xem tất cả cơ hội', 'View all opportunities', '모든 영업 기회 보기'),
+        onClick: opts.onClear,
+      },
     }
   }
   return opts.dirty
     ? {
-        message: 'Không có cơ hội nào khớp bộ lọc.',
-        action: { label: 'Bỏ hết bộ lọc', onClick: opts.onClear },
+        message: t(
+          'Không có cơ hội nào khớp bộ lọc.',
+          'No opportunities match these filters.',
+          '필터와 일치하는 영업 기회가 없습니다.',
+        ),
+        action: {
+          label: t('Bỏ hết bộ lọc', 'Clear all filters', '필터 모두 지우기'),
+          onClick: opts.onClear,
+        },
       }
     : {
-        message: 'Chưa có cơ hội nào. Mở cơ hội từ một lead tiềm năng.',
-        action: { label: 'Xem sổ lead', onClick: opts.onSeeLeads },
+        message: t(
+          'Chưa có cơ hội nào. Mở cơ hội từ một lead tiềm năng.',
+          'No opportunities yet. Create one from a lead.',
+          '아직 영업 기회가 없습니다. 리드에서 새 기회를 만드세요.',
+        ),
+        action: { label: t('Xem sổ lead', 'View leads', '리드 보기'), onClick: opts.onSeeLeads },
       }
 }
 

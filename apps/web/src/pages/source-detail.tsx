@@ -41,6 +41,7 @@ import {
   type TimelineItem,
 } from '@pv/ui'
 import { useAppChrome } from '@/app/chrome'
+import { message, useI18n } from '@/app/i18n'
 import { useSession } from '@/app/auth'
 import { dm } from '@/lib/date'
 import { toast } from '@/app/toast'
@@ -85,7 +86,16 @@ import { CAMPAIGN_ICON, draftOf, duplicateOf, grouped, sendsViaE4 } from './sour
 const NO_LOCAL_KEYS: ReadonlySet<string> = new Set()
 
 export function SourceDetailPage() {
-  const chrome = useAppChrome({ searchPlaceholder: 'Tìm chiến dịch, đợt gửi…' })
+  const { t } = useI18n()
+  const chrome = useAppChrome({
+    searchPlaceholder: t(
+      message(
+        'Tìm chiến dịch, đợt gửi…',
+        'Search campaigns and waves…',
+        '캠페인 및 발송 차수 검색…',
+      ),
+    ),
+  })
   const navigate = useNavigate()
   const { code = '' } = useParams()
   const { data: sources = [], isPending } = useQuery(sourcesQuery)
@@ -122,9 +132,15 @@ export function SourceDetailPage() {
           <EmptyState
             tone="danger"
             icon={TriangleAlert}
-            message={`Không có nguồn dẫn mã ${code} trong kỳ này.`}
+            message={t(
+              message(
+                `Không có nguồn dẫn mã ${code} trong kỳ này.`,
+                `Source ${code} was not found for this period.`,
+                `이 기간의 출처 ${code}을(를) 찾을 수 없습니다.`,
+              ),
+            )}
             action={{
-              label: 'Về sổ nguồn dẫn',
+              label: t(message('Về sổ nguồn dẫn', 'Back to sources', '출처 목록으로')),
               onClick: () => navigate('/sales/campaigns/sources'),
             }}
             className="py-12"
@@ -147,18 +163,46 @@ export function SourceDetailPage() {
     const { report } = run
 
     toast(
-      run.failure ?? `Đã thêm ${report.rows.length} người nhận vào sổ lead, nguồn ${source.code}`,
+      run.failure ??
+        t(
+          message(
+            `Đã thêm ${report.rows.length} người nhận vào sổ lead, nguồn ${source.code}`,
+            `Added ${report.rows.length} recipients to the lead book from source ${source.code}`,
+            `출처 ${source.code}에서 리드 목록에 수신자 ${report.rows.length}명을 추가했습니다`,
+          ),
+        ),
       {
         tone: run.failure ? 'danger' : 'success',
         detail: [
-          report.duplicates > 0 && `${report.duplicates} dòng trùng sổ, đã nạp và gắn cờ`,
-          report.dupInFile > 0 && `${report.dupInFile} dòng trùng nhau trong tệp`,
-          report.errors.length > 0 && `${report.errors.length} dòng không nạp được`,
+          report.duplicates > 0 &&
+            t(
+              message(
+                `${report.duplicates} dòng trùng sổ, đã nạp và gắn cờ`,
+                `${report.duplicates} existing duplicates imported and flagged`,
+                `${report.duplicates}개 기존 중복 항목을 가져와 표시했습니다`,
+              ),
+            ),
+          report.dupInFile > 0 &&
+            t(
+              message(
+                `${report.dupInFile} dòng trùng nhau trong tệp`,
+                `${report.dupInFile} duplicate rows in the file`,
+                `파일 내 중복 행 ${report.dupInFile}개`,
+              ),
+            ),
+          report.errors.length > 0 &&
+            t(
+              message(
+                `${report.errors.length} dòng không nạp được`,
+                `${report.errors.length} rows could not be imported`,
+                `가져오지 못한 행 ${report.errors.length}개`,
+              ),
+            ),
         ]
           .filter(Boolean)
           .join(' · '),
         action: {
-          label: 'Mở sổ lead',
+          label: t(message('Mở sổ lead', 'Open leads', '리드 목록 열기')),
           onClick: () => navigate(`/sales/leads?state=all&campaign=${source.code}`),
         },
       },
@@ -171,7 +215,7 @@ export function SourceDetailPage() {
      chiến dịch bị người dừng tay thì không còn là "đang chạy" nữa, kể cả khi đợt
      cuối vẫn nằm trong cửa sổ trả lời. */
   const status = stopped
-    ? { label: 'Đã dừng', tone: 'draft' as const }
+    ? { label: t(message('Đã dừng', 'Stopped', '중지됨')), tone: 'draft' as const }
     : { label: STATUS_LABEL[source.status], tone: STATUS_TONE[source.status] }
 
   const running = !stopped && source.status === 'running'
@@ -192,12 +236,12 @@ export function SourceDetailPage() {
        từng đợt (xem `WaveRow` ở `data/campaigns.ts`). Còn lại đúng thứ đọc
        được: lô đã rời máy chủ chưa. */
     state: w.sentAt ? 'ok' : 'next',
-    marker: `Đợt ${w.no}`,
+    marker: t(message(`Đợt ${w.no}`, `Wave ${w.no}`, `웨이브 ${w.no}`)),
     title: w.label,
     meta: (
       <>
         <MetaPill mono icon={CalendarDays}>
-          {w.sentAt ? dm(w.sentAt) : 'chưa gửi'}
+          {w.sentAt ? dm(w.sentAt) : t(message('chưa gửi', 'not sent', '미발송'))}
         </MetaPill>
         <ChannelTag
           icon={CHANNEL_ICON[w.channel]}
@@ -253,7 +297,10 @@ export function SourceDetailPage() {
   return shell(
     <ScreenLayout>
       <ScreenHeader
-        back={{ label: 'Sổ nguồn dẫn', onClick: () => navigate('/sales/campaigns/sources') }}
+        back={{
+          label: t(message('Sổ nguồn dẫn', 'Sources', '출처 목록')),
+          onClick: () => navigate('/sales/campaigns/sources'),
+        }}
         title={
           <span className="flex flex-wrap items-center gap-2">
             <Icon icon={CAMPAIGN_ICON} size={20} className="text-accent-foreground" />
@@ -278,7 +325,7 @@ export function SourceDetailPage() {
       <div className="flex flex-wrap items-center gap-2">
         <Button size="md" variant="ghost" disabled={stopped} onClick={() => setMode('edit')}>
           <Icon icon={Pencil} size={16} />
-          Sửa
+          {t(message('Sửa', 'Edit', '수정'))}
         </Button>
 
         {/* NHÂN BẢN đứng ngay cạnh Sửa vì nó là việc thường xuyên hơn: chạy lại
@@ -286,7 +333,7 @@ export function SourceDetailPage() {
             nội dung y nguyên, nhóm người nhận trống. */}
         <Button size="md" variant="ghost" onClick={() => setMode('duplicate')}>
           <Icon icon={Copy} size={16} />
-          Nhân bản
+          {t(message('Nhân bản', 'Duplicate', '복제'))}
         </Button>
 
         {running ? (
@@ -302,7 +349,7 @@ export function SourceDetailPage() {
             }}
           >
             <Icon icon={Octagon} size={16} />
-            Dừng chiến dịch
+            {t(message('Dừng chiến dịch', 'Stop campaign', '캠페인 중지'))}
           </Button>
         ) : null}
 
@@ -319,7 +366,9 @@ export function SourceDetailPage() {
           }}
         >
           <Icon icon={Eye} size={16} />
-          {following ? 'Bỏ theo dõi' : 'Theo dõi'}
+          {following
+            ? t(message('Bỏ theo dõi', 'Unfollow', '팔로우 취소'))
+            : t(message('Theo dõi', 'Follow', '팔로우'))}
         </Button>
 
         {now.length > 0 ? (
@@ -329,15 +378,25 @@ export function SourceDetailPage() {
                 <Avatar key={name} name={name} size="sm" />
               ))}
             </span>
-            <span className="text-muted-foreground text-[11px]">{now.length} người theo dõi</span>
+            <span className="text-muted-foreground text-[11px]">
+              {t(
+                message(
+                  `${now.length} người theo dõi`,
+                  `${now.length} followers`,
+                  `팔로워 ${now.length}명`,
+                ),
+              )}
+            </span>
           </span>
         ) : (
-          <span className="text-muted-foreground text-[11px]">Chưa ai theo dõi</span>
+          <span className="text-muted-foreground text-[11px]">
+            {t(message('Chưa ai theo dõi', 'No followers yet', '팔로워가 없습니다'))}
+          </span>
         )}
       </div>
 
       <ScreenDetailGrid
-        sideLabel="Ngữ cảnh chiến dịch"
+        sideLabel={t(message('Ngữ cảnh chiến dịch', 'Campaign context', '캠페인 정보'))}
         main={
           <>
             {/* BỐN ô, đúng bốn cột của sổ và đúng thứ tự cái phễu: gửi → mở → trả
@@ -348,36 +407,70 @@ export function SourceDetailPage() {
                 size="compact"
                 icon={Mail}
                 value={grouped(source.sent)}
-                label="Người nhận"
-                hint={`${source.waves.length} đợt trong ${source.runDays} ngày`}
+                label={t(message('Người nhận', 'Recipients', '수신자'))}
+                hint={t(
+                  message(
+                    `${source.waves.length} đợt trong ${source.runDays} ngày`,
+                    `${source.waves.length} waves over ${source.runDays} days`,
+                    `${source.runDays}일 동안 ${source.waves.length}개 웨이브`,
+                  ),
+                )}
               />
               <StatCard
                 size="compact"
                 icon={MailOpen}
                 value={source.sent > 0 ? percent(source.openRate) : '—'}
-                label="Tỉ lệ mở mail"
+                label={t(message('Tỉ lệ mở mail', 'Open rate', '오픈율'))}
                 hint={
                   source.sent > 0
-                    ? `${grouped(source.opened)} lượt mở trên ${grouped(source.sent)} lượt gửi`
-                    : 'không đợt nào gửi đi'
+                    ? t(
+                        message(
+                          `${grouped(source.opened)} lượt mở trên ${grouped(source.sent)} lượt gửi`,
+                          `${grouped(source.opened)} opens from ${grouped(source.sent)} sends`,
+                          `${grouped(source.sent)}회 발송 중 ${grouped(source.opened)}회 열람`,
+                        ),
+                      )
+                    : t(message('không đợt nào gửi đi', 'no waves sent', '발송된 웨이브 없음'))
                 }
               />
               <StatCard
                 size="compact"
                 icon={Reply}
                 value={source.sent > 0 ? percent(source.clickRate) : '—'}
-                label="Tỉ lệ bấm vào thư"
-                hint={source.sent > 0 ? `${source.clicked} người bấm` : 'không đợt nào gửi đi'}
+                label={t(message('Tỉ lệ bấm vào thư', 'Click rate', '클릭률'))}
+                hint={
+                  source.sent > 0
+                    ? t(
+                        message(
+                          `${source.clicked} người bấm`,
+                          `${source.clicked} recipients clicked`,
+                          `${source.clicked}명 클릭`,
+                        ),
+                      )
+                    : t(message('không đợt nào gửi đi', 'no waves sent', '발송된 웨이브 없음'))
+                }
               />
               <StatCard
                 size="compact"
                 icon={MailX}
                 value={source.sent > 0 ? percent(source.bounceRate) : '—'}
-                label="Tỉ lệ mail hỏng"
+                label={t(message('Tỉ lệ mail hỏng', 'Bounce rate', '반송률'))}
                 hint={
                   source.bounced === 0
-                    ? 'không có địa chỉ bị trả lại'
-                    : `${source.bounced} địa chỉ không nhận được`
+                    ? t(
+                        message(
+                          'không có địa chỉ bị trả lại',
+                          'no bounced addresses',
+                          '반송된 주소 없음',
+                        ),
+                      )
+                    : t(
+                        message(
+                          `${source.bounced} địa chỉ không nhận được`,
+                          `${source.bounced} addresses bounced`,
+                          `${source.bounced}개 주소 반송`,
+                        ),
+                      )
                 }
               />
             </ScreenScoreGrid>
@@ -393,19 +486,29 @@ export function SourceDetailPage() {
                     : undefined
                 }
               >
-                Tiền đi đâu
+                {t(message('Tiền đi đâu', 'Where the budget went', '비용 사용 내역'))}
               </SectionTitle>
 
               {source.costByKind.rows.length === 0 ? (
                 <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                  Chiến dịch này không chi tiền mặt.
+                  {t(
+                    message(
+                      'Chiến dịch này không chi tiền mặt.',
+                      'This campaign has no cash expenses.',
+                      '이 캠페인에는 현금 지출이 없습니다.',
+                    ),
+                  )}
                 </p>
               ) : (
                 <>
                   {/* Một số 20px đứng dưới chữ "Tiền đi đâu" mà không có nhãn thì
                     đọc ra là TỔNG CHI, không phải giá mỗi lead tốt. */}
                   <div className="flex flex-col gap-1">
-                    <span className="text-muted-foreground text-[12px]">Giá mỗi lead tốt</span>
+                    <span className="text-muted-foreground text-[12px]">
+                      {t(
+                        message('Giá mỗi lead tốt', 'Cost per qualified lead', '유효 리드당 비용'),
+                      )}
+                    </span>
                     <CostBand
                       variant="card"
                       point={source.band.point}
@@ -416,9 +519,20 @@ export function SourceDetailPage() {
                   </div>
                   <DataTable
                     columns={[
-                      { header: 'Loại chi', width: '1.4fr' },
-                      { header: 'Số tiền (₫)', width: 'minmax(max-content,1fr)', align: 'right' },
-                      { header: 'Tỉ trọng', width: '0.7fr', align: 'right' },
+                      {
+                        header: t(message('Loại chi', 'Expense type', '비용 유형')),
+                        width: '1.4fr',
+                      },
+                      {
+                        header: t(message('Số tiền (₫)', 'Amount (₫)', '금액 (₫)')),
+                        width: 'minmax(max-content,1fr)',
+                        align: 'right',
+                      },
+                      {
+                        header: t(message('Tỉ trọng', 'Share', '비중')),
+                        width: '0.7fr',
+                        align: 'right',
+                      },
                     ]}
                     rows={source.costByKind.rows.map((r) => ({
                       id: r.kind,
@@ -433,7 +547,13 @@ export function SourceDetailPage() {
                   />
                   {source.costByKind.absent.length > 0 ? (
                     <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                      Không chi tiền cho {source.costByKind.absent.join(', ')}.
+                      {t(
+                        message(
+                          `Không chi tiền cho ${source.costByKind.absent.join(', ')}.`,
+                          `No cash expenses for ${source.costByKind.absent.join(', ')}.`,
+                          `${source.costByKind.absent.join(', ')} 현금 지출 없음`,
+                        ),
+                      )}
                     </p>
                   ) : null}
                   {source.enough ? null : (
@@ -479,16 +599,31 @@ export function SourceDetailPage() {
               thẳng chỗ thiếu đó thay vì dựng lại một nhóm chưa từng có; nhóm
               thật chỉ có ở chiến dịch soạn bằng form mới. */}
             <div className="bg-surface-ink/5 flex flex-col gap-3 rounded-md p-4">
-              <h3 className="text-[12.5px] font-semibold">Gửi cho ai</h3>
+              <h3 className="text-[12.5px] font-semibold">
+                {t(message('Gửi cho ai', 'Recipients', '수신자'))}
+              </h3>
               <span className="flex items-baseline gap-2">
                 <span className="tnum font-num text-[26px] font-semibold leading-none">
                   {grouped(source.waves[0]?.sent ?? 0)}
                 </span>
-                <span className="text-muted-foreground text-[11.5px]">người ở đợt mở màn</span>
+                <span className="text-muted-foreground text-[11.5px]">
+                  {t(
+                    message(
+                      'người ở đợt mở màn',
+                      'recipients in the first wave',
+                      '첫 번째 웨이브 수신자',
+                    ),
+                  )}
+                </span>
               </span>
               <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Không còn danh sách người nhận, chỉ còn số đếm từng đợt. Bấm{' '}
-                <b className="text-foreground">Nhân bản</b> để chọn nhóm mới từ sổ lead.
+                {t(
+                  message(
+                    'Không còn danh sách người nhận, chỉ còn số đếm từng đợt. Bấm Nhân bản để chọn nhóm mới từ sổ lead.',
+                    'The recipient list is no longer available; only per-wave counts remain. Duplicate this campaign to choose a new group from leads.',
+                    '수신자 목록은 더 이상 없고 웨이브별 집계만 남아 있습니다. 캠페인을 복제해 리드에서 새 그룹을 선택하세요.',
+                  ),
+                )}
               </p>
               {/* Đường thứ hai cho đúng chỗ thiếu vừa thú nhận ở trên: nếu danh
                 sách còn nằm trong một tệp ở máy ai đó, nạp thẳng vào đây và nó
@@ -499,20 +634,46 @@ export function SourceDetailPage() {
                 existingKeys={NO_LOCAL_KEYS}
                 scope={source.code}
                 scopeLabel={`${source.code} · ${source.label}`}
-                buttonLabel="Nạp danh sách từ tệp"
+                buttonLabel={t(
+                  message(
+                    'Nạp danh sách từ tệp',
+                    'Import recipients from file',
+                    '파일에서 수신자 가져오기',
+                  ),
+                )}
                 onCommit={commitRecipients}
                 onSeeResult={() => navigate(`/sales/leads?state=all&campaign=${source.code}`)}
               />
             </div>
 
             <div className="bg-surface-ink/5 flex flex-col gap-2 rounded-md p-4">
-              <h3 className="text-[12.5px] font-semibold">Điều kiện dừng</h3>
+              <h3 className="text-[12.5px] font-semibold">
+                {t(message('Điều kiện dừng', 'When sending stops', '발송 중지 조건'))}
+              </h3>
               <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
                 {stopped
-                  ? 'Đã dừng. Các đợt chưa gửi sẽ không gửi nữa.'
+                  ? t(
+                      message(
+                        'Đã dừng. Các đợt chưa gửi sẽ không gửi nữa.',
+                        'Stopped. Unsent waves will not be sent.',
+                        '중지되었습니다. 아직 보내지 않은 웨이브는 발송되지 않습니다.',
+                      ),
+                    )
                   : running
-                    ? 'Chuỗi chạy hết các đợt đã soạn, trừ khi có người bấm Dừng. Một người nằm trong hai chiến dịch không bị gửi hai lần trong cùng một khoảng thời gian.'
-                    : 'Chuỗi đã chạy hết, không còn đợt nào để dừng.'}
+                    ? t(
+                        message(
+                          'Chuỗi chạy hết các đợt đã soạn, trừ khi có người bấm Dừng. Một người nằm trong hai chiến dịch không bị gửi hai lần trong cùng một khoảng thời gian.',
+                          'The sequence sends all scheduled waves unless someone stops it. A person in two campaigns will not receive duplicates during the same time window.',
+                          '중지하지 않으면 예약된 웨이브를 모두 발송합니다. 두 캠페인에 포함된 사람에게 같은 시간대에 중복 발송하지 않습니다.',
+                        ),
+                      )
+                    : t(
+                        message(
+                          'Chuỗi đã chạy hết, không còn đợt nào để dừng.',
+                          'The sequence is complete; there are no more waves to stop.',
+                          '시퀀스가 완료되어 중지할 웨이브가 없습니다.',
+                        ),
+                      )}
               </p>
             </div>
 
@@ -520,10 +681,13 @@ export function SourceDetailPage() {
               làm". Còn lại hai con số và hai lối đi. */}
             <div className="bg-surface-ink/5 flex flex-col gap-3 rounded-md p-4">
               <span className="text-[11.5px] leading-[1.5]">
-                <span className="tnum font-num">{source.good}</span>/
-                <span className="tnum font-num">{source.leads}</span> lead của chiến dịch này đã qua
-                cổng init data, và <span className="tnum font-num">{source.ops}</span> trong số đó
-                đã thành cơ hội.
+                {t(
+                  message(
+                    `${source.good}/${source.leads} lead của chiến dịch này đã qua cổng init data, và ${source.ops} trong số đó đã thành cơ hội.`,
+                    `${source.good} of ${source.leads} campaign leads passed intake; ${source.ops} became opportunities.`,
+                    `캠페인 리드 ${source.leads}개 중 ${source.good}개가 접수 절차를 통과했고, 이 중 ${source.ops}개가 영업 기회가 되었습니다.`,
+                  ),
+                )}
               </span>
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -532,11 +696,11 @@ export function SourceDetailPage() {
                   onClick={() => navigate(`/sales/leads?state=all&campaign=${source.code}`)}
                 >
                   <Icon icon={ArrowRight} size={16} />
-                  Mở Sổ lead
+                  {t(message('Mở Sổ lead', 'Open leads', '리드 목록 열기'))}
                 </Button>
                 <Button size="md" variant="ghost" onClick={() => navigate('/sales/opportunities')}>
                   <Icon icon={ArrowRight} size={16} />
-                  Mở Sổ cơ hội
+                  {t(message('Mở Sổ cơ hội', 'Open opportunities', '영업 기회 목록 열기'))}
                 </Button>
               </div>
             </div>

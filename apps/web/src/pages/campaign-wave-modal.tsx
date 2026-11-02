@@ -1,37 +1,20 @@
 import { useEffect, useState } from 'react'
-import {
-  Badge,
-  Button,
-  CalendarClock,
-  GlassCard,
-  Icon,
-  Modal,
-  Pencil,
-  SectionTitle,
-  Send,
-  Skeleton,
-  Stepper,
-  TriangleAlert,
-  cn,
-} from '@pv/ui'
-import { MAS_RECIPIENT_BLOCK_LABEL, MasRecipientBlock } from '@pv/contracts'
+import { Button, CalendarClock, Icon, Modal, Send, Stepper, cn } from '@pv/ui'
 import type {
   CampaignPreflightResponse,
   CampaignProfile,
   CampaignWaveInput,
   MailTemplateRow,
-  MasRecipient,
 } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
+import { formatNumber, message, translate } from '@/app/i18n'
 import { toast } from '@/app/toast'
 import { type useCampaignStart, type useCampaignWaveAdd } from '@/data/campaign-book'
 import { mailHints } from '@/data/mail-hints'
 import { useMailPreview } from '@/data/mas'
 import { isHttpUrl } from '@/data/http-url'
-import { dmhm } from '@/lib/date'
-import { MailFloatingAids, MailPreviewCard } from '@/components/mail-compose-bits'
+import { MailFloatingAids } from '@/components/mail-compose-bits'
 import { MailGuideDrawer } from '@/components/mail-guide-drawer'
-import { WaveComposer } from '@/components/mail-sequence/wave-composer'
 import {
   composerBlocker,
   composerDraftInput,
@@ -39,7 +22,9 @@ import {
   emptyComposerState,
   type ComposerState,
 } from '@/components/mail-sequence/wave-draft'
-import { ceilingNote, overlapNote } from './campaign-model'
+import { ceilingNote } from './campaign-model'
+import { ReachBadge, StepBody } from './campaign-wave-modal-parts'
+import { fireLabel, stepSummaries, tr } from './campaign-wave-modal-text'
 
 /** Module 1 · THE ONE DOOR THAT SENDS CAMPAIGN MAIL — a Modal in the mould of
  *  `MasMailModal`, so a campaign wave reads like every other mail in the app.
@@ -56,10 +41,11 @@ import { ceilingNote, overlapNote } from './campaign-model'
  *  say which waves went out — the server's own loop (`/start`) can. */
 
 const STEPS = [
-  { key: 'to', label: 'Gửi tới' },
-  { key: 'content', label: 'Nội dung' },
-  { key: 'review', label: 'Kiểm lại' },
+  { key: 'to', label: message('Gửi tới', 'Recipients', '수신자') },
+  { key: 'content', label: message('Nội dung', 'Content', '내용') },
+  { key: 'review', label: message('Kiểm lại', 'Review', '검토') },
 ]
+const localizedSteps = () => STEPS.map((s) => ({ ...s, label: translate(s.label) }))
 
 /** The guide's recipient and delivery parts explain the MAS panel's fields,
  *  none of which this door draws. */
@@ -107,7 +93,7 @@ export function WaveModal({
   const scheduled = waves.length === 1 && waves[0]?.scheduledAt !== undefined
   /* The real count the moment there is one — the audience is who WOULD be
      written to, the preflight is who will be. */
-  const people = (preflight?.sendable ?? campaign.audienceCount).toLocaleString('vi-VN')
+  const people = formatNumber(preflight?.sendable ?? campaign.audienceCount)
 
   const stepBlockers = [recipientBlocker(campaign, preflight), composerBlocker(composer), null]
   /* Every step must be clean to fire, not only the open one — a subject
@@ -136,20 +122,10 @@ export function WaveModal({
     if (!blocker) fire(firstRun, waves, composer)
   }
 
-  const fireLabel = busy
-    ? 'Đang gửi…'
-    : waves.length > 1
-      ? `Gửi ${waves.length} đợt cho ${people} người`
-      : scheduled && waves[0]?.scheduledAt
-        ? `Hẹn ${dmhm(waves[0].scheduledAt)} cho ${people} người`
-        : `Gửi cho ${people} người`
+  const label = fireLabel(busy, waves, scheduled, people)
   const note = stepBlockers[step] ?? (step === 2 ? blocker : null)
   const last = step === STEPS.length - 1
-  const summaries = [
-    `${people} người nhận`,
-    composer.subject.trim(),
-    `${Math.max(waves.length, 1)} đợt`,
-  ]
+  const summaries = stepSummaries(people, composer.subject, waves.length)
 
   return (
     <>
@@ -157,7 +133,11 @@ export function WaveModal({
         open={open}
         onClose={onClose}
         width="wide"
-        title={`Gửi đợt ${campaign.waveCount + 1}`}
+        title={tr(
+          `Gửi đợt ${campaign.waveCount + 1}`,
+          `Send wave ${campaign.waveCount + 1}`,
+          `${campaign.waveCount + 1}차 발송`,
+        )}
         subtitle={`${campaign.code} · ${campaign.name}`}
         meta={<ReachBadge preflight={preflight} failed={preflightFailed} campaign={campaign} />}
         footer={
@@ -166,13 +146,13 @@ export function WaveModal({
             warn={Boolean(note) || (preflightFailed && step !== 1)}
             hints={hints}
             onGuide={() => setGuideOpen(true)}
-            back={step === 0 ? 'Huỷ' : 'Quay lại'}
+            back={step === 0 ? tr('Huỷ', 'Cancel', '취소') : tr('Quay lại', 'Back', '뒤로')}
             onBack={() => (step === 0 ? onClose() : goTo(step - 1))}
             busy={busy}
             {...(last
               ? {
                   fire: {
-                    label: fireLabel,
+                    label,
                     scheduled,
                     disabled: Boolean(blocker) || busy,
                     onClick: submit,
@@ -180,7 +160,11 @@ export function WaveModal({
                 }
               : {
                   next: {
-                    label: `Tiếp: ${STEPS[step + 1]?.label ?? ''}`,
+                    label: tr(
+                      `Tiếp: ${translate(STEPS[step + 1]?.label ?? message('', '', ''))}`,
+                      `Next: ${translate(STEPS[step + 1]?.label ?? message('', '', ''))}`,
+                      `다음: ${translate(STEPS[step + 1]?.label ?? message('', '', ''))}`,
+                    ),
                     disabled: Boolean(note),
                     onClick: () => goTo(step + 1),
                   },
@@ -191,35 +175,21 @@ export function WaveModal({
         <div className="flex min-w-0 flex-col gap-8">
           <StepHeader step={step} reached={reached} summaries={summaries} onGo={goTo} />
 
-          {step === 0 ? (
-            <AudienceStep preflight={preflight} failed={preflightFailed} />
-          ) : (
-            <div className="wide:grid-cols-2 grid min-w-0 items-start gap-8">
-              {step === 1 ? (
-                <WaveComposer
-                  state={composer}
-                  setState={setComposer}
-                  templates={templates}
-                  frame="host"
-                  door="campaign"
-                  showAdd={firstRun}
-                  alreadyFired={campaign.waveCount}
-                />
-              ) : (
-                <WaveReview
-                  people={people}
-                  waves={waves}
-                  firstWave={campaign.waveCount + 1}
-                  onEdit={goTo}
-                />
-              )}
-              <LetterPreview
-                ready={letterReady}
-                preview={preview}
-                to={`${people} người nhận của ${campaign.code}`}
-              />
-            </div>
-          )}
+          <StepBody
+            step={step}
+            campaign={campaign}
+            preflight={preflight}
+            preflightFailed={preflightFailed}
+            composer={composer}
+            setComposer={setComposer}
+            templates={templates}
+            firstRun={firstRun}
+            people={people}
+            waves={waves}
+            letterReady={letterReady}
+            preview={preview}
+            onEdit={goTo}
+          />
         </div>
       </Modal>
 
@@ -243,11 +213,14 @@ function useFireWave(
 ) {
   const busy = start.isPending || waveAdd.isPending
   const failed = (err: unknown) =>
-    toast('Không gửi được đợt', {
+    toast(tr('Không gửi được đợt', 'Could not send wave', '발송 차수를 보낼 수 없습니다'), {
       tone: 'danger',
-      detail: isApiError(err) ? userMessage(err) : 'Thử lại.',
+      detail: isApiError(err)
+        ? userMessage(err)
+        : tr('Hãy thử lại.', 'Please try again.', '다시 시도해 주세요.'),
     })
-  const skipped = (n: number) => (n > 0 ? `, ${n} bị bỏ qua` : '')
+  const skipped = (n: number) =>
+    n > 0 ? tr(`, bỏ qua ${n}`, `, ${n} skipped`, `, ${n}개 건너뜀`) : ''
 
   const fire = (firstRun: boolean, waves: CampaignWaveInput[], composer: ComposerState) => {
     if (busy) return
@@ -257,10 +230,14 @@ function useFireWave(
         {
           onSuccess: (res) => {
             const first = res.waves[0]
-            toast('Chiến dịch đã bắt đầu chạy', {
+            toast(tr('Chiến dịch đã bắt đầu chạy', 'Campaign started', '캠페인이 시작되었습니다'), {
               tone: 'success',
               detail: first
-                ? `${first.queued} thư đang chờ gửi${skipped(first.skipped)}.`
+                ? tr(
+                    `${first.queued} thư đang chờ gửi${skipped(first.skipped)}.`,
+                    `${first.queued} emails queued${skipped(first.skipped)}.`,
+                    `이메일 ${first.queued}개 대기 중${skipped(first.skipped)}.`,
+                  )
                 : undefined,
             })
             onClose()
@@ -274,10 +251,21 @@ function useFireWave(
       { wave: composerDraftInput(composer) },
       {
         onSuccess: (res) => {
-          toast(`Đã tạo đợt ${campaign.waveCount + 1}`, {
-            tone: 'success',
-            detail: `${res.queued} thư đang chờ gửi${skipped(res.skipped)}.`,
-          })
+          toast(
+            tr(
+              `Đã tạo đợt ${campaign.waveCount + 1}`,
+              `Wave ${campaign.waveCount + 1} created`,
+              `${campaign.waveCount + 1}차 생성 완료`,
+            ),
+            {
+              tone: 'success',
+              detail: tr(
+                `${res.queued} thư đang chờ gửi${skipped(res.skipped)}.`,
+                `${res.queued} emails queued${skipped(res.skipped)}.`,
+                `이메일 ${res.queued}개 대기 중${skipped(res.skipped)}.`,
+              ),
+            },
+          )
           onClose()
         },
         onError: failed,
@@ -303,7 +291,7 @@ function StepHeader({
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <Stepper steps={STEPS} current={step} reached={reached} onGo={onGo} />
+      <Stepper steps={localizedSteps()} current={step} reached={reached} onGo={onGo} />
       <div className="grid min-w-0 grid-cols-3 gap-2">
         {summaries.map((s, i) => (
           <p key={STEPS[i]?.key} className="text-muted-foreground m-0 min-w-0 truncate text-[11px]">
@@ -312,37 +300,6 @@ function StepHeader({
         ))}
       </div>
     </div>
-  )
-}
-
-/** The letter beside the form — sample values in the merge slots, because a
- *  campaign audience is frozen members, not a mailbox this draft can name. */
-function LetterPreview({
-  ready,
-  preview,
-  to,
-}: {
-  ready: boolean
-  preview: ReturnType<typeof useMailPreview>
-  to: string
-}) {
-  if (!ready)
-    return (
-      <p className="text-muted-foreground m-0 px-1 text-[12px] leading-[1.6]">
-        Nhập tiêu đề và nội dung để xem trước.
-      </p>
-    )
-  return (
-    <MailPreviewCard
-      letter={preview.letter}
-      pending={preview.pending}
-      error={preview.error}
-      envelope={[
-        { label: 'Từ', value: preview.letter?.from ?? 'noreply · Pebble Vina' },
-        { label: 'Tới', value: to },
-      ]}
-      caption="Tên và công ty trong bản này là mẫu. Mỗi người nhận sẽ thấy tên của mình."
-    />
   )
 }
 
@@ -404,29 +361,6 @@ function WaveFooter({
   )
 }
 
-/** STEP 1 · the audience as the server reads it. Nothing to pick: the list is
- *  the campaign's, and a second place to edit it would be a second truth. */
-function AudienceStep({
-  preflight,
-  failed,
-}: {
-  preflight?: CampaignPreflightResponse
-  failed: boolean
-}) {
-  return (
-    <section className="flex min-w-0 flex-col gap-5">
-      <div className="flex flex-col gap-2">
-        <SectionTitle size="md">Ai sẽ nhận đợt này?</SectionTitle>
-        <p className="text-muted-foreground m-0 max-w-[720px] text-[12.5px] leading-[1.65]">
-          Đợt gửi tới mọi người ở tab Người nhận. Muốn thêm hoặc bớt, đóng cửa sổ và sửa ở tab đó.
-        </p>
-      </div>
-      {preflight && <WavePreflight report={preflight} />}
-      {!preflight && !failed && <Skeleton className="h-40 w-full" />}
-    </section>
-  )
-}
-
 /** WHY NOBODY CAN BE WRITTEN TO — in the order somebody can act on it: an
  *  empty or oversized audience is theirs to fix, a dry run that reached nobody
  *  is the server's answer. `null` = the audience step is clean. */
@@ -435,11 +369,19 @@ function recipientBlocker(
   preflight: CampaignPreflightResponse | undefined,
 ): string | null {
   if (campaign.audienceCount === 0)
-    return 'Chưa có người nhận. Thêm ở tab Người nhận trước khi gửi.'
+    return tr(
+      'Chưa có người nhận. Hãy thêm người ở tab Người nhận trước khi gửi.',
+      'There are no recipients. Add people in the Recipients tab before sending.',
+      '수신자가 없습니다. 발송 전에 수신자 탭에서 추가하세요.',
+    )
   if (campaign.audienceCount > campaign.batchCeiling)
     return ceilingNote(campaign.audienceCount, campaign.batchCeiling)
   if (preflight?.sendable === 0)
-    return 'Không ai nhận được thư: đã chặn, thiếu email, tên miền không nhận thư hoặc trùng địa chỉ. Sửa ở tab Người nhận.'
+    return tr(
+      'Không có ai nhận được thư. Hãy kiểm tra địa chỉ bị chặn, email còn thiếu, tên miền không hỗ trợ hoặc địa chỉ trùng trong tab Người nhận.',
+      'No one can receive this email. Check blocked addresses, missing emails, unsupported domains, or duplicates in the Recipients tab.',
+      '수신 가능한 사람이 없습니다. 수신자 탭에서 차단된 주소, 이메일 누락, 지원되지 않는 도메인 또는 중복 주소를 확인하세요.',
+    )
   return null
 }
 
@@ -450,12 +392,30 @@ function stepNote(
   preflight: CampaignPreflightResponse | undefined,
   failed: boolean,
 ): string {
-  if (step === 1) return 'Xem bản xem trước rồi sang bước Kiểm lại.'
+  if (step === 1)
+    return tr(
+      'Xem trước email rồi chuyển sang bước Kiểm lại.',
+      'Preview the email, then continue to Review.',
+      '이메일을 미리 본 다음 검토 단계로 이동하세요.',
+    )
   if (failed)
-    return 'Không kiểm được người nhận. Vẫn gửi được, ai không nhận được thư sẽ bị bỏ qua.'
-  if (!preflight) return 'Đang kiểm người nhận…'
-  if (step === 0) return `${preflight.sendable} người sẽ nhận đợt này.`
-  return 'Đợt đã gửi không thu hồi được.'
+    return tr(
+      'Không thể kiểm tra danh sách người nhận. Bạn vẫn có thể gửi; những người không đủ điều kiện sẽ được bỏ qua.',
+      'Could not check recipients. You can still send; recipients who cannot receive the email will be skipped.',
+      '수신자 확인에 실패했습니다. 계속 발송할 수 있으며 이메일을 받을 수 없는 수신자는 건너뜁니다.',
+    )
+  if (!preflight) return tr('Đang kiểm tra người nhận…', 'Checking recipients…', '수신자 확인 중…')
+  if (step === 0)
+    return tr(
+      `${formatNumber(preflight.sendable)} người sẽ nhận đợt này.`,
+      `${formatNumber(preflight.sendable)} recipients will receive this wave.`,
+      `이번 차수의 수신자는 ${formatNumber(preflight.sendable)}명입니다.`,
+    )
+  return tr(
+    'Email đã gửi không thể thu hồi.',
+    'Sent emails cannot be recalled.',
+    '발송된 이메일은 회수할 수 없습니다.',
+  )
 }
 
 /** The chain's live wave as the preview reads it — the button only travels
@@ -464,172 +424,4 @@ function liveCta(s: ComposerState): CampaignWaveInput['cta'] {
   const label = s.ctaLabel.trim()
   const url = s.ctaUrl.trim()
   return label !== '' && isHttpUrl(url) ? { label, url } : undefined
-}
-
-/** The header count — the server's, once it answered; the audience before. */
-function ReachBadge({
-  preflight,
-  failed,
-  campaign,
-}: {
-  preflight?: CampaignPreflightResponse
-  failed: boolean
-  campaign: CampaignProfile
-}) {
-  if (!preflight && !failed) return <Badge tone="draft">Đang kiểm tra…</Badge>
-  if (!preflight)
-    return (
-      <Badge tone="draft">
-        <span className="tnum">{`${campaign.audienceCount} người nhận`}</span>
-      </Badge>
-    )
-  return (
-    <Badge tone={preflight.blocked ? 'warning' : 'success'}>
-      <span className="tnum">{`${preflight.sendable} người sẽ nhận`}</span>
-    </Badge>
-  )
-}
-
-/** THE LAST LOOK — four lines and a way back to each, beside the letter. A
- *  chain names its length instead of one hour, because each wave carries its
- *  own. */
-function WaveReview({
-  people,
-  waves,
-  firstWave,
-  onEdit,
-}: {
-  people: string
-  waves: CampaignWaveInput[]
-  firstWave: number
-  onEdit: (step: number) => void
-}) {
-  const one = waves.length === 1 ? waves[0] : undefined
-  const rows = [
-    { label: 'Người nhận', value: `${people} người`, step: 0 },
-    {
-      label: 'Đợt',
-      value: one ? `Đợt ${firstWave} · ${one.label}` : `${waves.length} đợt, từ Đợt ${firstWave}`,
-      step: 1,
-    },
-    { label: 'Tiêu đề', value: one?.subject ?? waves[0]?.subject ?? 'Chưa có', step: 1 },
-    {
-      label: 'Lúc gửi',
-      value: !one ? 'Theo lịch của từng đợt' : one.scheduledAt ? dmhm(one.scheduledAt) : 'Gửi ngay',
-      step: 1,
-    },
-  ]
-
-  return (
-    <section className="flex min-w-0 flex-col gap-5">
-      <SectionTitle size="md">Đúng như vậy chưa?</SectionTitle>
-      <GlassCard variant="b" className="min-w-0 p-4">
-        <ul className="m-0 flex list-none flex-col gap-2 p-0">
-          {rows.map((row) => (
-            <li
-              key={row.label}
-              className="bg-surface-ink/5 flex min-w-0 items-center gap-3 rounded-sm py-1 pl-3 pr-1"
-            >
-              <span className="text-muted-foreground w-20 shrink-0 text-[11.5px]">{row.label}</span>
-              <span className="min-w-0 flex-1 truncate text-[12.5px]">{row.value}</span>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="pointer-coarse:h-12"
-                onClick={() => onEdit(row.step)}
-              >
-                <Icon icon={Pencil} size={14} />
-                Sửa
-              </Button>
-            </li>
-          ))}
-        </ul>
-      </GlassCard>
-    </section>
-  )
-}
-
-/** WHO THIS WAVE REALLY REACHES — sendable first, then one group per refusal:
- *  the first question is whether the number on the button is the number meant,
- *  the second is who fell out. Reason labels are `MAS_RECIPIENT_BLOCK_LABEL`,
- *  the vocabulary the server's send report already prints. Overlap with other
- *  running campaigns is a warning line, never a group — those people still get
- *  this letter (ADR 0061 §5). No inner scroll: the modal body already scrolls. */
-function WavePreflight({ report }: { report: CampaignPreflightResponse }) {
-  const sendable = report.recipients.filter((r) => !r.block)
-  const groups = MasRecipientBlock.options
-    .map((reason) => ({ reason, rows: report.recipients.filter((r) => r.block === reason) }))
-    .filter((g) => g.rows.length > 0)
-  const overlap = overlapNote(report.alsoRunning)
-
-  return (
-    <GlassCard variant="b" className="flex min-w-0 flex-col gap-5 p-5">
-      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-        <span className="text-[13px] font-semibold">Người nhận sau kiểm tra</span>
-        <span className="text-muted-foreground text-[12px]">
-          <span className="tnum text-card-foreground font-semibold">{report.sendable}</span> gửi
-          được · <span className="tnum">{report.blocked}</span> bị bỏ qua
-        </span>
-      </div>
-      {overlap && (
-        <p className="text-warning m-0 flex gap-2 text-[12px] leading-[1.5]">
-          <Icon icon={TriangleAlert} size={16} className="shrink-0" />
-          {overlap}
-        </p>
-      )}
-      <RecipientGroup title={`Sẽ nhận thư (${sendable.length})`} rows={sendable} />
-      {groups.map((g) => (
-        <RecipientGroup
-          key={g.reason}
-          title={`${MAS_RECIPIENT_BLOCK_LABEL[g.reason]} (${g.rows.length})`}
-          rows={g.rows}
-          blocked
-        />
-      ))}
-    </GlassCard>
-  )
-}
-
-/** One reason and the people it applies to, NAMED rather than counted: a row
- *  nobody can name is a row nobody can go and fix. Two columns from `md` — a
- *  single file of names down a 1296px panel is mostly empty space. */
-function RecipientGroup({
-  title,
-  rows,
-  blocked = false,
-}: {
-  title: string
-  rows: readonly MasRecipient[]
-  blocked?: boolean
-}) {
-  if (rows.length === 0) return null
-
-  return (
-    <div className="flex min-w-0 flex-col gap-2">
-      <span
-        className={cn(
-          'text-[12px] font-semibold',
-          blocked ? 'text-warning' : 'text-muted-foreground',
-        )}
-      >
-        {title}
-      </span>
-      <ul className="m-0 grid list-none gap-2 p-0 md:grid-cols-2">
-        {rows.map((r) => (
-          <li
-            key={r.subjectCode}
-            className="bg-surface-ink/5 flex min-w-0 items-center justify-between gap-3 rounded-sm p-3"
-          >
-            <span className="flex min-w-0 flex-col">
-              <span className="truncate text-[12.5px] font-semibold">{r.contactName}</span>
-              <span className="text-muted-foreground truncate text-[11px]">{r.company}</span>
-            </span>
-            <span className="text-muted-foreground min-w-0 truncate font-mono text-[11px]">
-              {r.email ?? 'Chưa có email'}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
 }

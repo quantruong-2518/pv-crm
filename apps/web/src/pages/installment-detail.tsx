@@ -17,13 +17,13 @@ import {
   StatCard,
   StatusDot,
   Timeline,
-  vnd,
   millions,
   type StatusDotState,
 } from '@pv/ui'
 import { DOC_STATE_LABEL } from '@pv/contracts'
 import { daysUntil } from '@pv/engines'
 import { userMessage } from '@/app/api'
+import { formatCurrency } from '@/app/i18n'
 import { useAppChrome } from '@/app/chrome'
 import { useCan, useSession } from '@/app/auth'
 import { toast, toastDone, toastFail } from '@/app/toast'
@@ -345,7 +345,7 @@ function InstallmentStats({
           size="compact"
           label="Số tiền"
           value={millions(installment.amount, 0)}
-          source={vnd(installment.amount)}
+          source={formatCurrency(installment.amount, 'VND')}
         />
         <StatCard
           size="compact"

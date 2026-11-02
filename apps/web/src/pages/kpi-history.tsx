@@ -2,8 +2,6 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Button, Drawer, GlassCard, Select, Timeline, cn, type TimelineItem } from '@pv/ui'
 import {
-  KPI_METRIC_LABEL,
-  ROLE_LABEL,
   type KpiMetricDef,
   type KpiTargetHistoryEntry,
   type KpiTargetHistoryEvent,
@@ -15,6 +13,8 @@ import { NOTE } from './home-tiles'
 import { actedAt } from './kpi-allocate-model'
 import { printValue } from './kpi-model'
 import { QueryBlock } from './kpi-parts'
+import { message, useI18n } from '@/app/i18n'
+import { kpiMetricText, kpiRoleText } from '@/data/kpi-i18n'
 
 /** The target history panel — a target's versions in one month, read-only (ADR 0099
  *  §5), opened from the allocation screen (the role target, or one holder's
@@ -27,16 +27,20 @@ import { QueryBlock } from './kpi-parts'
 type Said = KpiTargetHistoryEvent | 'requested'
 
 /** What each event says after the actor's name; one map for every screen. */
-const EVENT_VERB: Record<Said, string> = {
-  proposed: 'đề nghị',
-  agreed: 'duyệt',
-  submitted: 'gửi duyệt',
-  returned: 'trả lại',
-  superseded: 'bị thay bởi lần giao mới',
-  requested: 'xin đổi thành',
-  countered: 'đề nghị mức khác',
-  accepted: 'đồng ý',
-  kept: 'giữ mức cũ',
+const EVENT_VERB: Record<Said, ReturnType<typeof message>> = {
+  proposed: message('đề nghị', 'proposed', '제안'),
+  agreed: message('duyệt', 'approved', '승인'),
+  submitted: message('gửi duyệt', 'submitted for review', '검토 요청'),
+  returned: message('trả lại', 'returned', '반려'),
+  superseded: message(
+    'bị thay bởi lần giao mới',
+    'superseded by a new assignment',
+    '새 배정으로 대체됨',
+  ),
+  requested: message('xin đổi thành', 'requested a change to', '변경 요청'),
+  countered: message('đề nghị mức khác', 'proposed a different value', '다른 값 제안'),
+  accepted: message('đồng ý', 'accepted', '수락'),
+  kept: message('giữ mức cũ', 'kept the current value', '현재 값 유지'),
 }
 
 const EVENT_DOT: Partial<Record<KpiTargetHistoryEvent, TimelineItem['state']>> = {
@@ -59,10 +63,11 @@ function itemOf(
   def: KpiMetricDef,
   holder: string | undefined,
   i: number,
+  lang: 'vi' | 'en' | 'ko',
 ): TimelineItem {
   const said: Said =
     entry.event === 'countered' && entry.actor?.actorId === holder ? 'requested' : entry.event
-  const verb = EVENT_VERB[said]
+  const verb = EVENT_VERB[said][lang]
   /* A replaced version names no one and moves no number. */
   const replaced = entry.event === 'superseded'
   const what =
@@ -70,13 +75,20 @@ function itemOf(
   return {
     id: `${i}/${entry.at}/${entry.event}`,
     state: EVENT_DOT[entry.event] ?? 'next',
-    marker: `Lần ${entry.version}`,
+    marker:
+      lang === 'vi'
+        ? `Lần ${entry.version}`
+        : lang === 'en'
+          ? `Version ${entry.version}`
+          : `${entry.version}차`,
     title: (
       <span className="tnum font-num">
         {actedAt(replaced ? null : entry.actor, what, entry.at)}
       </span>
     ),
-    children: entry.note ? `Lý do: ${entry.note}` : undefined,
+    children: entry.note
+      ? `${lang === 'vi' ? 'Lý do' : lang === 'en' ? 'Reason' : '사유'}: ${entry.note}`
+      : undefined,
   }
 }
 
@@ -91,6 +103,7 @@ function HistoryBody({
   defs: readonly [KpiMetricDef, ...KpiMetricDef[]]
   subject: HistorySubject
 }) {
+  const { t, lang } = useI18n()
   const [key, setKey] = useState(() => (defs.find((d) => d.primary) ?? defs[0]).key)
   const [person, setPerson] = useState(() =>
     'holders' in subject && subject.roleTarget === false
@@ -107,22 +120,27 @@ function HistoryBody({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {defs.length > 1 && (
             <Select
-              label="Chỉ số"
+              label={t(message('Chỉ số', 'Metric', '지표'))}
               size="lg"
               value={def.key}
-              options={defs.map((d) => ({ value: d.key, label: KPI_METRIC_LABEL[d.key] }))}
+              options={defs.map((d) => ({ value: d.key, label: kpiMetricText(d.key, lang) }))}
               onChange={(next) => setKey(next as KpiMetricDef['key'])}
             />
           )}
           {'holders' in subject && (
             <Select
-              label="Chỉ tiêu của"
+              label={t(message('Chỉ tiêu của', 'Targets for', '목표 대상'))}
               size="lg"
               value={person}
               options={[
                 ...(subject.roleTarget === false
                   ? []
-                  : [{ value: ROLE_TARGET, label: 'Cả vai trò' }]),
+                  : [
+                      {
+                        value: ROLE_TARGET,
+                        label: t(message('Cả vai trò', 'Entire role', '역할 전체')),
+                      },
+                    ]),
                 ...subject.holders.map((h) => ({ value: h.actorId, label: h.name })),
               ]}
               onChange={setPerson}
@@ -130,16 +148,28 @@ function HistoryBody({
           )}
         </div>
       )}
-      <QueryBlock query={history} what="lịch sử chỉ tiêu" variant="b">
+      <QueryBlock
+        query={history}
+        what={t(message('lịch sử chỉ tiêu', 'target history', '목표 이력'))}
+        variant="b"
+      >
         {(data) =>
           data.entries.length === 0 ? (
-            <p className={cn(NOTE, 'text-[12.5px] leading-5')}>Tháng này chưa có thay đổi nào.</p>
+            <p className={cn(NOTE, 'text-[12.5px] leading-5')}>
+              {t(
+                message(
+                  'Tháng này chưa có thay đổi nào.',
+                  'No changes this month.',
+                  '이번 달 변경 사항이 없습니다.',
+                ),
+              )}
+            </p>
           ) : (
             <GlassCard variant="b" className="p-4">
               <Timeline
                 items={[...data.entries]
                   .reverse()
-                  .map((entry, i) => itemOf(entry, def, actorId, i))}
+                  .map((entry, i) => itemOf(entry, def, actorId, i, lang))}
               />
             </GlassCard>
           )
@@ -162,6 +192,7 @@ export function TargetHistoryButton({
   defs: readonly KpiMetricDef[]
   subject: HistorySubject
 }) {
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const [first, ...rest] = defs
   if (!first) return null
@@ -173,13 +204,13 @@ export function TargetHistoryButton({
         className="pointer-coarse:h-12"
         onClick={() => setOpen(true)}
       >
-        Xem lịch sử
+        {t(message('Xem lịch sử', 'View history', '이력 보기'))}
       </Button>
       <Drawer
         open={open}
         onClose={() => setOpen(false)}
-        title="Lịch sử chỉ tiêu"
-        subtitle={`${ROLE_LABEL[role]} · ${periodLabel(period)}`}
+        title={t(message('Lịch sử chỉ tiêu', 'Target history', '목표 이력'))}
+        subtitle={`${kpiRoleText(role)} · ${periodLabel(period)}`}
       >
         <HistoryBody period={period} role={role} defs={[first, ...rest]} subject={subject} />
       </Drawer>

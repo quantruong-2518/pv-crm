@@ -2,6 +2,7 @@ import { PASSWORD_MIN, SessionView, SessionWindow, type SessionActor } from '@pv
 import type { Actor, Permission } from '@pv/engines'
 import { API_BASE_URL } from '@/app/api/base-url'
 import { isGatewayDown, reportAnswering, reportUnreachable } from '@/app/api/server-health'
+import { getLang } from '@/app/i18n'
 
 /** The auth doors — the ONLY module in the app that knows what they are.
  *
@@ -145,12 +146,9 @@ export type AuthErrorKey =
   | 'passwordRequirementsNotMet'
   | 'sessionExpired'
 
-/** Most errors point at a translatable key. The `message` branch is only for
- *  a sentence the server returns VERBATIM (see `confirmPassword`) — that
- *  string is not part of the three-language set because it is not this
- *  screen's own wording. */
-export type AuthError =
-  { field: AuthField; key: AuthErrorKey } | { field: AuthField; message: string }
+/** The display sentence belongs to the selected language, never to an API
+ *  response. `field` decides placement; `key` decides the copy. */
+export type AuthError = { field: AuthField; key: AuthErrorKey }
 
 /** Sai mật khẩu là ĐƯỜNG ĐI BÌNH THƯỜNG của một form đăng nhập, không phải sự
  *  cố — nên kết quả có nhánh, không có `throw`. `throw` cho việc thường ngày
@@ -326,12 +324,8 @@ export async function signOutOnServer(): Promise<void> {
  *  feed itself. The same trap `renew.ts` fenced off before there was a server
  *  to call.
  *
- *  The server's refusal is used VERBATIM, unlike
- *  `signInWithEmail`, which has to collapse four reasons into one sentence
- *  because it answers strangers. This door sits behind a live session: the
- *  server already knows who is calling, so there is nothing left to withhold,
- *  and a vague sentence would only leave the user unsure whether they mistyped
- *  or the system broke.
+ *  A stable error code separates a mistyped password from an expired session.
+ *  The chosen language owns the wording for both cases.
  *
  *  A 401 here is NOT a wrong password — it is the session dying under the user
  *  while the confirmation box was open. Saying "wrong password" for that makes
@@ -345,13 +339,16 @@ export async function confirmPassword(password: string): Promise<AuthError | nul
   if (res.status === 429) return TOO_FAST
   if (res.status === 400 || res.status === 422) return { field: 'password', key: 'missingPassword' }
   if (res.status === 401) {
-    const problem = (await readJson(res)) as { title?: unknown } | undefined
-    /* Two different things arrive under one status. `AuthService` sends its
-       own wrong-password sentence for the first, so matching that sentence is
-       cheaper than minting a status code for one door. */
-    const said = typeof problem?.title === 'string' ? problem.title : ''
-    return said.includes('Mật khẩu')
-      ? { field: 'password', message: said }
+    const problem = (await readJson(res)) as { code?: unknown; title?: unknown } | undefined
+    /* Keep old API deployments usable while web and API roll out separately.
+       New responses use the stable code; the legacy sentence is only a bridge
+       and never reaches the display layer. */
+    const legacyWrong =
+      problem?.code === undefined &&
+      typeof problem?.title === 'string' &&
+      problem.title.includes('Mật khẩu')
+    return problem?.code === 'wrong-password' || legacyWrong
+      ? { field: 'password', key: 'wrongCurrentPassword' }
       : { field: 'form', key: 'sessionExpired' }
   }
   return SERVER_TROUBLE
@@ -422,7 +419,7 @@ export async function requestPasswordReset(email: string): Promise<AuthError | n
 
   const res = await knock('/auth/forgot-password', {
     method: 'POST',
-    body: { email: email.trim() },
+    body: { email: email.trim(), lang: getLang() },
   })
   if (!res) return OFFLINE
   if (res.status === 429) return TOO_FAST

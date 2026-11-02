@@ -2,12 +2,13 @@ import { useRef, type ReactNode, type SyntheticEvent } from 'react'
 import { Timer, TriangleAlert } from '@pv/ui'
 import { Badge, Icon, cn, type IconGlyph } from '@pv/ui'
 import {
-  OPPORTUNITY_STAGE_LABEL,
   type ActivityFreshnessLevel,
   type OpportunityBookRow,
   type OpportunityOwner,
 } from '@pv/contracts'
 import { dmy } from '@/lib/date'
+import { useI18n } from '@/app/i18n'
+import { opportunityStageLabel, salesLabel } from '@/data/sales-labels-i18n'
 import { DUE_LABEL, lateLevel } from '@/data/contracts'
 import {
   activityAgo,
@@ -102,20 +103,29 @@ export function DealCell({ op, onEmail }: { op: OpportunityBookRow; onEmail?: ()
 /** The stage pill (law 16). Overdue wins the suffix over a pending signature:
  *  overdue is the seller's to fix, the signature is the approver's. */
 export function StageCell({ op }: { op: OpportunityBookRow }) {
+  const { lang } = useI18n()
   const clock = stageClockOf(op)
   const overdue = clock?.overdue ?? false
-  const stage = op.stage === null ? null : OPPORTUNITY_STAGE_LABEL[op.stage]
-  const suffix = overdue ? OVERDUE_WORD : op.pendingSign ? PENDING_SIGN_WORD : null
+  const stage = op.stage === null ? null : opportunityStageLabel(op.stage, lang)
+  const suffix = overdue
+    ? salesLabel(OVERDUE_WORD, lang)
+    : op.pendingSign
+      ? salesLabel(PENDING_SIGN_WORD, lang)
+      : null
 
   return (
     <Badge
       tone={overdue ? 'warning' : STATE_TONE[op.state]}
       /* Tone inks fall under 4.5:1 on a hovered row (law 13); the tint still carries the colour. */
       className={cn('min-w-0 max-w-full', BADGE_INK)}
-      title={stage && clock ? `Giai đoạn "${stage}" · ${clock.label}` : 'Cơ hội đã kết thúc'}
+      title={
+        stage && clock
+          ? `${salesLabel('Giai đoạn', lang)} "${stage}" · ${salesLabel(clock.label, lang)}`
+          : salesLabel('Cơ hội đã kết thúc', lang)
+      }
     >
       <span className="min-w-0 truncate">
-        {standingLabel(op)}
+        {salesLabel(standingLabel(op), lang)}
         {suffix && ` · ${suffix}`}
       </span>
     </Badge>

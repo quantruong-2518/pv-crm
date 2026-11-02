@@ -27,6 +27,8 @@ type PanelProps = {
   /** One line under the rows: still searching, nothing found, what to type. */
   status?: string
   scopes?: SearchScope[]
+  scopeLabel?: string
+  allLabel?: string
   scope?: string | null
   onScopeChange?: (id: string | null) => void
   onPick: (row: SearchRow) => void
@@ -41,6 +43,8 @@ export function HeaderSearchPanel({
   active,
   status,
   scopes,
+  scopeLabel = 'Phạm vi tìm',
+  allLabel = 'Tất cả',
   scope = null,
   onScopeChange,
   onPick,
@@ -61,8 +65,8 @@ export function HeaderSearchPanel({
       )}
     >
       {scopes?.length ? (
-        <div role="group" aria-label="Phạm vi tìm" className="flex flex-wrap gap-2 px-1 pb-2 pt-1">
-          {[{ id: null, label: 'Tất cả' }, ...scopes].map((chip) => (
+        <div role="group" aria-label={scopeLabel} className="flex flex-wrap gap-2 px-1 pb-2 pt-1">
+          {[{ id: null, label: allLabel }, ...scopes].map((chip) => (
             <button
               key={chip.id ?? 'all'}
               type="button"

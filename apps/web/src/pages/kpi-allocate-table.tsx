@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Badge, Button, GlassCard, Input, cn } from '@pv/ui'
 import {
-  KPI_METRIC_LABEL,
   KpiAllocationDraftBody,
   KpiAllocationSubmitBody,
   type KpiAllocation,
@@ -20,6 +19,8 @@ import { savedShare, teamCellKey, typedOf, type TeamRow } from './kpi-allocate-m
 import { FailLine } from './kpi-allocate-parts'
 import { TeamNameCell, ValueCell } from './kpi-allocate-teams'
 import { parseTyped, printValue } from './kpi-model'
+import { kpiMetricText } from '@/data/kpi-i18n'
+import { message, useI18n } from '@/app/i18n'
 
 /** One role's split: a person per row, a metric per column, and under it how
  *  each metric adds up against the role target. Teams come first, one row each
@@ -76,24 +77,37 @@ function checkOf(
   total: KpiAllocationTotal | undefined,
   roleTarget: number | null,
   hasTotal: boolean,
+  t: ReturnType<typeof useI18n>['t'],
 ): Check | null {
   const print = (v: number) => printValue(def.unit, v)
   if (!total || total.allocated === null) {
     if (!hasTotal) return null
-    const head = total ? 'Mỗi người một mức riêng' : 'Chưa phân bổ'
-    const tail = roleTarget === null ? '' : ` · chỉ tiêu vai trò ${print(roleTarget)}`
+    const head = total
+      ? t(message('Mỗi người một mức riêng', 'Individual targets', '개인별 목표'))
+      : t(message('Chưa phân bổ', 'Not allocated', '미배분'))
+    const tail =
+      roleTarget === null
+        ? ''
+        : ` · ${t(message('chỉ tiêu vai trò', 'role target', '역할 목표'))} ${print(roleTarget)}`
     return { text: `${head}${tail}`, badge: null }
   }
-  if (roleTarget === null) return { text: `Đã phân bổ ${print(total.allocated)}`, badge: null }
+  if (roleTarget === null)
+    return {
+      text: `${t(message('Đã phân bổ', 'Allocated', '배분됨'))} ${print(total.allocated)}`,
+      badge: null,
+    }
   const { delta } = total
   return {
-    text: `Đã phân bổ ${print(total.allocated)} / ${print(roleTarget)}`,
+    text: `${t(message('Đã phân bổ', 'Allocated', '배분됨'))} ${print(total.allocated)} / ${print(roleTarget)}`,
     badge:
       delta === null
         ? null
         : delta === 0
-          ? { tone: 'success', text: 'Khớp' }
-          : { tone: 'warning', text: `${delta < 0 ? 'Thiếu' : 'Thừa'} ${print(Math.abs(delta))}` },
+          ? { tone: 'success', text: t(message('Khớp', 'Balanced', '일치')) }
+          : {
+              tone: 'warning',
+              text: `${t(delta < 0 ? message('Thiếu', 'Short by', '부족') : message('Thừa', 'Over by', '초과'))} ${print(Math.abs(delta))}`,
+            },
   }
 }
 
@@ -116,7 +130,7 @@ function TotalLine({
   return (
     <li className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="text-[12.5px] font-semibold">{KPI_METRIC_LABEL[def.key]}</span>
+        <span className="text-[12.5px] font-semibold">{kpiMetricText(def.key)}</span>
         <span className={NOTE_NUM}>{check.text}</span>
         {check.badge && <Badge tone={check.badge.tone}>{check.badge.text}</Badge>}
       </div>
@@ -178,29 +192,70 @@ function SaveBar({
   /** Absent: the button is disabled. */
   onSend?: (ackDays: number) => void
 }) {
+  const { t } = useI18n()
   const [daysText, setDaysText] = useState(initialDays === null ? '' : String(initialDays))
   const days = ACK_DAYS.safeParse(toDays(daysText))
   const problem =
     daysText === ''
-      ? 'Nhập hạn trả lời để gửi duyệt.'
+      ? t(
+          message(
+            'Nhập hạn trả lời để gửi duyệt.',
+            'Enter the response deadline before submitting.',
+            '검토 요청 전에 응답 기한을 입력하세요.',
+          ),
+        )
       : days.success
         ? undefined
-        : `Nhập số ngày từ ${ACK_DAYS.minValue} đến ${ACK_DAYS.maxValue}.`
+        : t(
+            message(
+              `Nhập số ngày từ ${ACK_DAYS.minValue} đến ${ACK_DAYS.maxValue}.`,
+              `Enter a number of days from ${ACK_DAYS.minValue} to ${ACK_DAYS.maxValue}.`,
+              `${ACK_DAYS.minValue}~${ACK_DAYS.maxValue}일 사이로 입력하세요.`,
+            ),
+          )
   return (
     <div className="flex flex-wrap items-center justify-end gap-3 px-5">
       <div className="mr-auto flex min-w-0 flex-col gap-1">
         <p className={NOTE}>
-          Hàng nghìn ngăn bằng dấu chấm, số lẻ dùng dấu phẩy. Tỷ lệ nhập theo phần trăm.
+          {t(
+            message(
+              'Hàng nghìn ngăn bằng dấu chấm, số lẻ dùng dấu phẩy. Tỷ lệ nhập theo phần trăm.',
+              'Use commas for thousands and periods for decimals. Enter ratios as percentages.',
+              '천 단위는 쉼표, 소수점은 마침표를 사용하세요. 비율은 백분율로 입력합니다.',
+            ),
+          )}
         </p>
-        {dirty && <p className={NOTE}>Có thay đổi chưa lưu. Lưu nháp rồi mới gửi duyệt được.</p>}
+        {dirty && (
+          <p className={NOTE}>
+            {t(
+              message(
+                'Có thay đổi chưa lưu. Lưu nháp rồi mới gửi duyệt được.',
+                'You have unsaved changes. Save a draft before submitting for review.',
+                '저장되지 않은 변경 사항이 있습니다. 검토 요청 전에 초안을 저장하세요.',
+              ),
+            )}
+          </p>
+        )}
         {holder && (
           <p className="text-[12px] font-semibold leading-4">
-            {holder.name} đang giữ bản nháp này.
+            {t(
+              message(
+                `${holder.name} đang giữ bản nháp này.`,
+                `${holder.name} owns this draft.`,
+                `${holder.name}님이 이 초안을 편집 중입니다.`,
+              ),
+            )}
           </p>
         )}
         <Field
-          label="Hạn trả lời (số ngày)"
-          hint="Quá hạn mà người nhận chưa trả lời thì áp dụng mức đã giao."
+          label={t(message('Hạn trả lời (số ngày)', 'Response deadline (days)', '응답 기한 (일)'))}
+          hint={t(
+            message(
+              'Quá hạn mà người nhận chưa trả lời thì áp dụng mức đã giao.',
+              'If the recipient does not respond by the deadline, the assigned target applies.',
+              '기한까지 수신자가 응답하지 않으면 배정된 목표가 적용됩니다.',
+            ),
+          )}
           problem={problem}
           className="mt-1 w-72 max-w-full"
         >
@@ -208,13 +263,15 @@ function SaveBar({
           <span className="flex items-center gap-2">
             <Input
               inputMode="numeric"
-              aria-label="Hạn trả lời (số ngày)"
+              aria-label={t(
+                message('Hạn trả lời (số ngày)', 'Response deadline (days)', '응답 기한 (일)'),
+              )}
               className="pointer-coarse:h-12 tnum font-num w-24 text-right"
               value={daysText}
               invalid={problem !== undefined}
               onChange={(e) => setDaysText(e.target.value)}
             />
-            <span className={NOTE}>ngày</span>
+            <span className={NOTE}>{t(message('ngày', 'days', '일'))}</span>
           </span>
         </Field>
         {errors.map((error, i) => (
@@ -227,24 +284,28 @@ function SaveBar({
         disabled={!onSave}
         onClick={onSave}
       >
-        Lưu nháp
+        {t(message('Lưu nháp', 'Save draft', '초안 저장'))}
       </Button>
       <Button
         className="pointer-coarse:h-12"
         disabled={!onSend || !days.success}
         onClick={() => days.success && onSend?.(days.data)}
       >
-        Gửi duyệt
+        {t(message('Gửi duyệt', 'Submit for review', '검토 요청'))}
       </Button>
     </div>
   )
 }
 
 /* On a card a field takes the full width, so the box is wide enough to type in. */
-const columnsOf = (defs: readonly KpiMetricDef[], editable: boolean): StackColumn[] => [
-  { header: 'Người nhận', width: 'minmax(160px,1.2fr)' },
+const columnsOf = (
+  defs: readonly KpiMetricDef[],
+  editable: boolean,
+  t: ReturnType<typeof useI18n>['t'],
+): StackColumn[] => [
+  { header: t(message('Người nhận', 'Recipient', '수신자')), width: 'minmax(160px,1.2fr)' },
   ...defs.map((def) => ({
-    header: KPI_METRIC_LABEL[def.key],
+    header: kpiMetricText(def.key),
     width: 'minmax(168px,1fr)',
     align: 'right' as const,
     stack: editable ? ('wide' as const) : undefined,
@@ -275,6 +336,44 @@ type AllocationTableProps = {
   me: string | undefined
 }
 
+/** Every metric's check line; nothing at all when no metric has one to print. */
+function TotalLines({
+  defs,
+  pkg,
+  roleTargetOf,
+  hasTotal,
+}: Pick<AllocationTableProps, 'defs' | 'pkg' | 'roleTargetOf' | 'hasTotal'>) {
+  const { t } = useI18n()
+  const checks = defs.flatMap((def) => {
+    const total = pkg?.totals.find((t) => t.metricKey === def.key)
+    const roleTarget = pkg ? (total?.roleTarget ?? null) : roleTargetOf(def.key)
+    const check = checkOf(def, total, roleTarget, hasTotal, t)
+    return check ? [{ def, total, check }] : []
+  })
+  if (checks.length === 0) return null
+  return (
+    <ul className="flex flex-col gap-4 px-5">
+      {checks.map(({ def, total, check }) => (
+        <TotalLine
+          key={def.key}
+          def={def}
+          check={check}
+          total={total}
+          parts={partsOf(pkg, def.key)}
+        />
+      ))}
+    </ul>
+  )
+}
+
+const TEXT = {
+  noOneHoldsThisRole: message(
+    'Chưa có ai giữ vai trò này.',
+    'No one holds this role yet.',
+    '아직 이 역할을 맡은 사람이 없습니다.',
+  ),
+}
+
 export function AllocationTable({
   period,
   role,
@@ -289,6 +388,7 @@ export function AllocationTable({
   canSend,
   me,
 }: AllocationTableProps) {
+  const { t } = useI18n()
   const draft = useDraftKpiAllocation(period)
   const submit = useSubmitKpiAllocation(period)
   const [edits, setEdits] = useState<Record<string, string>>({})
@@ -314,13 +414,6 @@ export function AllocationTable({
   const saveable = body !== null && (dirty || pkg?.status !== 'draft') && !busy
   const sendable = canSend && pkg?.status === 'draft' && !othersDraft && !dirty && !busy
 
-  const checks = defs.flatMap((def) => {
-    const total = pkg?.totals.find((t) => t.metricKey === def.key)
-    const roleTarget = pkg ? (total?.roleTarget ?? null) : roleTargetOf(def.key)
-    const check = checkOf(def, total, roleTarget, hasTotal)
-    return check ? [{ def, total, check }] : []
-  })
-
   /* A person's line or a team's share: the same box, told apart by `teamId`. */
   const figure = (
     key: string,
@@ -332,7 +425,7 @@ export function AllocationTable({
     <ValueCell
       key={def.key}
       def={def}
-      label={`${KPI_METRIC_LABEL[def.key]} ${label}`}
+      label={`${kpiMetricText(def.key)} ${label}`}
       editable={editable}
       text={textOf(key, def, teamId)}
       saved={saved?.value ?? null}
@@ -342,13 +435,18 @@ export function AllocationTable({
   )
   const cell = (holder: Recipient, def: KpiMetricDef) => {
     const key = cellKey(holder.actorId, def.key)
-    return figure(key, def, `của ${holder.name}`, saved.get(key))
+    return figure(
+      key,
+      def,
+      t(message(`của ${holder.name}`, `for ${holder.name}`, `${holder.name}님`)),
+      saved.get(key),
+    )
   }
   const teamCell = (team: TeamRow, def: KpiMetricDef) =>
     figure(
       teamCellKey(team.id, def.key),
       def,
-      `của nhóm ${team.name}`,
+      t(message(`của nhóm ${team.name}`, `for ${team.name}'s team`, `${team.name} 팀`)),
       savedShare(pkg, team.id, def.key),
       team.id,
     )
@@ -359,26 +457,32 @@ export function AllocationTable({
     draft.mutate(body, {
       onSuccess: () => {
         setEdits({})
-        toastDone('Đã lưu nháp')
+        toastDone(t(message('Đã lưu nháp', 'Draft saved', '초안을 저장했습니다')))
       },
     })
   }
   const send = (ackDays: number) => {
     draft.reset()
-    submit.mutate({ role, ackDays }, { onSuccess: () => toastDone('Đã gửi duyệt') })
+    submit.mutate(
+      { role, ackDays },
+      {
+        onSuccess: () =>
+          toastDone(t(message('Đã gửi duyệt', 'Submitted for review', '검토를 요청했습니다'))),
+      },
+    )
   }
 
   return (
     <GlassCard variant="b" className="flex flex-col gap-4 py-4">
       {holders.length === 0 && teams.length === 0 ? (
-        <p className={cn(NOTE, 'px-5')}>Chưa có ai giữ vai trò này.</p>
+        <p className={cn(NOTE, 'px-5')}>{t(TEXT.noOneHoldsThisRole)}</p>
       ) : (
         <StackTable
           from="lg"
           flush
           rowHeight="min-h-16 py-2"
           tableClassName={defs.length > 3 ? 'min-w-5xl' : 'min-w-3xl'}
-          columns={columnsOf(defs, editable)}
+          columns={columnsOf(defs, editable, t)}
           rows={[
             ...teams.map((t) => ({
               id: teamCellKey(t.id, 'row'),
@@ -400,19 +504,7 @@ export function AllocationTable({
         />
       )}
 
-      {checks.length > 0 && (
-        <ul className="flex flex-col gap-4 px-5">
-          {checks.map(({ def, total, check }) => (
-            <TotalLine
-              key={def.key}
-              def={def}
-              check={check}
-              total={total}
-              parts={partsOf(pkg, def.key)}
-            />
-          ))}
-        </ul>
-      )}
+      <TotalLines defs={defs} pkg={pkg} roleTargetOf={roleTargetOf} hasTotal={hasTotal} />
 
       {editable && (
         <SaveBar

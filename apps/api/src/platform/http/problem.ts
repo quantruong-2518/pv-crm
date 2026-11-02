@@ -8,6 +8,7 @@ import type { DenyReason, Problem, ProblemKind } from '@pv/contracts'
  *  401/403. Lớp này là chỗ chở phần chênh. */
 export class PvError extends HttpException {
   readonly kind: ProblemKind
+  readonly code?: string
   readonly reason?: DenyReason
   readonly fields?: Record<string, string[]>
   /** Structured data a door adds beside the Problem fields, e.g. the admission
@@ -16,6 +17,7 @@ export class PvError extends HttpException {
 
   constructor(init: {
     kind: ProblemKind
+    code?: string
     status: number
     title: string
     reason?: DenyReason
@@ -23,6 +25,7 @@ export class PvError extends HttpException {
   }) {
     super(init.title, init.status)
     this.kind = init.kind
+    this.code = init.code
     this.reason = init.reason
     this.fields = init.fields
   }
@@ -54,6 +57,7 @@ export function toProblem(e: PvError, ctx: { instance: string; traceId?: string 
   return {
     ...(e.extra ?? {}),
     type: e.kind,
+    ...(e.code ? { code: e.code } : {}),
     title: e.message,
     status: e instanceof BusyError ? 503 : STATUS_OF[e.kind],
     instance: ctx.instance,
@@ -126,12 +130,13 @@ export function invalid(
  *
  *  `title` để trống thì lấy câu mặc định theo lý do — bốn câu này khớp với
  *  `userMessage()` bên `apps/web/src/app/api/errors.ts`. */
-export function denied(reason: DenyReason, title?: string): PvError {
+export function denied(reason: DenyReason, title?: string, code?: string): PvError {
   const unauth = reason === 'unauthenticated'
   return new PvError({
     kind: unauth ? 'unauthenticated' : 'forbidden',
     status: unauth ? 401 : 403,
     title: title ?? DENY_TITLE[reason],
+    code,
     reason,
   })
 }

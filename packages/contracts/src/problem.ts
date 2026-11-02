@@ -63,6 +63,8 @@ export const DenyReason = z.enum([
 export const Problem = z.object({
   /** Định danh loại lỗi, ASCII. */
   type: ProblemKind,
+  /** Stable domain code for cases that share a status and problem type. */
+  code: z.string().optional(),
   /** Câu nói được với người dùng. Tiếng Việt — đây là NHÃN, không phải khoá. */
   title: z.string(),
   status: z.number().int(),

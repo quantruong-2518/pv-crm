@@ -1,19 +1,10 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import {
-  AiFillField,
-  Combobox,
-  Input,
-  PillOverflow,
-  Select,
-  Textarea,
-  billions,
-  cn,
-  vnd,
-} from '@pv/ui'
+import { AiFillField, Combobox, Input, PillOverflow, Select, Textarea, billions, cn } from '@pv/ui'
 import { LEAD_NUM } from '@pv/contracts'
-import { CURRENCIES, toMoneyVnd, type CurrencyCode } from '@pv/engines/fixtures/das-vina'
+import { toMoneyVnd, type CurrencyCode } from '@pv/engines/fixtures/das-vina'
 import { AddressField, type AddressBoxKey } from '@/components/address-field'
+import { LOCALE_TAG, useI18n, type Lang } from '@/app/i18n'
 import { peopleRoleOptions, useSalesPeople } from '@/data/directory'
 import {
   categoryOptions,
@@ -40,6 +31,7 @@ import {
   type FormValues,
 } from '@/data/lead-form'
 import type { AiFillView } from './lead-ai-fill'
+import { localizeLeadField } from '@/data/lead-copy'
 
 /** Module 2 · The controls one box of the lead form is made of — label, star,
  *  control, and the complaint when a save was refused.
@@ -129,7 +121,8 @@ function filling(ai: AiFillView | undefined, key: FieldKey, control: ReactNode) 
  *
  *  Display only. `writeField` strips every non-digit on the way back, so typing
  *  the dots or leaving them out lands the same value. */
-const grouped = (raw: string) => (raw === '' ? '' : Number(raw).toLocaleString('vi-VN'))
+const grouped = (raw: string, lang: Lang) =>
+  raw === '' ? '' : Number(raw).toLocaleString(LOCALE_TAG[lang])
 
 function FieldControl({
   field,
@@ -161,6 +154,7 @@ function FieldControl({
   /** The industries popover shut, final list in hand — the one save for it. */
   onLeave: (tags: string[]) => void
 }) {
+  const { lang } = useI18n()
   const marked = required || undefined
 
   if (field.key === 'industries') {
@@ -248,7 +242,7 @@ function FieldControl({
          exactly the box and nothing beside it. */
       <Input
         inputMode="numeric"
-        value={grouped(value)}
+        value={grouped(value, lang)}
         invalid={invalid}
         aria-label={field.label}
         aria-required={marked}
@@ -363,13 +357,15 @@ const savesOnChange = (field: FormField) => field.kind === 'select' || field.kin
  *  A reader gets the SAME printed line a field the contract cannot patch gets:
  *  one shape for "you cannot change this here", rather than a typeable box
  *  whose every blur earns a 403 the reader never asked for. */
-function drawnField(field: FormField, draft: LeadDraft, writable: boolean): FormField {
+function drawnField(field: FormField, draft: LeadDraft, writable: boolean, lang: Lang): FormField {
   const printed = draft.mode === 'edit' && (!writable || !draft.editable(field))
   return {
     ...field,
     label:
       field.key === 'channelUrl'
-        ? channelUrlLabel(readField(draft.values, 'channel'))
+        ? lang === 'vi'
+          ? channelUrlLabel(readField(draft.values, 'channel'))
+          : `${field.label}${readField(draft.values, 'channel') ? ` · ${readField(draft.values, 'channel')}` : ''}`
         : field.label,
     kind: printed ? 'read' : field.kind,
   }
@@ -385,7 +381,7 @@ function addressPair(
   const address = fields.find((field) => field.key === 'address')
   const province = fields.find((field) => field.key === 'province')
   if (!address || !province) return null
-  const typeable = (field: FormField) => drawnField(field, draft, writable).kind !== 'read'
+  const typeable = (field: FormField) => drawnField(field, draft, writable, 'vi').kind !== 'read'
   return typeable(address) && typeable(province) ? { address, province } : null
 }
 
@@ -407,7 +403,9 @@ export function FieldRow({
   /** The edit door's AI fill run; absent on every other card. */
   ai?: AiFillView
 }) {
+  const { lang } = useI18n()
   const writable = draft.mode === 'create' || canEdit
+  const localized = fields.map((field) => localizeLeadField(field, lang))
 
   /* The three holder boxes read the directory on the server. Built here, once
      for the whole row: a box declaring `people` gets its own "nobody yet" line
@@ -421,11 +419,12 @@ export function FieldRow({
 
   /* One picker fills both address boxes, so they are drawn as a pair — but
      only while both may still be typed into. */
-  const pair = addressPair(fields, draft, writable)
+  const pair = addressPair(localized, draft, writable)
 
   return (
     <div className="grid gap-x-6 gap-y-5 md:grid-cols-2">
       {fields.map((field) => {
+        const shown = localizeLeadField(field, lang)
         if (pair && field.key === 'province') return null
         if (pair && field.key === 'address') {
           return (
@@ -433,15 +432,15 @@ export function FieldRow({
           )
         }
 
-        const drawn = drawnField(field, draft, writable)
+        const drawn = drawnField(shown, draft, writable, lang)
         const error = draft.fieldError(field.key)
         const instant = savesOnChange(drawn)
         const value = readField(draft.values, field.key)
-        const options = field.people
-          ? [{ value: '', label: field.people }, ...staffOptions]
+        const options = shown.people
+          ? [{ value: '', label: shown.people }, ...staffOptions]
           : field.key === 'category'
-            ? [...(field.options ?? []), ...categoryOptions(industries, value)]
-            : (field.options ?? [])
+            ? [...(shown.options ?? []), ...categoryOptions(industries, value)]
+            : (shown.options ?? [])
 
         return (
           <FieldShell
@@ -597,16 +596,16 @@ function StopReasonRead({ value, mono }: { value: string; mono?: boolean }) {
  *  loud (billions), and a foreign currency converted too, because the
  *  opportunity book adds up in one currency. */
 function MoneyRead({ work, value }: { work: FormValues; value: string }) {
+  const { currency: formatMoney, t } = useI18n()
   if (value === '') return null
   const amount = Number(value)
   const currency: CurrencyCode = work.currency
-  const symbol = CURRENCIES.find((c) => c.code === currency)?.symbol ?? ''
 
   return (
     <span className="text-muted-foreground text-[12px] leading-[1.6]">
       {currency === 'VND'
-        ? `${vnd(amount)} · ${billions(amount)}`
-        : `${amount.toLocaleString('vi-VN')} ${symbol} · ${billions(toMoneyVnd(amount, currency))} quy ra đồng`}
+        ? `${formatMoney(amount, 'VND')} · ${billions(amount)}`
+        : `${formatMoney(amount, currency)} · ${billions(toMoneyVnd(amount, currency))} ${t({ vi: 'quy ra đồng', en: 'converted to VND', ko: 'VND 환산' })}`}
     </span>
   )
 }

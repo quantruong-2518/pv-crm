@@ -5,10 +5,16 @@ import { AiAction, AppShell, Ban, Button, Icon } from '@pv/ui'
 import { daysUntil } from '@pv/engines'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
+import { useI18n, type Lang } from '@/app/i18n'
+import {
+  CONTRACT_DETAIL_COPY as COPY,
+  aiSuggestionText,
+  blockedLateText,
+  contractReadOnlyText,
+  paymentBasisText,
+} from '@/data/contract-detail-copy'
 import {
   contractDetailQuery,
-  contractReadOnlyNote,
-  daysPhrase,
   overdue,
   today,
   viewInstallment,
@@ -45,7 +51,8 @@ import { ContractTodo } from './contract-todo'
  *  there IS a contract. */
 
 export function ContractDetailPage() {
-  const chrome = useAppChrome({ searchPlaceholder: 'Tìm hợp đồng, khách hàng, số hoá đơn…' })
+  const { t } = useI18n()
+  const chrome = useAppChrome({ searchPlaceholder: t(COPY.search) })
   const navigate = useNavigate()
   const { code = '' } = useParams()
   const { data: contract, isPending, error } = useQuery(contractDetailQuery(code))
@@ -61,9 +68,9 @@ export function ContractDetailPage() {
           pending={isPending}
           failure={{
             error,
-            notFound: 'Có thể mã sai, hoặc hợp đồng không do bạn phụ trách. Mở lại từ sổ hợp đồng.',
-            fallback: 'Không mở được hợp đồng này.',
-            back: { label: 'Về sổ hợp đồng', onClick: () => navigate('/sales/contracts') },
+            notFound: t(COPY.notFound),
+            fallback: t(COPY.loadFailed),
+            back: { label: t(COPY.backToBook), onClick: () => navigate('/sales/contracts') },
           }}
         />
       )}
@@ -76,6 +83,7 @@ export default ContractDetailPage
 // ---------------------------------------------------------------------------
 
 function ContractScreen({ contract }: { contract: Contract }) {
+  const { lang, t } = useI18n()
   const navigate = useNavigate()
   const run = useContractRun(contract)
   const [composing, setComposing] = useState<{ to: string | null } | null>(null)
@@ -129,7 +137,7 @@ function ContractScreen({ contract }: { contract: Contract }) {
           }
           note={
             !ended && readOnly
-              ? contractReadOnlyNote(contract.ownerName, contract.canCollect === true)
+              ? contractReadOnlyText(contract.ownerName, contract.canCollect === true, lang)
               : null
           }
         />
@@ -150,23 +158,23 @@ function ContractScreen({ contract }: { contract: Contract }) {
           )}
           {next?.blocking && !mailBlocked && canRecord && (
             <AiAction
-              suggestion={
-                <>
-                  Soạn thư nhắc {contract.contact} làm nốt {next.blocking.what.toLowerCase()}, kèm
-                  xin ngày chuyển tiền đợt {next.installment.no}?
-                </>
-              }
-              basis={aiBasis(next, now)}
-              empty="Chưa tạo gì. Trợ lý chờ bạn bấm."
-              confirmLabel="Soạn thư"
+              suggestion={aiSuggestionText(
+                contract.contact,
+                next.blocking.what,
+                next.installment.no,
+                lang,
+              )}
+              basis={aiBasis(next, now, lang)}
+              empty={t(COPY.aiEmpty)}
+              confirmLabel={t(COPY.draftMail)}
               onConfirm={() => setComposing({ to: addressee.code ?? null })}
               onInspect={() => openInstallment(next.installment.no)}
-              inspectLabel="Mở đợt"
+              inspectLabel={t(COPY.openInstallment)}
             />
           )}
         </>
       }
-      railLabel="Lịch sử liên hệ, người liên hệ và tài liệu của hợp đồng"
+      railLabel={t(COPY.rail)}
       rail={
         <>
           <ContractOwners contract={contract} workstreamCode={run.workstreamCode} />
@@ -181,7 +189,7 @@ function ContractScreen({ contract }: { contract: Contract }) {
       }
       actionBar={
         <ActionBar
-          label="Thao tác hợp đồng"
+          label={t(COPY.actions)}
           subject={subject}
           contacts={run.contacts}
           mailBlocked={mailBlocked}
@@ -196,7 +204,7 @@ function ContractScreen({ contract }: { contract: Contract }) {
                 onClick={() => setTerminating(true)}
               >
                 <Icon icon={Ban} size={16} />
-                Chấm dứt hợp đồng
+                {t(COPY.terminate)}
               </Button>
             )
           }
@@ -280,15 +288,15 @@ const modalRowOf = ({
 
 /** What the assistant read. The "no reply" clause only when the installment's
  *  latest sent touch is still waiting for one. */
-function aiBasis(next: InstallmentView<Installment>, now: string): string {
+function aiBasis(next: InstallmentView<Installment>, now: string, lang: Lang): string {
   const { installment, blocking } = next
   const sent = installment.records
     .filter((r) => r.state === 'done' || r.state === 'awaiting-reply')
     .sort((a, b) => b.at.localeCompare(a.at))[0]
   return [
-    `đợt ${installment.no} ${daysPhrase(next.daysLeft)}`,
-    blocking && `điều kiện "${blocking.what}" trễ ${-daysUntil(blocking.due, now)} ngày`,
-    sent?.state === 'awaiting-reply' && 'lượt nhắc gần nhất chưa có trả lời',
+    paymentBasisText(installment.no, next.daysLeft, lang),
+    blocking && blockedLateText(blocking.what, -daysUntil(blocking.due, now), lang),
+    sent?.state === 'awaiting-reply' && COPY.noReply[lang],
   ]
     .filter(Boolean)
     .join(' · ')

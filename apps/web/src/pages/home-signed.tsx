@@ -8,6 +8,15 @@ import { bucketViews, periodLabel, type BucketView } from '@/data/period-pick'
 import { CARD_SHELL, DeltaLine, IconTile, NOTE, PILL_LINK } from './home-tiles'
 import { ICON_TONE, MARK_EASE, WASH_HERO, staggerMs } from './home-look'
 import { BUCKET_UNIT } from './home-revenue-model'
+import { message, translate } from '@/app/i18n'
+
+const tr = (vi: string, en: string, ko: string) => translate(message(vi, en, ko))
+const unitLabel = (unit: string) =>
+  unit === 'tuần'
+    ? tr('tuần', 'week', '주')
+    : unit === 'tháng'
+      ? tr('tháng', 'month', '월')
+      : tr('ngày', 'day', '일')
 
 /** The hero tile of the overview: contracts signed in the period beside the
  *  open book, in one chart. Each column is the open deals expected to close in
@@ -177,12 +186,30 @@ function Labels({ views }: { views: BucketView[] }) {
 function FiguresTable({ views, unit }: { views: BucketView[]; unit: string }) {
   return (
     <table className="sr-only">
-      <caption>Giá trị hợp đồng ký và cơ hội đang mở theo {unit}</caption>
+      <caption>
+        {tr(
+          `Giá trị hợp đồng đã ký và cơ hội đang mở theo ${unitLabel(unit)}`,
+          `Signed contract value and open opportunities by ${unitLabel(unit)}`,
+          `${unitLabel(unit)}별 계약 체결 금액 및 진행 중 영업 기회`,
+        )}
+      </caption>
       <thead>
         <tr>
-          <th scope="col">Kỳ</th>
-          <th scope="col">Giá trị ký (triệu đồng)</th>
-          <th scope="col">Cơ hội mở dự kiến chốt (triệu đồng)</th>
+          <th scope="col">{tr('Kỳ', 'Period', '기간')}</th>
+          <th scope="col">
+            {tr(
+              'Giá trị đã ký (triệu đồng)',
+              'Signed value (VND millions)',
+              '계약 체결 금액 (백만 VND)',
+            )}
+          </th>
+          <th scope="col">
+            {tr(
+              'Cơ hội mở dự kiến chốt (triệu đồng)',
+              'Open opportunities expected to close (VND millions)',
+              '예상 계약 성사 금액 (백만 VND)',
+            )}
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -210,12 +237,19 @@ function Swatch({ className, label }: { className: string; label: string }) {
 function Legend({ future }: { future: boolean }) {
   return (
     <div className={cn(NOTE, 'flex flex-wrap items-center gap-x-4 gap-y-1')}>
-      <Swatch className={SIGNED_FILL} label="Đã ký" />
-      <Swatch className={OPEN_TRACK} label="Cơ hội mở, dự kiến chốt" />
+      <Swatch className={SIGNED_FILL} label={tr('Đã ký', 'Signed', '체결')} />
+      <Swatch
+        className={OPEN_TRACK}
+        label={tr(
+          'Cơ hội mở, dự kiến chốt',
+          'Open opportunities expected to close',
+          '계약 성사 예상 영업 기회',
+        )}
+      />
       {future && (
         <Swatch
           className="bg-surface-ink/3 outline-muted-foreground/25 outline-dashed outline-1 -outline-offset-1"
-          label="Chưa tới"
+          label={tr('Chưa tới', 'Upcoming', '예정')}
         />
       )}
     </div>
@@ -245,6 +279,7 @@ export function SignedTile({
   data: SalesPerformanceResponse
   className?: string
 }) {
+  const unitText = unitLabel(BUCKET_UNIT[salesGrainOf(data.period)])
   const canViewContracts = useCan('contract.view')
   const canViewDeals = useCan('opportunity.view')
   const { current, compare, open } = data
@@ -259,7 +294,11 @@ export function SignedTile({
           <IconTile icon={FileCheck} size="size-9 rounded-xl" className={ICON_TONE.primary} />
           <div className="flex flex-col">
             <h3 className="text-[16px] font-semibold leading-6">
-              Hợp đồng đã ký và cơ hội đang mở
+              {tr(
+                'Hợp đồng đã ký và cơ hội đang mở',
+                'Signed contracts and open opportunities',
+                '체결된 계약 및 진행 중인 영업 기회',
+              )}
             </h3>
             <span className={NOTE}>{periodLabel(data.period)}</span>
           </div>
@@ -270,13 +309,13 @@ export function SignedTile({
               to={`/sales/contracts?signedFrom=${data.span.first}&signedTo=${data.span.last}`}
               className={PILL_LINK}
             >
-              Xem hợp đồng
+              {tr('Xem hợp đồng', 'View contracts', '계약 보기')}
               <Icon icon={ArrowRight} size={14} />
             </Link>
           )}
           {canViewDeals && open.count > 0 && (
             <Link to={dealsHref('open')} className={PILL_LINK}>
-              Xem cơ hội
+              {tr('Xem cơ hội', 'View opportunities', '영업 기회 보기')}
               <Icon icon={ArrowRight} size={14} />
             </Link>
           )}
@@ -284,28 +323,64 @@ export function SignedTile({
       </div>
 
       <div className="flex flex-wrap items-start gap-x-12 gap-y-4">
-        <Figure label="Đã ký trong kỳ" value={money(current.signedAmountVnd)}>
+        <Figure
+          label={tr('Đã ký trong kỳ', 'Signed this period', '이번 기간 체결')}
+          value={money(current.signedAmountVnd)}
+        >
           <div className="flex flex-wrap items-center gap-2">
             <DeltaLine delta={delta} />
             <span className="text-muted-foreground tnum font-num text-[13px] leading-[18px]">
               <strong className="text-foreground font-semibold">
-                {num(current.signedCount)} hợp đồng
+                {tr(
+                  `${num(current.signedCount)} hợp đồng`,
+                  `${num(current.signedCount)} contracts`,
+                  `계약 ${num(current.signedCount)}건`,
+                )}
               </strong>
-              {current.blankAmount > 0 && ` · ${num(current.blankAmount)} chưa nhập giá trị`}
+              {current.blankAmount > 0 &&
+                tr(
+                  ` · ${num(current.blankAmount)} chưa nhập giá trị`,
+                  ` · ${num(current.blankAmount)} missing a value`,
+                  ` · 금액 미입력 ${num(current.blankAmount)}건`,
+                )}
             </span>
           </div>
         </Figure>
-        <Figure label="Cơ hội đang mở, tính đến hôm nay" value={money(open.amountVnd)}>
+        <Figure
+          label={tr(
+            'Cơ hội đang mở, tính đến hôm nay',
+            'Open opportunities as of today',
+            '오늘 기준 진행 중인 영업 기회',
+          )}
+          value={money(open.amountVnd)}
+        >
           <span className="text-muted-foreground tnum font-num text-[13px] leading-[18px]">
-            <strong className="text-foreground font-semibold">{num(open.count)} cơ hội</strong>
-            {open.blank > 0 && ` · ${num(open.blank)} chưa nhập giá trị`}
+            <strong className="text-foreground font-semibold">
+              {tr(
+                `${num(open.count)} cơ hội`,
+                `${num(open.count)} opportunities`,
+                `영업 기회 ${num(open.count)}건`,
+              )}
+            </strong>
+            {open.blank > 0 &&
+              tr(
+                ` · ${num(open.blank)} chưa nhập giá trị`,
+                ` · ${num(open.blank)} missing a value`,
+                ` · 금액 미입력 ${num(open.blank)}건`,
+              )}
           </span>
         </Figure>
       </div>
 
       <div className="mt-auto flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <span className={NOTE}>Theo {unit} · triệu đồng · trên: mở, dưới: ký</span>
+          <span className={NOTE}>
+            {tr(
+              `Theo ${unitText} · triệu đồng · trên: mở, dưới: ký`,
+              `By ${unitText} · VND millions · open above, signed below`,
+              `${unitText}별 · 백만 VND · 위: 진행 중, 아래: 체결`,
+            )}
+          </span>
           <Legend future={views.some((v) => !hasData(v))} />
         </div>
         <div aria-hidden className="flex flex-col gap-3">
@@ -316,10 +391,18 @@ export function SignedTile({
         {open.unplaced.count > 0 && (
           <span className={cn(NOTE, 'tnum font-num')}>
             <strong className="text-foreground font-semibold">
-              {num(open.unplaced.count)} cơ hội
+              {tr(
+                `${num(open.unplaced.count)} cơ hội`,
+                `${num(open.unplaced.count)} opportunities`,
+                `영업 기회 ${num(open.unplaced.count)}건`,
+              )}
             </strong>
-            {open.unplaced.amountVnd > 0 && ` (${money(open.unplaced.amountVnd)})`} chưa có trong
-            cột: không có ngày dự kiến chốt, hoặc chốt ngoài kỳ này.
+            {open.unplaced.amountVnd > 0 && ` (${money(open.unplaced.amountVnd)})`}{' '}
+            {tr(
+              'chưa có trong cột: không có ngày dự kiến chốt, hoặc chốt ngoài kỳ này.',
+              'not shown in the chart because they have no expected close date or close outside this period.',
+              '예상 계약일이 없거나 이번 기간 밖이라 차트에 표시되지 않습니다.',
+            )}
           </span>
         )}
         <FiguresTable views={views} unit={unit} />

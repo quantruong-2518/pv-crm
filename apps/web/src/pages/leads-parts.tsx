@@ -18,8 +18,9 @@ import {
   Users,
   percent,
 } from '@pv/ui'
-import { sourceKindLabel, type LeadMotion, type LeadRow } from '@pv/contracts'
+import { type LeadMotion, type LeadRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
+import { useI18n } from '@/app/i18n'
 import { useCan, useSession } from '@/app/auth'
 import { toast } from '@/app/toast'
 import { AssignMenu } from '@/components/assign-menu'
@@ -35,6 +36,8 @@ import { useSetLeadOwner } from '@/data/lead-owner'
 import { LEAD_STATE_FACE } from '@/data/lead-state'
 import { sourcePartnerLabel } from '@/data/partners'
 import { useMotionLabel } from '@/data/sales-motions'
+import { leadSourceKindLabel } from '@/data/sales-labels-i18n'
+import { LEAD_COPY, leadScoreHint, leadStateText } from '@/data/lead-copy'
 
 /** Module 2 · the cells and blocks of the lead book, split from `leads.tsx` so
  *  the screen file stays the layout: header, score strip, one list card.
@@ -48,10 +51,11 @@ import { useMotionLabel } from '@/data/sales-motions'
  *  the count beside the tabs is what answers for those. No deltas: the endpoint
  *  has no previous period to compare against. */
 export function ScoreStrip() {
+  const { t, number, lang } = useI18n()
   const { data } = useQuery(leadScorecardQuery)
   const total = data?.leads ?? 0
   const per = (n: number) => (!data || total === 0 ? '—' : percent(n / total))
-  const count = (n: number | undefined) => (n === undefined ? '—' : String(n))
+  const count = (n: number | undefined) => (n === undefined ? '—' : number(n))
   /* Zero reads as "missing", not "fine" — warn per cell on its own count,
      not on `total`: zero leads is an empty book, zero opportunities on a
      full book is a different fact. */
@@ -63,38 +67,38 @@ export function ScoreStrip() {
   const items = [
     {
       icon: Users,
-      label: 'Tổng lead',
+      label: t(LEAD_COPY.total),
       value: count(data?.leads),
       warn: zero(data?.leads),
     },
     {
       icon: CalendarCheck,
-      label: 'Đã liên hệ lần đầu',
+      label: t(LEAD_COPY.firstContact),
       value: count(data?.contacted),
       hint:
         total === 0
-          ? 'Chưa có lead để tính tỷ lệ'
-          : `${count(data?.contacted)}/${total} lead đã được liên hệ`,
+          ? t(LEAD_COPY.noRate)
+          : leadScoreHint('contacted', count(data?.contacted), number(total), lang),
       warn: zero(data?.contacted),
     },
     {
       icon: Target,
-      label: 'Thành cơ hội',
+      label: t(LEAD_COPY.converted),
       value: per(data?.opportunities ?? 0),
       hint:
         total === 0
-          ? 'Chưa có lead để tính tỷ lệ'
-          : `${count(data?.opportunities)}/${total} lead đã tạo cơ hội`,
+          ? t(LEAD_COPY.noRate)
+          : leadScoreHint('converted', count(data?.opportunities), number(total), lang),
       warn: zero(data?.opportunities),
     },
     {
       icon: FileCheck,
-      label: 'Đã ký hợp đồng',
+      label: t(LEAD_COPY.signed),
       value: per(data?.contracts ?? 0),
       hint:
         total === 0
-          ? 'Chưa có lead để tính tỷ lệ'
-          : `${count(data?.contracts)}/${total} lead đã ký hợp đồng`,
+          ? t(LEAD_COPY.noRate)
+          : leadScoreHint('signed', count(data?.contracts), number(total), lang),
       warn: zero(data?.contracts),
     },
   ]
@@ -102,7 +106,7 @@ export function ScoreStrip() {
   return (
     <div
       role="group"
-      aria-label="Thẻ điểm sổ lead"
+      aria-label={t(LEAD_COPY.scorecard)}
       className="grid grid-cols-2 gap-3 lg:grid-cols-4"
     >
       {items.map((item) => (
@@ -145,12 +149,13 @@ const MOTION_FACE: Record<LeadMotion, { icon: typeof Inbox; className: string }>
  *  Leads written before the two-level origin carry no motion: the intake kind
  *  takes line one and the detail keeps whatever else there is. */
 export function SourceCell({ lead }: { lead: LeadRow }) {
+  const { lang } = useI18n()
   const { kind, motion, origin, campaignName } = lead.source
   const motionLabel = useMotionLabel()
 
   const partner = sourcePartnerLabel(lead.source)
-  const top = motion ? motionLabel(motion) : sourceKindLabel(lead.source)
-  const kindLabel = motion && kind ? sourceKindLabel(lead.source) : undefined
+  const top = motion ? motionLabel(motion) : leadSourceKindLabel(kind, lang)
+  const kindLabel = motion && kind ? leadSourceKindLabel(kind, lang) : undefined
   const detail =
     partner ?? origin?.name ?? (campaignName ? shortSourceName(campaignName) : kindLabel)
   const title = [top, origin?.name, partner, campaignName ?? kindLabel].filter(Boolean).join(' · ')
@@ -193,10 +198,12 @@ export function DisabledAtCell({ lead }: { lead: LeadRow }) {
  *  TRUNCATES inside its cell: the longest label is 23 characters and the column
  *  is an `fr` track, so an untruncated pill spills over the PIC column. */
 export function StatusCell({ lead }: { lead: LeadRow }) {
+  const { lang } = useI18n()
   const face = LEAD_STATE_FACE[lead.state]
+  const label = leadStateText(lead.state, lang)
   const badge = (
-    <Badge tone={face.badge} className={cn(BADGE_INK, 'max-w-full')} title={face.label}>
-      <span className="truncate">{face.label}</span>
+    <Badge tone={face.badge} className={cn(BADGE_INK, 'max-w-full')} title={label}>
+      <span className="truncate">{label}</span>
     </Badge>
   )
   if (lead.labels.length === 0 && !lead.hold) return badge

@@ -1,6 +1,7 @@
 import { useId, useState } from 'react'
 import { Button, Drawer, Icon, Input, Save, TriangleAlert, X, cn } from '@pv/ui'
 import { AiPriceSet } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 import { userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
 import { Field } from '@/components/ops-fields'
@@ -35,6 +36,24 @@ function errorsOf(issues: { path: PropertyKey[]; message: string }[]): Errors {
 
 const BOX = 'tnum pointer-coarse:h-12'
 
+const TEXT = {
+  inputPriceUSDPer1M: message(
+    'Giá token đầu vào (USD/1 triệu token)',
+    'Input price (USD per 1M tokens)',
+    '입력 가격 (토큰 100만 개당 USD)',
+  ),
+  outputPriceUSDPer1M: message(
+    'Giá token đầu ra (USD/1 triệu token)',
+    'Output price (USD per 1M tokens)',
+    '출력 가격 (토큰 100만 개당 USD)',
+  ),
+  aNewPriceReplacesThe: message(
+    'Nếu đã có giá cùng ngày, giá mới sẽ thay thế giá cũ.',
+    'A new price replaces the existing price for the same date.',
+    '같은 날짜의 가격이 이미 있으면 새 가격으로 대체됩니다.',
+  ),
+}
+
 export function PriceDrawer({
   open,
   seed,
@@ -47,6 +66,7 @@ export function PriceDrawer({
   models: string[]
   onClose: () => void
 }) {
+  const { t } = useI18n()
   const listId = useId()
   const [form, setForm] = useState(seed)
   const [errors, setErrors] = useState<Errors>({})
@@ -64,7 +84,15 @@ export function PriceDrawer({
     setErrors({})
     save.mutate(check.data, {
       onSuccess: (row) => {
-        toastDone(`Đã lưu giá cho ${row.model}`)
+        toastDone(
+          t(
+            message(
+              `Đã lưu giá cho ${row.model}`,
+              `Price saved for ${row.model}`,
+              `${row.model} 가격 저장 완료`,
+            ),
+          ),
+        )
         onClose()
       },
     })
@@ -79,7 +107,7 @@ export function PriceDrawer({
     <Drawer
       open={open}
       onClose={onClose}
-      title="Đặt giá"
+      title={t(message('Đặt giá', 'Set model price', '모델 가격 설정'))}
       footer={
         <div className="flex flex-wrap items-center justify-between gap-4">
           <span
@@ -95,22 +123,24 @@ export function PriceDrawer({
           <div className="flex shrink-0 gap-2">
             <Button size="lg" variant="ghost" disabled={save.isPending} onClick={onClose}>
               <Icon icon={X} size={16} />
-              Huỷ
+              {t(message('Huỷ', 'Cancel', '취소'))}
             </Button>
             <Button size="lg" disabled={save.isPending} onClick={submit}>
               <Icon icon={Save} size={16} />
-              {save.isPending ? 'Đang lưu…' : 'Lưu'}
+              {save.isPending
+                ? t(message('Đang lưu…', 'Saving…', '저장 중…'))
+                : t(message('Lưu', 'Save', '저장'))}
             </Button>
           </div>
         </div>
       }
     >
       <div className="flex min-w-0 flex-col gap-5">
-        <Field label="Mô hình" required errors={shown('model')}>
+        <Field label={t(message('Mô hình', 'Model', '모델'))} required errors={shown('model')}>
           <Input
             value={form.model}
             list={listId}
-            aria-label="Mô hình"
+            aria-label={t(message('Mô hình', 'Model', '모델'))}
             aria-required
             autoComplete="off"
             spellCheck={false}
@@ -126,30 +156,22 @@ export function PriceDrawer({
         </datalist>
 
         <section className="grid gap-4 sm:grid-cols-2">
-          <Field
-            label="Giá token vào (USD cho 1 triệu token)"
-            required
-            errors={shown('inputUsdPerMTok')}
-          >
+          <Field label={t(TEXT.inputPriceUSDPer1M)} required errors={shown('inputUsdPerMTok')}>
             <Input
               inputMode="decimal"
               value={form.input}
-              aria-label="Giá token vào (USD cho 1 triệu token)"
+              aria-label={t(TEXT.inputPriceUSDPer1M)}
               aria-required
               invalid={Boolean(shown('inputUsdPerMTok'))}
               className={BOX}
               onChange={(e) => set('input', e.target.value)}
             />
           </Field>
-          <Field
-            label="Giá token ra (USD cho 1 triệu token)"
-            required
-            errors={shown('outputUsdPerMTok')}
-          >
+          <Field label={t(TEXT.outputPriceUSDPer1M)} required errors={shown('outputUsdPerMTok')}>
             <Input
               inputMode="decimal"
               value={form.output}
-              aria-label="Giá token ra (USD cho 1 triệu token)"
+              aria-label={t(TEXT.outputPriceUSDPer1M)}
               aria-required
               invalid={Boolean(shown('outputUsdPerMTok'))}
               className={BOX}
@@ -159,15 +181,15 @@ export function PriceDrawer({
         </section>
 
         <Field
-          label="Áp dụng từ ngày"
+          label={t(message('Có hiệu lực từ ngày', 'Effective date', '적용 시작일'))}
           required
-          hint="Trùng ngày đã có thì giá mới thay giá cũ."
+          hint={t(TEXT.aNewPriceReplacesThe)}
           errors={shown('effectiveFrom')}
         >
           <Input
             type="date"
             value={form.from}
-            aria-label="Áp dụng từ ngày"
+            aria-label={t(message('Có hiệu lực từ ngày', 'Effective date', '적용 시작일'))}
             aria-required
             invalid={Boolean(shown('effectiveFrom'))}
             className={cn(BOX, 'sm:max-w-48')}

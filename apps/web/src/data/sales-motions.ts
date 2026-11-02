@@ -16,6 +16,8 @@ import {
 import { api, type ApiError, type ApiNeed } from '@/app/api'
 import { cacheTier } from '@/app/query-client'
 import { useCan } from '@/app/auth'
+import { useI18n } from '@/app/i18n'
+import { leadMotionLabel } from '@/data/sales-labels-i18n'
 
 /** What each of the six lead motions declares — the flow-setup section.
  *
@@ -126,13 +128,14 @@ export function motionChoices(
  *  names a motion. Readers without `config.view` get the contract default. */
 export function useMotionLabel(): (motion: LeadMotion) => string {
   const canView = useCan('config.view')
+  const { lang } = useI18n()
   const { data } = useQuery({ ...salesMotionsQuery(), enabled: canView })
   return useCallback(
     (motion: LeadMotion) => {
       const policy = data?.find((p) => p.motion === motion)
-      return policy ? motionLabelOf(policy) : MOTION_LABEL[motion]
+      return policy ? motionLabelOf(policy) : leadMotionLabel(motion, lang)
     },
-    [data],
+    [data, lang],
   )
 }
 

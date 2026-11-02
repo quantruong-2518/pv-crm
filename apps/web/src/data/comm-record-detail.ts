@@ -33,6 +33,7 @@ import { api, type ApiError } from '@/app/api'
 import { cacheTier } from '@/app/query-client'
 import { COMMS_KEY, COMM_VIEW_NEED, threadMessagesQuery } from '@/data/comms'
 import { AFTER_SALE_BOOK_KEY } from '@/data/after-sale'
+import { getLang, message, translate, type Lang } from '@/app/i18n'
 import {
   NEXT_STEP_KEY,
   nextStepKey,
@@ -418,14 +419,47 @@ export const COMM_NOUN: Record<ThreadChannel, string> = {
   'in-app': 'cuộc trò chuyện',
 }
 
+export function commNoun(channel: ThreadChannel, lang: Lang = getLang()): string {
+  const copy: Record<ThreadChannel, ReturnType<typeof message>> = {
+    phone: message('cuộc gọi', 'call', '통화'),
+    meeting: message('buổi gặp', 'meeting', '미팅'),
+    email: message('thư', 'email', '이메일'),
+    'zalo-oa': message('cuộc trò chuyện', 'conversation', '대화'),
+    telegram: message('cuộc trò chuyện', 'conversation', '대화'),
+    whatsapp: message('cuộc trò chuyện', 'conversation', '대화'),
+    'in-app': message('cuộc trò chuyện', 'conversation', '대화'),
+  }
+  return translate(copy[channel], lang)
+}
+
+export const unreachedLine = (lang: Lang = getLang()) =>
+  translate(
+    message('Đóng không có nội dung.', 'Closed without a summary.', '내용 없이 종료됨.'),
+    lang,
+  )
+
 /** The opening words of the header's time line: the noun, and for a call or a
  *  mail which way it went.
  *  `direction` is the anchor turn's; unknown while the turns are read. */
-export function commKindLine(channel: ThreadChannel, direction: MessageDirection | null): string {
-  const noun = COMM_NOUN[channel]
+export function commKindLine(
+  channel: ThreadChannel,
+  direction: MessageDirection | null,
+  lang: Lang = getLang(),
+): string {
+  const noun = commNoun(channel, lang)
   const head = noun.charAt(0).toUpperCase() + noun.slice(1)
-  if (channel === 'phone' && direction) return `${head} ${direction === 'out' ? 'đi' : 'đến'}`
-  if (channel === 'email' && direction) return `${head} ${direction === 'out' ? 'gửi đi' : 'nhận'}`
+  if (channel === 'phone' && direction)
+    return lang === 'vi'
+      ? `${head} ${direction === 'out' ? 'đi' : 'đến'}`
+      : lang === 'ko'
+        ? `${head} · ${direction === 'out' ? '발신' : '수신'}`
+        : `${direction === 'out' ? 'Outgoing' : 'Incoming'} ${head}`
+  if (channel === 'email' && direction)
+    return lang === 'vi'
+      ? `${head} ${direction === 'out' ? 'gửi đi' : 'nhận'}`
+      : lang === 'ko'
+        ? `${head} · ${direction === 'out' ? '발신' : '수신'}`
+        : `${direction === 'out' ? 'Sent' : 'Received'} ${head}`
   return head
 }
 
@@ -532,9 +566,14 @@ export function evaluationBlockerOf(
 }
 
 /** The steps every comm is filled and read in; their count is this list's length. */
-export const commStepTitles = (record: Pick<DebriefView, 'channel'>) => {
-  const noun = COMM_NOUN[record.channel]
-  return [`Nội dung ${noun}`, `Đánh giá ${noun}`, 'Bước tiếp theo'] as const
+export const commStepTitles = (record: Pick<DebriefView, 'channel'>, lang: Lang = getLang()) => {
+  const noun = commNoun(record.channel, lang)
+  const capitalizedNoun = noun.charAt(0).toUpperCase() + noun.slice(1)
+  return [
+    translate(message(`Nội dung ${noun}`, `${capitalizedNoun} details`, `${noun} 내용`), lang),
+    translate(message(`Đánh giá ${noun}`, `${capitalizedNoun} evaluation`, `${noun} 평가`), lang),
+    translate(message('Bước tiếp theo', 'Next step', '다음 단계'), lang),
+  ] as const
 }
 
 /** In-page anchor of a read step card, for the stepper's links. */

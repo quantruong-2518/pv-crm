@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { message, useI18n } from '@/app/i18n'
 import {
   Activity,
   GlassCard,
@@ -30,7 +31,6 @@ type Figures = SalesPerformanceResponse['current']
 
 type Series = {
   key: SeriesKey
-  label: string
   of: (f: Figures) => number
   stroke: string
   fill: string
@@ -41,10 +41,18 @@ type Series = {
   shape: string
 }
 
+const seriesText = (key: SeriesKey, t: ReturnType<typeof useI18n>['t']) =>
+  t(
+    key === 'leads'
+      ? message('Lead vào sổ', 'Leads added', '등록된 리드')
+      : key === 'firstContacts'
+        ? message('Đã liên hệ lần đầu', 'First contact made', '첫 접점 완료')
+        : message('Thành cơ hội', 'Converted to opportunity', '영업 기회로 전환'),
+  )
+
 const SERIES: readonly Series[] = [
   {
     key: 'leads',
-    label: 'Lead vào sổ',
     of: (f) => f.cohort.leads,
     stroke: 'stroke-primary',
     fill: 'bg-primary',
@@ -56,7 +64,6 @@ const SERIES: readonly Series[] = [
   },
   {
     key: 'firstContacts',
-    label: 'Đã liên hệ lần đầu',
     of: (f) => f.reached.firstContacts,
     stroke: 'stroke-channel-meeting',
     fill: 'bg-channel-meeting',
@@ -68,7 +75,6 @@ const SERIES: readonly Series[] = [
   },
   {
     key: 'opportunities',
-    label: 'Thành cơ hội',
     of: (f) => f.reached.opportunities,
     stroke: 'stroke-warning',
     fill: 'bg-warning',
@@ -128,6 +134,7 @@ function SeriesToggle({
   locked: boolean
   onToggle: () => void
 }) {
+  const { t } = useI18n()
   const total = series.of(data.current)
   return (
     <button
@@ -158,7 +165,7 @@ function SeriesToggle({
             />
           </svg>
         </span>
-        {series.label}
+        {seriesText(series.key, t)}
       </span>
       <span className="flex flex-wrap items-center gap-2">
         <span className="tnum font-num text-[28px] font-bold leading-8 tracking-[-0.02em]">
@@ -219,15 +226,18 @@ const HATCH =
 
 /** The chart as a table for screen readers: the plot itself is drawn, not read. */
 function PlotTable({ views }: { views: readonly BucketView[] }) {
+  const { t } = useI18n()
   return (
     <table className="sr-only">
-      <caption>Hoạt động trong tuần theo ngày</caption>
+      <caption>
+        {t(message('Hoạt động trong tuần theo ngày', 'Weekly activity by day', '요일별 주간 활동'))}
+      </caption>
       <thead>
         <tr>
-          <th scope="col">Ngày</th>
+          <th scope="col">{t(message('Ngày', 'Day', '날짜'))}</th>
           {SERIES.map((s) => (
             <th key={s.key} scope="col">
-              {s.label}
+              {seriesText(s.key, t)}
             </th>
           ))}
         </tr>
@@ -239,7 +249,11 @@ function PlotTable({ views }: { views: readonly BucketView[] }) {
               {v.label} {v.sub}
             </th>
             {SERIES.map((s) => (
-              <td key={s.key}>{v.state === 'future' ? 'chưa tới' : num(s.of(v.bucket))}</td>
+              <td key={s.key}>
+                {v.state === 'future'
+                  ? t(message('Chưa tới', 'Not yet', '예정'))
+                  : num(s.of(v.bucket))}
+              </td>
             ))}
           </tr>
         ))}
@@ -258,6 +272,7 @@ function Plot({
   /** Keys the marks layer, so it fades in again when the period changes. */
   period: SalesPerformanceResponse['period']
 }) {
+  const { t } = useI18n()
   const { top, ticks } = axisOf(views)
   const n = views.length
   const seen = views.filter((v) => v.state !== 'future').length
@@ -305,7 +320,7 @@ function Plot({
                   className="text-muted-foreground absolute right-0 top-2 text-center text-[11px] font-semibold leading-[14px]"
                   style={{ left: `${(seen / n) * 100}%` }}
                 >
-                  Chưa tới
+                  {t(message('Chưa tới', 'Not yet', '예정'))}
                 </span>
               </>
             )}
@@ -321,7 +336,7 @@ function Plot({
                   className="bg-primary/15 text-on-tint-primary absolute -top-5 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-1 text-[11px] font-semibold leading-[14px]"
                   style={{ left: `${xOf(nowAt, n)}%` }}
                 >
-                  Hôm nay
+                  {t(message('Hôm nay', 'Today', '오늘'))}
                 </span>
               </>
             )}
@@ -402,6 +417,7 @@ export function ActivityTile({
   data: SalesPerformanceResponse
   className?: string
 }) {
+  const { t } = useI18n()
   const [hidden, setHidden] = useState<readonly SeriesKey[]>([])
   const shown = SERIES.filter((s) => !hidden.includes(s.key))
   const toggle = (key: SeriesKey) =>
@@ -413,7 +429,9 @@ export function ActivityTile({
         <div className="flex items-center gap-3">
           <ToneTile icon={Activity} tone="primary" />
           <div className="flex flex-col">
-            <h3 className="text-[16px] font-semibold leading-6">Hoạt động trong tuần</h3>
+            <h3 className="text-[16px] font-semibold leading-6">
+              {t(message('Hoạt động trong tuần', 'Weekly activity', '주간 활동'))}
+            </h3>
           </div>
         </div>
       </div>

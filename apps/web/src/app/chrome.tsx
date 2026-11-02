@@ -47,6 +47,8 @@ import { useOverdueBanners } from '@/data/contract-overdue-banner'
 import { useHeaderSearch } from '@/data/search'
 import { MeetingCountdownBar } from '@/components/meeting-countdown-bar'
 import { NotificationMenu } from '@/components/notification-menu'
+import { message, translate, useLang, type Lang, type Message } from './i18n'
+import { CHROME_ENTRY_COPY, CHROME_MISC } from './chrome-i18n'
 
 /** Khung app dùng chung cho MỌI màn.
  *
@@ -138,6 +140,15 @@ export const SETTINGS_GROUP_LABEL: Record<SettingsGroup, string> = {
   admin: 'Quản trị',
   sales: 'Bán hàng',
 }
+
+const SETTINGS_GROUP_COPY: Record<SettingsGroup, Message> = {
+  mine: message('Của tôi', 'My settings', '내 설정'),
+  admin: message('Quản trị', 'Administration', '관리'),
+  sales: message('Bán hàng', 'Sales', '영업'),
+}
+
+export const settingsGroupLabel = (group: SettingsGroup, lang: Lang) =>
+  translate(SETTINGS_GROUP_COPY[group], lang)
 
 export type SettingsEntry = {
   icon: IconGlyph
@@ -476,9 +487,64 @@ export const SALES_MODULES: SalesModule[] = [
   },
 ]
 
-export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
-  const navigate = useNavigate()
-  const { pathname } = useLocation()
+function shellCopyOf(lang: Lang): NonNullable<AppShellProps['copy']> {
+  const t = (copy: Message) => translate(copy, lang)
+  return {
+    navigation: t(message('Điều hướng chính', 'Main navigation', '기본 탐색')),
+    navItems: {
+      home: t(message('Trang chủ', 'Home', '홈')),
+      approvals: t(message('Duyệt', 'Approvals', '승인')),
+      search: t(message('Tìm', 'Search', '검색')),
+      assistant: t(message('Trợ lý', 'Assistant', '도우미')),
+    },
+    locked: t(message('chưa mở', 'not available yet', '아직 사용할 수 없음')),
+    unread: t(message('chưa đọc', 'unread', '읽지 않음')),
+    pending: t(message('đang chờ', 'pending', '대기 중')),
+    hasUnread: t(
+      message('có thông báo chưa đọc', 'has unread notifications', '읽지 않은 알림이 있음'),
+    ),
+    theme: t(message('Giao diện', 'Appearance', '화면 테마')),
+    themeNames: {
+      aurora: 'Aurora',
+      stone: t(message('Đá mịn', 'Stone', '스톤')),
+      porcelain: t(message('Sứ', 'Porcelain', '포슬린')),
+    },
+    openAccount: (name) =>
+      t(message(`Mở tài khoản của ${name}`, `Open ${name}'s account`, `${name} 계정 열기`)),
+    accountOf: (name) => t(message(`Tài khoản của ${name}`, `${name}'s account`, `${name} 계정`)),
+    searchScreens: t(message('Màn hình', 'Screens', '화면')),
+    searchNoScreens: (query) =>
+      t(
+        message(
+          `Không có màn hình nào tên “${query}”.`,
+          `No screen named “${query}”.`,
+          `“${query}” 화면을 찾을 수 없습니다.`,
+        ),
+      ),
+    searchScope: t(message('Phạm vi tìm', 'Search scope', '검색 범위')),
+    searchAll: t(message('Tất cả', 'All', '전체')),
+    closeToast: t(message('Đóng thông báo', 'Dismiss notification', '알림 닫기')),
+    closeBanner: t(message('Đóng nhắc việc', 'Dismiss reminder', '리마인더 닫기')),
+  }
+}
+
+/** Label and description lookups for one language, kept out of the hook body. */
+function entryTextsOf(lang: Lang) {
+  const said = (copy: Message) => translate(copy, lang)
+  const entryCopy = (path?: string) => (path ? CHROME_ENTRY_COPY[path] : undefined)
+  const entryLabel = (entry: { path?: string; label: string }) => {
+    const copy = entryCopy(entry.path)
+    return copy ? said(copy.label) : entry.label
+  }
+  const entryDescription = (entry: { path?: string; description?: string }) => {
+    const copy = entryCopy(entry.path)?.description
+    return copy ? said(copy) : entry.description
+  }
+  return { said, entryLabel, entryDescription }
+}
+
+/** Everything the header reads from the session and the server, in one place. */
+function useChromeFeeds() {
   const actor = useSession((s) => s.actor)
   const signOut = useSession((s) => s.signOut)
   const { unseen: unseenReleases } = useReleaseNotes()
@@ -496,6 +562,59 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
   const canComm = access.check(actor, { branch: 'Sales', permission: 'comm.view' }).ok
   /* The one read behind the countdown bar; every screen shares its key. */
   const { data: meetingToday } = useQuery({ ...meetingTodayQuery, enabled: canComm })
+  return {
+    actor,
+    signOut,
+    unseenReleases,
+    pendingApprovals,
+    unreadNotifications,
+    overdueBanners,
+    meetingToday,
+  }
+}
+
+/** Settings frame entries: account, admin, Sales setup modules, Sales setup rows. */
+function settingsOf(args: {
+  setupModules: SalesModule[]
+  granted: (entry: SettingsEntry) => boolean
+  entryLabel: (entry: { path?: string; label: string }) => string
+  entryDescription: (entry: { path?: string; description?: string }) => string | undefined
+}): SettingsEntry[] {
+  const { setupModules, granted, entryLabel, entryDescription } = args
+  return [
+    ACCOUNT_ENTRY,
+    ...ADMIN_ENTRIES.filter(granted),
+    ...setupModules.map((m): SettingsEntry => ({
+      icon: m.icon,
+      label: m.label,
+      description: m.question,
+      path: m.path,
+      permission: m.permission,
+      branch: 'Sales',
+      group: 'sales',
+    })),
+    ...SALES_SETUP_ENTRIES.filter(granted),
+  ].map((entry) => ({
+    ...entry,
+    label: entryLabel(entry),
+    description: entryDescription(entry),
+  }))
+}
+
+export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
+  const navigate = useNavigate()
+  const lang = useLang()
+  const { said, entryLabel, entryDescription } = entryTextsOf(lang)
+  const { pathname } = useLocation()
+  const {
+    actor,
+    signOut,
+    unseenReleases,
+    pendingApprovals,
+    unreadNotifications,
+    overdueBanners,
+    meetingToday,
+  } = useChromeFeeds()
   const records = useHeaderSearch()
 
   /** Two axes, two different answers.
@@ -516,7 +635,7 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
   const plain = (entry: NavEntry): HeaderAction => {
     return {
       icon: entry.icon,
-      label: entry.label,
+      label: entryLabel(entry),
       slot: entry.slot,
       count:
         entry.slot === 'approvals'
@@ -535,8 +654,8 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
   const inModule = (path: string) => pathname === path || pathname.startsWith(`${path}/`)
   const moduleApp = (module: SalesModule): HeaderApp => ({
     icon: module.icon,
-    label: module.label,
-    description: module.question,
+    label: entryLabel(module),
+    description: entryDescription({ path: module.path, description: module.question }),
     active: inModule(module.path),
     onClick: () => navigate(module.path),
   })
@@ -554,7 +673,7 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
   const primaryApp = (module: SalesModule): HeaderApp => {
     const app = moduleApp(module)
     if (module.path !== '/sales/leads' || !leadSubs.length) return app
-    const items = [{ ...app, label: 'Sổ lead' }, ...leadSubs]
+    const items = [{ ...app, label: said(CHROME_MISC.leadBook) }, ...leadSubs]
     return { ...app, active: items.some((i) => i.active), items }
   }
   /* A named dropdown, not a catch-all: the label tells what is inside it. */
@@ -565,20 +684,12 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     !isParked(entry.permission) &&
     (!entry.permission ||
       access.check(actor, { branch: entry.branch ?? null, permission: entry.permission }).ok)
-  const settings: SettingsEntry[] = [
-    ACCOUNT_ENTRY,
-    ...ADMIN_ENTRIES.filter(grantedSetting),
-    ...modulesIn('setup').map((m): SettingsEntry => ({
-      icon: m.icon,
-      label: m.label,
-      description: m.question,
-      path: m.path,
-      permission: m.permission,
-      branch: 'Sales',
-      group: 'sales',
-    })),
-    ...SALES_SETUP_ENTRIES.filter(grantedSetting),
-  ]
+  const settings = settingsOf({
+    setupModules: modulesIn('setup'),
+    granted: grantedSetting,
+    entryLabel,
+    entryDescription,
+  })
   const inSettings = [SETTINGS_PATH, ...settings.map((e) => e.path)].some(inModule)
 
   const header: AppShellProps['header'] = {
@@ -603,21 +714,34 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     apps: [
       [
         ...modulesIn('primary').map(primaryApp),
-        ...menuOf('Khách hàng', Users, 'Công ty, người liên hệ và đối tác', appsIn('customer')),
-        ...menuOf('Báo cáo', Gauge, 'KPI, chỉ tiêu và kế hoạch kỳ tới', appsIn('manage')),
+        ...menuOf(
+          said(CHROME_MISC.customers),
+          Users,
+          said(CHROME_MISC.customersDescription),
+          appsIn('customer'),
+        ),
+        ...menuOf(
+          said(CHROME_MISC.reports),
+          Gauge,
+          said(CHROME_MISC.reportsDescription),
+          appsIn('manage'),
+        ),
       ],
     ],
-    user: { name: actor?.name ?? 'Khách', role: actor?.role },
+    user: { name: actor?.name ?? said(CHROME_MISC.guest), role: actor?.role },
     notificationsMenu: (close) => <NotificationMenu close={close} unread={unreadNotifications} />,
-    assistantLabel: 'Trợ lý',
+    assistantLabel: said(CHROME_MISC.assistant),
     search: {
-      placeholder: opts.searchPlaceholder ?? 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…',
+      placeholder:
+        lang === 'vi'
+          ? (opts.searchPlaceholder ?? said(CHROME_MISC.search))
+          : said(CHROME_MISC.search),
       records,
     },
     accountActions: [
       {
         icon: Megaphone,
-        label: 'Có gì mới',
+        label: said(CHROME_MISC.whatsNew),
         count: unseenReleases,
         onClick: openReleaseNotes,
       },
@@ -625,7 +749,7 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
         /* "Đăng xuất", not "Đổi vai": sign-in has had no role picker since
            23/08, so leaving the session is the only thing this can do. */
         icon: LogOut,
-        label: 'Đăng xuất',
+        label: said(CHROME_MISC.signOut),
         onClick: () => {
           signOut()
           navigate('/sign-in', { replace: true })
@@ -665,6 +789,7 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
    *  đúng loại lỗi đã làm nav dưới `lg` chết suốt từ 19/08. */
   const shell: Omit<AppShellProps, 'children'> = {
     header,
+    copy: shellCopyOf(lang),
     activeNav,
     lockedNav: LOCKED_NAV,
     onNavigate,

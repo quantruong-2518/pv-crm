@@ -1,16 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
 import { GlassCard, cn } from '@pv/ui'
-import {
-  KPI_METRIC_LABEL,
-  type KpiMetricDef,
-  type KpiWeeklyPoint,
-  type RoleId,
-} from '@pv/contracts'
+import { type KpiMetricDef, type KpiWeeklyPoint, type RoleId } from '@pv/contracts'
 import { kpiWeeklyQuery } from '@/data/kpi-personal'
 import { dm } from '@/lib/date'
 import { GROW_HEIGHT, NEUTRAL_MARK, NOTE, TILE, TileHead } from './home-tiles'
 import { printTile } from './kpi-model'
 import { QueryBlock } from './kpi-parts'
+import { kpiMetricText } from '@/data/kpi-i18n'
+import { message, useI18n } from '@/app/i18n'
 
 /** The primary metric's running total, one column per week of the month,
  *  read live from `GET /sales/kpi/:period/weekly/:role`. Drawn with plain
@@ -52,11 +49,22 @@ function Swatch({ className, label }: { className: string; label: string }) {
 }
 
 function Legend({ withTarget, withGap }: { withTarget: boolean; withGap: boolean }) {
+  const { t } = useI18n()
   return (
     <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-      <Swatch className="bg-primary size-2" label="thực tế" />
-      {withGap && <Swatch className={cn(NEUTRAL_MARK, 'size-2')} label="còn thiếu" />}
-      {withTarget && <Swatch className="bg-foreground h-0.5 w-3" label="cần đạt" />}
+      <Swatch className="bg-primary size-2" label={t(message('thực tế', 'actual', '실적'))} />
+      {withGap && (
+        <Swatch
+          className={cn(NEUTRAL_MARK, 'size-2')}
+          label={t(message('còn thiếu', 'remaining', '남은 목표'))}
+        />
+      )}
+      {withTarget && (
+        <Swatch
+          className="bg-foreground h-0.5 w-3"
+          label={t(message('cần đạt', 'target pace', '목표 페이스'))}
+        />
+      )}
     </span>
   )
 }
@@ -74,16 +82,25 @@ function Column({
   top: number
   current: boolean
 }) {
+  const { t } = useI18n()
   const { cumulative, expected } = point
   const gap = gapOf(point)
   return (
     <li className="flex min-w-0 flex-col items-center gap-1">
       <span className="tnum font-num min-h-4 text-[12px] font-semibold leading-4">
         {cumulative === null ? (
-          <span className="sr-only">Chưa tới tuần này</span>
+          <span className="sr-only">
+            {t(
+              message(
+                'Chưa tới tuần này',
+                'This week has not started',
+                '이번 주는 아직 시작되지 않았습니다',
+              ),
+            )}
+          </span>
         ) : (
           <>
-            <span className="sr-only">Thực tế </span>
+            <span className="sr-only">{t(message('Thực tế ', 'Actual ', '실적 '))}</span>
             {printTile(def.unit, cumulative)}
           </>
         )}
@@ -119,11 +136,23 @@ function Column({
           current ? 'text-foreground font-semibold' : 'text-muted-foreground',
         )}
       >
-        đến {dm(lastDayOf(point.weekStart, period))}
+        {t(
+          message(
+            `đến ${dm(lastDayOf(point.weekStart, period))}`,
+            `through ${dm(lastDayOf(point.weekStart, period))}`,
+            `${dm(lastDayOf(point.weekStart, period))}까지`,
+          ),
+        )}
       </span>
       {expected !== null && (
         <span className={cn(NOTE, 'tnum font-num text-center')}>
-          cần {printTile(def.unit, expected)}
+          {t(
+            message(
+              `cần ${printTile(def.unit, expected)}`,
+              `target ${printTile(def.unit, expected)}`,
+              `목표 ${printTile(def.unit, expected)}`,
+            ),
+          )}
         </span>
       )}
     </li>
@@ -141,11 +170,18 @@ export function WeeklyChart({
   def: KpiMetricDef
   className?: string
 }) {
+  const { t } = useI18n()
   const weekly = useQuery(kpiWeeklyQuery(period, role, def.key))
-  const title = `${KPI_METRIC_LABEL[def.key]} lũy kế theo tuần`
+  const title = t(
+    message(
+      `${kpiMetricText(def.key)} lũy kế theo tuần`,
+      `${kpiMetricText(def.key)} cumulative by week`,
+      `주별 누적 ${kpiMetricText(def.key)}`,
+    ),
+  )
 
   return (
-    <QueryBlock query={weekly} what="số theo tuần">
+    <QueryBlock query={weekly} what={t(message('số theo tuần', 'weekly figures', '주간 수치'))}>
       {({ points }) => {
         const figures = points.flatMap((p) => [p.cumulative ?? 0, p.expected ?? 0])
         const top = Math.max(1, ...figures)
@@ -165,7 +201,15 @@ export function WeeklyChart({
               }
             />
             {points.length === 0 ? (
-              <p className="text-[12.5px] leading-5">Tháng này chưa có số theo tuần.</p>
+              <p className="text-[12.5px] leading-5">
+                {t(
+                  message(
+                    'Tháng này chưa có số theo tuần.',
+                    'No weekly figures for this month yet.',
+                    '이번 달 주간 수치가 없습니다.',
+                  ),
+                )}
+              </p>
             ) : (
               /* Scrollable, so reachable by keyboard; the 4px side padding keeps the edge columns' tick inside the clip. */
               <div

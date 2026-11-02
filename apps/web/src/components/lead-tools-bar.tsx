@@ -1,6 +1,8 @@
 import { Avatar, Button, GlassCard } from '@pv/ui'
 import { readField } from '@/data/lead-form'
 import type { LeadDraft } from '@/data/lead-draft'
+import { useI18n } from '@/app/i18n'
+import { LEAD_COPY } from '@/data/lead-copy'
 
 /** The sticky bottom bar of the create door — WHO is being typed on the left,
  *  the draft's two buttons on the right. The profile's bar is the record
@@ -9,12 +11,13 @@ import type { LeadDraft } from '@/data/lead-draft'
  *  STICKY rather than fixed: it stays in the content flow so it cannot cover the
  *  sidebar, and below `lg` it leaves room for AppShell's 84px BottomNav. */
 export function LeadToolsBar({ draft }: { draft: LeadDraft }) {
+  const { t } = useI18n()
   return (
     <div className="z-10 lg:sticky lg:bottom-4">
       <GlassCard
         variant="b"
         className="bg-hc-surface shadow-panel grid gap-3 p-3 lg:grid-cols-[minmax(220px,1fr)_auto] lg:items-center"
-        aria-label="Thanh công cụ"
+        aria-label={t(LEAD_COPY.toolbar)}
       >
         <CreateBar draft={draft} />
       </GlassCard>
@@ -25,6 +28,7 @@ export function LeadToolsBar({ draft }: { draft: LeadDraft }) {
 /** The create door: the person being typed into the draft on the left, that
  *  same draft's two buttons on the right. */
 function CreateBar({ draft }: { draft: LeadDraft }) {
+  const { t } = useI18n()
   const name = readField(draft.values, 'contactName')
 
   return (
@@ -43,7 +47,7 @@ function CreateBar({ draft }: { draft: LeadDraft }) {
           disabled={draft.dirty.length === 0 || draft.pending}
           onClick={draft.reset}
         >
-          Xoá hết
+          {t(LEAD_COPY.clearDraft)}
         </Button>
         {/* An admission panel is up: its buttons are the only way forward. */}
         <Button
@@ -51,7 +55,7 @@ function CreateBar({ draft }: { draft: LeadDraft }) {
           disabled={draft.pending || draft.admission !== null}
           onClick={draft.submit}
         >
-          {draft.pending ? 'Đang tạo…' : 'Tạo lead'}
+          {draft.pending ? t(LEAD_COPY.creating) : t(LEAD_COPY.create)}
         </Button>
         <span aria-hidden className="hidden shrink-0 lg:block lg:size-[60px]" />
       </div>
@@ -70,15 +74,14 @@ function ContactFace({
   title: string | null | undefined
   phone: string | null | undefined
 }) {
+  const { t } = useI18n()
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <Avatar name={name || 'Chưa rõ'} size="md" className="shrink-0" />
+      <Avatar name={name || t(LEAD_COPY.unknownPerson)} size="md" className="shrink-0" />
       <span className="flex min-w-0 flex-col gap-1">
-        <span className="truncate text-[13px] font-semibold">
-          {name || 'Chưa có người liên hệ'}
-        </span>
+        <span className="truncate text-[13px] font-semibold">{name || t(LEAD_COPY.noContact)}</span>
         <span className="text-muted-foreground truncate text-[11.5px] leading-[1.5]">
-          {title || 'Chưa rõ chức danh'}
+          {title || t(LEAD_COPY.noTitle)}
           {phone ? ' · ' : ''}
           {phone && <span className="font-mono">{phone}</span>}
         </span>

@@ -1,6 +1,7 @@
 import type { AfterSaleRow } from '@pv/contracts'
-import { Badge, Button, Icon, Plus, vnd } from '@pv/ui'
-import { dmy } from '@/lib/date'
+import { Badge, Button, Icon, Plus } from '@pv/ui'
+import { useI18n } from '@/app/i18n'
+import { AFTER_SALE_COPY as COPY } from '@/data/after-sale-copy'
 import { BADGE_INK } from '@/data/opportunities'
 import { BOOK_CARD } from './book-cards'
 import {
@@ -22,6 +23,7 @@ import { TemperatureBadge } from './temperature-pick'
 /** Hot rows the reader may open a deal on (ADR 0121 §6), else nothing. Stops
  *  the press so the row does not open too. */
 export function OpenDealButton({ row, go }: { row: AfterSaleRow; go: (path: string) => void }) {
+  const { t } = useI18n()
   if (row.temperature?.value !== 'hot' || !row.canOpenDeal) return null
   return (
     <Button
@@ -36,18 +38,19 @@ export function OpenDealButton({ row, go }: { row: AfterSaleRow; go: (path: stri
       onKeyDown={(event) => event.stopPropagation()}
     >
       <Icon icon={Plus} size={16} />
-      Mở cơ hội mới
+      {t(COPY.openDeal)}
     </Button>
   )
 }
 
 export function CareDayCell({ row }: { row: AfterSaleRow }) {
+  const { t, date } = useI18n()
   return (
     <span className="flex min-w-0 flex-col items-start gap-1">
-      <span className="tnum font-num text-[11.5px]">{dmy(row.nextCareOn)}</span>
+      <span className="tnum font-num text-[11.5px]">{date(row.nextCareOn)}</span>
       {row.careDue && (
         <Badge tone="warning" className={BADGE_INK}>
-          Đến kỳ
+          {t(COPY.due)}
         </Badge>
       )}
     </span>
@@ -64,6 +67,7 @@ export function AfterSaleCards({
   canOpenJourney: boolean
   go: (path: string) => void
 }) {
+  const { t, currency } = useI18n()
   return (
     <div className={CARD_GRID}>
       {rows.map((row) => (
@@ -88,7 +92,7 @@ export function AfterSaleCards({
           />
           <span className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
             <TemperatureBadge value={row.temperature?.value ?? null} />
-            <CardStat value={vnd(row.collected)} label="đã thu" />
+            <CardStat value={currency(row.collected, 'VND')} label={t(COPY.collectedShort)} />
           </span>
           <CardNote>{row.nextStep?.text}</CardNote>
           <CardFoot>
@@ -98,8 +102,8 @@ export function AfterSaleCards({
             >
               <CardPerson
                 name={row.carers[0]?.name}
-                label="Người chăm sóc"
-                empty="Chưa có người chăm sóc"
+                label={t(COPY.carer)}
+                empty={t(COPY.noCarer)}
               />
               {row.carers.length > 1 && (
                 <span className="text-muted-foreground tnum shrink-0 text-[12px]">

@@ -16,7 +16,7 @@ import { useSalesPeople } from '@/data/directory'
 import { useCan } from '@/app/auth'
 import { isApiError, userMessage } from '@/app/api'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
-import { CAMPAIGN_STATE_LABEL, campaignBookQuery } from '@/data/campaign-book'
+import { campaignBookQuery } from '@/data/campaign-book'
 import { BookCount, BookPage, BookSearch } from '@/components/book-page'
 import { BOOK_PAGE_SIZE } from '@/components/book-columns'
 import { Module1Books } from '@/components/module1-books'
@@ -24,6 +24,8 @@ import { TableFooter } from '@/components/table-bits'
 import { campaignCells, campaignColumns } from './campaigns-columns'
 import { useCampaignFilters } from './campaigns-filters'
 import { CampaignCreateModal } from './campaign-profile-parts'
+import { message, useI18n } from '@/app/i18n'
+import { campaignStateText } from '@/data/campaign-i18n'
 
 /** Module 1 · the campaign book — `GET /sales/campaigns`.
  *
@@ -35,8 +37,9 @@ import { CampaignCreateModal } from './campaign-profile-parts'
  *
  *  The screen hands `BookPage` its content only; filters live on the ADDRESS,
  *  so a filtered page can be copied to someone else. State is the tab row;
- *  source, created date and owner filter from their own column headers.
- *  "Việc tiếp theo" is computed on the client (`nextTask`), so it has no filter. */
+ *  source, created date and owner filter from their own column headers. */
+
+type CampaignBookUrlQuery = Parameters<typeof campaignBookQuery>[0]
 
 const STATES: CampaignState[] = ['DRAFT', 'RUNNING', 'STOPPED', 'DONE']
 
@@ -44,22 +47,60 @@ const STATES: CampaignState[] = ['DRAFT', 'RUNNING', 'STOPPED', 'DONE']
  *  segmented control carries strings only, so it needs a stand-in value. */
 const ANY = 'all'
 
-/** Outside the component because `useQueries` below reads its length. */
-const STATE_TABS: { value: string; label: string }[] = [
-  { value: ANY, label: 'Tất cả' },
-  ...STATES.map((state) => ({ value: state as string, label: CAMPAIGN_STATE_LABEL[state] })),
-]
+const TEXT = {
+  searchByCampaignNameOr: message(
+    'Tìm theo tên hoặc mã chiến dịch…',
+    'Search by campaign name or code…',
+    '캠페인명 또는 코드 검색…',
+  ),
+  noCampaignsMatchTheseFilters: message(
+    'Không có chiến dịch nào khớp bộ lọc.',
+    'No campaigns match these filters.',
+    '필터에 맞는 캠페인이 없습니다.',
+  ),
+  noCampaignsYet: message(
+    'Chưa có chiến dịch nào.',
+    'No campaigns yet.',
+    '아직 캠페인이 없습니다.',
+  ),
+  noCampaignsAreAvailableTo: message(
+    'Chưa có chiến dịch nào bạn xem được.',
+    'No campaigns are available to you.',
+    '볼 수 있는 캠페인이 없습니다.',
+  ),
+}
 
-const SEARCH_PLACEHOLDER = 'Tìm theo tên hoặc mã chiến dịch…'
+/** The state tab row, each tab carrying its own count. One `size=1` read per
+ *  tab: `total` is the count under the OTHER filters in force, and no other
+ *  endpoint answers that. */
+function useStateTabs(urlQuery: CampaignBookUrlQuery) {
+  const { lang, t } = useI18n()
+  const stateTabs: { value: string; label: string }[] = [
+    { value: ANY, label: t(message('Tất cả', 'All', '전체')) },
+    ...STATES.map((state) => ({ value: state as string, label: campaignStateText(state, lang) })),
+  ]
+  const tabCounts = useQueries({
+    queries: stateTabs.map((tab) =>
+      campaignBookQuery({
+        ...urlQuery,
+        state: tab.value === ANY ? undefined : (tab.value as CampaignState),
+        page: 1,
+        size: 1,
+      }),
+    ),
+  })
+  return stateTabs.map((tab, i) => ({ ...tab, count: tabCounts[i]?.data?.total }))
+}
 
 export function CampaignsPage() {
-  const chrome = useAppChrome({ searchPlaceholder: SEARCH_PLACEHOLDER })
+  const { lang, t } = useI18n()
+  const searchPlaceholder = t(TEXT.searchByCampaignNameOr)
+  const chrome = useAppChrome({ searchPlaceholder })
   const navigate = useNavigate()
 
   /* HIDDEN, not greyed out: a read-only role never gets the chance. `useCan`
      asks the same E2 function the api layer asks, so button and fence agree. */
   const canWrite = useCan('campaign.edit')
-  const canFire = useCan('campaign.broadcast')
 
   /* The create form opens HERE, in state, instead of on a route of its own. */
   const [creating, setCreating] = useState(false)
@@ -83,19 +124,7 @@ export function CampaignsPage() {
   const total = data?.total ?? 0
   const hidden = data?.hidden ?? 0
 
-  /* One `size=1` read per tab: `total` is the count under the OTHER filters
-     in force, and no other endpoint answers that. */
-  const tabCounts = useQueries({
-    queries: STATE_TABS.map((tab) =>
-      campaignBookQuery({
-        ...urlQuery,
-        state: tab.value === ANY ? undefined : (tab.value as CampaignState),
-        page: 1,
-        size: 1,
-      }),
-    ),
-  })
-  const tabs = STATE_TABS.map((tab, i) => ({ ...tab, count: tabCounts[i]?.data?.total }))
+  const tabs = useStateTabs(urlQuery)
 
   const { pageIndex } = useBookPageClamp(book, data?.total)
   const tableSort: TableSort = { key: query.sort, dir: query.dir }
@@ -104,19 +133,19 @@ export function CampaignsPage() {
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <BookPage
-          title="Sổ chiến dịch"
+          title={t(message('Chiến dịch', 'Campaigns', '캠페인'))}
           actions={
             canWrite && (
               <Button size="md" className="pointer-coarse:h-12" onClick={() => setCreating(true)}>
                 <Icon icon={Plus} size={16} />
-                Tạo chiến dịch
+                {t(message('Tạo chiến dịch', 'Create campaign', '캠페인 만들기'))}
               </Button>
             )
           }
           nav={<Module1Books />}
           tabs={
             <SegmentedControl
-              label="Trạng thái chiến dịch"
+              label={t(message('Trạng thái chiến dịch', 'Campaign status', '캠페인 상태'))}
               hideLabel
               tone="quiet"
               value={query.state ?? ANY}
@@ -126,13 +155,15 @@ export function CampaignsPage() {
               }
             />
           }
-          count={<BookCount total={total} noun="chiến dịch" hidden={hidden} />}
-          tools={
-            <BookSearch
-              value={book.text}
-              onChange={book.setText}
-              placeholder={SEARCH_PLACEHOLDER}
+          count={
+            <BookCount
+              total={total}
+              noun={t(message('chiến dịch', 'campaigns', '개 캠페인'))}
+              hidden={hidden}
             />
+          }
+          tools={
+            <BookSearch value={book.text} onChange={book.setText} placeholder={searchPlaceholder} />
           }
           filters={filters.chips}
           onClearFilters={book.dirty ? book.clear : undefined}
@@ -140,9 +171,7 @@ export function CampaignsPage() {
           failure={
             bookError
               ? {
-                  message: `Không tải được danh sách chiến dịch. ${
-                    isApiError(bookError) ? userMessage(bookError) : 'Thử lại.'
-                  }`,
+                  message: `${t(message('Không tải được danh sách chiến dịch.', 'Could not load campaigns.', '캠페인 목록을 불러오지 못했습니다.'))} ${isApiError(bookError) ? userMessage(bookError) : t(message('Thử lại.', 'Try again.', '다시 시도하세요.'))}`,
                   onRetry: () => void refetchBook(),
                 }
               : undefined
@@ -151,16 +180,22 @@ export function CampaignsPage() {
             rows.length === 0
               ? {
                   message: book.dirty
-                    ? 'Không có chiến dịch nào khớp bộ lọc.'
+                    ? t(TEXT.noCampaignsMatchTheseFilters)
                     : canWrite
-                      ? 'Chưa có chiến dịch nào.'
-                      : 'Chưa có chiến dịch nào bạn xem được.',
+                      ? t(TEXT.noCampaignsYet)
+                      : t(TEXT.noCampaignsAreAvailableTo),
                   action: book.dirty
-                    ? { label: 'Bỏ hết bộ lọc', onClick: book.clear }
+                    ? {
+                        label: t(message('Bỏ hết bộ lọc', 'Clear filters', '필터 지우기')),
+                        onClick: book.clear,
+                      }
                     : canWrite
-                      ? { label: 'Tạo chiến dịch', onClick: () => setCreating(true) }
+                      ? {
+                          label: t(message('Tạo chiến dịch', 'Create campaign', '캠페인 만들기')),
+                          onClick: () => setCreating(true),
+                        }
                       : {
-                          label: 'Xem sổ lô gửi',
+                          label: t(message('Xem sổ lô gửi', 'View mail runs', '발송 내역 보기')),
                           onClick: () => navigate('/sales/campaigns/mail-runs'),
                         },
                 }
@@ -169,6 +204,7 @@ export function CampaignsPage() {
           table={{
             sort: tableSort,
             pageSize: BOOK_PAGE_SIZE,
+            tall: true,
             onSort: (key) => {
               /* Only `CampaignBookSortKey` values pass the server's zod door;
                  a column without a `sortKey` never reaches here. */
@@ -180,11 +216,11 @@ export function CampaignsPage() {
                   : { sort: parsed.data, dir: parsed.data === 'name' ? 'asc' : 'desc' },
               )
             },
-            columns: campaignColumns(filters),
+            columns: campaignColumns(filters, lang),
             rows: rows.map((c) => ({
               id: c.code,
               onOpen: () => navigate(`/sales/campaigns/${c.code}`),
-              cells: campaignCells(c, { 'campaign.edit': canWrite, 'campaign.broadcast': canFire }),
+              cells: campaignCells(c, lang),
             })),
           }}
           footer={

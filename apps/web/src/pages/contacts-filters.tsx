@@ -7,6 +7,7 @@ import { useSalesPeople } from '@/data/directory'
 import { FilterMenu } from '@/components/table-bits'
 import { FilterSection } from '@/components/book-cards'
 import { noop } from '@/components/book-view'
+import { message, useI18n } from '@/app/i18n'
 
 /** The contact book's column filters, built once per render from the address.
  *  Company options are the companies that hold a contact this reader can see,
@@ -15,6 +16,7 @@ import { noop } from '@/components/book-view'
 const csvOf = (v?: string) => (v ? v.split(',') : [])
 
 export function useContactFilters(book: ReturnType<typeof useBookQuery<ContactBookQuery>>) {
+  const { t } = useI18n()
   const { query, patch } = book
   const { data: facets } = useQuery(contactFacetsQuery(query))
   const accounts = facets?.accounts ?? []
@@ -27,7 +29,10 @@ export function useContactFilters(book: ReturnType<typeof useBookQuery<ContactBo
   ]
   const salesPeople = useSalesPeople()
   const ownerOptions = [
-    { value: OWNER_NONE, label: 'Chưa có người phụ trách' },
+    {
+      value: OWNER_NONE,
+      label: t(message('Chưa có người phụ trách', 'No owner assigned', '담당자 미지정')),
+    },
     ...salesPeople.map((a) => ({ value: a.id, label: a.name })),
   ]
 
@@ -48,8 +53,20 @@ export function useContactFilters(book: ReturnType<typeof useBookQuery<ContactBo
     <ColumnFilterList
       searchable={false}
       options={[
-        { value: '1', label: `Đã có ${noun}` },
-        { value: '0', label: `Chưa có ${noun}` },
+        {
+          value: '1',
+          label:
+            noun === 'email'
+              ? t(message('Đã có email', 'Has email', '이메일 있음'))
+              : t(message('Đã có số điện thoại', 'Has phone number', '전화번호 있음')),
+        },
+        {
+          value: '0',
+          label:
+            noun === 'email'
+              ? t(message('Chưa có email', 'No email', '이메일 없음'))
+              : t(message('Chưa có số điện thoại', 'No phone number', '전화번호 없음')),
+        },
       ]}
       selected={query[key] ? [query[key]] : []}
       close={close}
@@ -59,7 +76,12 @@ export function useContactFilters(book: ReturnType<typeof useBookQuery<ContactBo
   const primaryBody = (close: () => void) => (
     <ColumnFilterList
       searchable={false}
-      options={[{ value: '1', label: 'Chỉ người liên hệ chính' }]}
+      options={[
+        {
+          value: '1',
+          label: t(message('Chỉ người liên hệ chính', 'Primary contacts only', '주 연락처만')),
+        },
+      ]}
       selected={query.primary ? ['1'] : []}
       close={close}
       onApply={(v) => patch({ primary: v.length ? '1' : undefined })}
@@ -75,25 +97,29 @@ export function useContactFilters(book: ReturnType<typeof useBookQuery<ContactBo
   )
 
   const sections = [
-    { title: 'Người liên hệ chính', on: query.primary !== undefined, body: primaryBody },
     {
-      title: 'Công ty',
+      title: t(message('Người liên hệ chính', 'Primary contact', '주 연락처')),
+      on: query.primary !== undefined,
+      body: primaryBody,
+    },
+    {
+      title: t(message('Công ty', 'Company', '회사')),
       on: query.account !== undefined,
       body: listBody('account', accountOptions),
     },
     {
-      title: 'Người phụ trách',
+      title: t(message('Người phụ trách', 'Owner', '담당자')),
       on: query.owner !== undefined,
       body: listBody('owner', ownerOptions),
     },
     { title: 'Email', on: query.hasEmail !== undefined, body: presenceBody('hasEmail', 'email') },
     {
-      title: 'Điện thoại',
+      title: t(message('Điện thoại', 'Phone', '전화번호')),
       on: query.hasPhone !== undefined,
-      body: presenceBody('hasPhone', 'số điện thoại'),
+      body: presenceBody('hasPhone', 'phone'),
     },
     {
-      title: 'Ngày tạo',
+      title: t(message('Ngày tạo', 'Created', '생성일')),
       on: Boolean(query.createdFrom || query.createdTo),
       body: dateBody,
     },
@@ -105,7 +131,10 @@ export function useContactFilters(book: ReturnType<typeof useBookQuery<ContactBo
     </ColumnFilter>
   )
   const menu = (
-    <FilterMenu label="Bộ lọc sổ người liên hệ" active={sections.filter((f) => f.on).length}>
+    <FilterMenu
+      label={t(message('Bộ lọc sổ người liên hệ', 'Contact filters', '연락처 필터'))}
+      active={sections.filter((f) => f.on).length}
+    >
       {sections.map((f) => (
         <FilterSection key={f.title} title={f.title}>
           {f.body(noop)}

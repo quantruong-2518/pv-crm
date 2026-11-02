@@ -1,9 +1,7 @@
 import {
   LEAD_ACTIVE_STATES,
-  LEAD_STATE_LABEL,
   LeadMotion,
   LeadState,
-  SOURCE_KIND_LABEL,
   type LeadBookQuery,
   type LeadFacets,
   type LeadRow,
@@ -13,7 +11,8 @@ import { useDirectory, useSalesPeople } from '@/data/directory'
 import { configName, leadIndustryOptionsQuery } from '@/data/industries'
 import { NO_CREATOR_TITLE, NO_OWNER_TITLE } from '@/data/leads'
 import { useMotionLabel } from '@/data/sales-motions'
-import { LEAD_HEADER } from './leads-model'
+import { useI18n } from '@/app/i18n'
+import { LEAD_COPY, leadStateText, sourceKindText } from '@/data/lead-copy'
 import {
   dayRangeChip,
   listChip,
@@ -39,12 +38,13 @@ export function useLeadFilters(
   counts: LeadFacets | undefined,
   tabValue: string,
 ) {
+  const { t, lang } = useI18n()
   const sales = useSalesPeople()
   const staff = useDirectory()
   return {
     origin: (
       <ListFilter
-        label={LEAD_HEADER.source}
+        label={t(LEAD_COPY.source)}
         options={(counts?.origins ?? []).map((o) => ({ value: o.id, label: o.name }))}
         value={query.origin}
         onChange={(origin) => patch({ origin })}
@@ -55,16 +55,22 @@ export function useLeadFilters(
     states:
       tabValue === 'active' ? (
         <ListFilter
-          label={LEAD_HEADER.status}
+          label={t(LEAD_COPY.status)}
           searchable={false}
-          options={labelOptions(LEAD_ACTIVE_STATES, LEAD_STATE_LABEL, counts?.byState)}
+          options={labelOptions(
+            LEAD_ACTIVE_STATES,
+            Object.fromEntries(
+              LEAD_ACTIVE_STATES.map((state) => [state, leadStateText(state, lang)]),
+            ) as Record<LeadState, string>,
+            counts?.byState,
+          )}
           value={query.states}
           onChange={(states) => patch({ states })}
         />
       ) : undefined,
     created: (
       <DayRangeFilter
-        label={LEAD_HEADER.created}
+        label={t(LEAD_COPY.created)}
         from={query.createdFrom}
         to={query.createdTo}
         onChange={({ from, to }) => patch({ createdFrom: from, createdTo: to })}
@@ -72,7 +78,7 @@ export function useLeadFilters(
     ),
     creator: (
       <ListFilter
-        label={LEAD_HEADER.creator}
+        label={t(LEAD_COPY.creator)}
         options={peopleOptions(staff, NO_CREATOR_TITLE)}
         value={query.createdBy}
         onChange={(createdBy) => patch({ createdBy })}
@@ -80,7 +86,7 @@ export function useLeadFilters(
     ),
     owner: (
       <ListFilter
-        label={LEAD_HEADER.owner}
+        label={t(LEAD_COPY.owner)}
         options={peopleOptions(sales, NO_OWNER_TITLE)}
         value={query.owner}
         onChange={(owner) => patch({ owner })}
@@ -103,11 +109,12 @@ export function useLeadFilterChips(
   counts: LeadFacets | undefined,
   rows: readonly LeadRow[],
 ): ActiveFilter[] {
+  const { t, lang } = useI18n()
   const staff = useDirectory()
   const motionLabel = useMotionLabel()
   const stateName = (s: string) => {
     const parsed = LeadState.safeParse(s)
-    return parsed.success ? LEAD_STATE_LABEL[parsed.data] : s
+    return parsed.success ? leadStateText(parsed.data, lang) : s
   }
   const motionName = (m: string) => {
     const parsed = LeadMotion.safeParse(m)
@@ -115,48 +122,61 @@ export function useLeadFilterChips(
   }
   const campaignName = rows.find((r) => r.source.campaignId === query.campaign)?.source.campaignName
   const originName = (id: string) =>
-    counts?.origins.find((o) => o.id === id)?.name ?? 'Nguồn đã chọn'
-  const labelName = (id: string) => counts?.labels.find((l) => l.id === id)?.name ?? 'Nhãn đã chọn'
+    counts?.origins.find((o) => o.id === id)?.name ?? t(LEAD_COPY.selectedSource)
+  const labelName = (id: string) =>
+    counts?.labels.find((l) => l.id === id)?.name ?? t(LEAD_COPY.selectedLabel)
   const { data: industries } = useQuery(leadIndustryOptionsQuery)
   const industryName = (id: string) => configName(industries, id)
   const drop = (key: keyof LeadBookQuery) => () => patch({ [key]: undefined })
 
   return [
-    ...listChip('states', LEAD_HEADER.status, query.states, stateName, drop('states')),
-    ...dayRangeChip('created', LEAD_HEADER.created, query.createdFrom, query.createdTo, () =>
+    ...listChip('states', t(LEAD_COPY.status), query.states, stateName, drop('states')),
+    ...dayRangeChip('created', t(LEAD_COPY.created), query.createdFrom, query.createdTo, () =>
       patch({ createdFrom: undefined, createdTo: undefined }),
     ),
-    ...listChip('origin', LEAD_HEADER.source, query.origin, originName, drop('origin')),
+    ...listChip('origin', t(LEAD_COPY.source), query.origin, originName, drop('origin')),
     ...listChip(
       'owner',
-      LEAD_HEADER.owner,
+      t(LEAD_COPY.owner),
       query.owner,
       personNameOf(staff, NO_OWNER_TITLE),
       drop('owner'),
     ),
     ...listChip(
       'createdBy',
-      LEAD_HEADER.creator,
+      t(LEAD_COPY.creator),
       query.createdBy,
       personNameOf(staff, NO_CREATOR_TITLE),
       drop('createdBy'),
     ),
-    ...listChip('categoryId', 'Nhóm ngành', query.categoryId, industryName, drop('categoryId')),
-    ...listChip('industryId', 'Ngành', query.industryId, industryName, drop('industryId')),
-    ...listChip('label', 'Nhãn', query.label, labelName, drop('label')),
-    ...listChip('motion', 'Cách tiếp cận', query.motion, motionName, drop('motion')),
+    ...listChip(
+      'categoryId',
+      t(LEAD_COPY.industryGroup),
+      query.categoryId,
+      industryName,
+      drop('categoryId'),
+    ),
+    ...listChip(
+      'industryId',
+      t(LEAD_COPY.industry),
+      query.industryId,
+      industryName,
+      drop('industryId'),
+    ),
+    ...listChip('label', t(LEAD_COPY.label), query.label, labelName, drop('label')),
+    ...listChip('motion', t(LEAD_COPY.approach), query.motion, motionName, drop('motion')),
     ...listChip(
       'sourceKind',
-      'Nguồn nhập',
+      t(LEAD_COPY.intakeSource),
       query.sourceKind,
-      (k) => SOURCE_KIND_LABEL[k as keyof typeof SOURCE_KIND_LABEL] ?? k,
+      (k) => sourceKindText(k, lang),
       drop('sourceKind'),
     ),
     ...listChip(
       'campaign',
-      'Chiến dịch',
+      t(LEAD_COPY.campaign),
       query.campaign,
-      () => campaignName ?? 'đang chọn',
+      () => campaignName ?? t(LEAD_COPY.selected),
       drop('campaign'),
     ),
   ]

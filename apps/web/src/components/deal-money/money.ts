@@ -1,4 +1,4 @@
-import { billions, millions, vnd } from '@pv/ui'
+import { billions, millions } from '@pv/ui'
 import {
   CURRENCIES,
   INSTALLMENT_STATUS_LABEL,
@@ -9,6 +9,7 @@ import {
 } from '@pv/contracts'
 import { standingOf as scheduleStanding, type Standing } from '@/data/contracts'
 import { dmy } from '@/lib/date'
+import { formatCurrency, getLang, LOCALE_TAG } from '@/app/i18n'
 
 /** Wording shared by every money block — the deal profile, the schedule editor,
  *  the sign and quotation forms. Amounts, installment statuses and their day
@@ -25,12 +26,16 @@ export function compactMoney(amount: number, currency: CurrencyCode | null): str
   if (currency === 'VND' || currency === null) {
     return amount >= BILLION ? billions(amount) : millions(amount)
   }
-  return `${amount.toLocaleString('vi-VN')} ${currency}`
+  return new Intl.NumberFormat(LOCALE_TAG[getLang()], {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 2,
+  }).format(amount)
 }
 
 /** A full figure: this is the record of money that moved, not a glance. */
 export const moneyIn = (currency: CurrencyCode | null) => (n: number) =>
-  currency === 'VND' || currency === null ? vnd(n) : compactMoney(n, currency)
+  currency === 'VND' || currency === null ? formatCurrency(n, 'VND') : compactMoney(n, currency)
 
 /** The sign a currency wears inside a number box; empty for none. */
 export const symbolOf = (currency: CurrencyCode | null): string =>

@@ -4,6 +4,7 @@ import { Badge, Button, GlassCard, Icon, Input, Pencil, Plus } from '@pv/ui'
 import type { ConfigEntry, ConfigList } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import { BADGE_INK } from '@/data/opportunities'
 import {
@@ -13,7 +14,27 @@ import {
   useProposeConfigPatch,
 } from '@/data/sales-config'
 import { byOrd, entryWaiting } from './sales-config-model'
-import { SENT, WaitingAdds, WaitingNote } from './sales-config-section'
+import { WaitingAdds, WaitingNote } from './sales-config-section'
+import { sentCopy } from './sales-config-copy'
+
+const unitCopy = (unit: string) =>
+  unit === 'bước'
+    ? message(unit, 'steps', '단계')
+    : unit === 'lần dùng'
+      ? message(unit, 'uses', '사용')
+      : unit === 'lượt trả lời'
+        ? message(unit, 'answers', '응답')
+        : unit === 'lượt chọn'
+          ? message(unit, 'selections', '선택')
+          : unit === 'lượt báo giá'
+            ? message(unit, 'quotes', '견적')
+            : unit === 'cơ hội'
+              ? message(unit, 'opportunities', '기회')
+              : unit === 'lượt'
+                ? message(unit, 'times', '회')
+                : unit === 'lead'
+                  ? message(unit, 'leads', '리드')
+                  : message(unit, 'items', '항목')
 
 /** Config sections for the comm confirm form (ADR 0074): evaluation questions
  *  with their answers, and the flat name lists — next-step kinds and contract
@@ -27,6 +48,7 @@ import { SENT, WaitingAdds, WaitingNote } from './sales-config-section'
  *  here never rewrites history. */
 
 export function CommCriteriaConfig() {
+  const { t } = useI18n()
   const { data: catalog } = useQuery(salesCatalogQuery)
   const criteria = [...(catalog?.COMM_CRITERION ?? [])].sort(byOrd)
   const answers = catalog?.COMM_ANSWER ?? []
@@ -57,11 +79,20 @@ export function CommCriteriaConfig() {
                 </li>
               ))}
           </ul>
-          <AddEntry list="COMM_ANSWER" criterionId={c.id} placeholder="Thêm câu trả lời" />
+          <AddEntry
+            list="COMM_ANSWER"
+            criterionId={c.id}
+            placeholder={t(message('Thêm câu trả lời', 'Add an answer', '응답 추가'))}
+          />
         </GlassCard>
       ))}
 
-      <AddEntry list="COMM_CRITERION" placeholder="Thêm câu hỏi đánh giá" />
+      <AddEntry
+        list="COMM_CRITERION"
+        placeholder={t(
+          message('Thêm câu hỏi đánh giá', 'Add an evaluation question', '평가 질문 추가'),
+        )}
+      />
     </div>
   )
 }
@@ -77,13 +108,16 @@ export function FlatListConfig({
   unit: string
   addLabel: string
 }) {
+  const { t } = useI18n()
   const { data: catalog } = useQuery(salesCatalogQuery)
   const kinds = [...(catalog?.[list] ?? [])].sort(byOrd)
 
   return (
     <div className="flex flex-col gap-4">
       {kinds.length === 0 ? (
-        <p className="text-muted-foreground text-[11.5px]">Chưa có loại nào.</p>
+        <p className="text-muted-foreground text-[11.5px]">
+          {t(message('Chưa có loại nào.', 'No entries yet.', '항목이 없습니다.'))}
+        </p>
       ) : (
         <GlassCard variant="b" className="p-4">
           <ul className="flex flex-col gap-2">
@@ -100,7 +134,16 @@ export function FlatListConfig({
           </ul>
         </GlassCard>
       )}
-      <AddEntry list={list} placeholder={addLabel} />
+      <AddEntry
+        list={list}
+        placeholder={t(
+          message(
+            addLabel,
+            list === 'STEP_KIND' ? 'Add a next-step type' : 'Add a contract type',
+            list === 'STEP_KIND' ? '다음 단계 유형 추가' : '계약 유형 추가',
+          ),
+        )}
+      />
     </div>
   )
 }
@@ -120,6 +163,7 @@ export function EntryRow({
   /** One more fact about the row, drawn before the state badge. */
   extra?: ReactNode
 }) {
+  const { t } = useI18n()
   const canPropose = useCan('config.propose')
   const waiting = entryWaiting(useMyConfigProposals(), list, entry.id)
   const patch = useProposeConfigPatch()
@@ -131,7 +175,7 @@ export function EntryRow({
       {
         onSuccess: () => {
           setEditing(false)
-          toastDone(SENT)
+          toastDone(sentCopy())
         },
       },
     )
@@ -143,7 +187,13 @@ export function EntryRow({
         {editing ? (
           <Input
             value={name}
-            aria-label={`Tên mới cho ${entry.name}`}
+            aria-label={t(
+              message(
+                `Tên mới cho ${entry.name}`,
+                `New name for ${entry.name}`,
+                `${entry.name} 새 이름`,
+              ),
+            )}
             className="pointer-coarse:h-12 min-w-40 flex-1"
             onChange={(e) => setName(e.target.value)}
           />
@@ -157,10 +207,12 @@ export function EntryRow({
           tone={entry.active ? 'success' : 'draft'}
           className={entry.active ? undefined : BADGE_INK}
         >
-          {entry.active ? 'Đang bật' : 'Đã tắt'}
+          {entry.active
+            ? t(message('Đang bật', 'Active', '사용 중'))
+            : t(message('Đã tắt', 'Inactive', '사용 안 함'))}
         </Badge>
         <span className="text-muted-foreground tnum font-num text-[11px]">
-          {usage} {unit}
+          {usage} {t(unitCopy(unit))}
         </span>
         {canPropose &&
           (editing ? (
@@ -171,7 +223,7 @@ export function EntryRow({
                 disabled={name.trim() === '' || name.trim() === entry.name || patch.isPending}
                 onClick={() => send({ name: name.trim() })}
               >
-                Gửi đề nghị
+                {t(message('Gửi đề nghị', 'Submit proposal', '변경 제안'))}
               </Button>
               <Button
                 size="sm"
@@ -182,7 +234,7 @@ export function EntryRow({
                   setName(entry.name)
                 }}
               >
-                Huỷ
+                {t(message('Huỷ', 'Cancel', '취소'))}
               </Button>
             </>
           ) : (
@@ -194,7 +246,7 @@ export function EntryRow({
                 onClick={() => setEditing(true)}
               >
                 <Icon icon={Pencil} size={16} />
-                Sửa
+                {t(message('Sửa', 'Edit', '수정'))}
               </Button>
               <Button
                 size="sm"
@@ -203,7 +255,9 @@ export function EntryRow({
                 disabled={patch.isPending}
                 onClick={() => send({ active: !entry.active })}
               >
-                {entry.active ? 'Tắt' : 'Bật'}
+                {entry.active
+                  ? t(message('Tắt', 'Turn off', '끄기'))
+                  : t(message('Bật', 'Turn on', '켜기'))}
               </Button>
             </>
           ))}
@@ -228,6 +282,7 @@ export function AddEntry({
   criterionId?: string
   placeholder: string
 }) {
+  const { t } = useI18n()
   const canPropose = useCan('config.propose')
   const propose = useProposeCommEntry()
   const [name, setName] = useState('')
@@ -253,14 +308,14 @@ export function AddEntry({
             {
               onSuccess: () => {
                 setName('')
-                toastDone(SENT)
+                toastDone(sentCopy())
               },
             },
           )
         }
       >
         <Icon icon={Plus} size={16} />
-        Gửi đề nghị
+        {t(message('Gửi đề nghị', 'Submit proposal', '변경 제안'))}
       </Button>
       {propose.error && (
         <p role="alert" className="text-destructive-foreground m-0 w-full text-[11.5px]">

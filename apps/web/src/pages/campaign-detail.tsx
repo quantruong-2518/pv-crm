@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { AppShell, SegmentedControl, Send, Users } from '@pv/ui'
 import type { CampaignProfile } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
+import { message, useI18n } from '@/app/i18n'
 import { useCan } from '@/app/auth'
 import { useSalesPeople } from '@/data/directory'
 import { salesCatalogQuery } from '@/data/sales-config'
@@ -39,7 +40,16 @@ import { CampaignResults } from './campaign-results-parts'
  *  whoever has to fix it — the same ritual the book uses for its filters. */
 
 export function CampaignDetailPage() {
-  const chrome = useAppChrome({ searchPlaceholder: 'Tìm chiến dịch, đợt gửi…' })
+  const { t } = useI18n()
+  const chrome = useAppChrome({
+    searchPlaceholder: t(
+      message(
+        'Tìm chiến dịch, đợt gửi…',
+        'Search campaigns and waves…',
+        '캠페인 및 발송 차수 검색…',
+      ),
+    ),
+  })
   const navigate = useNavigate()
   const { code = '' } = useParams()
   const { data: campaign, isPending, error } = useQuery(campaignProfileQuery(code))
@@ -54,9 +64,24 @@ export function CampaignDetailPage() {
           skeleton={{ rail: false }}
           failure={{
             error,
-            notFound: `Không có chiến dịch ${code}.`,
-            fallback: 'Không mở được hồ sơ chiến dịch.',
-            back: { label: 'Về sổ chiến dịch', onClick: () => navigate('/sales/campaigns') },
+            notFound: t(
+              message(
+                `Không có chiến dịch ${code}.`,
+                `Campaign ${code} was not found.`,
+                `캠페인 ${code}을(를) 찾을 수 없습니다.`,
+              ),
+            ),
+            fallback: t(
+              message(
+                'Không mở được hồ sơ chiến dịch.',
+                'Could not open the campaign profile.',
+                '캠페인 프로필을 열 수 없습니다.',
+              ),
+            ),
+            back: {
+              label: t(message('Về sổ chiến dịch', 'Back to campaigns', '캠페인 목록으로')),
+              onClick: () => navigate('/sales/campaigns'),
+            },
           }}
         />
       )}
@@ -77,6 +102,7 @@ export function CampaignEditRedirectPage() {
 // ---------------------------------------------------------------------------
 
 function CampaignWorkspace({ campaign }: { campaign: CampaignProfile }) {
+  const { t } = useI18n()
   const [params, setParams] = useSearchParams()
   const { code, state } = campaign
   const tab = parseCampaignTab(params.get('tab'), state)
@@ -129,8 +155,18 @@ function CampaignWorkspace({ campaign }: { campaign: CampaignProfile }) {
 
   /* The default face stands first, and a count of nothing is not printed. */
   const tabOptions = [
-    { value: 'waves', label: 'Các đợt gửi', icon: Send, count: campaign.waveCount || '' },
-    { value: 'audience', label: 'Người nhận', icon: Users, count: campaign.audienceCount || '' },
+    {
+      value: 'waves',
+      label: t(message('Các đợt gửi', 'Waves', '발송 차수')),
+      icon: Send,
+      count: campaign.waveCount || '',
+    },
+    {
+      value: 'audience',
+      label: t(message('Người nhận', 'Recipients', '수신자')),
+      icon: Users,
+      count: campaign.audienceCount || '',
+    },
   ]
   if (defaultCampaignTab(state) === 'audience') tabOptions.reverse()
 
@@ -156,7 +192,7 @@ function CampaignWorkspace({ campaign }: { campaign: CampaignProfile }) {
           <CampaignResults campaign={campaign} />
 
           <SegmentedControl
-            label="Phần chiến dịch"
+            label={t(message('Phần chiến dịch', 'Campaign sections', '캠페인 섹션'))}
             hideLabel
             tone="quiet"
             value={tab}

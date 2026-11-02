@@ -5,8 +5,10 @@ import { AppShell, Button, ScreenLayout, SegmentedControl } from '@pv/ui'
 import type { HoldRow, HoldSubjectType } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useAppChrome } from '@/app/chrome'
+import { useI18n } from '@/app/i18n'
 import { oneOf, useClientBookFilter } from '@/app/client-book-filter'
 import { holdListQuery } from '@/data/holds'
+import { HOLD_COPY as COPY, holdKindText } from '@/data/hold-copy'
 import { BookCount, BookPage, type BookTable } from '@/components/book-page'
 import { HoldUntilCell, LATE } from '@/components/hold-strip'
 import { AvatarCell } from '@/components/table-bits'
@@ -24,8 +26,6 @@ import { HoldCardGrid } from '@/components/hold-cards'
  *  No ContextRail (law 10 debt, as on the lead book): a list of unrelated
  *  objects has no one story to chain. */
 
-const KIND_LABEL: Record<HoldSubjectType, string> = { lead: 'Lead', opportunity: 'Cơ hội' }
-
 const PATH: Record<HoldSubjectType, string> = {
   lead: '/sales/leads',
   opportunity: '/sales/opportunities',
@@ -33,28 +33,26 @@ const PATH: Record<HoldSubjectType, string> = {
 
 const KINDS = ['all', 'lead', 'opportunity'] as const
 const WHENS = ['all', 'late', 'later'] as const
-const WHEN_LABEL: Record<(typeof WHENS)[number], string> = {
-  all: 'Tất cả',
-  late: 'Cần xử lý',
-  later: 'Chưa tới hạn',
-}
 const FILTERS = { kind: oneOf(KINDS, 'all'), when: oneOf(WHENS, 'all') }
 
 function SubjectCell({ row }: { row: HoldRow }) {
+  const { lang } = useI18n()
   return (
     <span className="flex min-w-0 flex-col gap-1">
       <span className="truncate text-[13px] font-semibold" title={row.customer}>
         {row.customer}
       </span>
       <span className="text-muted-foreground truncate text-[11.5px]">
-        {KIND_LABEL[row.subjectType]} · <span className="font-mono">{row.code}</span> · {row.name}
+        {holdKindText(row.subjectType, lang)} · <span className="font-mono">{row.code}</span> ·{' '}
+        {row.name}
       </span>
     </span>
   )
 }
 
 export function HoldsPage() {
-  const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
+  const { lang, t } = useI18n()
+  const chrome = useAppChrome({ searchPlaceholder: t(COPY.search) })
   const navigate = useNavigate()
   const { filters, patch } = useClientBookFilter(FILTERS)
   const [view, setView] = useBookView('pv.holds.view')
@@ -73,11 +71,11 @@ export function HoldsPage() {
   const table: BookTable = {
     minWidth: 'min-w-[880px]',
     columns: [
-      { header: 'Khách hàng', width: 'minmax(0,2.2fr)' },
-      { header: 'Đang ở bước', width: 'minmax(0,1.2fr)' },
-      { header: 'Ngày hẹn gặp lại', width: 'minmax(0,1.3fr)' },
-      { header: 'Người phụ trách', width: '160px' },
-      { header: 'Ghi chú', width: 'minmax(0,1.6fr)' },
+      { header: t(COPY.customer), width: 'minmax(0,2.2fr)' },
+      { header: t(COPY.currentStep), width: 'minmax(0,1.2fr)' },
+      { header: t(COPY.resumeDay), width: 'minmax(0,1.3fr)' },
+      { header: t(COPY.owner), width: '160px' },
+      { header: t(COPY.note), width: 'minmax(0,1.6fr)' },
     ],
     rows: rows.map((r) => ({
       id: `${r.subjectType}:${r.code}`,
@@ -88,7 +86,7 @@ export function HoldsPage() {
           {r.stepLabel}
         </span>,
         <HoldUntilCell key="u" hold={r} />,
-        <AvatarCell key="h" name={r.holder?.name} empty="Chưa có người phụ trách" />,
+        <AvatarCell key="h" name={r.holder?.name} empty={t(COPY.noOwner)} />,
         <span key="n" className="text-muted-foreground truncate text-[12px]" title={r.note ?? ''}>
           {r.note ?? '—'}
         </span>,
@@ -99,8 +97,8 @@ export function HoldsPage() {
   const failure = error
     ? {
         message: isApiError(error)
-          ? `Không tải được danh sách tạm hoãn. ${userMessage(error)}`
-          : 'Không tải được danh sách tạm hoãn.',
+          ? `${t(COPY.loadFailed)} ${userMessage(error)}`
+          : t(COPY.loadFailed),
         onRetry: () => void refetch(),
       }
     : undefined
@@ -109,12 +107,12 @@ export function HoldsPage() {
     rows.length === 0
       ? all.length > 0
         ? {
-            message: 'Không có mục nào khớp bộ lọc.',
-            action: { label: 'Xem tất cả', onClick: () => patch({ kind: 'all', when: 'all' }) },
+            message: t(COPY.noMatch),
+            action: { label: t(COPY.viewAll), onClick: () => patch({ kind: 'all', when: 'all' }) },
           }
         : {
-            message: 'Chưa có lead hay cơ hội nào đang tạm hoãn.',
-            action: { label: 'Tải lại', onClick: () => void refetch() },
+            message: t(COPY.noItems),
+            action: { label: t(COPY.retry), onClick: () => void refetch() },
           }
       : undefined
 
@@ -122,36 +120,36 @@ export function HoldsPage() {
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <BookPage
-          title="Tạm hoãn"
+          title={t(COPY.title)}
           tabs={
             <div className="flex min-w-0 flex-wrap items-center gap-3">
               <SegmentedControl
-                label="Mức đến hạn"
+                label={t(COPY.dueLevel)}
                 hideLabel
                 tone="quiet"
                 value={filters.when}
                 options={WHENS.map((w) => ({
                   value: w,
-                  label: WHEN_LABEL[w],
+                  label: t(w === 'all' ? COPY.all : w === 'late' ? COPY.needsAction : COPY.notDue),
                   count: data && whenOf(w, ofKind).length,
                 }))}
                 onChange={(value) => patch({ when: value as (typeof WHENS)[number] })}
               />
               <SegmentedControl
-                label="Loại"
+                label={t(COPY.kind)}
                 hideLabel
                 tone="quiet"
                 value={filters.kind}
                 options={KINDS.map((k) => ({
                   value: k,
-                  label: k === 'all' ? 'Lead và cơ hội' : KIND_LABEL[k],
+                  label: k === 'all' ? t(COPY.bothKinds) : holdKindText(k, lang),
                   count: countOf(k),
                 }))}
                 onChange={(value) => patch({ kind: value as (typeof KINDS)[number] })}
               />
             </div>
           }
-          count={<BookCount total={rows.length} noun="mục" />}
+          count={<BookCount total={rows.length} noun={t(COPY.itemCount)} />}
           tools={
             <>
               <ViewSwitch value={view} onChange={setView} />
@@ -162,7 +160,7 @@ export function HoldsPage() {
                   className="pointer-coarse:h-12"
                   onClick={() => patch({ kind: 'all', when: 'all' })}
                 >
-                  Bỏ hết bộ lọc
+                  {t(COPY.clearFilters)}
                 </Button>
               )}
             </>
@@ -172,7 +170,11 @@ export function HoldsPage() {
           empty={empty}
           cards={
             view === 'grid' ? (
-              <HoldCardGrid rows={rows} kinds={KIND_LABEL} paths={PATH} />
+              <HoldCardGrid
+                rows={rows}
+                kinds={{ lead: t(COPY.lead), opportunity: t(COPY.opportunity) }}
+                paths={PATH}
+              />
             ) : undefined
           }
           table={view === 'table' ? table : undefined}

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ArrowDown, ArrowRight, Filter, GlassCard, Icon, cn, percent, type IconGlyph } from '@pv/ui'
 import type { SalesPerformanceResponse } from '@pv/contracts'
 import { useCan } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { enteredLeadsHref, funnelOf, num, rateOf } from './home-model'
 import { rangeLabel } from '@/data/period-pick'
 import { IconTile } from './home-tiles'
@@ -28,6 +29,16 @@ export function ToneTile({ icon, tone }: { icon: IconGlyph; tone: IconTone }) {
 }
 
 type Step = ReturnType<typeof funnelOf>[number]
+
+function stepText(key: Step['key'], t: ReturnType<typeof useI18n>['t']) {
+  const copy = {
+    leads: message('Lead vào sổ', 'Leads added', '등록된 리드'),
+    firstContacts: message('Đã liên hệ lần đầu', 'First contact made', '첫 접점 완료'),
+    opportunities: message('Thành cơ hội', 'Converted to opportunity', '영업 기회로 전환'),
+    contracts: message('Đã ký hợp đồng', 'Contract signed', '계약 체결'),
+  } as const
+  return t(copy[key])
+}
 
 /* Chip and bar per step: blue to teal to green, so the last step reads as the win. The end
    bars are flat, full-strength tokens: Aurora's primary-strong and porcelain's success/70 fell
@@ -64,6 +75,7 @@ function StepRow({
   /** Makes the step's name a link to the list it counts. */
   to?: string
 }) {
+  const { t } = useI18n()
   const look = STEP_LOOK[index]!
   const chip = (
     <span
@@ -80,7 +92,7 @@ function StepRow({
       {to === undefined ? (
         <span className="flex items-center gap-3 text-[13px] font-medium leading-[18px]">
           {chip}
-          {step.label}
+          {stepText(step.key, t)}
         </span>
       ) : (
         <Link
@@ -92,7 +104,7 @@ function StepRow({
           )}
         >
           {chip}
-          {step.label}
+          {stepText(step.key, t)}
           <Icon icon={ArrowRight} size={14} />
         </Link>
       )}
@@ -128,6 +140,7 @@ function StepRow({
  *  logged, so a step may exceed the one before it; that surplus is told apart
  *  from a loss instead of going negative. */
 function Connector({ before, step }: { before: Step; step: Step }) {
+  const { t } = useI18n()
   const gap = before.count - step.count
   return (
     <div className={cn(ROW, 'min-h-8')}>
@@ -139,15 +152,35 @@ function Connector({ before, step }: { before: Step; step: Step }) {
         {before.count === 0 ? (
           <span className="text-muted-foreground">—</span>
         ) : gap < 0 ? (
-          <span className="text-muted-foreground">{num(-gap)} lead vào thẳng</span>
+          <span className="text-muted-foreground">
+            {t(
+              message(
+                `${num(-gap)} lead vào thẳng`,
+                `${num(-gap)} leads entered directly`,
+                `${num(-gap)}개 리드 직접 진입`,
+              ),
+            )}
+          </span>
         ) : (
           <>
             <span className="bg-primary/15 text-on-tint-primary inline-flex items-center gap-1 rounded-full px-2 py-1 font-semibold">
               <Icon icon={ArrowDown} size={14} />
-              {percent(step.ratio ?? 0)} đi tiếp
+              {t(
+                message(
+                  `${percent(step.ratio ?? 0)} đi tiếp`,
+                  `${percent(step.ratio ?? 0)} progressed`,
+                  `${percent(step.ratio ?? 0)} 진행`,
+                ),
+              )}
             </span>
             <span className="text-muted-foreground">
-              <strong className="text-foreground font-semibold">{num(gap)}</strong> chưa đi tiếp
+              {t(
+                message(
+                  `${num(gap)} chưa đi tiếp`,
+                  `${num(gap)} have not progressed`,
+                  `${num(gap)}개 미진행`,
+                ),
+              )}
             </span>
           </>
         )}
@@ -170,6 +203,7 @@ export function InsightCell({
   to?: string
   children: ReactNode
 }) {
+  const { t } = useI18n()
   const className = cn('bg-linear-to-br flex flex-col gap-3 rounded-2xl p-4', tint)
   const head = (
     <div className="flex items-center gap-2 text-[12px] font-semibold leading-4">
@@ -196,7 +230,7 @@ export function InsightCell({
       {head}
       {children}
       <span className="flex items-center gap-1 text-[12px] font-semibold leading-4">
-        Xem danh sách
+        {t(message('Xem danh sách', 'View list', '목록 보기'))}
         <span className="duration-(--motion-duration) ease-(--motion-ease) transition-[translate] group-hover:translate-x-1 group-focus-visible:translate-x-1 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0 motion-reduce:group-focus-visible:translate-x-0">
           <Icon icon={ArrowRight} size={14} />
         </span>
@@ -214,6 +248,7 @@ export function FunnelTile({
   data: SalesPerformanceResponse
   className?: string
 }) {
+  const { t } = useI18n()
   const { cohort } = data.current
   const steps = funnelOf(cohort)
   const rate = rateOf(cohort.contracts, cohort.leads)
@@ -225,8 +260,18 @@ export function FunnelTile({
         <div className="flex items-center gap-3">
           <ToneTile icon={Filter} tone="primary" />
           <div className="flex flex-col">
-            <h3 className="text-[16px] font-semibold leading-6">Từ lead tới hợp đồng</h3>
-            <span className={cn(SUB, 'tnum font-num')}>Lead vào sổ {rangeLabel(data.span)}</span>
+            <h3 className="text-[16px] font-semibold leading-6">
+              {t(message('Từ lead tới hợp đồng', 'From lead to contract', '리드에서 계약까지'))}
+            </h3>
+            <span className={cn(SUB, 'tnum font-num')}>
+              {t(
+                message(
+                  `Lead vào sổ ${rangeLabel(data.span)}`,
+                  `Leads added ${rangeLabel(data.span)}`,
+                  `${rangeLabel(data.span)} 등록 리드`,
+                ),
+              )}
+            </span>
           </div>
         </div>
         <div className="flex flex-col items-end">
@@ -234,7 +279,7 @@ export function FunnelTile({
             {rate === null ? '—' : percent(rate, 1)}
           </span>
           <span className={cn(SUB, 'tnum font-num')}>
-            đã ký hợp đồng (
+            {t(message('đã ký hợp đồng', 'contracts signed', '계약 체결'))} (
             <strong className="text-foreground font-semibold">
               {num(cohort.contracts)}/{num(cohort.leads)}
             </strong>
@@ -261,7 +306,17 @@ export function FunnelTile({
         })}
       </div>
 
-      {cohort.leads === 0 && <span className={SUB}>Kỳ này chưa có lead vào sổ.</span>}
+      {cohort.leads === 0 && (
+        <span className={SUB}>
+          {t(
+            message(
+              'Kỳ này chưa có lead vào sổ.',
+              'No leads were added in this period.',
+              '이번 기간에 등록된 리드가 없습니다.',
+            ),
+          )}
+        </span>
+      )}
     </GlassCard>
   )
 }

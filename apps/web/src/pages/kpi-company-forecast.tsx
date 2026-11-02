@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Badge, GlassCard, Icon, TrendingDown, TrendingUp, cn, percent } from '@pv/ui'
-import { KPI_METRIC_LABEL, type KpiForecastResponse } from '@pv/contracts'
+import { type KpiForecastResponse } from '@pv/contracts'
 import { StackTable, type StackColumn } from '@/components/stack-table'
 import type { KpiCatalog } from '@/data/kpi-catalog'
 import {
@@ -10,7 +10,7 @@ import {
   type ForecastFlag,
   type ForecastItem,
 } from '@/data/kpi-forecast'
-import { ROLE_LABEL } from '@/data/users'
+import { kpiMetricText, kpiRoleText } from '@/data/kpi-i18n'
 import { num } from './home-model'
 import { NOTE } from './home-tiles'
 import { DASH, personHref, printShort } from './kpi-model'
@@ -86,9 +86,9 @@ function cellsOf(flag: Flag, { def, forecast }: ForecastItem, period: string) {
       <Link to={personHref(forecast.actorId, period)} className={NAME_LINK}>
         {forecast.name}
       </Link>
-      <span className={NOTE}>{ROLE_LABEL[forecast.role]}</span>
+      <span className={NOTE}>{kpiRoleText(forecast.role)}</span>
     </span>,
-    KPI_METRIC_LABEL[def.key],
+    kpiMetricText(def.key),
     <span key="value" className={FIGURE}>
       {printShort(def.unit, forecast.value)}
     </span>,

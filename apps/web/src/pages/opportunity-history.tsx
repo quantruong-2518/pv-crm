@@ -1,8 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { GlassCard, SectionTitle, Skeleton, Timeline, type StatusDotState } from '@pv/ui'
 import {
-  OPPORTUNITY_MILESTONE_LABEL,
-  OPPORTUNITY_STAGE_LABEL,
   type JourneyDeal,
   type JourneyDealSubStep,
   type JourneyRungState,
@@ -10,6 +8,8 @@ import {
 } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
+import { opportunityStageLabel, opportunityMilestoneLabel } from '@/data/sales-labels-i18n'
 import { dm } from '@/lib/date'
 import { workstreamJourneyQuery } from '@/data/workstream-journey'
 import { HISTORY_ID, historyRungId } from './opportunity-model'
@@ -28,6 +28,7 @@ const RUNG_DOT: Partial<Record<JourneyRungState, StatusDotState>> = {
 }
 
 export function DealHistoryCard({ op }: { op: OpportunityProfileResponse }) {
+  const { t, lang } = useI18n()
   const open = useCan('workstream.view') && op.workstream !== null
   const journey = useQuery({
     ...workstreamJourneyQuery(op.workstream?.code ?? ''),
@@ -42,18 +43,28 @@ export function DealHistoryCard({ op }: { op: OpportunityProfileResponse }) {
       id={HISTORY_ID}
       tabIndex={-1}
       className="flex flex-col gap-3 p-4 outline-none sm:p-5"
-      aria-label="Tiến trình công việc"
+      aria-label={t(message('Tiến trình công việc', 'Opportunity timeline', '영업 기회 타임라인'))}
     >
-      <SectionTitle size="detail">Tiến trình công việc</SectionTitle>
+      <SectionTitle size="detail">
+        {t(message('Tiến trình công việc', 'Opportunity timeline', '영업 기회 타임라인'))}
+      </SectionTitle>
       {journey.isPending ? (
         <Skeleton className="h-32 w-full" />
       ) : !deal ? (
         <p className="text-destructive-foreground m-0 text-[12.5px] leading-[1.6]">
-          Không tải được tiến trình công việc của cơ hội.{' '}
-          {isApiError(journey.error) ? userMessage(journey.error) : 'Thử lại.'}
+          {t(
+            message(
+              'Không tải được tiến trình công việc của cơ hội.',
+              'Could not load the opportunity timeline.',
+              '영업 기회 타임라인을 불러오지 못했습니다.',
+            ),
+          )}{' '}
+          {isApiError(journey.error)
+            ? userMessage(journey.error)
+            : t(message('Thử lại.', 'Try again.', '다시 시도하세요.'))}
         </p>
       ) : (
-        <Timeline items={itemsOf(deal)} className="[&>li]:pb-4" />
+        <Timeline items={itemsOf(deal, lang, t)} className="[&>li]:pb-4" />
       )}
     </GlassCard>
   )
@@ -62,7 +73,11 @@ export function DealHistoryCard({ op }: { op: OpportunityProfileResponse }) {
 /** The accept rung names the head who took the deal off the queue: the rung's
  *  own `by` is whoever moved it, which differs on migrated deals. No rung
  *  date: the todo card's stepper carries it. */
-function itemsOf(deal: JourneyDeal) {
+function itemsOf(
+  deal: JourneyDeal,
+  lang: ReturnType<typeof useI18n>['lang'],
+  t: (copy: ReturnType<typeof message>) => string,
+) {
   return deal.rungs.flatMap((rung) => {
     const dot = RUNG_DOT[rung.state]
     if (!dot) return []
@@ -75,7 +90,7 @@ function itemsOf(deal: JourneyDeal) {
         state: dot,
         title: (
           <>
-            {OPPORTUNITY_STAGE_LABEL[rung.key]}
+            {opportunityStageLabel(rung.key, lang)}
             {by && (
               <span className="text-muted-foreground font-sans text-[12px] font-normal">
                 {' · '}
@@ -86,9 +101,17 @@ function itemsOf(deal: JourneyDeal) {
         ),
         children:
           rung.subSteps.length > 0 ? (
-            <SubSteps steps={rung.subSteps} />
+            <SubSteps steps={rung.subSteps} lang={lang} />
           ) : quiet ? (
-            <span className="text-muted-foreground">Chưa ghi hoạt động chăm sóc nào.</span>
+            <span className="text-muted-foreground">
+              {t(
+                message(
+                  'Chưa ghi hoạt động chăm sóc nào.',
+                  'No customer activities recorded yet.',
+                  '기록된 고객 활동이 없습니다.',
+                ),
+              )}
+            </span>
           ) : undefined,
       },
     ]
@@ -98,13 +121,19 @@ function itemsOf(deal: JourneyDeal) {
 /** The server words each step; a care activity names its kind from the
  *  contract's table, and it and a quote round say who recorded them. One line
  *  per step, the day in a fixed left column so no date drifts to the far edge. */
-function SubSteps({ steps }: { steps: JourneyDealSubStep[] }) {
+function SubSteps({
+  steps,
+  lang,
+}: {
+  steps: JourneyDealSubStep[]
+  lang: ReturnType<typeof useI18n>['lang']
+}) {
   return (
     <ul className="m-0 grid list-none grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 p-0">
       {steps.map((step, i) => {
         const by = step.kind === 'sign-approval' ? null : step.by
         const label =
-          step.kind === 'activity' ? OPPORTUNITY_MILESTONE_LABEL[step.activity] : step.label
+          step.kind === 'activity' ? opportunityMilestoneLabel(step.activity, lang) : step.label
         const detail = [by?.name, step.note].filter(Boolean).join(' · ')
         return (
           <li

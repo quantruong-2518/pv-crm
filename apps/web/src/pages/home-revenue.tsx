@@ -8,6 +8,7 @@ import {
   type SalesPerformanceResponse,
 } from '@pv/contracts'
 import { useCan } from '@/app/auth'
+import { message, translate } from '@/app/i18n'
 import { periodLabel } from '@/data/period-pick'
 import { dealsHref, money, num } from './home-model'
 import { ICON_TONE, WASH_HERO } from './home-look'
@@ -24,6 +25,8 @@ import {
 import { MoneyCardView } from './home-revenue-peek'
 import { CARD_SHELL, IconTile, NOTE, PILL_LINK } from './home-tiles'
 
+const tr = (vi: string, en: string, ko: string) => translate(message(vi, en, ko))
+
 /** The hero tile of the overview for a reader of the whole contract book:
  *  money moved in the period. Three figures (actual, expected, penalties), a
  *  bar of how much of the expected is already recognised, then the chart and
@@ -36,6 +39,12 @@ const FIGURE_CARD = `flex min-w-0 flex-col gap-1 rounded-2xl px-4 py-3 ${SHORT_C
 const FIGURE_LABEL = 'text-[13px] font-semibold leading-[18px]'
 const FIGURE_VALUE =
   'tnum font-num text-[30px] font-bold leading-[38px] tracking-[-0.025em] [@media(max-height:860px)]:text-[24px] [@media(max-height:860px)]:leading-8'
+const unitLabel = (unit: string) =>
+  unit === 'ngày'
+    ? tr('ngày', 'day', '일')
+    : unit === 'tuần'
+      ? tr('tuần', 'week', '주')
+      : tr('tháng', 'month', '월')
 
 function PenaltyLine({ label, value, ink }: { label: string; value: string; ink: string }) {
   return (
@@ -49,8 +58,13 @@ function PenaltyLine({ label, value, ink }: { label: string; value: string; ink:
 function penaltyNote(a: SalesPenaltyFigure, b: SalesPenaltyFigure) {
   const count = a.count + b.count
   const pending = a.pending + b.pending
-  if (count === 0) return 'Không có hợp đồng bị phạt'
-  return `${num(count)} hợp đồng chấm dứt${pending > 0 ? ` · ${num(pending)} chưa trả` : ''}`
+  if (count === 0)
+    return tr('Không có hợp đồng bị phạt', 'No penalized contracts', '위약금이 부과된 계약 없음')
+  return tr(
+    `${num(count)} hợp đồng chấm dứt${pending > 0 ? ` · ${num(pending)} chưa trả` : ''}`,
+    `${num(count)} terminated contracts${pending > 0 ? ` · ${num(pending)} unpaid` : ''}`,
+    `해지 계약 ${num(count)}건${pending > 0 ? ` · 미납 ${num(pending)}건` : ''}`,
+  )
 }
 
 function Figures({ r }: { r: ReturnType<typeof revenueOf> }) {
@@ -59,31 +73,48 @@ function Figures({ r }: { r: ReturnType<typeof revenueOf> }) {
   return (
     <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3">
       <div className={cn(FIGURE_CARD, 'bg-success/10 text-on-tint-success')}>
-        <span className={FIGURE_LABEL}>Doanh thu thực tế</span>
+        <span className={FIGURE_LABEL}>
+          {tr('Doanh thu thực tế', 'Actual revenue', '실제 매출')}
+        </span>
         <span className={FIGURE_VALUE}>{signedMoney(r.actual)}</span>
         <span className="text-on-tint-success tnum font-num text-[12px] leading-4">
-          {signedMoney(r.collected)} thu trong kỳ
-          {r.penaltyOut.amountVnd > 0 && ` − ${money(r.penaltyOut.amountVnd)} phạt mình trả`}
-          {r.penaltyIn.amountVnd > 0 && ` + ${money(r.penaltyIn.amountVnd)} phạt khách trả`}
+          {tr(
+            `${signedMoney(r.collected)} thu trong kỳ`,
+            `${signedMoney(r.collected)} collected this period`,
+            `이번 기간 수금 ${signedMoney(r.collected)}`,
+          )}
+          {r.penaltyOut.amountVnd > 0 &&
+            ` − ${money(r.penaltyOut.amountVnd)} ${tr('tiền phạt đã trả', 'penalties paid', '지급한 위약금')}`}
+          {r.penaltyIn.amountVnd > 0 &&
+            ` + ${money(r.penaltyIn.amountVnd)} ${tr('tiền phạt khách trả', 'penalties received', '수령한 위약금')}`}
         </span>
       </div>
       <div className={cn(FIGURE_CARD, OPEN_FRAME, 'text-accent-foreground')}>
-        <span className={FIGURE_LABEL}>Doanh thu dự kiến</span>
+        <span className={FIGURE_LABEL}>
+          {tr('Doanh thu dự kiến', 'Expected revenue', '예상 매출')}
+        </span>
         <span className={FIGURE_VALUE}>{signedMoney(r.expected)}</span>
         <span className="text-on-tint-primary-muted tnum font-num text-[12px] leading-4">
-          {money(r.paid)} đã thu + {money(r.upcoming)} sắp đến hạn
-          {r.due > 0 && ` + ${money(r.due)} đến hạn chưa thu`}
+          {tr(
+            `${money(r.paid)} đã thu + ${money(r.upcoming)} sắp đến hạn`,
+            `${money(r.paid)} collected + ${money(r.upcoming)} upcoming`,
+            `수금 ${money(r.paid)} + 예정 ${money(r.upcoming)}`,
+          )}
+          {r.due > 0 &&
+            ` + ${money(r.due)} ${tr('đến hạn chưa thu', 'due and unpaid', '기한 초과 미수금')}`}
         </span>
       </div>
       <div className={cn(FIGURE_CARD, 'bg-surface-ink/4')}>
-        <span className={cn(FIGURE_LABEL, 'text-muted-foreground')}>Tiền phạt</span>
+        <span className={cn(FIGURE_LABEL, 'text-muted-foreground')}>
+          {tr('Tiền phạt', 'Penalties', '위약금')}
+        </span>
         <PenaltyLine
-          label="Mình thanh toán"
+          label={tr('Mình thanh toán', 'We pay', '당사 지급')}
           value={out > 0 ? `−${money(out)}` : money(0)}
           ink={out > 0 ? 'text-destructive-foreground' : 'text-muted-foreground'}
         />
         <PenaltyLine
-          label="Khách thanh toán"
+          label={tr('Khách thanh toán', 'Customer pays', '고객 지급')}
           value={inn > 0 ? `+${money(inn)}` : money(0)}
           ink={inn > 0 ? 'text-channel-meeting' : 'text-muted-foreground'}
         />
@@ -108,14 +139,14 @@ function Recognised({ actual, expected }: { actual: number; expected: number }) 
       </div>
       <div className={cn(NOTE, 'tnum font-num flex flex-wrap justify-between gap-x-3')}>
         <span>
-          <strong className="text-on-tint-success font-semibold">{signedMoney(actual)}</strong> đã
-          ghi nhận
+          <strong className="text-on-tint-success font-semibold">{signedMoney(actual)}</strong>{' '}
+          {tr('đã ghi nhận', 'recognized', '인식됨')}
         </span>
         <span>
           <strong className="text-accent-foreground font-semibold">
             {signedMoney(expected - actual)}
           </strong>{' '}
-          chưa ghi nhận
+          {tr('chưa ghi nhận', 'not yet recognized', '미인식')}
         </span>
       </div>
     </div>
@@ -154,7 +185,9 @@ export function RevenueTile({
         <div className="flex items-center gap-3">
           <IconTile icon={ChartAnalysis} size="size-9 rounded-xl" className={ICON_TONE.primary} />
           <div className="flex flex-col">
-            <h3 className="text-[16px] font-semibold leading-6">Doanh thu trong kỳ</h3>
+            <h3 className="text-[16px] font-semibold leading-6">
+              {tr('Doanh thu trong kỳ', 'Revenue for the period', '기간별 매출')}
+            </h3>
             <span className={NOTE}>{periodLabel(perf.period)}</span>
           </div>
         </div>
@@ -164,13 +197,13 @@ export function RevenueTile({
               to={`/sales/contracts?signedFrom=${perf.span.first}&signedTo=${perf.span.last}`}
               className={PILL_LINK}
             >
-              Xem hợp đồng
+              {tr('Xem hợp đồng', 'View contracts', '계약 보기')}
               <Icon icon={ArrowRight} size={14} />
             </Link>
           )}
           {canViewDeals && perf.open.count > 0 && (
             <Link to={dealsHref('open')} className={PILL_LINK}>
-              Xem cơ hội
+              {tr('Xem cơ hội', 'View opportunities', '영업 기회 보기')}
               <Icon icon={ArrowRight} size={14} />
             </Link>
           )}
@@ -182,7 +215,13 @@ export function RevenueTile({
 
       <div className="mt-auto flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <span className={NOTE}>Theo {unit} · triệu đồng</span>
+          <span className={NOTE}>
+            {tr(
+              `Theo ${unit} · triệu đồng`,
+              `By ${unitLabel(unit)} · VND millions`,
+              `${unitLabel(unit)}별 · 백만 VND`,
+            )}
+          </span>
           <Legend />
         </div>
         {/* On a coarse pointer a column keeps 56px, so a penalty cell inside it is

@@ -24,7 +24,7 @@ import {
   type RoleDraft,
   type RoleEntry,
 } from './sales-config-kpi-model'
-import { SENT } from './sales-config-section'
+import { sentCopy } from './sales-config-copy'
 
 /** 5.16 — which metrics count for each role, and which one leads its card
  *  (ADR 0099 §1). A metric outside a role's catalog has no formula for that
@@ -151,7 +151,7 @@ function RoleSend({
             propose.mutate(body, {
               onSuccess: (receipt) => {
                 onSent(receipt.state)
-                toastDone(SENT)
+                toastDone(sentCopy())
               },
             })
           }

@@ -13,6 +13,7 @@ import {
   useMarkNotificationsRead,
 } from '@/data/notifications'
 import { NotificationList } from './notification-list'
+import { message, useI18n } from '@/app/i18n'
 
 /** Body of the bell's dropdown — the reader's newest notifications.
  *
@@ -37,6 +38,7 @@ export function NotificationMenu({
   /** `undefined` while the count is still loading. */
   unread: number | undefined
 }) {
+  const { t } = useI18n()
   const navigate = useNavigate()
   const [tab, setTab] = useState<'all' | 'unread'>('all')
   const everything = useInfiniteQuery(notificationListQuery())
@@ -81,7 +83,7 @@ export function NotificationMenu({
           tabIndex={-1}
           className="text-foreground m-0 text-sm font-semibold leading-[1.5] outline-none"
         >
-          Thông báo
+          {t(message('Thông báo', 'Notifications', '알림'))}
         </h2>
         {unread ? (
           <Button
@@ -91,21 +93,25 @@ export function NotificationMenu({
             disabled={markRead.isPending}
             onClick={() => markRead.mutate({ all: true })}
           >
-            Đọc hết
+            {t(message('Đọc hết', 'Mark all as read', '모두 읽음으로 표시'))}
           </Button>
         ) : null}
       </div>
 
       <SegmentedControl
-        label="Lọc"
+        label={t(message('Lọc', 'Filter', '필터'))}
         hideLabel
         tone="quiet"
         size="sm"
         className="px-2"
         value={tab}
         options={[
-          { value: 'all', label: 'Tất cả', count: everything.data?.total },
-          { value: 'unread', label: 'Chưa đọc', count: unread },
+          {
+            value: 'all',
+            label: t(message('Tất cả', 'All', '전체')),
+            count: everything.data?.total,
+          },
+          { value: 'unread', label: t(message('Chưa đọc', 'Unread', '읽지 않음')), count: unread },
         ]}
         onChange={(value) => setTab(value === 'unread' ? 'unread' : 'all')}
       />
@@ -119,7 +125,16 @@ export function NotificationMenu({
       ) : list.error ? (
         <div className="glass-b flex flex-col items-start gap-3 rounded-lg p-4">
           <p className="text-destructive-foreground m-0 text-[12.5px] leading-[1.65]">
-            {failed(list.error, 'Không tải được thông báo.')}
+            {failed(
+              list.error,
+              t(
+                message(
+                  'Không tải được thông báo.',
+                  'Could not load notifications.',
+                  '알림을 불러오지 못했습니다.',
+                ),
+              ),
+            )}
           </p>
           <Button
             variant="ghost"
@@ -127,12 +142,22 @@ export function NotificationMenu({
             className="pointer-coarse:h-12"
             onClick={() => void list.refetch()}
           >
-            Thử lại
+            {t(message('Thử lại', 'Try again', '다시 시도'))}
           </Button>
         </div>
       ) : rows.length === 0 ? (
         <p className="glass-b text-muted-foreground m-0 rounded-lg p-4 text-[12.5px] leading-[1.65]">
-          {tab === 'unread' ? 'Bạn đã đọc hết thông báo.' : 'Chưa có thông báo nào.'}
+          {tab === 'unread'
+            ? t(
+                message(
+                  'Bạn đã đọc hết thông báo.',
+                  'You have read all notifications.',
+                  '모든 알림을 읽었습니다.',
+                ),
+              )
+            : t(
+                message('Chưa có thông báo nào.', 'No notifications yet.', '아직 알림이 없습니다.'),
+              )}
         </p>
       ) : (
         <div className="glass-b min-h-0 flex-1 overflow-y-auto rounded-lg p-2">
@@ -149,7 +174,7 @@ export function NotificationMenu({
           navigate(NOTIFICATIONS_PATH)
         }}
       >
-        Xem tất cả thông báo
+        {t(message('Xem tất cả thông báo', 'View all notifications', '모든 알림 보기'))}
       </Button>
     </div>
   )

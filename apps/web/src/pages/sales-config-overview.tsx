@@ -1,4 +1,5 @@
 import { Button, GlassCard } from '@pv/ui'
+import { message, useI18n, type Message } from '@/app/i18n'
 import { useQuery } from '@tanstack/react-query'
 import type { ConfigBundle, MotionPolicy } from '@pv/contracts'
 import { useCan } from '@/app/auth'
@@ -12,6 +13,26 @@ import { keyOf } from './home-model'
 import { monthPick } from './kpi-model'
 import { CONFIG_AREAS, type AreaKey, type SectionId } from './sales-config-model'
 import { isBeforeTree } from './sales-config-org-model'
+import { areaCopy, sectionCopy } from './sales-config-copy'
+import {
+  NONE_YET,
+  freshnessLine,
+  industriesLine,
+  itemsCount,
+  kpiAlertLine,
+  labelsCount,
+  metricsOffLine,
+  motionsActiveLine,
+  motionsDeclaredLine,
+  orgUnitsLine,
+  questionsCount,
+  reasonsCount,
+  recareLine,
+  stepFrameLine,
+  teamsThisMonth,
+  tierLimitsLine,
+  typesCount,
+} from './sales-config-overview-copy'
 
 /** Printed for a value that is still loading or failed to read: a zero there
  *  would be a statement about the configuration that nobody has checked. */
@@ -23,6 +44,7 @@ const isDeclared = (m: MotionPolicy) => m.firstTouchMinutes !== null
 /** What each section currently holds, in one line. Every figure is counted
  *  from a read the section itself makes; `undefined` is "not read". */
 function useSectionValues(catalog: ConfigBundle): Record<SectionId, string | undefined> {
+  const { t, number } = useI18n()
   const { data: freshness } = useQuery(activityFreshnessQuery)
   const { data: recare } = useQuery(recareCyclesQuery)
   const { data: motions } = useQuery(salesMotionsQuery())
@@ -44,57 +66,55 @@ function useSectionValues(catalog: ConfigBundle): Record<SectionId, string | und
   const tiers = ladderRows(catalog, 'TIER')
   const states = Object.values(FRAME_STATES).flat()
 
+  const orNone = (n: number, line: (n: number) => Message) => t(n === 0 ? NONE_YET : line(n))
+
   return {
     'step-frame':
       frame &&
-      `${states.length} trạng thái · ${
-        states.flatMap((at) => templatesAt(frame, at)).filter((t) => t.active).length
-      } bước`,
-    'tier-limits':
-      tiers.length === 0
-        ? 'Chưa có'
-        : `${tiers.filter((t) => t.limitDays !== null).length}/${tiers.length} bậc có hạn`,
-    motions: motions && `${motions.filter((m) => m.active).length}/${motions.length} đang bật`,
-    'motion-policy': motions && `${motions.filter(isDeclared).length}/${motions.length} đã đặt`,
-    industries: `${catalog.CATEGORY.filter((c) => c.active).length} nhóm · ${
-      catalog.INDUSTRY.filter((i) => i.active).length
-    } ngành đang bật`,
-    'stop-reasons': `${catalog.EXIT_REASON.length} lý do`,
-    'waiting-labels':
-      catalog.WAITING_LABEL.length === 0 ? 'Chưa có' : `${catalog.WAITING_LABEL.length} nhãn`,
-    'comm-criteria': `${catalog.COMM_CRITERION.length} câu`,
-    'step-kinds': catalog.STEP_KIND.length === 0 ? 'Chưa có' : `${catalog.STEP_KIND.length} loại`,
-    'recare-cycles':
-      recare && `Nóng ${recare.hotDays} · Ấm ${recare.warmDays} · Nguội ${recare.coldDays} ngày`,
-    freshness: freshness && `Vàng ${freshness.warnDays} · đỏ ${freshness.alertDays} ngày`,
-    'care-reasons': `${catalog.LOSS_REASON.length} lý do`,
-    'quote-reasons':
-      catalog.QUOTE_REVISION_REASON.length === 0
-        ? 'Chưa có'
-        : `${catalog.QUOTE_REVISION_REASON.length} lý do`,
-    products: catalog.PRODUCT.length === 0 ? 'Chưa có' : `${catalog.PRODUCT.length} mục`,
-    'contract-kinds':
-      catalog.CONTRACT_KIND.length === 0 ? 'Chưa có' : `${catalog.CONTRACT_KIND.length} loại`,
+      t(
+        stepFrameLine(
+          number(states.length),
+          number(
+            states.flatMap((at) => templatesAt(frame, at)).filter((step) => step.active).length,
+          ),
+        ),
+      ),
+    'tier-limits': orNone(tiers.length, (total) =>
+      tierLimitsLine(tiers.filter((tier) => tier.limitDays !== null).length, total),
+    ),
+    motions:
+      motions && t(motionsActiveLine(motions.filter((m) => m.active).length, motions.length)),
+    'motion-policy':
+      motions && t(motionsDeclaredLine(motions.filter(isDeclared).length, motions.length)),
+    industries: t(
+      industriesLine(
+        catalog.CATEGORY.filter((c) => c.active).length,
+        catalog.INDUSTRY.filter((i) => i.active).length,
+      ),
+    ),
+    'stop-reasons': t(reasonsCount(catalog.EXIT_REASON.length)),
+    'waiting-labels': orNone(catalog.WAITING_LABEL.length, labelsCount),
+    'comm-criteria': t(questionsCount(catalog.COMM_CRITERION.length)),
+    'step-kinds': orNone(catalog.STEP_KIND.length, typesCount),
+    'recare-cycles': recare && t(recareLine(recare)),
+    freshness: freshness && t(freshnessLine(freshness)),
+    'care-reasons': t(reasonsCount(catalog.LOSS_REASON.length)),
+    'quote-reasons': orNone(catalog.QUOTE_REVISION_REASON.length, reasonsCount),
+    products: orNone(catalog.PRODUCT.length, itemsCount),
+    'contract-kinds': orNone(catalog.CONTRACT_KIND.length, typesCount),
     'kpi-metrics':
       offIn &&
       (offIn.length === 0
-        ? 'Đang tính đủ'
-        : `${offKeys.size} chỉ số đang tắt ở ${offIn.length} vai trò`),
-    'kpi-alert':
-      kpiAlert &&
-      `Sắp trượt dưới ${kpiAlert.slipPercent}% · sắp đạt từ ${kpiAlert.hitPercent}%${
-        kpiAlert.tolerancePercent > 0
-          ? ` · thiếu ${kpiAlert.tolerancePercent}% vẫn tính Đúng tiến độ`
-          : ''
-      }`,
+        ? t(message('Đang tính đủ', 'All metrics enabled', '모든 지표 사용 중'))
+        : t(metricsOffLine(offKeys.size, offIn.length))),
+    'kpi-alert': kpiAlert && t(kpiAlertLine(kpiAlert)),
     /* A month before the org tree still reads the old team roster (ADR 0118 §7).
        Without view-all both reads hold only the reader's own path, so no count. */
     'kpi-teams': !seeAll
       ? undefined
       : org && !isBeforeTree(org)
-        ? `${orgCount('department')} phòng · ${orgCount('team')} nhóm tháng này`
-        : roster &&
-          (roster.teams.length === 0 ? 'Chưa có' : `${roster.teams.length} nhóm tháng này`),
+        ? t(orgUnitsLine(number(orgCount('department')), number(orgCount('team'))))
+        : roster && orNone(roster.teams.length, teamsThisMonth),
   }
 }
 
@@ -108,6 +128,7 @@ export function ConfigOverview({
   catalog: ConfigBundle
   onOpen: (area: AreaKey, section?: SectionId) => void
 }) {
+  const { t } = useI18n()
   const values = useSectionValues(catalog)
 
   return (
@@ -119,10 +140,10 @@ export function ConfigOverview({
               {a.step !== null && (
                 <span className="text-muted-foreground tnum font-num">{a.step}</span>
               )}
-              {a.label}
+              {t(areaCopy(a.key))}
             </h2>
             <Button variant="ghost" className="pointer-coarse:h-12" onClick={() => onOpen(a.key)}>
-              Mở
+              {t(message('Mở', 'Open', '열기'))}
             </Button>
           </div>
           <ul className="flex flex-col gap-1">
@@ -133,7 +154,7 @@ export function ConfigOverview({
                   onClick={() => onOpen(a.key, s.id)}
                   className="motion-std bg-surface-ink/5 hover:bg-surface-ink/8 flex min-h-12 w-full items-center justify-between gap-4 rounded-sm px-3 py-2 text-left text-[12px]"
                 >
-                  {s.title}
+                  {t(sectionCopy(s.id))}
                   <span className="text-muted-foreground tnum font-num whitespace-nowrap">
                     {values[s.id] ?? UNREAD}
                   </span>

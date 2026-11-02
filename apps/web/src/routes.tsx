@@ -13,6 +13,7 @@ import { AuroraField } from '@pv/ui'
 import type { Branch, Permission } from '@pv/engines'
 import { CHANGE_PASSWORD_PATH, RequireAccess } from '@/app/auth'
 import { getLang, onLangChange, type Lang } from '@/app/i18n'
+import { routeName } from '@/app/route-copy'
 import { isParked } from '@/app/parked'
 import { queryClient } from '@/app/query-client'
 import { warmScreen } from '@/app/route-warm'
@@ -698,8 +699,9 @@ const HEAD_TAGLINE: Record<Lang, string> = {
 const syncHeadMetadata = (pathname: string) => {
   const screen = SCREENS.find((s) => matchPath({ path: s.path, end: true }, pathname))
   const tagline = HEAD_TAGLINE[getLang()]
-  const title = screen ? `${screen.name} · PV One` : 'PV One · Pebble Vina'
-  const description = screen ? `${screen.name} — ${tagline}` : tagline
+  const name = screen ? routeName(screen.name, getLang()) : null
+  const title = name ? `${name} · PV One` : 'PV One · Pebble Vina'
+  const description = name ? `${name} — ${tagline}` : tagline
 
   document.title = title
   document.documentElement.lang = getLang()

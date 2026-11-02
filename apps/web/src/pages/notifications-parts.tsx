@@ -12,13 +12,15 @@ import {
   cn,
 } from '@pv/ui'
 import {
-  NOTIFICATION_GROUP_LABEL,
   NotificationGroup,
+  SEARCH_MIN_CHARS,
   type NotificationListQuery,
   type NotificationRow,
 } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
-import { searchHint } from '@/lib/search-box'
+import { message, useI18n } from '@/app/i18n'
+import { searchableText } from '@/lib/search-box'
+import { notificationGroupLabel } from '@/data/notification-i18n'
 import type { useBookQuery } from '@/app/book-query'
 import { BookCount } from '@/components/book-page'
 import { GROUP_ICON } from '@/components/notification-group'
@@ -40,6 +42,7 @@ const SKELETON_DELAYS = [0, 120, 240]
  *  pressed twice lets go. Without per-kind counts: the server has no facet for
  *  them, and a number read off the loaded page would lie. */
 export function NotificationNav({ book }: { book: Book }) {
+  const { lang, t } = useI18n()
   const { query } = book
   const item = (active: boolean) =>
     cn(
@@ -53,7 +56,7 @@ export function NotificationNav({ book }: { book: Book }) {
     <GlassCard
       variant="a"
       role="group"
-      aria-label="Lọc thông báo"
+      aria-label={t(message('Lọc thông báo', 'Filter notifications', '알림 필터'))}
       className="flex min-w-0 flex-[1_1_220px] flex-col gap-1 p-2 lg:max-w-[280px]"
     >
       <button
@@ -62,7 +65,7 @@ export function NotificationNav({ book }: { book: Book }) {
         className={item(!query.unread)}
         onClick={() => book.patch({ unread: undefined })}
       >
-        Tất cả
+        {t(message('Tất cả', 'All', '전체'))}
       </button>
       <button
         type="button"
@@ -70,10 +73,10 @@ export function NotificationNav({ book }: { book: Book }) {
         className={item(Boolean(query.unread))}
         onClick={() => book.patch({ unread: '1' })}
       >
-        Chưa đọc
+        {t(message('Chưa đọc', 'Unread', '읽지 않음'))}
       </button>
       <span className="text-muted-foreground px-3 pb-1 pt-3 text-[11.5px] font-medium">
-        Theo loại
+        {t(message('Theo loại', 'By type', '유형별'))}
       </span>
       {NotificationGroup.options.map((group) => (
         <button
@@ -84,7 +87,7 @@ export function NotificationNav({ book }: { book: Book }) {
           onClick={() => book.patch({ group: query.group === group ? undefined : group })}
         >
           <Icon icon={GROUP_ICON[group]} size={16} />
-          {NOTIFICATION_GROUP_LABEL[group]}
+          {notificationGroupLabel(group, lang)}
         </button>
       ))}
     </GlassCard>
@@ -102,22 +105,41 @@ export function NotificationToolbar({
   /** `null` hides the button: see the page for when a global mark would lie. */
   markAll: { disabled: boolean; onClick: () => void } | null
 }) {
+  const { t } = useI18n()
+  const searchMeta =
+    book.text.trim() !== '' && searchableText(book.text) === undefined
+      ? t(
+          message(
+            `Gõ ít nhất ${SEARCH_MIN_CHARS} ký tự`,
+            `Enter at least ${SEARCH_MIN_CHARS} characters`,
+            `최소 ${SEARCH_MIN_CHARS}자를 입력하세요`,
+          ),
+        )
+      : undefined
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
       <div className="flex min-w-0 flex-1 basis-[260px] flex-wrap items-center gap-3">
         <SearchField
-          placeholder="Tìm theo tên công ty, cơ hội hoặc lô gửi…"
+          placeholder={t(
+            message(
+              'Tìm công ty, cơ hội hoặc lô gửi…',
+              'Search companies, opportunities or mail runs…',
+              '회사, 영업 기회 또는 발송 목록 검색…',
+            ),
+          )}
           value={book.text}
-          meta={searchHint(book.text)}
+          meta={searchMeta}
           onChange={book.setText}
           className="pointer-coarse:h-12 min-w-[200px] flex-1 sm:max-w-[380px]"
         />
-        {total !== undefined && <BookCount total={total} noun="thông báo" />}
+        {total !== undefined && (
+          <BookCount total={total} noun={t(message('thông báo', 'notifications', '알림'))} />
+        )}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {book.dirty && (
           <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={book.clear}>
-            Bỏ hết bộ lọc
+            {t(message('Bỏ hết bộ lọc', 'Clear filters', '필터 지우기'))}
           </Button>
         )}
         {markAll && (
@@ -128,7 +150,7 @@ export function NotificationToolbar({
             disabled={markAll.disabled}
             onClick={markAll.onClick}
           >
-            Đánh dấu đã đọc hết
+            {t(message('Đánh dấu đã đọc hết', 'Mark all as read', '모두 읽음으로 표시'))}
           </Button>
         )}
       </div>
@@ -150,6 +172,7 @@ export function NotificationFeed({
   onPress: (rows: NotificationRow[], path: string | null) => void
   onClear: () => void
 }) {
+  const { t } = useI18n()
   const { data, isPending, isError, isPlaceholderData, hasNextPage, isFetchingNextPage } = list
   const { fetchNextPage, refetch } = list
   const sentinel = useRef<HTMLSpanElement>(null)
@@ -171,10 +194,19 @@ export function NotificationFeed({
     return () => watcher.disconnect()
   }, [canLoadMore, fetchNextPage])
 
-  const retry = { label: 'Thử lại', onClick: () => void refetch() }
+  const retry = {
+    label: t(message('Thử lại', 'Try again', '다시 시도')),
+    onClick: () => void refetch(),
+  }
   const failure = isApiError(list.error)
-    ? `Không tải được danh sách thông báo. ${userMessage(list.error)}`
-    : 'Không tải được danh sách thông báo.'
+    ? `${t(message('Không tải được thông báo.', 'Notifications could not be loaded.', '알림을 불러올 수 없습니다.'))} ${userMessage(list.error)}`
+    : t(
+        message(
+          'Không tải được thông báo.',
+          'Notifications could not be loaded.',
+          '알림을 불러올 수 없습니다.',
+        ),
+      )
 
   if (isPending || (isPlaceholderData && rows.length === 0)) {
     return (
@@ -200,15 +232,39 @@ export function NotificationFeed({
   }
 
   if (rows.length === 0) {
-    const clear = { label: 'Bỏ hết bộ lọc', onClick: onClear }
+    const clear = {
+      label: t(message('Bỏ hết bộ lọc', 'Clear filters', '필터 지우기')),
+      onClick: onClear,
+    }
     /* An inbox fills from other people's actions, so the one next step is to
        look again (`/approvals` reasons the same way). */
-    const [message, action] = narrowed
-      ? ['Không có thông báo nào khớp bộ lọc.', clear]
+    const [emptyMessage, action] = narrowed
+      ? [
+          t(
+            message(
+              'Không có thông báo nào khớp bộ lọc.',
+              'No notifications match these filters.',
+              '필터와 일치하는 알림이 없습니다.',
+            ),
+          ),
+          clear,
+        ]
       : unreadOnly
-        ? ['Bạn đã đọc hết thông báo.', clear]
-        : ['Chưa có thông báo nào.', { label: 'Tải lại', onClick: retry.onClick }]
-    return <EmptyState icon={Bell} message={message} action={action} className="py-12" />
+        ? [
+            t(
+              message(
+                'Bạn đã đọc hết thông báo.',
+                'You have read all notifications.',
+                '모든 알림을 읽었습니다.',
+              ),
+            ),
+            clear,
+          ]
+        : [
+            t(message('Chưa có thông báo nào.', 'No notifications yet.', '아직 알림이 없습니다.')),
+            { label: t(message('Tải lại', 'Refresh', '새로고침')), onClick: retry.onClick },
+          ]
+    return <EmptyState icon={Bell} message={emptyMessage} action={action} className="py-12" />
   }
 
   return (
@@ -235,7 +291,7 @@ export function NotificationFeed({
           disabled={isFetchingNextPage || isPlaceholderData}
           onClick={() => void fetchNextPage()}
         >
-          Xem thêm
+          {t(message('Xem thêm', 'Show more', '더 보기'))}
         </Button>
       ) : null}
     </div>

@@ -15,11 +15,12 @@ import {
 import type { ConfigEntry, StateAddress, StepTemplate, StepTemplatePatch } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import { BADGE_INK } from '@/data/opportunities'
 import { useProposeFrame } from '@/data/step-frame'
 import { byOrd, isDays } from './sales-config-model'
-import { SENT } from './sales-config-section'
+import { sentCopy } from './sales-config-copy'
 
 /** Rows of the journey frame's template list (`sales-config-frame.tsx`).
  *
@@ -59,13 +60,14 @@ export function TemplateRow({
   ids: string[]
   at: number
 }) {
+  const { t } = useI18n()
   const canPropose = useCan('config.propose')
   const propose = useProposeFrame()
   const [editing, setEditing] = useState(false)
   const sent = {
     onSuccess: () => {
       setEditing(false)
-      toastDone(SENT)
+      toastDone(sentCopy())
     },
   }
   const move = (to: number) => {
@@ -92,20 +94,36 @@ export function TemplateRow({
           </span>
           <MetaPill>{kindName}</MetaPill>
           <span className="text-muted-foreground tnum font-num text-[11px]">
-            {template.dueDays === undefined ? 'Chưa đặt hạn' : `${template.dueDays} ngày`}
+            {template.dueDays === undefined
+              ? t(message('Chưa đặt hạn', 'No due date', '기한 없음'))
+              : t(
+                  message(
+                    `${template.dueDays} ngày`,
+                    `${template.dueDays} days`,
+                    `${template.dueDays}일`,
+                  ),
+                )}
           </span>
           <Badge
             tone={template.active ? 'success' : 'draft'}
             className={template.active ? undefined : BADGE_INK}
           >
-            {template.active ? 'Đang bật' : 'Đã tắt'}
+            {template.active
+              ? t(message('Đang bật', 'Active', '사용 중'))
+              : t(message('Đã tắt', 'Inactive', '사용 안 함'))}
           </Badge>
           {canPropose && (
             <div className="ml-auto flex flex-wrap items-center gap-1">
               <Button
                 size="sm"
                 variant="ghost"
-                aria-label={`Đưa “${template.name}” lên`}
+                aria-label={t(
+                  message(
+                    `Đưa “${template.name}” lên`,
+                    `Move “${template.name}” up`,
+                    `“${template.name}” 위로 이동`,
+                  ),
+                )}
                 className="pointer-coarse:h-12 pointer-coarse:w-12 w-8 px-0"
                 disabled={at === 0 || propose.isPending}
                 onClick={() => move(at - 1)}
@@ -115,7 +133,13 @@ export function TemplateRow({
               <Button
                 size="sm"
                 variant="ghost"
-                aria-label={`Đưa “${template.name}” xuống`}
+                aria-label={t(
+                  message(
+                    `Đưa “${template.name}” xuống`,
+                    `Move “${template.name}” down`,
+                    `“${template.name}” 아래로 이동`,
+                  ),
+                )}
                 className="pointer-coarse:h-12 pointer-coarse:w-12 w-8 px-0"
                 disabled={at === ids.length - 1 || propose.isPending}
                 onClick={() => move(at + 1)}
@@ -129,7 +153,7 @@ export function TemplateRow({
                 onClick={() => setEditing(true)}
               >
                 <Icon icon={Pencil} size={16} />
-                Sửa
+                {t(message('Sửa', 'Edit', '수정'))}
               </Button>
               <Button
                 size="sm"
@@ -143,7 +167,9 @@ export function TemplateRow({
                   )
                 }
               >
-                {template.active ? 'Tắt' : 'Bật'}
+                {template.active
+                  ? t(message('Tắt', 'Turn off', '끄기'))
+                  : t(message('Bật', 'Turn on', '켜기'))}
               </Button>
             </div>
           )}
@@ -173,6 +199,7 @@ function TemplateEdit({
   onSend: (patch: StepTemplatePatch) => void
   onCancel: () => void
 }) {
+  const { t } = useI18n()
   const stored = template.dueDays === undefined ? '' : String(template.dueDays)
   const [name, setName] = useState(template.name)
   const [kindId, setKindId] = useState(template.kindId)
@@ -189,12 +216,18 @@ function TemplateEdit({
     <div className="flex min-w-0 flex-wrap items-center gap-3">
       <Input
         value={name}
-        aria-label={`Tên mới cho ${template.name}`}
+        aria-label={t(
+          message(
+            `Tên mới cho ${template.name}`,
+            `New name for ${template.name}`,
+            `${template.name} 새 이름`,
+          ),
+        )}
         className="pointer-coarse:h-12 min-w-0 flex-1 basis-48"
         onChange={(e) => setName(e.target.value)}
       />
       <Select
-        label="Loại bước"
+        label={t(message('Loại bước', 'Step type', '단계 유형'))}
         hideLabel
         className={SELECT_TOUCH}
         value={kindId}
@@ -204,8 +237,14 @@ function TemplateEdit({
       />
       <Input
         value={days}
-        aria-label={`Hạn mặc định của ${template.name}, tính bằng ngày`}
-        placeholder="số ngày"
+        aria-label={t(
+          message(
+            `Hạn mặc định của ${template.name}, tính bằng ngày`,
+            `Default due time for ${template.name}, in days`,
+            `${template.name} 기본 기한(일)`,
+          ),
+        )}
+        placeholder={t(message('số ngày', 'days', '일수'))}
         inputMode="numeric"
         invalid={!daysOk(days)}
         className={DAYS_BOX}
@@ -217,10 +256,10 @@ function TemplateEdit({
         disabled={!ready}
         onClick={() => onSend(patch)}
       >
-        Gửi đề nghị
+        {t(message('Gửi đề nghị', 'Submit proposal', '변경 제안'))}
       </Button>
       <Button size="sm" variant="ghost" className="pointer-coarse:h-12" onClick={onCancel}>
-        Huỷ
+        {t(message('Huỷ', 'Cancel', '취소'))}
       </Button>
     </div>
   )
@@ -229,6 +268,7 @@ function TemplateEdit({
 /** A new template lands last in its state, switched on — the server makes
  *  `ord` and `active`. Hidden from a reader who could not send it. */
 export function AddTemplate({ address, kinds }: { address: StateAddress; kinds: ConfigEntry[] }) {
+  const { t } = useI18n()
   const canPropose = useCan('config.propose')
   const propose = useProposeFrame()
   const [name, setName] = useState('')
@@ -242,24 +282,36 @@ export function AddTemplate({ address, kinds }: { address: StateAddress; kinds: 
     <div className="flex min-w-0 flex-wrap items-center gap-3">
       <Input
         value={name}
-        aria-label="Tên bước mới"
-        placeholder="Thêm bước tiếp theo"
+        aria-label={t(message('Tên bước mới', 'New step name', '새 단계 이름'))}
+        placeholder={t(message('Thêm bước tiếp theo', 'Add a next step', '다음 단계 추가'))}
         className="pointer-coarse:h-12 min-w-0 flex-1 basis-48"
         onChange={(e) => setName(e.target.value)}
       />
       <Select
-        label="Loại bước"
+        label={t(message('Loại bước', 'Step type', '단계 유형'))}
         hideLabel
         className={SELECT_TOUCH}
         value={kindId}
         neutralValue={NO_KIND}
-        options={[{ value: NO_KIND, label: 'Chọn loại bước' }, ...kindOptions(kinds)]}
+        options={[
+          {
+            value: NO_KIND,
+            label: t(message('Chọn loại bước', 'Choose a step type', '단계 유형 선택')),
+          },
+          ...kindOptions(kinds),
+        ]}
         onChange={setKindId}
       />
       <Input
         value={days}
-        aria-label="Hạn mặc định của bước mới, tính bằng ngày"
-        placeholder="số ngày"
+        aria-label={t(
+          message(
+            'Hạn mặc định của bước mới, tính bằng ngày',
+            'Default due time for the new step, in days',
+            '새 단계 기본 기한(일)',
+          ),
+        )}
+        placeholder={t(message('số ngày', 'days', '일수'))}
         inputMode="numeric"
         invalid={!daysOk(days)}
         className={DAYS_BOX}
@@ -285,14 +337,14 @@ export function AddTemplate({ address, kinds }: { address: StateAddress; kinds: 
                 setName('')
                 setKindId(NO_KIND)
                 setDays('')
-                toastDone(SENT)
+                toastDone(sentCopy())
               },
             },
           )
         }
       >
         <Icon icon={Plus} size={16} />
-        Gửi đề nghị
+        {t(message('Gửi đề nghị', 'Submit proposal', '변경 제안'))}
       </Button>
       {propose.error && (
         <p role="alert" className="text-destructive-foreground m-0 w-full text-[11.5px]">

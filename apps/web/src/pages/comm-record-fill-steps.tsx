@@ -1,5 +1,6 @@
 import { useId, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import type { UseQueryResult } from '@tanstack/react-query'
+import { message, useI18n } from '@/app/i18n'
 import { Input, Separator, Textarea } from '@pv/ui'
 import {
   DEBRIEF_SUMMARY_MAX,
@@ -12,14 +13,12 @@ import { CommFileDrop, CommFileList } from '@/components/comm-files'
 import { CommNextStepFields, STEP_LABEL } from '@/components/comm-next-step-fields'
 import { CommStepCard } from '@/components/comm-record-frame'
 import { TemperaturePick } from '@/components/temperature-pick'
-import { COMM_NOUN, subjectKindLabel, type StepDraft } from '@/data/comm-record-detail'
+import { commNoun, subjectKindLabel, type StepDraft } from '@/data/comm-record-detail'
 import type { CloseStep } from '@/data/customer-close'
 
 /** The three cards of the owner's form on `/comms/:id`, one shown at a time
  *  by `CommFormSteps` — first fill and later edit alike. Each card only draws
  *  and reports; the form's state lives in `useCommForm`. */
-
-const COUNT = new Intl.NumberFormat('vi-VN')
 
 export function ContentStep({
   record,
@@ -43,6 +42,7 @@ export function ContentStep({
   /** Under the note box: the AI report on a first fill (ADR 0132). */
   aid?: ReactNode
 }) {
+  const { t, number } = useI18n()
   const titleId = useId()
   const summaryId = useId()
   return (
@@ -50,13 +50,19 @@ export function ContentStep({
       {title !== null && (
         <div className="flex min-w-0 flex-col gap-2">
           <label htmlFor={titleId} className={STEP_LABEL}>
-            Tiêu đề
+            {t(message('Tiêu đề', 'Title', '제목'))}
           </label>
           <Input
             id={titleId}
             value={title}
             maxLength={DEBRIEF_TITLE_MAX}
-            placeholder="Ví dụ: Chốt lịch khảo sát nhà xưởng"
+            placeholder={t(
+              message(
+                'Ví dụ: Chốt lịch khảo sát nhà xưởng',
+                'For example: Schedule a factory visit',
+                '예: 공장 방문 일정 확정',
+              ),
+            )}
             className="h-12 text-[14px]"
             onChange={(e) => onTitle(e.target.value)}
           />
@@ -64,7 +70,13 @@ export function ContentStep({
       )}
       <div className="flex min-w-0 flex-col gap-2">
         <label htmlFor={summaryId} className={STEP_LABEL}>
-          Ghi chú {COMM_NOUN[record.channel]}
+          {t(
+            message(
+              `Ghi chú ${commNoun(record.channel, 'vi')}`,
+              `${commNoun(record.channel, 'en')} notes`,
+              `${commNoun(record.channel, 'ko')} 메모`,
+            ),
+          )}
         </label>
         <Textarea
           id={summaryId}
@@ -72,19 +84,26 @@ export function ContentStep({
           autoGrow
           value={summary}
           maxLength={DEBRIEF_SUMMARY_MAX}
-          placeholder="Khách nói gì, hai bên đã thống nhất gì"
+          placeholder={t(
+            message(
+              'Khách nói gì, hai bên đã thống nhất gì',
+              'What the customer said and what you agreed on',
+              '고객의 의견과 양측이 합의한 내용을 적어 주세요',
+            ),
+          )}
           className="min-h-40 text-[14px]"
           onChange={(e) => onSummary(e.target.value)}
         />
         <span className="text-muted-foreground tnum self-end text-[12px]">
-          {COUNT.format(summary.length)} / {COUNT.format(DEBRIEF_SUMMARY_MAX)} ký tự
+          {number(summary.length)} / {number(DEBRIEF_SUMMARY_MAX)}{' '}
+          {t(message('ký tự', 'characters', '자'))}
         </span>
       </div>
       {aid}
       <Separator />
       <div className="flex min-w-0 flex-col gap-3">
         <span className={STEP_LABEL}>
-          Ghi âm và tệp đính kèm{' '}
+          {t(message('Ghi âm và tệp đính kèm', 'Recording and attachments', '녹음 및 첨부 파일'))}{' '}
           <span className="text-muted-foreground font-normal">· {fileNote}</span>
         </span>
         <CommFileDrop id={record.id} />

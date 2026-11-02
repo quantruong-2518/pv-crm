@@ -5,7 +5,7 @@ import { useState } from 'react'
 export function Thumbnail({ url }: { url?: string | undefined }) {
   const [broken, setBroken] = useState(false)
   return (
-    <span className="bg-surface-ink/5 block aspect-video w-14 shrink-0 overflow-hidden rounded-sm">
+    <span className="bg-surface-ink/5 block aspect-video w-32 shrink-0 overflow-hidden rounded-sm">
       {url && !broken && (
         <img
           src={url}

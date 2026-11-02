@@ -1,13 +1,13 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
+  Badge,
   Ban,
   Button,
   Drawer,
   GlassCard,
   Icon,
   Input,
-  Pencil,
   SectionTitle,
   Select,
   Textarea,
@@ -279,27 +279,67 @@ function RefundField({
   )
 }
 
-/** The penalty as the card prints it: what it is, then where the money stands. */
-function penaltyRows(
-  penalty: ContractPenalty | null | undefined,
-  money: (n: number) => string,
-): { term: string; value: ReactNode; num?: true }[] {
-  if (!penalty) return [{ term: 'Tiền phạt', value: 'Không có' }]
-  const word = PENALTY_STATE_WORD[penalty.direction]
-  const settled = penalty.settledOn ? `${word.done} ngày ${dmy(penalty.settledOn)}` : word.wait
-  return [
-    {
-      term: 'Tiền phạt',
-      value: `${CONTRACT_PENALTY_DIRECTION_LABEL[penalty.direction]} · ${money(penalty.amount)}`,
-      num: true,
-    },
-    { term: 'Tình trạng', value: settled },
-  ]
+const FIGURE = 'tnum font-num text-[20px] font-semibold leading-none tracking-[-.5px]'
+
+function Figure({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <span className="text-muted-foreground text-[12px]">{label}</span>
+      <span className={cn(FIGURE, !strong && 'text-muted-foreground')}>{value}</span>
+    </div>
+  )
+}
+
+/** The operators are decoration once the cells stack on a phone. */
+function Operator({ sign }: { sign: string }) {
+  return (
+    <span aria-hidden className={cn(FIGURE, 'text-muted-foreground hidden self-end sm:block')}>
+      {sign}
+    </span>
+  )
+}
+
+/** Its own tinted block so the penalty never reads as part of the kept sum. */
+function PenaltyBlock({
+  penalty,
+  money,
+  onEdit,
+}: {
+  penalty: ContractPenalty | null | undefined
+  money: (n: number) => string
+  onEdit?: () => void
+}) {
+  if (!penalty && !onEdit) return null
+  const word = penalty && PENALTY_STATE_WORD[penalty.direction]
+  return (
+    <div className="bg-surface-ink/5 flex flex-wrap items-center gap-4 rounded-md p-4">
+      {penalty && word ? (
+        <>
+          <Figure
+            label={CONTRACT_PENALTY_DIRECTION_LABEL[penalty.direction]}
+            value={money(penalty.amount)}
+            strong
+          />
+          <Badge tone={penalty.settledOn ? 'success' : 'warning'}>
+            {penalty.settledOn ? `${word.done} ngày ${dmy(penalty.settledOn)}` : word.wait}
+          </Badge>
+        </>
+      ) : (
+        <span className="text-muted-foreground text-[12.5px]">Không có tiền phạt</span>
+      )}
+      {onEdit && (
+        <Button variant="ghost" size="sm" className="pointer-coarse:h-12 ml-auto" onClick={onEdit}>
+          {penalty ? 'Sửa' : 'Ghi tiền phạt'}
+        </Button>
+      )}
+    </div>
+  )
 }
 
 /** What an ended contract remembers, at the top of its page. Kept money is
  *  derived here, never stored: collected minus refunded. The penalty sits
- *  beside it, never inside it (ADR 0124). */
+ *  beside it, never inside it (ADR 0124). The page badge already says the
+ *  contract ended, so the card leads with why. */
 export function TerminationCard({
   contract,
   termination: t,
@@ -309,16 +349,6 @@ export function TerminationCard({
 }) {
   const [editing, setEditing] = useState(false)
   const money = moneyIn(contract.currency)
-  const rows: { term: string; value: ReactNode; num?: true }[] = [
-    { term: 'Ngày chấm dứt', value: dmy(t.terminatedAt) },
-    { term: 'Người chấm dứt', value: t.byName },
-    { term: 'Lý do', value: t.reasonLabel },
-    { term: 'Ghi chú', value: t.note ?? 'Không có ghi chú' },
-    { term: 'Đã thu', value: money(t.collectedAmount), num: true },
-    { term: 'Đã hoàn cho khách', value: money(t.refundedAmount), num: true },
-    { term: 'Giữ lại', value: money(t.collectedAmount - t.refundedAmount), num: true },
-    ...penaltyRows(t.penalty, money),
-  ]
 
   return (
     <GlassCard
@@ -326,39 +356,37 @@ export function TerminationCard({
       className="flex flex-col gap-4 p-4 sm:p-5"
       aria-label={`Hợp đồng ${OPPORTUNITY_STATE_LABEL.terminated.toLowerCase()}`}
     >
-      <SectionTitle size="detail">
-        Hợp đồng {OPPORTUNITY_STATE_LABEL.terminated.toLowerCase()}
-      </SectionTitle>
-      <dl className="grid gap-x-6 gap-y-3 text-[12.5px] leading-[1.6] sm:grid-cols-[auto_1fr]">
-        {rows.map((row) => (
-          <div key={row.term} className="contents">
-            <dt className="text-muted-foreground">{row.term}</dt>
-            <dd
-              className={cn('text-foreground tnum m-0 min-w-0 break-words', row.num && 'font-num')}
-            >
-              {row.value}
-            </dd>
-          </div>
-        ))}
-      </dl>
+      <div className="flex flex-col gap-1">
+        <SectionTitle size="detail">{t.reasonLabel}</SectionTitle>
+        <span className="text-muted-foreground text-[12px]">
+          {t.byName} chấm dứt ngày {dmy(t.terminatedAt)}
+        </span>
+      </div>
+      {t.note && (
+        <p className="bg-surface-ink/5 m-0 whitespace-pre-line break-words rounded-md px-4 py-3 text-[12.5px] leading-[1.6]">
+          {t.note}
+        </p>
+      )}
+      <div className="grid gap-4 sm:grid-cols-[1fr_auto_1fr_auto_1fr] sm:gap-6">
+        <Figure label="Đã thu" value={money(t.collectedAmount)} />
+        <Operator sign="−" />
+        <Figure label="Hoàn cho khách" value={money(t.refundedAmount)} />
+        <Operator sign="=" />
+        <Figure label="Giữ lại" value={money(t.collectedAmount - t.refundedAmount)} strong />
+      </div>
+      <PenaltyBlock
+        penalty={t.penalty}
+        money={money}
+        onEdit={contract.canEditPenalty ? () => setEditing(true) : undefined}
+      />
       {contract.canEditPenalty && (
-        <>
-          <Button
-            variant="secondary"
-            className="pointer-coarse:h-12 self-start"
-            onClick={() => setEditing(true)}
-          >
-            <Icon icon={Pencil} size={16} />
-            {t.penalty ? 'Sửa tiền phạt' : 'Ghi tiền phạt'}
-          </Button>
-          {/* Keyed on the saved penalty: a colleague's change re-seeds the draft instead of being overwritten. */}
-          <PenaltyDrawer
-            key={JSON.stringify(t.penalty ?? null)}
-            contract={contract}
-            open={editing}
-            onClose={() => setEditing(false)}
-          />
-        </>
+        // Keyed on the saved penalty: a colleague's change re-seeds the draft instead of being overwritten.
+        <PenaltyDrawer
+          key={JSON.stringify(t.penalty ?? null)}
+          contract={contract}
+          open={editing}
+          onClose={() => setEditing(false)}
+        />
       )}
     </GlassCard>
   )

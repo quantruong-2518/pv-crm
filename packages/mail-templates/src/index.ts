@@ -6,6 +6,7 @@ import { MasShellEmail, type MasShellData } from './mas-shell'
 import { OpportunityLostEmail, type OpportunityLostData } from './opportunity-lost'
 import { OpportunityOpenedEmail, type OpportunityOpenedData } from './opportunity-opened'
 import { PasswordResetEmail, type PasswordResetData } from './password-reset'
+import { mailText } from './mail-locale'
 
 export type { LeadIntakeInternalData, LeadIntakeInternalUtm } from './lead-intake-internal'
 export type { MasShellData } from './mas-shell'
@@ -112,10 +113,21 @@ export async function renderOpportunityLost(
 export async function renderPasswordReset(
   data: PasswordResetData,
 ): Promise<{ subject: string; html: string; text: string }> {
+  const lang = data.lang ?? 'vi'
   const subject = sanitizeSubjectPart(
     data.purpose === 'invite'
-      ? `Tài khoản ${BRAND.product} của bạn đã được tạo`
-      : `Đặt lại mật khẩu ${BRAND.product}`,
+      ? mailText(
+          lang,
+          `Tài khoản ${BRAND.product} của bạn đã được tạo`,
+          `Your ${BRAND.product} account is ready`,
+          `${BRAND.product} 계정이 준비되었습니다`,
+        )
+      : mailText(
+          lang,
+          `Đặt lại mật khẩu ${BRAND.product}`,
+          `Reset your ${BRAND.product} password`,
+          `${BRAND.product} 비밀번호 재설정`,
+        ),
   )
   const element = createElement(PasswordResetEmail, data)
   const [html, text] = await Promise.all([render(element), render(element, { plainText: true })])

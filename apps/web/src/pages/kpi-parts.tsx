@@ -13,16 +13,9 @@ import {
   cn,
   type BadgeProps,
 } from '@pv/ui'
-import {
-  KPI_LAYER_LABEL,
-  KPI_METRIC_LABEL,
-  KPI_VERDICT_LABEL,
-  type KpiReading,
-  type KpiUnit,
-  type KpiVerdict,
-  type RoleId,
-} from '@pv/contracts'
+import { type KpiReading, type KpiUnit, type KpiVerdict, type RoleId } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 import type { BlockQuery, KpiCatalog } from '@/data/kpi-catalog'
 import { keyOf, periodLabel, type PeriodPick } from './home-model'
 import { ACK_LABEL } from './kpi-allocate-model'
@@ -42,6 +35,7 @@ import {
   type AdjustmentForm,
   type KpiItem,
 } from './kpi-model'
+import { kpiLayerText, kpiMetricText } from '@/data/kpi-i18n'
 
 /** Blocks both KPI screens share: the month picker, one reading as a tile, a
  *  role's readings as a board (personal) or an even strip (company), and the
@@ -61,15 +55,20 @@ export function MonthPicker({
   pick: PeriodPick
   onPick: (p: PeriodPick) => void
 }) {
+  const { t } = useI18n()
   const earlier = stepMonth(pick, -1)
   const later = stepMonth(pick, 1)
   return (
-    <div role="group" aria-label="Chọn tháng" className="flex items-center gap-1">
+    <div
+      role="group"
+      aria-label={t(message('Chọn tháng', 'Choose month', '월 선택'))}
+      className="flex items-center gap-1"
+    >
       <Button
         variant="ghost"
         size="sm"
         className={STEP}
-        aria-label="Tháng trước"
+        aria-label={t(message('Tháng trước', 'Previous month', '이전 달'))}
         disabled={earlier === null}
         onClick={() => earlier && onPick(earlier)}
       >
@@ -82,7 +81,7 @@ export function MonthPicker({
         variant="ghost"
         size="sm"
         className={STEP}
-        aria-label="Tháng sau"
+        aria-label={t(message('Tháng sau', 'Next month', '다음 달'))}
         disabled={later === null}
         onClick={() => later && onPick(later)}
       >
@@ -102,7 +101,20 @@ const VERDICT_TONE: Record<KpiVerdict, NonNullable<BadgeProps['tone']>> = {
 }
 
 export function VerdictBadge({ verdict }: { verdict: KpiVerdict }) {
-  return <Badge tone={VERDICT_TONE[verdict]}>{KPI_VERDICT_LABEL[verdict]}</Badge>
+  const { t } = useI18n()
+  const label =
+    verdict === 'no-data'
+      ? t(message('Chưa có dữ liệu', 'No data', '데이터 없음'))
+      : verdict === 'unset'
+        ? t(message('Chưa đặt', 'Not set', '미설정'))
+        : verdict === 'met'
+          ? t(message('Đạt', 'Met', '달성'))
+          : verdict === 'on-track'
+            ? t(message('Đúng tiến độ', 'On track', '진행 중'))
+            : verdict === 'behind'
+              ? t(message('Chậm tiến độ', 'Behind', '지연'))
+              : t(message('Không đạt', 'Missed', '미달'))
+  return <Badge tone={VERDICT_TONE[verdict]}>{label}</Badge>
 }
 
 /** The figure as a share of its target, with a tick where pace asks it to be.
@@ -129,11 +141,13 @@ function PaceBar({ item }: { item: KpiItem }) {
 
 /** Target and, while pace applies, what it asks for by today. A
  *  lower-is-better target is a ceiling, so it is not called a target. */
-function targetLine({ def, reading }: KpiItem): string | null {
+function targetLine({ def, reading }: KpiItem, lang: 'vi' | 'en' | 'ko'): string | null {
   if (reading.target === null) return null
-  const target = `${def.higherIsBetter ? 'Chỉ tiêu' : 'Tối đa'} ${printValue(def.unit, reading.target, true)}`
+  const target = `${lang === 'vi' ? (def.higherIsBetter ? 'Chỉ tiêu' : 'Tối đa') : lang === 'en' ? (def.higherIsBetter ? 'Target' : 'Maximum') : def.higherIsBetter ? '목표' : '최대'} ${printValue(def.unit, reading.target, true)}`
   const paced = def.paced && reading.expected !== null && reading.expected < reading.target
-  return paced ? `${target} · cần đạt đến hôm nay ${printTile(def.unit, reading.expected)}` : target
+  return paced
+    ? `${target} · ${lang === 'vi' ? 'cần đạt đến hôm nay' : lang === 'en' ? 'needed by today' : '오늘까지 필요한 값'} ${printTile(def.unit, reading.expected)}`
+    : target
 }
 
 /** Beside a target nobody confirmed: the holder let the deadline pass, so the
@@ -187,16 +201,17 @@ export function ReadingTile({
   hero?: boolean
   className?: string
 }) {
+  const { t, lang } = useI18n()
   const { def, reading } = item
-  const target = targetLine(item)
+  const target = targetLine(item, lang)
   const shortfall = shortfallOf(item, true)
 
   return (
     <GlassCard className={cn(TILE, className)}>
       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
         <div className="flex min-w-0 flex-col gap-1">
-          <span className={NOTE}>{KPI_LAYER_LABEL[def.layer]}</span>
-          <h3 className="text-[13px] font-semibold leading-5">{KPI_METRIC_LABEL[def.key]}</h3>
+          <span className={NOTE}>{kpiLayerText(def.layer, lang)}</span>
+          <h3 className="text-[13px] font-semibold leading-5">{kpiMetricText(def.key, lang)}</h3>
         </div>
         <VerdictBadge verdict={reading.verdict} />
       </div>
@@ -219,7 +234,13 @@ export function ReadingTile({
         <PaceBar item={item} />
         {(target || def.snapshot) && (
           <span className={cn(NOTE, 'tnum font-num')}>
-            {[target, def.snapshot && 'Số tại thời điểm hiện tại'].filter(Boolean).join(' · ')}
+            {[
+              target,
+              def.snapshot &&
+                t(message('Số tại thời điểm hiện tại', 'Current snapshot', '현재 기준값')),
+            ]
+              .filter(Boolean)
+              .join(' · ')}
             {target && <ByDefaultMark reading={reading} className="ml-2 align-middle" />}
           </span>
         )}
@@ -262,14 +283,26 @@ export function Scoreboard({
 
 /** What the strip prints under the bar: the tick's meaning, a ceiling, and
  *  whether the figure is a snapshot. The target itself sits beside the value. */
-function stripNote({ def, reading }: KpiItem): string | null {
+function stripNote({ def, reading }: KpiItem, lang: 'vi' | 'en' | 'ko'): string | null {
   const { target, expected } = reading
   const paced = def.paced && target !== null && expected !== null && expected < target
   return (
     [
-      paced && `Cần đạt đến hôm nay ${printTile(def.unit, expected)}`,
-      !def.higherIsBetter && target !== null && `Tối đa ${printValue(def.unit, target, true)}`,
-      def.snapshot && 'Số tại thời điểm hiện tại',
+      paced &&
+        (lang === 'vi'
+          ? `Cần đạt đến hôm nay ${printTile(def.unit, expected)}`
+          : lang === 'en'
+            ? `Needed by today ${printTile(def.unit, expected)}`
+            : `오늘까지 필요한 값 ${printTile(def.unit, expected)}`),
+      !def.higherIsBetter &&
+        target !== null &&
+        `${lang === 'vi' ? 'Tối đa' : lang === 'en' ? 'Maximum' : '최대'} ${printValue(def.unit, target, true)}`,
+      def.snapshot &&
+        (lang === 'vi'
+          ? 'Số tại thời điểm hiện tại'
+          : lang === 'en'
+            ? 'Current snapshot'
+            : '현재 기준값'),
     ]
       .filter(Boolean)
       .join(' · ') || null
@@ -279,13 +312,16 @@ function stripNote({ def, reading }: KpiItem): string | null {
 /** One reading in the company strip: every tile the same size, no hero, so
  *  the room's figures are compared across rather than ranked. */
 function StripTile({ item }: { item: KpiItem }) {
+  const { lang } = useI18n()
   const { def, reading } = item
-  const note = stripNote(item)
+  const note = stripNote(item, lang)
   const empty = reading.value === null
   return (
     <GlassCard className={TILE}>
       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-        <h3 className="min-w-0 text-[13px] font-semibold leading-5">{KPI_METRIC_LABEL[def.key]}</h3>
+        <h3 className="min-w-0 text-[13px] font-semibold leading-5">
+          {kpiMetricText(def.key, lang)}
+        </h3>
         <VerdictBadge verdict={reading.verdict} />
       </div>
       <p className="mt-auto flex flex-wrap items-baseline gap-x-2">

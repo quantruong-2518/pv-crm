@@ -15,6 +15,7 @@ import {
 } from '@pv/ui'
 import type { WorkstreamBookQuery } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
+import { message, useI18n } from '@/app/i18n'
 import { isApiError, userMessage } from '@/app/api'
 import { SEARCH_DELAY_MS } from '@/app/book-query'
 import {
@@ -119,7 +120,10 @@ function DropFilter({
 }
 
 export function WorkstreamsBoard() {
-  const chrome = useAppChrome({ searchPlaceholder: WORKSTREAM_SEARCH_HINT })
+  const { t } = useI18n()
+  const chrome = useAppChrome({
+    searchPlaceholder: t(message(WORKSTREAM_SEARCH_HINT, 'Search workstreams…', '영업 건 검색…')),
+  })
   const [params, setParams] = useSearchParams()
   const base = useMemo(() => parseWorkstreamBookQuery(params), [params])
   const step = parseBoardStep(params)
@@ -142,21 +146,43 @@ export function WorkstreamsBoard() {
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <ScreenHeader
-          title={<span className="uppercase">Sổ hành trình</span>}
+          title={
+            <span className="uppercase">
+              {t(message('Sổ hành trình', 'Workstreams', '영업 건'))}
+            </span>
+          }
           actions={
             <div className="flex min-w-0 flex-wrap items-center gap-3">
               <BookSearch
                 value={text}
                 onChange={setText}
-                placeholder={WORKSTREAM_SEARCH_HINT}
+                placeholder={t(
+                  message(WORKSTREAM_SEARCH_HINT, 'Search workstreams…', '영업 건 검색…'),
+                )}
                 className="flex-1"
               />
               {/* A filter carried over from the table view must be visible here,
                   or the board is narrowed by something nobody can take off. */}
               {base.status !== DEFAULT_WORKSTREAM_BOOK_QUERY.status && (
                 <DropFilter
-                  label={WORKSTREAM_STATUS_LABEL[base.status]}
-                  aria={`Bỏ lọc trạng thái ${WORKSTREAM_STATUS_LABEL[base.status]}`}
+                  label={t(
+                    message(
+                      WORKSTREAM_STATUS_LABEL[base.status],
+                      ({ open: 'Open', closed: 'Closed', all: 'All' } as Record<string, string>)[
+                        base.status
+                      ] ?? WORKSTREAM_STATUS_LABEL[base.status],
+                      ({ open: '진행 중', closed: '종료', all: '전체' } as Record<string, string>)[
+                        base.status
+                      ] ?? WORKSTREAM_STATUS_LABEL[base.status],
+                    ),
+                  )}
+                  aria={t(
+                    message(
+                      `Bỏ lọc trạng thái ${WORKSTREAM_STATUS_LABEL[base.status]}`,
+                      `Remove ${WORKSTREAM_STATUS_LABEL[base.status]} status filter`,
+                      `${WORKSTREAM_STATUS_LABEL[base.status]} 상태 필터 지우기`,
+                    ),
+                  )}
                   onDrop={() => drop('status')}
                 />
               )}
@@ -164,14 +190,26 @@ export function WorkstreamsBoard() {
                 <DropFilter
                   label={base.accountCode}
                   mono
-                  aria={`Bỏ lọc theo công ty ${base.accountCode}`}
+                  aria={t(
+                    message(
+                      `Bỏ lọc theo công ty ${base.accountCode}`,
+                      `Remove account ${base.accountCode} filter`,
+                      `고객사 ${base.accountCode} 필터 지우기`,
+                    ),
+                  )}
                   onDrop={() => drop('accountCode')}
                 />
               )}
               {base.owner !== undefined && (
                 <DropFilter
-                  label={`Người phụ trách: ${csvOf(base.owner).map(ownerName).join(', ')}`}
-                  aria="Bỏ lọc theo người phụ trách"
+                  label={`${t(message('Người phụ trách', 'Owner', '담당자'))}: ${csvOf(base.owner).map(ownerName).join(', ')}`}
+                  aria={t(
+                    message(
+                      'Bỏ lọc theo người phụ trách',
+                      'Remove owner filter',
+                      '담당자 필터 지우기',
+                    ),
+                  )}
                   onDrop={() => drop('owner')}
                 />
               )}
@@ -200,10 +238,15 @@ export function WorkstreamsBoard() {
             <EmptyState
               tone="danger"
               icon={TriangleAlert}
-              message={`Không lấy được các cột của sổ hành trình. ${
-                isApiError(error) ? userMessage(error) : 'Thử lại.'
+              message={`${t(message('Không lấy được các cột của sổ hành trình.', 'Could not load workstream columns.', '영업 건 열을 불러오지 못했습니다.'))} ${
+                isApiError(error)
+                  ? userMessage(error)
+                  : t(message('Thử lại.', 'Try again.', '다시 시도하세요.'))
               }`}
-              action={{ label: 'Thử lại', onClick: () => void refetch() }}
+              action={{
+                label: t(message('Thử lại', 'Try again', '다시 시도')),
+                onClick: () => void refetch(),
+              }}
               className="py-12"
             />
           </GlassCard>

@@ -27,9 +27,14 @@ export type ActionBannerItem = {
 export type ActionBannerProps = {
   item: ActionBannerItem
   onDismiss: (id: string) => void
+  closeLabel?: string
 }
 
-export function ActionBanner({ item, onDismiss }: ActionBannerProps) {
+export function ActionBanner({
+  item,
+  onDismiss,
+  closeLabel = 'Đóng nhắc việc',
+}: ActionBannerProps) {
   const [leaving, setLeaving] = useState(false)
   const dismiss = useRef(onDismiss)
   dismiss.current = onDismiss
@@ -71,7 +76,7 @@ export function ActionBanner({ item, onDismiss }: ActionBannerProps) {
       <button
         type="button"
         onClick={close}
-        aria-label="Đóng nhắc việc"
+        aria-label={closeLabel}
         className="motion-std text-muted-foreground hover:text-foreground hover:bg-surface-ink/9 pointer-coarse:size-12 -mr-1 flex shrink-0 items-center justify-center rounded-md p-1"
       >
         <Icon icon={X} size={16} />
@@ -84,9 +89,15 @@ export type ActionBannerHostProps = {
   items: ActionBannerItem[]
   onDismiss: (id: string) => void
   className?: string
+  closeLabel?: string
 }
 
-export function ActionBannerHost({ items, onDismiss, className }: ActionBannerHostProps) {
+export function ActionBannerHost({
+  items,
+  onDismiss,
+  className,
+  closeLabel,
+}: ActionBannerHostProps) {
   if (items.length === 0) return null
 
   return (
@@ -102,7 +113,7 @@ export function ActionBannerHost({ items, onDismiss, className }: ActionBannerHo
       )}
     >
       {items.map((item) => (
-        <ActionBanner key={item.id} item={item} onDismiss={onDismiss} />
+        <ActionBanner key={item.id} item={item} onDismiss={onDismiss} closeLabel={closeLabel} />
       ))}
     </div>
   )

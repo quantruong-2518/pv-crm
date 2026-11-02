@@ -10,6 +10,7 @@ import {
   type WorkstreamRow,
 } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
+import { message, useI18n } from '@/app/i18n'
 import { isApiError, userMessage } from '@/app/api'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { keyOf } from '@/data/period-pick'
@@ -74,9 +75,17 @@ const FILTER_KEYS = [
 
 /* Built from the shared label table, not typed out again: the board names the
    same three statuses on its filter chip. */
-const STATUS_OPTIONS: { value: WorkstreamStatus; label: string }[] = WorkstreamStatus.options.map(
-  (value) => ({ value, label: WORKSTREAM_STATUS_LABEL[value] }),
-)
+const STATUS_OPTIONS: { value: WorkstreamStatus; label: ReturnType<typeof message> }[] =
+  WorkstreamStatus.options.map((value) => ({
+    value,
+    label: message(
+      WORKSTREAM_STATUS_LABEL[value],
+      ({ open: 'Open', closed: 'Closed', all: 'All' } as Record<string, string>)[value] ??
+        WORKSTREAM_STATUS_LABEL[value],
+      ({ open: '진행 중', closed: '종료', all: '전체' } as Record<string, string>)[value] ??
+        WORKSTREAM_STATUS_LABEL[value],
+    ),
+  }))
 
 function rowCells(row: WorkstreamRow, go: (path: string) => void, today: string) {
   return [
@@ -95,8 +104,76 @@ export default function WorkstreamsPage() {
   return parseBoardView(params) === 'kanban' ? <WorkstreamsBoard /> : <WorkstreamsBook />
 }
 
+const TEXT = {
+  noWorkstreamsMatchTheseFilters: message(
+    'Không có hành trình nào khớp bộ lọc.',
+    'No workstreams match these filters.',
+    '필터와 일치하는 영업 건이 없습니다.',
+  ),
+  noWorkstreamsYet: message(
+    'Chưa có hành trình nào.',
+    'No workstreams yet.',
+    '아직 영업 건이 없습니다.',
+  ),
+}
+
+type Patch = (next: Partial<WorkstreamBookQuery>) => void
+
+function sortHandlerOf(query: WorkstreamBookQuery, patch: Patch) {
+  return (key: string) => {
+    const parsed = WorkstreamSortKey.safeParse(key)
+    if (!parsed.success) return
+    if (parsed.data === 'priority') {
+      if (query.sort !== 'priority') patch({ sort: 'priority', dir: 'desc' })
+      return
+    }
+    patch(
+      query.sort === parsed.data
+        ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
+        : { sort: parsed.data, dir: 'asc' },
+    )
+  }
+}
+
+/** What an empty page says: filters hide it, scope hides it, or there is truly nothing. */
+function emptyOf(
+  {
+    dirty,
+    hidden,
+    onClear,
+    onSeeLeads,
+  }: { dirty: boolean; hidden: number; onClear: () => void; onSeeLeads: () => void },
+  t: (copy: ReturnType<typeof message>) => string,
+) {
+  return {
+    message: dirty
+      ? t(TEXT.noWorkstreamsMatchTheseFilters)
+      : hidden > 0
+        ? t(
+            message(
+              `${hidden} hành trình nằm ngoài phạm vi của bạn.`,
+              `${hidden} workstreams are outside your scope.`,
+              `${hidden}개의 영업 건이 권한 범위 밖에 있습니다.`,
+            ),
+          )
+        : t(TEXT.noWorkstreamsYet),
+    action: dirty
+      ? {
+          label: t(message('Bỏ hết bộ lọc', 'Clear all filters', '필터 모두 지우기')),
+          onClick: onClear,
+        }
+      : {
+          label: t(message('Xem sổ lead', 'View leads', '리드 보기')),
+          onClick: onSeeLeads,
+        },
+  }
+}
+
 function WorkstreamsBook() {
-  const chrome = useAppChrome({ searchPlaceholder: WORKSTREAM_SEARCH_HINT })
+  const { t } = useI18n()
+  const chrome = useAppChrome({
+    searchPlaceholder: t(message(WORKSTREAM_SEARCH_HINT, 'Search workstreams…', '영업 건 검색…')),
+  })
   const navigate = useNavigate()
   /* Only the view switch reads the raw address: `useBookQuery` writes schema
      keys alone, and `view` / `step` are not among them. */
@@ -124,25 +201,13 @@ function WorkstreamsBook() {
     dir: query.sort === 'priority' ? 'desc' : query.dir,
   }
 
-  const onSort = (key: string) => {
-    const parsed = WorkstreamSortKey.safeParse(key)
-    if (!parsed.success) return
-    if (parsed.data === 'priority') {
-      if (query.sort !== 'priority') patch({ sort: 'priority', dir: 'desc' })
-      return
-    }
-    patch(
-      query.sort === parsed.data
-        ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
-        : { sort: parsed.data, dir: 'asc' },
-    )
-  }
+  const onSort = sortHandlerOf(query, patch)
 
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <BookPage
-          title="Sổ hành trình"
+          title={t(message('Sổ hành trình', 'Workstreams', '영업 건'))}
           description={
             inPeriod ? (
               <PeriodProgress data={inPeriod} />
@@ -161,18 +226,24 @@ function WorkstreamsBook() {
           }
           tabs={
             <SegmentedControl
-              label="Trạng thái"
+              label={t(message('Trạng thái', 'Status', '상태'))}
               hideLabel
               tone="quiet"
               value={query.overdue === true ? 'open' : query.status}
-              options={STATUS_OPTIONS}
+              options={STATUS_OPTIONS.map((option) => ({ ...option, label: t(option.label) }))}
               onChange={(v) => {
                 const parsed = WorkstreamStatus.safeParse(v)
                 if (parsed.success) patch({ status: parsed.data })
               }}
             />
           }
-          count={<BookCount total={total} noun="hành trình" hidden={hidden} />}
+          count={
+            <BookCount
+              total={total}
+              noun={t(message('hành trình', 'workstreams', '영업 건'))}
+              hidden={hidden}
+            />
+          }
           filters={filterChips(query, patch, ownerName)}
           onClearFilters={dirty ? clearAll : undefined}
           tools={
@@ -180,7 +251,9 @@ function WorkstreamsBook() {
               <BookSearch
                 value={text}
                 onChange={setText}
-                placeholder={WORKSTREAM_SEARCH_HINT}
+                placeholder={t(
+                  message(WORKSTREAM_SEARCH_HINT, 'Search workstreams…', '영업 건 검색…'),
+                )}
                 className="max-sm:basis-full"
               />
               <OverdueToggle query={query} patch={patch} count={score.data?.overdue} />
@@ -197,8 +270,10 @@ function WorkstreamsBook() {
           failure={
             error
               ? {
-                  message: `Không tải được danh sách hành trình. ${
-                    isApiError(error) ? userMessage(error) : 'Thử lại.'
+                  message: `${t(message('Không tải được danh sách hành trình.', 'Could not load workstreams.', '영업 건을 불러오지 못했습니다.'))} ${
+                    isApiError(error)
+                      ? userMessage(error)
+                      : t(message('Thử lại.', 'Try again.', '다시 시도하세요.'))
                   }`,
                   onRetry: () => void refetch(),
                 }
@@ -206,16 +281,10 @@ function WorkstreamsBook() {
           }
           empty={
             rows.length === 0
-              ? {
-                  message: dirty
-                    ? 'Không có hành trình nào khớp bộ lọc.'
-                    : hidden > 0
-                      ? `${hidden} hành trình nằm ngoài phạm vi của bạn.`
-                      : 'Chưa có hành trình nào.',
-                  action: dirty
-                    ? { label: 'Bỏ hết bộ lọc', onClick: clearAll }
-                    : { label: 'Xem sổ lead', onClick: () => navigate('/sales/leads') },
-                }
+              ? emptyOf(
+                  { dirty, hidden, onClear: clearAll, onSeeLeads: () => navigate('/sales/leads') },
+                  t,
+                )
               : undefined
           }
           table={{

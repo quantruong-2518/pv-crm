@@ -21,6 +21,7 @@ import {
   type TableSort,
 } from '@pv/ui'
 import { useAppChrome } from '@/app/chrome'
+import { message, useI18n } from '@/app/i18n'
 import {
   dayField,
   listField,
@@ -145,7 +146,12 @@ function filterSourceBook(rows: SourceRow[], f: SourceFilters): SourceRow[] {
 }
 
 export function SourcesPage() {
-  const chrome = useAppChrome({ searchPlaceholder: 'Tìm nguồn dẫn, đợt gửi…' })
+  const { t } = useI18n()
+  const chrome = useAppChrome({
+    searchPlaceholder: t(
+      message('Tìm nguồn dẫn, đợt gửi…', 'Search sources and waves…', '출처 및 웨이브 검색…'),
+    ),
+  })
   const navigate = useNavigate()
 
   const { data: sources = [], isPending, error, refetch } = useQuery(sourcesQuery)
@@ -207,7 +213,10 @@ export function SourcesPage() {
   }
 
   const ownerFilter = (
-    <ColumnFilter label="Người phụ trách" active={filters.owner.length > 0}>
+    <ColumnFilter
+      label={t(message('Người phụ trách', 'Owner', '담당자'))}
+      active={filters.owner.length > 0}
+    >
       {(close) => (
         <ColumnFilterList
           options={owners.map((o) => ({ value: o, label: o }))}
@@ -219,7 +228,10 @@ export function SourcesPage() {
     </ColumnFilter>
   )
   const channelFilter = (
-    <ColumnFilter label="Kênh gửi" active={filters.channel.length > 0}>
+    <ColumnFilter
+      label={t(message('Kênh gửi', 'Channel', '발송 채널'))}
+      active={filters.channel.length > 0}
+    >
       {(close) => (
         <ColumnFilterList
           options={channels.map((c) => ({ value: c, label: CHANNEL_LABEL[c] }))}
@@ -232,7 +244,11 @@ export function SourcesPage() {
     </ColumnFilter>
   )
   const startFilter = (
-    <ColumnFilter iconOnly label="Bắt đầu" active={Boolean(filters.from || filters.to)}>
+    <ColumnFilter
+      iconOnly
+      label={t(message('Bắt đầu', 'Start date', '시작일'))}
+      active={Boolean(filters.from || filters.to)}
+    >
       {(close) => (
         <ColumnFilterRange
           from={filters.from}
@@ -298,7 +314,7 @@ export function SourcesPage() {
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <BookPage
-          title="Nguồn dẫn"
+          title={t(message('Nguồn dẫn', 'Sources', '출처'))}
           actions={
             <>
               {/* Nạp danh sách người nhận cho MỘT chiến dịch đã có. Ở sổ thì
@@ -311,13 +327,19 @@ export function SourcesPage() {
                   value: s.code,
                   label: `${s.code} · ${s.label}`,
                 }))}
-                buttonLabel="Nhập người nhận từ tệp"
+                buttonLabel={t(
+                  message(
+                    'Nhập người nhận từ tệp',
+                    'Import recipients from file',
+                    '파일에서 수신자 가져오기',
+                  ),
+                )}
                 onCommit={commitRecipients}
                 onSeeResult={() => navigate('/sales/leads')}
               />
               <Button size="md" onClick={() => setMode('create')}>
                 <Icon icon={Plus} size={16} />
-                Thêm nguồn dẫn
+                {t(message('Thêm nguồn dẫn', 'Add source', '출처 추가'))}
               </Button>
             </>
           }
@@ -333,36 +355,66 @@ export function SourcesPage() {
                     size="compact"
                     icon={CheckCircle2}
                     value={String(byStatus.done)}
-                    label="Đã hoàn thành"
-                    hint={`${byStatus.done}/${totals.sources} nguồn dẫn`}
+                    label={t(message('Đã hoàn thành', 'Completed', '완료'))}
+                    hint={t(
+                      message(
+                        `${byStatus.done}/${totals.sources} nguồn dẫn`,
+                        `${byStatus.done} of ${totals.sources} sources`,
+                        `${totals.sources}개 중 ${byStatus.done}개 출처`,
+                      ),
+                    )}
                   />
                   <StatCard
                     size="compact"
                     icon={Zap}
                     value={String(byStatus.running)}
-                    label="Đang hoạt động"
-                    hint="Có đợt gửi trong 14 ngày gần nhất"
+                    label={t(message('Đang hoạt động', 'Active', '진행 중'))}
+                    hint={t(
+                      message(
+                        'Có đợt gửi trong 14 ngày gần nhất',
+                        'A wave was sent in the past 14 days',
+                        '최근 14일 내 발송 웨이브 있음',
+                      ),
+                    )}
                   />
                   <StatCard
                     size="compact"
                     icon={Mail}
                     value={grouped(totals.sent)}
-                    label="Email đã gửi"
-                    hint={`${totals.waves} đợt gửi · ${grouped(totals.audience)} lượt người nhận dự kiến`}
+                    label={t(message('Email đã gửi', 'Emails sent', '발송 이메일'))}
+                    hint={t(
+                      message(
+                        `${totals.waves} đợt gửi · ${grouped(totals.audience)} lượt người nhận dự kiến`,
+                        `${totals.waves} waves · ${grouped(totals.audience)} expected recipients`,
+                        `웨이브 ${totals.waves}개 · 예상 수신자 ${grouped(totals.audience)}명`,
+                      ),
+                    )}
                   />
                   <StatCard
                     size="compact"
                     icon={MailOpen}
                     value={percent(rate(totals.opened, totals.sent))}
-                    label="Tỷ lệ mở email"
-                    hint={`${grouped(totals.opened)}/${grouped(totals.sent)} email đã mở`}
+                    label={t(message('Tỷ lệ mở email', 'Email open rate', '이메일 오픈율'))}
+                    hint={t(
+                      message(
+                        `${grouped(totals.opened)}/${grouped(totals.sent)} email đã mở`,
+                        `${grouped(totals.opened)} of ${grouped(totals.sent)} emails opened`,
+                        `${grouped(totals.sent)}개 중 ${grouped(totals.opened)}개 열람`,
+                      ),
+                    )}
                   />
                   <StatCard
                     size="compact"
                     icon={Reply}
                     value={percent(rate(totals.clicked, totals.sent))}
-                    label="Tỷ lệ nhấp liên kết"
-                    hint={`${grouped(totals.clicked)}/${grouped(totals.sent)} email có lượt nhấp`}
+                    label={t(message('Tỷ lệ nhấp liên kết', 'Email click rate', '이메일 클릭률'))}
+                    hint={t(
+                      message(
+                        `${grouped(totals.clicked)}/${grouped(totals.sent)} email có lượt nhấp`,
+                        `${grouped(totals.clicked)} of ${grouped(totals.sent)} emails had a click`,
+                        `${grouped(totals.sent)}개 중 ${grouped(totals.clicked)}개 클릭 발생`,
+                      ),
+                    )}
                   />
                 </ScreenScoreGrid>
 
@@ -370,11 +422,13 @@ export function SourcesPage() {
                     không đi được, nguồn tự nhiên đứng ngoài sổ này, và phần cơ hội
                     không chiến dịch nào được ghi công. */}
                 <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                  Hai tỷ lệ trên tính trên {grouped(totals.sent)} email đã gửi. Chênh so với{' '}
-                  {grouped(totals.audience)} lượt người nhận dự kiến là email bị chặn, bị trả lại
-                  hoặc gửi không thành công. {totals.natural.count} nguồn tự nhiên với{' '}
-                  {totals.natural.leads} lead tính ở Sổ lead. {totals.ops}/{totals.opsBook}
-                  cơ hội trong kỳ đến từ các nguồn dẫn bên dưới.
+                  {t(
+                    message(
+                      `Hai tỷ lệ trên tính trên ${grouped(totals.sent)} email đã gửi. Chênh so với ${grouped(totals.audience)} lượt người nhận dự kiến là email bị chặn, bị trả lại hoặc gửi không thành công. ${totals.natural.count} nguồn tự nhiên với ${totals.natural.leads} lead tính ở Sổ lead. ${totals.ops}/${totals.opsBook} cơ hội trong kỳ đến từ các nguồn dẫn bên dưới.`,
+                      `The rates above use ${grouped(totals.sent)} sent emails as the denominator. The gap from ${grouped(totals.audience)} expected recipients reflects blocked, bounced, or failed messages. ${totals.natural.count} organic sources and ${totals.natural.leads} leads are counted in the lead book. ${totals.ops} of ${totals.opsBook} opportunities this period came from the sources below.`,
+                      `위 비율은 발송 이메일 ${grouped(totals.sent)}개를 기준으로 합니다. 예상 수신자 ${grouped(totals.audience)}명과의 차이는 차단, 반송 또는 발송 실패입니다. 자연 유입 출처 ${totals.natural.count}개와 리드 ${totals.natural.leads}개는 리드 목록에서 집계합니다. 이번 기간 영업 기회 ${totals.opsBook}개 중 ${totals.ops}개가 아래 출처에서 발생했습니다.`,
+                    ),
+                  )}
                 </p>
               </div>
             ) : (
@@ -383,31 +437,49 @@ export function SourcesPage() {
           }
           tabs={
             <SegmentedControl
-              label="Trạng thái"
+              label={t(message('Trạng thái', 'Status', '상태'))}
               hideLabel
               tone="quiet"
               value={filters.status ?? 'all'}
               onChange={(v) => patch({ status: CAMPAIGN_STATUS.find((s) => s.key === v)?.key })}
               options={[
-                { value: 'all', label: 'Tất cả', count: beforeStatus.length },
+                {
+                  value: 'all',
+                  label: t(message('Tất cả', 'All', '전체')),
+                  count: beforeStatus.length,
+                },
                 /* Chỉ hiện trạng thái CÓ dòng. "Nháp · 0" hôm nay luôn rỗng
                    (fixture không có chiến dịch nháp nào) và một ô bấm vào ra
                    bảng trống là một ô dạy người mới rằng công cụ hỏng. */
                 ...CAMPAIGN_STATUS.filter((s) => beforeStatus.some((r) => r.status === s.key)).map(
                   (s) => ({
                     value: s.key,
-                    label: s.label,
+                    label: t(
+                      message(
+                        s.label,
+                        s.key === 'done' ? 'Completed' : s.key === 'running' ? 'Active' : 'Draft',
+                        s.key === 'done' ? '완료' : s.key === 'running' ? '진행 중' : '초안',
+                      ),
+                    ),
                     count: beforeStatus.filter((r) => r.status === s.key).length,
                   }),
                 ),
               ]}
             />
           }
-          count={<BookCount total={visible.length} noun="nguồn dẫn" />}
+          count={
+            <BookCount total={visible.length} noun={t(message('nguồn dẫn', 'sources', '출처'))} />
+          }
           tools={
             <>
               <SearchField
-                placeholder="Tìm theo tên hoặc mã nguồn dẫn…"
+                placeholder={t(
+                  message(
+                    'Tìm theo tên hoặc mã nguồn dẫn…',
+                    'Search by source name or code…',
+                    '출처 이름 또는 코드 검색…',
+                  ),
+                )}
                 value={book.text}
                 onChange={book.setText}
                 className="min-w-0 flex-1 sm:max-w-[320px]"
@@ -419,7 +491,7 @@ export function SourcesPage() {
                   onClick={book.clear}
                   className="pointer-coarse:h-12"
                 >
-                  Bỏ hết bộ lọc
+                  {t(message('Bỏ hết bộ lọc', 'Clear filters', '필터 지우기'))}
                 </Button>
               )}
             </>
@@ -428,8 +500,10 @@ export function SourcesPage() {
           failure={
             error
               ? {
-                  message: `Không tải được danh sách nguồn dẫn. ${
-                    isApiError(error) ? userMessage(error) : 'Thử lại.'
+                  message: `${t(message('Không tải được danh sách nguồn dẫn.', 'Could not load sources.', '출처 목록을 불러오지 못했습니다.'))} ${
+                    isApiError(error)
+                      ? userMessage(error)
+                      : t(message('Thử lại.', 'Please try again.', '다시 시도해 주세요.'))
                   }`,
                   onRetry: () => void refetch(),
                 }
@@ -439,12 +513,26 @@ export function SourcesPage() {
             visible.length === 0
               ? book.dirty
                 ? {
-                    message: 'Không có nguồn dẫn nào khớp bộ lọc.',
-                    action: { label: 'Bỏ hết bộ lọc', onClick: book.clear },
+                    message: t(
+                      message(
+                        'Không có nguồn dẫn nào khớp bộ lọc.',
+                        'No sources match these filters.',
+                        '필터와 일치하는 출처가 없습니다.',
+                      ),
+                    ),
+                    action: {
+                      label: t(message('Bỏ hết bộ lọc', 'Clear filters', '필터 지우기')),
+                      onClick: book.clear,
+                    },
                   }
                 : {
-                    message: 'Chưa có nguồn dẫn nào.',
-                    action: { label: 'Thêm nguồn dẫn', onClick: () => setMode('create') },
+                    message: t(
+                      message('Chưa có nguồn dẫn nào.', 'No sources yet.', '출처가 없습니다.'),
+                    ),
+                    action: {
+                      label: t(message('Thêm nguồn dẫn', 'Add source', '출처 추가')),
+                      onClick: () => setMode('create'),
+                    },
                   }
               : undefined
           }
@@ -453,40 +541,63 @@ export function SourcesPage() {
             sort,
             onSort: toggleSort,
             columns: [
-              { header: 'Nguồn dẫn', width: '2.4fr' },
+              { header: t(message('Nguồn dẫn', 'Source', '출처')), width: '2.4fr' },
               /* A one-choice filter filters nothing, so the plain title stays. */
               {
-                header: owners.length > 1 ? ownerFilter : 'Người phụ trách',
+                header:
+                  owners.length > 1
+                    ? ownerFilter
+                    : t(message('Người phụ trách', 'Owner', '담당자')),
                 width: '140px',
                 align: 'center',
               },
-              { header: channels.length > 1 ? channelFilter : 'Kênh gửi', width: '0.8fr' },
               {
-                header: 'Bắt đầu',
+                header:
+                  channels.length > 1
+                    ? channelFilter
+                    : t(message('Kênh gửi', 'Channel', '발송 채널')),
+                width: '0.8fr',
+              },
+              {
+                header: t(message('Bắt đầu', 'Start date', '시작일')),
                 width: 'minmax(88px,0.75fr)',
                 sortKey: 'start',
                 filter: startFilter,
               },
-              { header: 'Kết thúc', width: '0.75fr', sortKey: 'end' },
-              { header: 'Người nhận', width: '0.8fr', align: 'right', sortKey: 'recipients' },
+              {
+                header: t(message('Kết thúc', 'End date', '종료일')),
+                width: '0.75fr',
+                sortKey: 'end',
+              },
+              {
+                header: t(message('Người nhận', 'Recipients', '수신자')),
+                width: '0.8fr',
+                align: 'right',
+                sortKey: 'recipients',
+              },
               /* The three ratio columns each divide by THAT source's own
                  recipient count, which is why a source run off a social post
                  reads low on all three — the channel column says why. */
-              { header: 'Tỷ lệ mở', width: '0.7fr', align: 'right', sortKey: 'opens' },
               {
-                header: 'Tỷ lệ nhấp',
+                header: t(message('Tỷ lệ mở', 'Open rate', '오픈율')),
+                width: '0.7fr',
+                align: 'right',
+                sortKey: 'opens',
+              },
+              {
+                header: t(message('Tỷ lệ nhấp', 'Click rate', '클릭률')),
                 width: 'minmax(88px,0.7fr)',
                 align: 'right',
                 sortKey: 'clicks',
               },
               {
-                header: 'Tỷ lệ trả lại',
+                header: t(message('Tỷ lệ trả lại', 'Bounce rate', '반송률')),
                 width: 'minmax(104px,0.75fr)',
                 align: 'right',
                 sortKey: 'bounces',
               },
               {
-                header: 'Cơ hội tạo ra',
+                header: t(message('Cơ hội tạo ra', 'Opportunities created', '생성된 영업 기회')),
                 width: 'minmax(104px,0.7fr)',
                 align: 'right',
                 sortKey: 'ops',
@@ -506,7 +617,24 @@ export function SourcesPage() {
                      là 0.8fr lấy mất của cột tên. Chấm có `label` nên trình
                      đọc màn hình vẫn nghe được trạng thái. */
                   <span key="n" className="flex min-w-0 items-center gap-2">
-                    <StatusDot state={STATUS_DOT[s.status]} label={STATUS_LABEL[s.status]} />
+                    <StatusDot
+                      state={STATUS_DOT[s.status]}
+                      label={t(
+                        message(
+                          STATUS_LABEL[s.status],
+                          s.status === 'done'
+                            ? 'Completed'
+                            : s.status === 'running'
+                              ? 'Active'
+                              : 'Draft',
+                          s.status === 'done'
+                            ? '완료'
+                            : s.status === 'running'
+                              ? '진행 중'
+                              : '초안',
+                        ),
+                      )}
+                    />
                     <Icon icon={CAMPAIGN_ICON} size={16} className="text-muted-foreground" />
                     <span className="truncate">{s.label}</span>
                     <span className="text-muted-foreground font-num shrink-0 text-[11px]">

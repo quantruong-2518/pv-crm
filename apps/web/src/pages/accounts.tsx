@@ -16,6 +16,7 @@ import {
 } from '@pv/ui'
 import { AccountBookQuery, AccountSortKey } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
+import { message, useI18n } from '@/app/i18n'
 import { searchHint } from '@/lib/search-box'
 import { useCan } from '@/app/auth'
 import { isApiError, userMessage } from '@/app/api'
@@ -66,16 +67,8 @@ import { AccountCreateDialog } from '@/components/account-create-dialog'
 
 const PAGE_SIZE = 50
 
-const CUSTOMER_TABS = [
-  { value: 'all', label: 'Tất cả' },
-  { value: '1', label: 'Đã ký hợp đồng' },
-  { value: '0', label: 'Chưa ký hợp đồng' },
-]
-
-const OPEN_DEALS_OPTIONS = [
-  { value: '1', label: 'Có cơ hội đang mở' },
-  { value: '0', label: 'Không có cơ hội đang mở' },
-]
+const CUSTOMER_TABS = ['all', '1', '0'] as const
+const OPEN_DEALS_OPTIONS = ['1', '0'] as const
 
 const csvOf = (v?: string) => (v ? v.split(',') : [])
 
@@ -106,17 +99,8 @@ function CountCell({ value, bold = false }: { value: number; bold?: boolean }) {
 }
 
 /** The grid's sort pick: the table's sort keys, each in its useful direction. */
-const ACCOUNT_SORTS = [
-  { value: 'name:asc', label: 'Tên A → Z' },
-  { value: 'name:desc', label: 'Tên Z → A' },
-  { value: 'signedAmountVnd:desc', label: 'Giá trị đã ký cao nhất' },
-  { value: 'signedDeals:desc', label: 'Nhiều hợp đồng đã ký nhất' },
-  { value: 'openDeals:desc', label: 'Nhiều cơ hội đang mở nhất' },
-  { value: 'leads:desc', label: 'Nhiều lead nhất' },
-  { value: 'createdAt:desc', label: 'Mới thêm gần đây' },
-]
-
 export default function AccountsPage() {
+  const { t } = useI18n()
   const chrome = useAppChrome()
   const navigate = useNavigate()
   const intent = useRowIntent(accountProfileQuery, () => import('@/pages/account-detail'))
@@ -168,10 +152,26 @@ export default function AccountsPage() {
     </ColumnFilter>
   )
   const openDealsFilter = (
-    <ColumnFilter iconOnly label="Cơ hội đang mở" active={query.openDeals !== undefined}>
+    <ColumnFilter
+      iconOnly
+      label={t(message('Cơ hội đang mở', 'Open opportunities', '진행 중인 기회'))}
+      active={query.openDeals !== undefined}
+    >
       {(close) => (
         <ColumnFilterList
-          options={OPEN_DEALS_OPTIONS}
+          options={OPEN_DEALS_OPTIONS.map((value) => ({
+            value,
+            label:
+              value === '1'
+                ? t(message('Có cơ hội đang mở', 'Has open opportunities', '진행 중인 기회 있음'))
+                : t(
+                    message(
+                      'Không có cơ hội đang mở',
+                      'No open opportunities',
+                      '진행 중인 기회 없음',
+                    ),
+                  ),
+          }))}
           selected={query.openDeals === undefined ? [] : [String(query.openDeals)]}
           close={close}
           searchable={false}
@@ -191,9 +191,15 @@ export default function AccountsPage() {
     '1': signed,
     '0': unsigned,
   }
-  const tabs = CUSTOMER_TABS.map((t) => ({
-    ...t,
-    count: tabCounts[t.value as keyof typeof tabCounts],
+  const tabs = CUSTOMER_TABS.map((value) => ({
+    value,
+    label:
+      value === 'all'
+        ? t(message('Tất cả', 'All', '전체'))
+        : value === '1'
+          ? t(message('Đã ký hợp đồng', 'Signed', '계약 체결'))
+          : t(message('Chưa ký hợp đồng', 'Not signed', '미체결')),
+    count: tabCounts[value as keyof typeof tabCounts],
   }))
   const onTab = (value: string) =>
     book.patch({ customer: value === 'all' ? undefined : (Number(value) as 0 | 1) })
@@ -214,18 +220,18 @@ export default function AccountsPage() {
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <BookPage
-          title="Sổ công ty"
+          title={t(message('Sổ công ty', 'Companies', '회사'))}
           actions={
             canWrite ? (
               <Button size="md" className="pointer-coarse:h-12" onClick={() => setCreating(true)}>
                 <Icon icon={Factory} size={16} />
-                Thêm công ty
+                {t(message('Thêm công ty', 'Add company', '회사 추가'))}
               </Button>
             ) : undefined
           }
           tabs={
             <SegmentedControl
-              label="Nhóm công ty"
+              label={t(message('Nhóm công ty', 'Company group', '회사 그룹'))}
               hideLabel
               tone="quiet"
               value={query.customer === undefined ? 'all' : String(query.customer)}
@@ -233,11 +239,17 @@ export default function AccountsPage() {
               onChange={onTab}
             />
           }
-          count={<BookCount total={total} noun="công ty" />}
+          count={<BookCount total={total} noun={t(message('công ty', 'companies', '회사'))} />}
           tools={
             <>
               <SearchField
-                placeholder="Tìm theo tên công ty hoặc mã số thuế…"
+                placeholder={t(
+                  message(
+                    'Tìm theo tên công ty hoặc mã số thuế…',
+                    'Search by company name or tax ID…',
+                    '회사명 또는 사업자등록번호 검색…',
+                  ),
+                )}
                 value={book.text}
                 meta={searchHint(book.text)}
                 onChange={book.setText}
@@ -246,20 +258,67 @@ export default function AccountsPage() {
               {view === 'grid' && (
                 <>
                   <SortSelect
-                    options={ACCOUNT_SORTS}
+                    options={[
+                      {
+                        value: 'name:asc',
+                        label: t(message('Tên A → Z', 'Name A → Z', '이름 A → Z')),
+                      },
+                      {
+                        value: 'name:desc',
+                        label: t(message('Tên Z → A', 'Name Z → A', '이름 Z → A')),
+                      },
+                      {
+                        value: 'signedAmountVnd:desc',
+                        label: t(
+                          message(
+                            'Giá trị đã ký cao nhất',
+                            'Highest signed value',
+                            '계약 금액 높은순',
+                          ),
+                        ),
+                      },
+                      {
+                        value: 'signedDeals:desc',
+                        label: t(
+                          message(
+                            'Nhiều hợp đồng đã ký nhất',
+                            'Most signed contracts',
+                            '체결 계약 많은순',
+                          ),
+                        ),
+                      },
+                      {
+                        value: 'openDeals:desc',
+                        label: t(
+                          message(
+                            'Nhiều cơ hội đang mở nhất',
+                            'Most open opportunities',
+                            '진행 중인 기회 많은순',
+                          ),
+                        ),
+                      },
+                      {
+                        value: 'leads:desc',
+                        label: t(message('Nhiều lead nhất', 'Most leads', '리드 많은순')),
+                      },
+                      {
+                        value: 'createdAt:desc',
+                        label: t(message('Mới thêm gần đây', 'Recently added', '최근 추가순')),
+                      },
+                    ]}
                     sort={query.sort}
                     dir={query.dir}
                     onChange={(sort, dir) => book.patch({ sort: sort as typeof query.sort, dir })}
                   />
                   <FilterMenu
-                    label="Bộ lọc sổ công ty"
+                    label={t(message('Bộ lọc sổ công ty', 'Company filters', '회사 필터'))}
                     active={
                       (query.province ? 1 : 0) +
                       (query.categoryId ? 1 : 0) +
                       (query.openDeals !== undefined ? 1 : 0)
                     }
                   >
-                    <FilterSection title="Tỉnh/thành">
+                    <FilterSection title={t(message('Tỉnh/thành', 'Province / city', '시/도'))}>
                       <ColumnFilterList
                         options={provinceOptions}
                         selected={provincePicked}
@@ -269,7 +328,7 @@ export default function AccountsPage() {
                         }
                       />
                     </FilterSection>
-                    <FilterSection title="Nhóm ngành">
+                    <FilterSection title={t(message('Nhóm ngành', 'Industry group', '산업 분야'))}>
                       <ColumnFilterList
                         options={categoryOptions}
                         selected={categoryPicked}
@@ -279,9 +338,29 @@ export default function AccountsPage() {
                         }
                       />
                     </FilterSection>
-                    <FilterSection title="Cơ hội đang mở">
+                    <FilterSection
+                      title={t(message('Cơ hội đang mở', 'Open opportunities', '진행 중인 기회'))}
+                    >
                       <ColumnFilterList
-                        options={OPEN_DEALS_OPTIONS}
+                        options={OPEN_DEALS_OPTIONS.map((value) => ({
+                          value,
+                          label:
+                            value === '1'
+                              ? t(
+                                  message(
+                                    'Có cơ hội đang mở',
+                                    'Has open opportunities',
+                                    '진행 중인 기회 있음',
+                                  ),
+                                )
+                              : t(
+                                  message(
+                                    'Không có cơ hội đang mở',
+                                    'No open opportunities',
+                                    '진행 중인 기회 없음',
+                                  ),
+                                ),
+                        }))}
                         selected={query.openDeals === undefined ? [] : [String(query.openDeals)]}
                         close={noop}
                         searchable={false}
@@ -303,7 +382,7 @@ export default function AccountsPage() {
                   className="pointer-coarse:h-12"
                   onClick={book.clear}
                 >
-                  Bỏ hết bộ lọc
+                  {t(message('Bỏ hết bộ lọc', 'Clear filters', '필터 지우기'))}
                 </Button>
               )}
             </>
@@ -312,8 +391,10 @@ export default function AccountsPage() {
           failure={
             error
               ? {
-                  message: `Không tải được danh sách công ty. ${
-                    isApiError(error) ? userMessage(error) : 'Thử lại.'
+                  message: `${t(message('Không tải được danh sách công ty.', 'Could not load companies.', '회사 목록을 불러오지 못했습니다.'))} ${
+                    isApiError(error)
+                      ? userMessage(error)
+                      : t(message('Thử lại.', 'Please try again.', '다시 시도해 주세요.'))
                   }`,
                   onRetry: () => void refetch(),
                 }
@@ -323,11 +404,23 @@ export default function AccountsPage() {
             rows.length === 0
               ? {
                   message: book.dirty
-                    ? 'Không có công ty nào khớp bộ lọc.'
-                    : 'Chưa có công ty nào.',
+                    ? t(
+                        message(
+                          'Không có công ty nào khớp bộ lọc.',
+                          'No companies match these filters.',
+                          '필터와 일치하는 회사가 없습니다.',
+                        ),
+                      )
+                    : t(message('Chưa có công ty nào.', 'No companies yet.', '회사가 없습니다.')),
                   action: book.dirty
-                    ? { label: 'Bỏ hết bộ lọc', onClick: book.clear }
-                    : { label: 'Xem sổ lead', onClick: () => navigate('/sales/leads') },
+                    ? {
+                        label: t(message('Bỏ hết bộ lọc', 'Clear filters', '필터 지우기')),
+                        onClick: book.clear,
+                      }
+                    : {
+                        label: t(message('Xem sổ lead', 'View leads', '리드 보기')),
+                        onClick: () => navigate('/sales/leads'),
+                      },
                 }
               : undefined
           }
@@ -338,25 +431,38 @@ export default function AccountsPage() {
                   sort: tableSort,
                   onSort,
                   columns: [
-                    { header: 'Tên công ty', width: '2.6fr', sortKey: 'name' },
                     {
-                      header: 'Tỉnh/thành',
-                      width: '1fr',
-                      sortKey: 'province',
-                      filter: listFilter('Tỉnh/thành', 'province', provinceOptions, true),
+                      header: t(message('Tên công ty', 'Company name', '회사명')),
+                      width: '2.6fr',
+                      sortKey: 'name',
                     },
                     {
-                      header: listFilter('Nhóm ngành', 'categoryId', categoryOptions),
+                      header: t(message('Tỉnh/thành', 'Province / city', '시/도')),
+                      width: '1fr',
+                      sortKey: 'province',
+                      filter: listFilter(
+                        t(message('Tỉnh/thành', 'Province / city', '시/도')),
+                        'province',
+                        provinceOptions,
+                        true,
+                      ),
+                    },
+                    {
+                      header: listFilter(
+                        t(message('Nhóm ngành', 'Industry group', '산업 분야')),
+                        'categoryId',
+                        categoryOptions,
+                      ),
                       width: '0.8fr',
                     },
                     {
-                      header: 'Số lead',
+                      header: t(message('Số lead', 'Leads', '리드')),
                       width: 'minmax(72px,0.6fr)',
                       align: 'right',
                       sortKey: 'leads',
                     },
                     {
-                      header: 'Cơ hội đang mở',
+                      header: t(message('Cơ hội đang mở', 'Open opportunities', '진행 중인 기회')),
                       /* Floors keep a header and its icons on one line at the table's min width. */
                       width: 'minmax(128px,0.7fr)',
                       align: 'right',
@@ -364,13 +470,13 @@ export default function AccountsPage() {
                       filter: openDealsFilter,
                     },
                     {
-                      header: 'Hợp đồng đã ký',
+                      header: t(message('Hợp đồng đã ký', 'Signed contracts', '체결 계약')),
                       width: 'minmax(112px,0.7fr)',
                       align: 'right',
                       sortKey: 'signedDeals',
                     },
                     {
-                      header: 'Giá trị đã ký (₫)',
+                      header: t(message('Giá trị đã ký (₫)', 'Signed value (₫)', '계약 금액 (₫)')),
                       /* The deal book's money track: full digits up to tens of billions. */
                       width: '144px',
                       align: 'right',
@@ -405,7 +511,13 @@ export default function AccountsPage() {
                       <MoneyCell
                         key="m"
                         amount={a.signedAmountVnd > 0 ? a.signedAmountVnd : null}
-                        missing="Chưa có giá trị hợp đồng đã ký"
+                        missing={t(
+                          message(
+                            'Chưa có giá trị hợp đồng đã ký',
+                            'No signed contract value',
+                            '체결 계약 금액 없음',
+                          ),
+                        )}
                       />,
                     ],
                   })),

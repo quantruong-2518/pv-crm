@@ -17,6 +17,7 @@ import {
 import type { AccountProfile } from '@pv/contracts'
 import { userMessage, type FieldErrors } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { useAppChrome } from '@/app/chrome'
 import { dm, dmy } from '@/lib/date'
 import {
@@ -52,6 +53,7 @@ import { RunContacts } from '@/components/run/run-contacts'
  *  nothing to keep. Merging two companies that turn out to be one is not
  *  built — `account_identity_uniq` is what keeps that need rare. */
 export default function AccountDetailPage() {
+  const { t } = useI18n()
   const chrome = useAppChrome()
   const navigate = useNavigate()
   const { code = '' } = useParams()
@@ -66,9 +68,24 @@ export default function AccountDetailPage() {
           pending={isPending}
           failure={{
             error,
-            notFound: `Không có công ty ${code} trong sổ.`,
-            fallback: 'Không mở được hồ sơ công ty.',
-            back: { label: 'Về sổ công ty', onClick: () => navigate('/sales/accounts') },
+            notFound: t(
+              message(
+                `Không có công ty ${code} trong sổ.`,
+                `Company ${code} was not found.`,
+                `회사 ${code}을(를) 찾을 수 없습니다.`,
+              ),
+            ),
+            fallback: t(
+              message(
+                'Không mở được hồ sơ công ty.',
+                'Could not open company profile.',
+                '회사 프로필을 열 수 없습니다.',
+              ),
+            ),
+            back: {
+              label: t(message('Về sổ công ty', 'Back to companies', '회사 목록으로')),
+              onClick: () => navigate('/sales/accounts'),
+            },
           }}
         />
       </AppShell>
@@ -83,18 +100,33 @@ export default function AccountDetailPage() {
         main={
           <>
             <div className="grid gap-6 sm:grid-cols-4">
-              <Score label="Lead đã hỏi" value={String(account.leads)} />
-              <Score label="Đơn đang mở" value={String(account.openDeals)} />
-              <Score label="Hợp đồng đã ký" value={String(account.signedDeals)} />
               <Score
-                label="Doanh số đã ký"
+                label={t(message('Lead đã hỏi', 'Leads', '리드'))}
+                value={String(account.leads)}
+              />
+              <Score
+                label={t(message('Đơn đang mở', 'Open opportunities', '진행 중인 기회'))}
+                value={String(account.openDeals)}
+              />
+              <Score
+                label={t(message('Hợp đồng đã ký', 'Signed contracts', '체결 계약'))}
+                value={String(account.signedDeals)}
+              />
+              <Score
+                label={t(message('Doanh số đã ký', 'Signed revenue', '계약 매출'))}
                 value={account.signedAmountVnd > 0 ? billions(account.signedAmountVnd) : '—'}
               />
             </div>
             <AccountCard account={account} />
           </>
         }
-        railLabel="Lượt, người liên hệ, lead và cơ hội của công ty"
+        railLabel={t(
+          message(
+            'Lượt, người liên hệ, lead và cơ hội của công ty',
+            'Company activity, contacts, leads, and opportunities',
+            '회사 활동, 연락처, 리드 및 영업 기회',
+          ),
+        )}
         rail={
           <>
             {canSeeRuns && (
@@ -123,6 +155,7 @@ function RunsCard({
   accountCode: string
   onOpen: (code: string) => void
 }) {
+  const { t } = useI18n()
   const { data, isPending, isError } = useQuery(
     workstreamBookQuery({
       ...DEFAULT_WORKSTREAM_BOOK_QUERY,
@@ -133,14 +166,25 @@ function RunsCard({
   )
 
   return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Lượt của công ty">
+    <GlassCard
+      variant="b"
+      className="flex flex-col gap-4 p-5 lg:p-6"
+      aria-label={t(message('Lượt của công ty', 'Company activity', '회사 활동'))}
+    >
       <SectionTitle
         size="sm"
-        hint="Mỗi lượt là một lần bán: một lead, các cơ hội và hợp đồng của nó."
+        hint={t(
+          message(
+            'Mỗi lượt là một lần bán: một lead, các cơ hội và hợp đồng của nó.',
+            'Each activity is one sales journey: a lead and its opportunities and contracts.',
+            '각 활동은 리드와 관련 영업 기회 및 계약으로 구성된 하나의 영업 여정입니다.',
+          ),
+        )}
       >
         <span className="flex items-center gap-2">
           <Icon icon={Route} size={16} />
-          Lượt{data && <span className="tnum"> · {data.total}</span>}
+          {t(message('Lượt', 'Activity', '활동'))}
+          {data && <span className="tnum"> · {data.total}</span>}
         </span>
       </SectionTitle>
 
@@ -148,11 +192,25 @@ function RunsCard({
         <Skeleton height={96} />
       ) : isError ? (
         <p className="text-destructive-foreground text-[11.5px] leading-[1.5]">
-          Không tải được các lượt.
+          {t(
+            message(
+              'Không tải được các lượt.',
+              'Could not load activity.',
+              '활동을 불러오지 못했습니다.',
+            ),
+          )}
         </p>
       ) : data.rows.length === 0 ? (
         <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-          {data.hidden > 0 ? 'Vai của bạn không xem được lượt nào.' : 'Chưa có lượt nào.'}
+          {data.hidden > 0
+            ? t(
+                message(
+                  'Vai của bạn không xem được lượt nào.',
+                  'Your role cannot view any activity.',
+                  '역할 권한으로 볼 수 있는 활동이 없습니다.',
+                ),
+              )
+            : t(message('Chưa có lượt nào.', 'No activity yet.', '활동이 없습니다.'))}
         </p>
       ) : (
         <ul className="flex flex-col gap-3">
@@ -185,7 +243,13 @@ function RunsCard({
       )}
       {data && data.rows.length > 0 && data.hidden > 0 && (
         <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-          Còn lượt khác mà vai của bạn không xem được.
+          {t(
+            message(
+              'Còn lượt khác mà vai của bạn không xem được.',
+              'Some activity is outside your role’s access.',
+              '역할 권한으로 볼 수 없는 활동이 더 있습니다.',
+            ),
+          )}
         </p>
       )}
     </GlassCard>
@@ -208,6 +272,7 @@ function Score({ label, value }: { label: string; value: string }) {
  *  state, right when the user needs to see how many fields are unsaved and
  *  have a way back. */
 function AccountCard({ account }: { account: AccountProfile }) {
+  const { t } = useI18n()
   const canWrite = useCan('account.edit')
   const save = useSaveAccount(account.code)
 
@@ -237,12 +302,24 @@ function AccountCard({ account }: { account: AccountProfile }) {
 
   return (
     <RecordCard
-      title="Hồ sơ công ty"
+      title={t(message('Hồ sơ công ty', 'Company profile', '회사 프로필'))}
       tone="reference"
       hint={
         canWrite
-          ? 'Sửa ở đây là sửa cho mọi lead, cơ hội và hợp đồng của công ty.'
-          : 'Vai của bạn chỉ được xem.'
+          ? t(
+              message(
+                'Sửa ở đây là sửa cho mọi lead, cơ hội và hợp đồng của công ty.',
+                'Changes here apply to all company leads, opportunities, and contracts.',
+                '여기서 수정하면 회사의 모든 리드, 영업 기회 및 계약에 반영됩니다.',
+              ),
+            )
+          : t(
+              message(
+                'Vai của bạn chỉ được xem.',
+                'Your role has view-only access.',
+                '역할 권한은 보기 전용입니다.',
+              ),
+            )
       }
     >
       <AccountFields draft={work} onSet={set} errors={errors} />
@@ -262,8 +339,14 @@ function AccountCard({ account }: { account: AccountProfile }) {
         >
           <Icon icon={Check} size={16} />
           {save.isPending
-            ? 'Đang lưu…'
-            : `Lưu ${dirty.length > 0 ? `${dirty.length} ô đã sửa` : ''}`}
+            ? t(message('Đang lưu…', 'Saving…', '저장 중…'))
+            : t(
+                message(
+                  `Lưu${dirty.length > 0 ? ` ${dirty.length} ô đã sửa` : ''}`,
+                  `Save${dirty.length > 0 ? ` ${dirty.length} changed fields` : ''}`,
+                  `저장${dirty.length > 0 ? ` · 변경된 항목 ${dirty.length}개` : ''}`,
+                ),
+              )}
         </Button>
         <Button
           size="md"
@@ -276,7 +359,7 @@ function AccountCard({ account }: { account: AccountProfile }) {
           }}
         >
           <Icon icon={RotateCcw} size={16} />
-          Bỏ sửa
+          {t(message('Bỏ sửa', 'Discard changes', '변경 취소'))}
         </Button>
         {save.isError && (
           <span role="alert" className="text-destructive-foreground text-[11.5px] leading-[1.5]">
@@ -295,8 +378,13 @@ function LeadsCard({
   account: AccountProfile
   onOpen: (code: string) => void
 }) {
+  const { t } = useI18n()
   return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Lead của công ty">
+    <GlassCard
+      variant="b"
+      className="flex flex-col gap-4 p-5 lg:p-6"
+      aria-label={t(message('Lead của công ty', 'Company leads', '회사 리드'))}
+    >
       <SectionTitle size="sm">
         <span className="flex items-center gap-2">
           <Icon icon={Inbox} size={16} />
@@ -305,7 +393,9 @@ function LeadsCard({
       </SectionTitle>
 
       {account.leadRows.length === 0 ? (
-        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">Chưa có lead nào.</p>
+        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+          {t(message('Chưa có lead nào.', 'No leads yet.', '리드가 없습니다.'))}
+        </p>
       ) : (
         <ul className="flex flex-col gap-3">
           {account.leadRows.map((l) => {
@@ -346,17 +436,33 @@ function DealsCard({
   account: AccountProfile
   onOpen: (code: string) => void
 }) {
+  const { t } = useI18n()
   return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Đơn của công ty">
-      <SectionTitle size="sm" hint="Gồm cả cơ hội đã đóng.">
+    <GlassCard
+      variant="b"
+      className="flex flex-col gap-4 p-5 lg:p-6"
+      aria-label={t(message('Cơ hội của công ty', 'Company opportunities', '회사 영업 기회'))}
+    >
+      <SectionTitle
+        size="sm"
+        hint={t(
+          message(
+            'Gồm cả cơ hội đã đóng.',
+            'Includes closed opportunities.',
+            '종료된 영업 기회도 포함됩니다.',
+          ),
+        )}
+      >
         <span className="flex items-center gap-2">
           <Icon icon={BriefcaseDollar} size={16} />
-          Cơ hội · {account.dealRows.length}
+          {t(message('Cơ hội', 'Opportunities', '영업 기회'))} · {account.dealRows.length}
         </span>
       </SectionTitle>
 
       {account.dealRows.length === 0 ? (
-        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">Chưa có cơ hội nào.</p>
+        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+          {t(message('Chưa có cơ hội nào.', 'No opportunities yet.', '영업 기회가 없습니다.'))}
+        </p>
       ) : (
         <ul className="flex flex-col gap-3">
           {account.dealRows.map((d) => (
@@ -371,12 +477,16 @@ function DealsCard({
                 {d.state === 'terminated' ? (
                   <TerminatedBadge />
                 ) : (
-                  d.signed && <Badge tone="success">Đã ký</Badge>
+                  d.signed && (
+                    <Badge tone="success">{t(message('Đã ký', 'Signed', '계약 체결'))}</Badge>
+                  )
                 )}
               </button>
               <span className="text-muted-foreground tnum font-num text-[11px] leading-[1.5]">
-                {d.amountVnd === null ? 'Chưa có giá trị' : billions(d.amountVnd)} ·{' '}
-                {dm(d.createdAt)}
+                {d.amountVnd === null
+                  ? t(message('Chưa có giá trị', 'No value', '금액 없음'))
+                  : billions(d.amountVnd)}{' '}
+                · {dm(d.createdAt)}
               </span>
             </li>
           ))}

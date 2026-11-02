@@ -43,6 +43,10 @@ export type SearchRecords = {
 
 type HeaderSearchProps = {
   placeholder?: string
+  screensLabel?: string
+  noScreensLabel?: (query: string) => string
+  scopeLabel?: string
+  allLabel?: string
   targets: SearchTarget[]
   records?: SearchRecords
   onOpenChange: (open: boolean) => void
@@ -53,7 +57,16 @@ const EXPANDED = 560
 const fold = (text: string) =>
   text.normalize('NFD').replace(/\p{M}/gu, '').replace(/đ/gi, 'd').toLowerCase()
 
-export function HeaderSearch({ placeholder, targets, records, onOpenChange }: HeaderSearchProps) {
+export function HeaderSearch({
+  placeholder,
+  screensLabel = 'Màn hình',
+  noScreensLabel = (query) => `Không có màn hình nào tên “${query}”.`,
+  scopeLabel = 'Phạm vi tìm',
+  allLabel = 'Tất cả',
+  targets,
+  records,
+  onOpenChange,
+}: HeaderSearchProps) {
   const slotRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [open, setOpen] = useState(false)
@@ -64,7 +77,7 @@ export function HeaderSearch({ placeholder, targets, records, onOpenChange }: He
   const typed = text.trim()
   const screens: SearchGroup = {
     id: 'screens',
-    label: 'Màn hình',
+    label: screensLabel,
     rows: targets
       .filter((t) => !t.locked && fold(t.label).includes(fold(typed)))
       .map((t) => ({
@@ -174,14 +187,10 @@ export function HeaderSearch({ placeholder, targets, records, onOpenChange }: He
           open={open}
           groups={groups}
           active={active}
-          status={
-            records
-              ? records.status
-              : groups.length
-                ? undefined
-                : `Không có màn hình nào tên “${typed}”.`
-          }
+          status={records ? records.status : groups.length ? undefined : noScreensLabel(typed)}
           scopes={records?.scopes}
+          scopeLabel={scopeLabel}
+          allLabel={allLabel}
           scope={records?.scope}
           onScopeChange={records?.onScopeChange}
           onPick={pick}

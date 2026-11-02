@@ -16,7 +16,8 @@ import {
   StatusCell,
 } from './leads-parts'
 import type { useLeadFilters } from './leads-filters'
-import { LEAD_HEADER } from './leads-model'
+import { translate, type Lang } from '@/app/i18n'
+import { LEAD_COPY } from '@/data/lead-copy'
 
 /** The lead book's column list and row cells. Two views swap columns: the held
  *  tab trades the entry date for the hold's date, and the switched-off tab
@@ -34,6 +35,7 @@ export function leadColumns(
   view: View,
   filters: ReturnType<typeof useLeadFilters>,
   header: LeadSelectionHeader,
+  lang: Lang,
 ): TableColumn[] {
   return [
     {
@@ -42,30 +44,37 @@ export function leadColumns(
           checked={header.checked}
           indeterminate={header.indeterminate}
           onChange={header.onChange}
-          label={<span className="sr-only">Chọn cả trang</span>}
+          label={<span className="sr-only">{translate(LEAD_COPY.selectPage, lang)}</span>}
           className="w-full justify-center gap-0 p-0"
         />
       ),
       width: COL.select,
     },
-    { header: 'Công ty / Người liên hệ', width: COL.name, sortKey: 'company' },
-    { header: LEAD_HEADER.source, width: COL.text, filter: filters.origin },
-    { header: LEAD_HEADER.status, width: COL.status, filter: filters.states },
-    { header: LEAD_HEADER.industry, width: COL.text, filter: filters.industry },
+    { header: translate(LEAD_COPY.companyContact, lang), width: COL.name, sortKey: 'company' },
+    { header: translate(LEAD_COPY.source, lang), width: COL.text, filter: filters.origin },
+    { header: translate(LEAD_COPY.status, lang), width: COL.status, filter: filters.states },
+    { header: translate(LEAD_COPY.industry, lang), width: COL.text, filter: filters.industry },
     view.heldView
-      ? { header: 'Ngày hẹn gặp lại', width: COL.date }
+      ? { header: translate(LEAD_COPY.heldUntil, lang), width: COL.date }
       : {
-          header: LEAD_HEADER.created,
+          header: translate(LEAD_COPY.created, lang),
           width: COL.moment,
           sortKey: 'createdAt',
           filter: filters.created,
         },
     ...(view.disabledView
-      ? [{ header: 'Ngày vô hiệu hóa', width: COL.moment }]
+      ? [{ header: translate(LEAD_COPY.disabledAt, lang), width: COL.moment }]
       : [
-          { header: LEAD_HEADER.creator, width: COL.person, filter: filters.creator },
-          { header: LEAD_HEADER.owner, width: COL.person, filter: filters.owner },
-          { header: <span className="sr-only">Ghim</span>, width: COL.pin },
+          {
+            header: translate(LEAD_COPY.creator, lang),
+            width: COL.person,
+            filter: filters.creator,
+          },
+          { header: translate(LEAD_COPY.owner, lang), width: COL.person, filter: filters.owner },
+          {
+            header: <span className="sr-only">{translate(LEAD_COPY.pin, lang)}</span>,
+            width: COL.pin,
+          },
         ]),
   ]
 }

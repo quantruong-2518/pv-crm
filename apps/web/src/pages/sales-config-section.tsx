@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { Button, DataTable, GlassCard, Input, cn } from '@pv/ui'
 import type { ConfigBundle, ConfigList } from '@pv/contracts'
 import { useCan } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import {
   isEditDone,
@@ -18,10 +19,7 @@ import {
   sectionOf,
   type SectionId,
 } from './sales-config-model'
-
-/** The success toast of every send on the screen. It names no approver: who
- *  approves is the server's chain, not a role this screen may print. */
-export const SENT = 'Đã gửi đề nghị · chờ duyệt.'
+import { sectionCopy as sectionMessage, sentCopy } from './sales-config-copy'
 
 /** The draft of typed deadlines, keyed `${list}/${id}`. It lives on the page,
  *  not in an area, so switching areas never drops a half-typed number. */
@@ -41,6 +39,11 @@ export type AreaProps = {
  *  scrolled to by its `#id` lands below it instead of under it. */
 export const SECTION_ANCHOR = 'scroll-mt-[128px]'
 
+const sectionTitle = (at: SectionId, title: string, t: ReturnType<typeof useI18n>['t']) => {
+  const copy = sectionMessage(at)
+  return copy ? t(copy) : title
+}
+
 /** One configuration section, named by its entry in `CONFIG_AREAS`. The number
  *  is not printed, only carried in the group's accessible name. */
 export function Section({
@@ -55,17 +58,19 @@ export function Section({
   summary?: ReactNode
   children: ReactNode
 }) {
+  const { t } = useI18n()
   const { no, title } = sectionOf(at)
+  const localizedTitle = sectionTitle(at, title, t)
   return (
     <GlassCard
       id={at}
       role="group"
-      aria-label={`${no} ${title}`}
+      aria-label={`${no} ${localizedTitle}`}
       className={cn('flex flex-col gap-4 p-5 lg:p-6', SECTION_ANCHOR)}
     >
       <div className="flex flex-col gap-1">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <span className="text-[13px] font-semibold">{title}</span>
+          <span className="text-[13px] font-semibold">{localizedTitle}</span>
           {summary && <span className="text-muted-foreground tnum text-[11.5px]">{summary}</span>}
         </div>
         {hint && <p className="text-muted-foreground text-[11.5px] leading-[1.5]">{hint}</p>}
@@ -102,10 +107,17 @@ export function WaitingAdds({ list, criterionId }: { list: ConfigList; criterion
 
 /** For a section whose rows this screen cannot match a change to. */
 export function WaitingCount({ count }: { count: number }) {
+  const { t, number } = useI18n()
   if (count === 0) return null
   return (
     <p className="text-muted-foreground m-0 text-[11.5px]">
-      Có <span className="tnum font-num">{count}</span> đề nghị của bạn đang chờ duyệt
+      {t(
+        message(
+          `Có ${number(count)} đề nghị của bạn đang chờ duyệt`,
+          `${number(count)} of your proposals are awaiting approval`,
+          `${number(count)}개 제안이 승인 대기 중입니다`,
+        ),
+      )}
     </p>
   )
 }
@@ -113,8 +125,27 @@ export function WaitingCount({ count }: { count: number }) {
 /** A catalog's size for `Section.summary`. Nothing for an empty list: the
  *  section body already says so in words. */
 export function EntryCount({ rows, noun }: { rows: { active: boolean }[]; noun: string }) {
+  const { t, number } = useI18n()
   if (rows.length === 0) return null
-  return `${rows.length} ${noun} · ${rows.filter((r) => r.active).length} đang bật`
+  const nounCopy =
+    noun === 'lý do'
+      ? message('lý do', 'reasons', '사유')
+      : noun === 'mục'
+        ? message('mục', 'items', '항목')
+        : noun === 'loại'
+          ? message('loại', 'types', '유형')
+          : noun === 'nhãn'
+            ? message('nhãn', 'labels', '라벨')
+            : noun === 'câu'
+              ? message('câu', 'questions', '질문')
+              : message(noun, noun, noun)
+  return t(
+    message(
+      `${number(rows.length)} ${nounCopy.vi} · ${number(rows.filter((r) => r.active).length)} đang bật`,
+      `${number(rows.length)} ${nounCopy.en} · ${number(rows.filter((r) => r.active).length)} active`,
+      `${number(rows.length)}개 ${nounCopy.ko} · ${number(rows.filter((r) => r.active).length)}개 활성`,
+    ),
+  )
 }
 
 /** One rung's deadline, typed into the page's draft under `${list}/${id}` —
@@ -130,6 +161,7 @@ export function DeadlineBox({
   row: LadderRow
   draft: LadderDraft
 }) {
+  const { t } = useI18n()
   /* The route needs only `config.view`; a reader without `config.propose`
      sees the deadlines but cannot type a draft nobody could send. */
   const canPropose = useCan('config.propose')
@@ -140,16 +172,20 @@ export function DeadlineBox({
      text instead of a box that looks editable. */
   const box = canPropose ? (
     <Input
-      aria-label={`Hạn của ${row.label}`}
+      aria-label={t(
+        message(`Hạn của ${row.label}`, `Deadline for ${row.label}`, `${row.label} 기한`),
+      )}
       value={shown}
-      placeholder="chưa đặt"
+      placeholder={t(message('Chưa đặt', 'Not set', '미설정'))}
       inputMode="numeric"
       invalid={shown.trim() !== '' && !isDays(shown)}
       className="pointer-coarse:h-12 tnum h-10 w-full max-w-24"
       onChange={(e) => draft.onType((prev) => ({ ...prev, [key]: e.target.value }))}
     />
   ) : (
-    <span className="tnum font-num">{shown === '' ? 'chưa đặt' : shown}</span>
+    <span className="tnum font-num">
+      {shown === '' ? t(message('Chưa đặt', 'Not set', '미설정')) : shown}
+    </span>
   )
   if (waiting === null) return box
   return (
@@ -175,12 +211,13 @@ export function LadderTable({
   unit: string
   draft: LadderDraft
 }) {
+  const { t, number } = useI18n()
   return (
     <DataTable
       columns={[
         { header: head, width: '1.4fr' },
-        { header: 'Hạn · ngày', width: '1fr' },
-        { header: 'Đang có', width: '0.9fr', align: 'right' },
+        { header: t(message('Hạn · ngày', 'Deadline · days', '기한 · 일')), width: '1fr' },
+        { header: t(message('Đang có', 'Current', '현재')), width: '0.9fr', align: 'right' },
       ]}
       rows={rows.map((row) => ({
         id: row.id,
@@ -188,7 +225,7 @@ export function LadderTable({
           row.label,
           <DeadlineBox key="d" list={list} row={row} draft={draft} />,
           <span key="u" className="tnum font-num">
-            {row.usage} {unit}
+            {number(row.usage)} {unit}
           </span>,
         ],
       }))}
@@ -212,12 +249,23 @@ export function LadderSend({
   rows: LadderRow[]
   draft: LadderDraft
 }) {
+  const { t, number } = useI18n()
   const canPropose = useCan('config.propose')
   const propose = useProposeConfigEdits()
   const [failed, setFailed] = useState<string[]>([])
 
   const edits = editsOf(
-    rows.map((row) => ({ list, row, what: `Hạn ${RUNG[list]} "${row.label}"` })),
+    rows.map((row) => ({
+      list,
+      row,
+      what: t(
+        message(
+          `Hạn ${RUNG[list]} "${row.label}"`,
+          `${list === 'STAGE' ? 'Deadline for stage' : 'Deadline for tier'} "${row.label}"`,
+          `${row.label} ${list === 'STAGE' ? '단계' : '등급'} 기한`,
+        ),
+      ),
+    })),
     draft.typed,
   )
   /* A non-number blocks the send rather than being dropped: dropping it would
@@ -245,7 +293,7 @@ export function LadderSend({
           ),
         )
         setFailed(answers.flatMap((a) => (isEditDone(a) ? [] : [`${a.what}: ${a.failure}`])))
-        if (done.size > 0) toastDone(SENT)
+        if (done.size > 0) toastDone(sentCopy())
       },
     })
 
@@ -256,7 +304,8 @@ export function LadderSend({
           <ul className="m-0 flex flex-col gap-1 text-[11.5px]">
             {edits.map((e) => (
               <li key={e.id}>
-                {e.what} → <span className="tnum font-num">{e.limitDays}</span> ngày
+                {e.what} → <span className="tnum font-num">{number(e.limitDays)}</span>{' '}
+                {t(message('ngày', 'days', '일'))}
               </li>
             ))}
           </ul>
@@ -266,13 +315,25 @@ export function LadderSend({
             disabled={bad.length > 0 || propose.isPending}
             onClick={send}
           >
-            Gửi đề nghị · {edits.length} thay đổi
+            {t(
+              message(
+                `Gửi đề nghị · ${edits.length} thay đổi`,
+                `Submit ${edits.length} changes`,
+                `${edits.length}개 변경 제안`,
+              ),
+            )}
           </Button>
         </>
       )}
       {bad.length > 0 && (
         <p role="alert" className="text-destructive-foreground m-0 text-[11.5px]">
-          Hạn của {bad.map((row) => `"${row.label}"`).join(', ')} phải là số ngày.
+          {t(
+            message(
+              `Hạn của ${bad.map((row) => `"${row.label}"`).join(', ')} phải là số ngày.`,
+              `Deadlines for ${bad.map((row) => `"${row.label}"`).join(', ')} must be a number of days.`,
+              `${bad.map((row) => `"${row.label}"`).join(', ')} 기한은 일수로 입력해야 합니다.`,
+            ),
+          )}
         </p>
       )}
       {failed.length > 0 && (

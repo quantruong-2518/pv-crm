@@ -3,8 +3,10 @@ import { useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ScreenHeader } from '@pv/ui'
 import { useSession } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { myApprovalsQuery } from '@/data/approvals'
 import { googleLinkQuery } from '@/data/google'
+import { LanguagePicker } from '@/components/auth-card'
 import { SettingsShell } from '@/components/settings-shell'
 import { IdentityBlock, PermissionBlock, RequestsBlock, SignInBlock } from './account-parts'
 
@@ -18,6 +20,7 @@ import { IdentityBlock, PermissionBlock, RequestsBlock, SignInBlock } from './ac
  *  Lives inside the settings frame, which owns the ContextRail question (law 10)
  *  and the background (law 12); nothing here paints either. */
 export default function AccountScreen() {
+  const { t } = useI18n()
   const { hash } = useLocation()
   /* One actor: the store's. It is re-asked on arrival, so the menu, the gates
      and this screen change together when the reader's access has changed. */
@@ -42,7 +45,10 @@ export default function AccountScreen() {
 
   return (
     <SettingsShell>
-      <ScreenHeader title="Tài khoản của tôi" />
+      <ScreenHeader
+        title={t(message('Tài khoản của tôi', 'My account', '내 계정'))}
+        actions={<LanguagePicker />}
+      />
       {actor ? <IdentityBlock actor={actor} /> : null}
       <SignInBlock link={link} />
       {actor ? <PermissionBlock actor={actor} /> : null}

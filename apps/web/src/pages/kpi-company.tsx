@@ -14,6 +14,7 @@ import {
 } from '@pv/ui'
 import { isTieredPeriod } from '@pv/contracts'
 import { useCan, useSession } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { useAppChrome } from '@/app/chrome'
 import { kpiCompanyQuery, kpiPeopleQuery, kpiTargetsQuery } from '@/data/kpi'
 import { kpiAllocationsQuery, kpiCountersQuery } from '@/data/kpi-allocation'
@@ -53,15 +54,32 @@ import { NOTHING_WAITING } from './kpi-targets-queue'
  *  reads, so it is the length of the desk's waiting list; no count until
  *  they land, and none for a reader with nothing to decide there. */
 function TargetsDoor({ period, waiting }: { period: string; waiting: number | undefined }) {
+  const { t } = useI18n()
   const navigate = useNavigate()
   return (
     <GlassCard className={cn(TILE, 'sm:flex-row sm:items-center')}>
       <Icon icon={ClipboardList} size={20} className="text-accent-foreground shrink-0" />
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <h2 className="text-[13px] font-semibold leading-5">Chỉ tiêu tháng</h2>
+        <h2 className="text-[13px] font-semibold leading-5">
+          {t(message('Chỉ tiêu tháng', 'Monthly targets', '월간 목표'))}
+        </h2>
         {waiting !== undefined && (
           <p className={cn(NOTE, 'tnum font-num')}>
-            {waiting > 0 ? `${num(waiting)} mục chờ bạn xử lý.` : NOTHING_WAITING}
+            {waiting > 0
+              ? t(
+                  message(
+                    `${num(waiting)} mục chờ bạn xử lý.`,
+                    `${num(waiting)} items need your attention.`,
+                    `처리할 항목 ${num(waiting)}개.`,
+                  ),
+                )
+              : t(
+                  message(
+                    NOTHING_WAITING,
+                    'Nothing needs your attention.',
+                    '처리할 항목이 없습니다.',
+                  ),
+                )}
           </p>
         )}
       </div>
@@ -70,7 +88,7 @@ function TargetsDoor({ period, waiting }: { period: string; waiting: number | un
         className="pointer-coarse:h-12 shrink-0 self-start sm:self-center"
         onClick={() => navigate(`${TARGETS_PATH}${monthQuery(period)}`)}
       >
-        Mở Chỉ tiêu tháng
+        {t(message('Mở Chỉ tiêu tháng', 'Open monthly targets', '월간 목표 열기'))}
         <Icon icon={ArrowRight} size={16} />
       </Button>
     </GlassCard>

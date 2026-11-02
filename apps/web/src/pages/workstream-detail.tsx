@@ -5,6 +5,7 @@ import { AppShell, ArrowRight, Badge, Button, Icon } from '@pv/ui'
 import { JOURNEY_STATUS_LABEL, type WorkstreamJourneyResponse } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
+import { message, useI18n } from '@/app/i18n'
 import { leadProfileQuery } from '@/data/lead-profile'
 import { isOpenState } from '@/data/lead-state'
 import { chainPath } from '@/data/opportunities'
@@ -27,6 +28,7 @@ import type { PathOf } from './workstream-tree-model'
 type Journey = WorkstreamJourneyResponse
 
 export default function WorkstreamDetailPage() {
+  const { t } = useI18n()
   const chrome = useAppChrome()
   const navigate = useNavigate()
   const { code = '' } = useParams()
@@ -41,9 +43,24 @@ export default function WorkstreamDetailPage() {
           pending={isPending}
           failure={{
             error,
-            notFound: `Không có hành trình mã ${code} trong phạm vi của bạn.`,
-            fallback: 'Không mở được hành trình.',
-            back: { label: 'Về sổ hành trình', onClick: () => navigate('/sales/workstreams') },
+            notFound: t(
+              message(
+                `Không có hành trình mã ${code} trong phạm vi của bạn.`,
+                `Workstream ${code} is outside your scope or does not exist.`,
+                `영업 건 ${code}이(가) 없거나 권한 범위 밖에 있습니다.`,
+              ),
+            ),
+            fallback: t(
+              message(
+                'Không mở được hành trình.',
+                'Could not open the workstream.',
+                '영업 건을 열 수 없습니다.',
+              ),
+            ),
+            back: {
+              label: t(message('Về sổ hành trình', 'Back to workstreams', '영업 건 목록으로')),
+              onClick: () => navigate('/sales/workstreams'),
+            },
           }}
         />
       )}
@@ -120,6 +137,7 @@ function useOpenDealDoor(code: string) {
 /** The customer with the run's status in the title; the holder is the rail's,
  *  the code the strip's. Its one move, to open a deal, sits right. */
 function RunHeader({ journey: j, onOpenDeal }: { journey: Journey; onOpenDeal?: () => void }) {
+  const { t } = useI18n()
   return (
     <RecordHeader
       title={
@@ -132,7 +150,7 @@ function RunHeader({ journey: j, onOpenDeal }: { journey: Journey; onOpenDeal?: 
         onOpenDeal && (
           <Button size="lg" onClick={onOpenDeal}>
             <Icon icon={ArrowRight} size={16} />
-            Mở cơ hội
+            {t(message('Mở cơ hội', 'Create opportunity', '영업 기회 만들기'))}
           </Button>
         )
       }
@@ -143,6 +161,7 @@ function RunHeader({ journey: j, onOpenDeal }: { journey: Journey; onOpenDeal?: 
 /** A closed run wears its close reason, as the book does; the other two
  *  statuses have a label of their own (law 16). */
 function RunStatus({ journey: j }: { journey: Journey }) {
+  const { t } = useI18n()
   const tail = 'ml-3 align-middle tracking-normal'
   if (j.status === 'closed') {
     return (
@@ -155,7 +174,13 @@ function RunStatus({ journey: j }: { journey: Journey }) {
   }
   return (
     <Badge tone={j.status === 'open' ? 'running' : 'success'} className={tail}>
-      {JOURNEY_STATUS_LABEL[j.status]}
+      {t(
+        message(
+          JOURNEY_STATUS_LABEL[j.status],
+          j.status === 'open' ? 'Open' : 'Completed',
+          j.status === 'open' ? '진행 중' : '완료',
+        ),
+      )}
     </Badge>
   )
 }

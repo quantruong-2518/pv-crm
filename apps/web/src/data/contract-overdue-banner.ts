@@ -2,8 +2,9 @@ import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { create } from 'zustand'
-import { vnd, type ActionBannerItem } from '@pv/ui'
+import { type ActionBannerItem } from '@pv/ui'
 import { useSession } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { dm } from '@/lib/date'
 import {
   notificationListQuery,
@@ -65,6 +66,7 @@ export function useOverdueBanners(): {
   dismiss: (id: string) => void
 } {
   const navigate = useNavigate()
+  const { t, currency } = useI18n()
   const pathOf = useNotificationPath()
   const { mutate: markRead } = useMarkNotificationsRead()
   const userId = useSession((s) => (s.status === 'signed-in' ? s.actor?.id : undefined))
@@ -94,17 +96,25 @@ export function useOverdueBanners(): {
      too, or that one frame draws the previous person's banner. */
   const items = (owner === userId ? showing : []).map((row): ActionBannerItem => ({
     id: row.id,
-    title: `Đợt ${row.no} hợp đồng ${row.code} đã quá hạn thu`,
+    title: t(
+      message(
+        `Đợt ${row.no} hợp đồng ${row.code} đã quá hạn thu`,
+        `Payment ${row.no} for contract ${row.code} is overdue`,
+        `계약 ${row.code}의 ${row.no}회차 결제가 연체되었습니다`,
+      ),
+    ),
     detail:
       [
         row.company,
-        row.amount === null ? null : vnd(row.amount),
-        row.due === null ? null : `hạn ${dm(row.due)}`,
+        row.amount === null ? null : currency(row.amount, 'VND'),
+        row.due === null
+          ? null
+          : t(message(`hạn ${dm(row.due)}`, `due ${dm(row.due)}`, `${dm(row.due)} 기한`)),
       ]
         .filter(Boolean)
         .join(' · ') || undefined,
     action: {
-      label: 'Xem đợt thanh toán',
+      label: t(message('Xem đợt thanh toán', 'View payment', '결제 보기')),
       onClick: () => {
         markRead({ ids: [row.id] })
         navigate(row.path)

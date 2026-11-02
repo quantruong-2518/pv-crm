@@ -28,7 +28,7 @@ import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { toastDone } from '@/app/toast'
 import { motionLabelOf, salesMotionsQuery, useProposeMotion } from '@/data/sales-motions'
-import { SENT } from './sales-config-section'
+import { SENT } from './sales-config-copy'
 
 /** Level 1 of a lead's origin — the six motions, as the create form offers them.
  *

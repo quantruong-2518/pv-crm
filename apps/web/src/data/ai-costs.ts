@@ -1,5 +1,6 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import { AiCostReport, AiPrice, AiPriceList, type AiPriceSet, type AiCostLine } from '@pv/contracts'
+import { LOCALE_TAG, getLang, formatNumber, message, translate } from '@/app/i18n'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
 import { cacheTier } from '@/app/query-client'
 
@@ -55,9 +56,16 @@ export function useSetAiPrice() {
 // Printing money — USD, VN separators (law 6)
 // ---------------------------------------------------------------------------
 
-const WIDE = new Intl.NumberFormat('vi-VN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-const FINE = new Intl.NumberFormat('vi-VN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })
-const COUNT = new Intl.NumberFormat('vi-VN')
+const wide = () =>
+  new Intl.NumberFormat(LOCALE_TAG[getLang()], {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+const fine = () =>
+  new Intl.NumberFormat(LOCALE_TAG[getLang()], {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  })
 
 /** The word for a cost nobody priced yet — never 0, which would read as free. */
 export const UNPRICED = 'Chưa tính được'
@@ -65,21 +73,29 @@ export const UNPRICED = 'Chưa tính được'
 /** One call costs a fraction of a cent, so below 1 USD four decimals are kept,
  *  and a real spend too small even for those never prints as zero. */
 export function usd(value: number): string {
-  if (value > 0 && value < 0.0001) return '< 0,0001 USD'
-  return `${(value >= 1 ? WIDE : FINE).format(value)} USD`
+  if (value > 0 && value < 0.0001)
+    return `< ${formatNumber(0.0001, getLang(), { minimumFractionDigits: 4, maximumFractionDigits: 4 })} USD`
+  return `${(value >= 1 ? wide() : fine()).format(value)} USD`
 }
 
-export const costText = (cost: number | null): string => (cost === null ? UNPRICED : usd(cost))
+export const costText = (cost: number | null): string =>
+  cost === null ? translate(message('Chưa tính được', 'Not priced', '가격 미산정')) : usd(cost)
 
 /** A unit price keeps every digit the admin typed (the column is `numeric(12,4)`). */
-export const priceText = (value: number): string => `${FINE.format(value)} USD`
+export const priceText = (value: number): string => `${fine().format(value)} USD`
 
-export const count = (value: number): string => COUNT.format(value)
+export const count = (value: number): string => formatNumber(value)
 
 /** The line's cost leaves calls out: say how many, beside the number. */
 export const missingText = (line: AiCostLine): string | null =>
   line.costUsd !== null && line.unpricedCalls > 0
-    ? `Còn ${count(line.unpricedCalls)} lượt chưa có giá`
+    ? translate(
+        message(
+          `Còn ${count(line.unpricedCalls)} lượt chưa có giá`,
+          `${count(line.unpricedCalls)} calls are unpriced`,
+          `가격 미설정 호출 ${count(line.unpricedCalls)}회`,
+        ),
+      )
     : null
 
 // ---------------------------------------------------------------------------

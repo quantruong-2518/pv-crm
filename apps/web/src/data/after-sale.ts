@@ -1,11 +1,5 @@
 import { queryOptions } from '@tanstack/react-query'
-import {
-  AfterSaleBookResponse,
-  CUSTOMER_TEMPERATURE_LABEL,
-  type AfterSaleBookQuery,
-  type AfterSaleCareStatus,
-  type AfterSaleTemperatureFilter,
-} from '@pv/contracts'
+import { AfterSaleBookResponse, type AfterSaleBookQuery } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
 import { bookQueryParams, keepPageUnderSameFilters } from '@/app/book-query'
 
@@ -27,19 +21,6 @@ export const AFTER_SALE_FILTER_KEYS = [
   'completedFrom',
   'completedTo',
 ] as const satisfies readonly (keyof AfterSaleBookQuery)[]
-
-export const NO_READING_LABEL = 'Chưa đánh giá'
-
-export const TEMPERATURE_FILTER_LABEL: Record<AfterSaleTemperatureFilter, string> = {
-  ...CUSTOMER_TEMPERATURE_LABEL,
-  none: NO_READING_LABEL,
-}
-
-export const CARE_STATUS_LABEL: Record<AfterSaleCareStatus, string> = {
-  all: 'Tất cả',
-  due: 'Đến kỳ chăm sóc',
-  upcoming: 'Chưa đến kỳ',
-}
 
 /** The whole query rides the key, so page 2 never reads page 1's cache. */
 export const afterSaleBookQuery = (query: AfterSaleBookQuery) =>

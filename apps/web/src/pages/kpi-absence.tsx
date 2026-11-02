@@ -4,6 +4,7 @@ import { Button, CalendarDays, GlassCard, Icon, Pencil, Plus, cn } from '@pv/ui'
 import { vnDayOf, type KpiAbsence } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { toastDone, toastFail } from '@/app/toast'
+import { message, useI18n } from '@/app/i18n'
 import { kpiAbsencesQuery, useKpiAbsenceWrite } from '@/data/kpi-absence'
 import { dm } from '@/lib/date'
 import { TILE } from './home-tiles'
@@ -22,6 +23,7 @@ const TOUCH = 'pointer-coarse:h-12'
 const live = (a: KpiAbsence, today: string) => a.cancelledAt === null && a.toDay >= today
 
 export function AbsenceBlock({ me, actorId, who }: { me: string; actorId?: string; who?: string }) {
+  const { t } = useI18n()
   const list = useQuery(kpiAbsencesQuery)
   const cancel = useKpiAbsenceWrite()
   const [form, setForm] = useState<{ editing: KpiAbsence | null } | null>(null)
@@ -40,7 +42,8 @@ export function AbsenceBlock({ me, actorId, who }: { me: string; actorId?: strin
     cancel.mutate(
       { kind: 'cancel', absenceId: a.id },
       {
-        onSuccess: () => toastDone('Đã huỷ kỳ vắng.'),
+        onSuccess: () =>
+          toastDone(t(message('Đã huỷ kỳ vắng.', 'Absence cancelled.', '부재를 취소했습니다.'))),
         onError: (e) => toastFail(userMessage(e)),
       },
     )
@@ -50,7 +53,7 @@ export function AbsenceBlock({ me, actorId, who }: { me: string; actorId?: strin
       <div className={ROW}>
         <h3 className="m-0 flex items-center gap-2 text-[13px] font-semibold leading-5">
           <Icon icon={CalendarDays} size={16} className="shrink-0" />
-          Vắng mặt
+          {t(message('Vắng mặt', 'Absence', '부재'))}
         </h3>
         <Button
           variant="secondary"
@@ -59,14 +62,19 @@ export function AbsenceBlock({ me, actorId, who }: { me: string; actorId?: strin
           onClick={() => setForm({ editing: null })}
         >
           <Icon icon={Plus} size={16} />
-          Khai vắng
+          {t(message('Khai vắng', 'Declare absence', '부재 등록'))}
         </Button>
       </div>
       {own.map((a) => (
         <div key={a.id} className={ROW}>
           <span className="tnum font-num text-[12.5px] leading-5">
-            {a.fromDay <= today && <span className="font-semibold">Đang vắng · </span>}
-            {dm(a.fromDay)} – {dm(a.toDay)} · Người làm thay: {a.standIn.name}
+            {a.fromDay <= today && (
+              <span className="font-semibold">
+                {t(message('Đang vắng · ', 'Away · ', '부재 중 · '))}
+              </span>
+            )}
+            {dm(a.fromDay)} – {dm(a.toDay)} · {t(message('Người làm thay:', 'Cover:', '대행자:'))}{' '}
+            {a.standIn.name}
           </span>
           <span className="flex flex-wrap gap-2">
             <Button
@@ -76,7 +84,7 @@ export function AbsenceBlock({ me, actorId, who }: { me: string; actorId?: strin
               onClick={() => setForm({ editing: a })}
             >
               <Icon icon={Pencil} size={16} />
-              Sửa ngày kết thúc
+              {t(message('Sửa ngày kết thúc', 'Edit end date', '종료일 수정'))}
             </Button>
             <Button
               variant="ghost"
@@ -85,7 +93,7 @@ export function AbsenceBlock({ me, actorId, who }: { me: string; actorId?: strin
               disabled={cancel.isPending}
               onClick={() => drop(a)}
             >
-              Huỷ vắng
+              {t(message('Huỷ vắng', 'Cancel absence', '부재 취소'))}
             </Button>
           </span>
         </div>
@@ -93,8 +101,20 @@ export function AbsenceBlock({ me, actorId, who }: { me: string; actorId?: strin
       {covering.map((a) => (
         <p key={a.id} className="tnum font-num m-0 text-[12.5px] leading-5">
           {a.fromDay <= today
-            ? `Bạn đang làm thay ${a.actor.name} đến ${dm(a.toDay)}`
-            : `Bạn sẽ làm thay ${a.actor.name} từ ${dm(a.fromDay)} đến ${dm(a.toDay)}`}
+            ? t(
+                message(
+                  `Bạn đang làm thay ${a.actor.name} đến ${dm(a.toDay)}`,
+                  `You are covering for ${a.actor.name} through ${dm(a.toDay)}`,
+                  `${a.actor.name}님을 ${dm(a.toDay)}까지 대행 중입니다`,
+                ),
+              )
+            : t(
+                message(
+                  `Bạn sẽ làm thay ${a.actor.name} từ ${dm(a.fromDay)} đến ${dm(a.toDay)}`,
+                  `You will cover for ${a.actor.name} from ${dm(a.fromDay)} through ${dm(a.toDay)}`,
+                  `${dm(a.fromDay)}부터 ${dm(a.toDay)}까지 ${a.actor.name}님을 대행합니다`,
+                ),
+              )}
         </p>
       ))}
       <AbsenceForm

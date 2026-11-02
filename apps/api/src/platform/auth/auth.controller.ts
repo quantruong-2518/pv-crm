@@ -193,7 +193,7 @@ export class AuthController {
   @HttpCode(204)
   @Public()
   forgotPassword(@Body(zod(ForgotPasswordBody)) body: ForgotPasswordBody): Promise<void> {
-    return this.auth.forgotPassword(body.email)
+    return this.auth.forgotPassword(body.email, body.lang)
   }
 
   /** What the set-password screen may show before anything is typed.

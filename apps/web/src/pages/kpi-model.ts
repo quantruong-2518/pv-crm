@@ -1,5 +1,5 @@
 import { useSearchParams } from 'react-router-dom'
-import { PlusMinus, billions, millions, vnd } from '@pv/ui'
+import { PlusMinus, billions, millions } from '@pv/ui'
 import {
   KPI_VERDICT_LABEL,
   KpiLayer,
@@ -17,6 +17,7 @@ import {
 } from '@pv/contracts'
 import { primaryOf, type KpiCatalog } from '@/data/kpi-catalog'
 import { dmhm } from '@/lib/date'
+import { formatCurrency, formatNumber } from '@/app/i18n'
 import { VN_OFFSET_MS, currentPick, keyOf, num, stepPick, type PeriodPick } from './home-model'
 
 /** Calculation behind the KPI screens: how a reading prints, what is
@@ -138,14 +139,14 @@ export function boardOf(catalog: KpiCatalog, role: RoleId, readings: readonly Kp
 // ---------------------------------------------------------------------------
 
 const oneDecimal = (value: number) =>
-  value.toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+  formatNumber(value, undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 
 const BILLION = 1_000_000_000
 
 /** `compact` is for a tile; tables print every dong. */
 export function printValue(unit: KpiUnit, value: number, compact = false): string {
   if (unit === 'money') {
-    if (!compact) return vnd(value)
+    if (!compact) return formatCurrency(value, 'VND')
     /* "750 tr", not "750,0 tr": the decimal says something only when it is not 0. */
     return (Math.abs(value) >= BILLION ? billions(value, 1) : millions(value)).replace(',0 ', ' ')
   }

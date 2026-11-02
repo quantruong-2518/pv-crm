@@ -7,6 +7,7 @@ import {
   StageKey,
 } from '@pv/contracts'
 import { useCan } from '@/app/auth'
+import { message, translate } from '@/app/i18n'
 import { DEFAULT_LEAD_BOOK_QUERY } from '@/app/url'
 import { leadFacetsQuery } from '@/data/leads'
 import {
@@ -16,6 +17,29 @@ import {
 } from '@/data/opportunities'
 import { FIGURE, InsightCell, SUB } from './home-funnel'
 import { fullestOf, leadStateHref, num, openStageHref } from './home-model'
+
+const tr = (vi: string, en: string, ko: string) => translate(message(vi, en, ko))
+const leadStateName = (key: string, fallback: string) => {
+  const labels: Record<string, [string, string, string]> = {
+    new: ['Khởi tạo lead', 'New lead', '신규 리드'],
+    assigned: ['Đã phân công', 'Assigned', '담당 배정'],
+    working: ['Đang làm việc', 'In progress', '진행 중'],
+    nurturing: ['Tạm gác', 'Nurturing', '육성'],
+    converted: ['Đã chuyển thành cơ hội', 'Converted', '영업 기회 전환'],
+  }
+  const [vi, en, ko] = labels[key] ?? [fallback, fallback, fallback]
+  return tr(vi, en, ko)
+}
+const opportunityStageName = (key: string, fallback: string) => {
+  const labels: Record<string, [string, string, string]> = {
+    new: ['Khởi tạo', 'New', '신규'],
+    assigned: ['Đang phân công', 'Assigned', '담당 배정'],
+    engaged: ['Chăm sóc', 'Engaged', '상담 중'],
+    quotation: ['Báo giá', 'Quotation', '견적'],
+  }
+  const [vi, en, ko] = labels[key] ?? [fallback, fallback, fallback]
+  return tr(vi, en, ko)
+}
 
 /** The lead step and the pipeline column holding the most items right now, each
  *  a link to the list it counts. A snapshot of the books, not a period figure,
@@ -53,9 +77,11 @@ function FullestCell({
       <InsightCell icon={icon} title={title} tint={tint}>
         {failed ? (
           <div className="flex flex-col items-start gap-2">
-            <span className={SUB}>Không tải được.</span>
+            <span className={SUB}>
+              {tr('Không tải được.', 'Could not load data.', '데이터를 불러올 수 없습니다.')}
+            </span>
             <Button variant="ghost" size="sm" className="pointer-coarse:h-12" onClick={onRetry}>
-              Thử lại
+              {tr('Thử lại', 'Try again', '다시 시도')}
             </Button>
           </div>
         ) : (
@@ -99,17 +125,25 @@ function FullestLeads() {
       ? undefined
       : found && {
           ...found,
-          name: LEAD_STATE_LABEL[found.key],
+          name: leadStateName(found.key, LEAD_STATE_LABEL[found.key]),
           to: leadStateHref(found.key),
         }
   return (
     <FullestCell
       icon={Users}
-      title="Bước có nhiều lead nhất"
+      title={tr(
+        'Bước có nhiều lead nhất',
+        'Lead stage with the most records',
+        '리드가 가장 많은 단계',
+      )}
       tint="from-warning/20 to-warning/5 text-on-tint-warning"
-      unit="lead"
-      whole="số lead đang hoạt động"
-      empty="Chưa có lead đang hoạt động."
+      unit={tr('lead', 'leads', '리드')}
+      whole={tr('số lead đang hoạt động', 'of active leads', '활성 리드 중')}
+      empty={tr(
+        'Chưa có lead đang hoạt động.',
+        'There are no active leads yet.',
+        '활성 리드가 아직 없습니다.',
+      )}
       top={top}
       failed={read.isError}
       onRetry={() => void read.refetch()}
@@ -132,17 +166,25 @@ function FullestDeals() {
       ? undefined
       : found && {
           ...found,
-          name: OPPORTUNITY_STAGE_LABEL[found.key],
+          name: opportunityStageName(found.key, OPPORTUNITY_STAGE_LABEL[found.key]),
           to: openStageHref(found.key),
         }
   return (
     <FullestCell
       icon={Kanban}
-      title="Bước có nhiều cơ hội nhất"
+      title={tr(
+        'Giai đoạn có nhiều cơ hội nhất',
+        'Opportunity stage with the most deals',
+        '영업 기회가 가장 많은 단계',
+      )}
       tint="from-primary/20 to-primary/5 text-on-tint-primary"
-      unit="cơ hội"
-      whole="số cơ hội đang mở"
-      empty="Chưa có cơ hội đang mở."
+      unit={tr('cơ hội', 'opportunities', '영업 기회')}
+      whole={tr('số cơ hội đang mở', 'of open opportunities', '진행 중인 영업 기회 중')}
+      empty={tr(
+        'Chưa có cơ hội đang mở.',
+        'There are no open opportunities.',
+        '진행 중인 영업 기회가 없습니다.',
+      )}
       top={top}
       failed={read.isError}
       onRetry={() => void read.refetch()}
@@ -159,7 +201,13 @@ export function FullestTile({ className }: { className?: string }) {
         className,
       )}
     >
-      <h3 className="text-[16px] font-semibold leading-6">Lead và cơ hội đang dồn ở đâu</h3>
+      <h3 className="text-[16px] font-semibold leading-6">
+        {tr(
+          'Lead và cơ hội đang tập trung ở đâu',
+          'Where leads and opportunities are concentrated',
+          '리드와 영업 기회가 집중된 단계',
+        )}
+      </h3>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(240px,100%),1fr))] gap-3">
         <FullestLeads />
         <FullestDeals />

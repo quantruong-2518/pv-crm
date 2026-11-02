@@ -4,12 +4,14 @@ import { Button, GlassCard, Input, Skeleton, cn } from '@pv/ui'
 import { APPROVAL_STATE_LABEL, KpiAlertPatch, type ApprovalState } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import { kpiAlertQuery, useProposeKpiAlert } from '@/data/kpi-config'
 import { dmhm } from '@/lib/date'
 import { KpiMetricMatrix } from './sales-config-kpi-matrix'
 import { OrgSection } from './sales-config-org'
-import { SENT, Section } from './sales-config-section'
+import { Section } from './sales-config-section'
+import { sentCopy } from './sales-config-copy'
 
 /** The KPI area of the config screen (ADR 0099 §1–3, ADR 0100 §1): which metrics
  *  count per role, the two thresholds behind "about to miss" and "about to hit",
@@ -35,6 +37,40 @@ const FIELDS: readonly Field[] = [
   },
 ]
 
+const fieldCopy = (axis: keyof KpiAlertPatch) => {
+  if (axis === 'slipPercent')
+    return {
+      label: message(
+        'Sắp trượt khi dự báo cuối tháng dưới',
+        'At risk when month-end forecast is below',
+        '월말 예상치가 다음 미만이면 위험',
+      ),
+      short: message('Ngưỡng sắp trượt', 'At-risk threshold', '위험 기준'),
+    }
+  if (axis === 'hitPercent')
+    return {
+      label: message(
+        'Sắp đạt khi tiến độ từ',
+        'On track when progress reaches',
+        '진행률이 다음 이상이면 정상',
+      ),
+      short: message('Ngưỡng sắp đạt', 'On-track threshold', '정상 기준'),
+    }
+  return {
+    label: message(
+      'Thiếu bao nhiêu vẫn tính Đúng tiến độ',
+      'Allowed shortfall that still counts as on track',
+      '정상으로 간주할 수 있는 허용 미달률',
+    ),
+    short: message('Mức thiếu cho phép', 'Allowed shortfall', '허용 미달률'),
+    hint: message(
+      'Tính trên số cần đạt tới hôm nay. Để 0% nếu phải đủ.',
+      'Compared with the amount due by today. Set to 0% to require the full amount.',
+      '오늘까지 달성해야 하는 목표를 기준으로 합니다. 전부 달성해야 하면 0%로 설정하세요.',
+    ),
+  }
+}
+
 type Typed = Record<keyof KpiAlertPatch, string>
 
 const LABEL = 'text-muted-foreground text-[11px]'
@@ -51,10 +87,11 @@ function issueOf(issue: { code: string; message: string; path: readonly Property
   const field = FIELDS.find((f) => f.axis === issue.path[0])
   return issue.code === 'custom' || !field
     ? issue.message
-    : `${field.short}: ${lowerFirst(issue.message)}`
+    : `${fieldCopy(field.axis).short.vi}: ${lowerFirst(issue.message)}`
 }
 
 function KpiAlertConfig() {
+  const { t } = useI18n()
   const { data, error, refetch } = useQuery(kpiAlertQuery)
   const canPropose = useCan('config.propose')
   const propose = useProposeKpiAlert()
@@ -67,7 +104,14 @@ function KpiAlertConfig() {
     return (
       <div className="flex flex-wrap items-center gap-3">
         <p role="alert" className={ALERT}>
-          Không tải được ngưỡng cảnh báo. {isApiError(error) ? userMessage(error) : ''}
+          {t(
+            message(
+              'Không tải được ngưỡng cảnh báo.',
+              'Could not load alert thresholds.',
+              '알림 임계값을 불러오지 못했습니다.',
+            ),
+          )}{' '}
+          {isApiError(error) ? userMessage(error) : ''}
         </p>
         <Button
           variant="ghost"
@@ -75,7 +119,7 @@ function KpiAlertConfig() {
           className="pointer-coarse:h-12"
           onClick={() => void refetch()}
         >
-          Thử lại
+          {t(message('Thử lại', 'Try again', '다시 시도'))}
         </Button>
       </div>
     )
@@ -106,7 +150,7 @@ function KpiAlertConfig() {
       onSuccess: (receipt) => {
         setSent({ ...parsed.data, state: receipt.state })
         setTyped(null)
-        toastDone(SENT)
+        toastDone(sentCopy())
       },
     })
   }
@@ -118,7 +162,7 @@ function KpiAlertConfig() {
           <div key={f.axis} className="flex flex-col gap-2">
             {canPropose ? (
               <label htmlFor={ids[f.axis]} className={LABEL}>
-                {f.label}
+                {t(fieldCopy(f.axis).label)}
               </label>
             ) : (
               <span className={LABEL}>{f.label}</span>
@@ -151,7 +195,7 @@ function KpiAlertConfig() {
             disabled={unchanged || propose.isPending}
             onClick={send}
           >
-            Gửi đề nghị
+            {t(message('Gửi đề nghị', 'Submit proposal', '변경 제안'))}
           </Button>
         )}
       </div>
@@ -160,7 +204,7 @@ function KpiAlertConfig() {
         (f) =>
           f.hint && (
             <p key={f.axis} id={`${ids[f.axis]}-hint`} className={NOTE}>
-              {f.hint}
+              {t(fieldCopy(f.axis).hint ?? message('', '', ''))}
             </p>
           ),
       )}
@@ -172,24 +216,51 @@ function KpiAlertConfig() {
       )}
       {sent && (
         <p className={cn(NOTE, 'tnum font-num')}>
-          Đã gửi: sắp trượt dưới {sent.slipPercent}%, sắp đạt từ {sent.hitPercent}%, thiếu{' '}
-          {sent.tolerancePercent}% vẫn tính Đúng tiến độ. {APPROVAL_STATE_LABEL[sent.state]}.
+          {t(
+            message(
+              `Đã gửi: sắp trượt dưới ${sent.slipPercent}%, sắp đạt từ ${sent.hitPercent}%, thiếu ${sent.tolerancePercent}% vẫn tính Đúng tiến độ. ${APPROVAL_STATE_LABEL[sent.state]}.`,
+              `Submitted: at risk below ${sent.slipPercent}%, on track from ${sent.hitPercent}%, and up to ${sent.tolerancePercent}% behind still counts as on track. ${APPROVAL_STATE_LABEL[sent.state]}.`,
+              `제출됨: ${sent.slipPercent}% 미만은 위험, ${sent.hitPercent}%부터 정상이며 ${sent.tolerancePercent}%까지 미달해도 정상으로 계산합니다. ${APPROVAL_STATE_LABEL[sent.state]}.`,
+            ),
+          )}
         </p>
       )}
       <p className={cn(NOTE, 'tnum font-num')}>
         {data.isDefault || !data.updatedBy || !data.updatedAt
-          ? 'Đang dùng mức mặc định.'
-          : `${data.updatedBy.name} đổi lúc ${dmhm(data.updatedAt)}.`}
+          ? t(
+              message(
+                'Đang dùng mức mặc định.',
+                'Using the default settings.',
+                '기본 설정 사용 중입니다.',
+              ),
+            )
+          : t(
+              message(
+                `${data.updatedBy.name} đổi lúc ${dmhm(data.updatedAt)}.`,
+                `Updated by ${data.updatedBy.name} at ${dmhm(data.updatedAt)}.`,
+                `${data.updatedBy.name}님이 ${dmhm(data.updatedAt)}에 수정했습니다.`,
+              ),
+            )}
       </p>
     </GlassCard>
   )
 }
 
 export function KpiArea() {
+  const { t } = useI18n()
   const canView = useCan('kpi.view')
   return (
     <>
-      <Section at="kpi-metrics" hint="Mỗi vai trò có đúng một chỉ số chính.">
+      <Section
+        at="kpi-metrics"
+        hint={t(
+          message(
+            'Mỗi vai trò có đúng một chỉ số chính.',
+            'Each role has exactly one primary metric.',
+            '각 역할에는 기본 지표가 하나씩 지정됩니다.',
+          ),
+        )}
+      >
         <KpiMetricMatrix />
       </Section>
       <Section at="kpi-alert">

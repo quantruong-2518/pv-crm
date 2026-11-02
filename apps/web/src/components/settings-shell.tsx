@@ -4,10 +4,12 @@ import { AppShell, ArrowLeft, Button, Icon, NavItem, ScreenLayout } from '@pv/ui
 import {
   SETTINGS_GROUP_LABEL,
   SETTINGS_PATH,
+  settingsGroupLabel,
   useAppChrome,
   type SettingsEntry,
   type SettingsGroup,
 } from '@/app/chrome'
+import { message, useI18n } from '@/app/i18n'
 
 /** The one frame of every settings screen: the nav on the left is the parent,
  *  the screen opens beside it, so moving between them is sideways and needs no
@@ -37,6 +39,7 @@ export function SettingsShell({
   subNav?: ReactNode
   searchPlaceholder?: string
 }) {
+  const { lang, t } = useI18n()
   const chrome = useAppChrome({ searchPlaceholder })
   const navigate = useNavigate()
   const { pathname } = useLocation()
@@ -46,19 +49,19 @@ export function SettingsShell({
     <AppShell {...chrome.shell}>
       <div className="flex w-full min-w-0 items-start gap-6">
         <nav
-          aria-label="Cài đặt"
+          aria-label={t(message('Cài đặt', 'Settings', '설정'))}
           className="glass-b hidden w-[264px] shrink-0 flex-col gap-1 overflow-y-auto rounded-lg p-3 xl:sticky xl:top-[88px] xl:flex xl:max-h-[calc(100dvh-112px)]"
         >
           <p className="font-display text-foreground m-0 px-3 pb-1 pt-2 text-[18px] font-semibold">
-            Cài đặt
+            {t(message('Cài đặt', 'Settings', '설정'))}
           </p>
           {GROUPS.map((group) => {
             const entries = chrome.settings.filter((e) => e.group === group)
             if (!entries.length) return null
             return (
-              <div key={group} role="group" aria-label={SETTINGS_GROUP_LABEL[group]}>
+              <div key={group} role="group" aria-label={settingsGroupLabel(group, lang)}>
                 <p className="text-glass-foreground m-0 px-3 pb-1 pt-4 text-[12px] font-semibold">
-                  {SETTINGS_GROUP_LABEL[group]}
+                  {settingsGroupLabel(group, lang)}
                 </p>
                 <div className="flex flex-col gap-1">
                   {entries.map((entry) => (
@@ -87,7 +90,7 @@ export function SettingsShell({
             onClick={() => navigate(SETTINGS_PATH)}
           >
             <Icon icon={ArrowLeft} size={16} />
-            Cài đặt
+            {t(message('Cài đặt', 'Settings', '설정'))}
           </Button>
           <ScreenLayout>{children}</ScreenLayout>
         </div>

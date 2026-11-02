@@ -19,6 +19,7 @@ import {
 } from '@pv/ui'
 import type { CampaignMemberRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
+import { message, useI18n } from '@/app/i18n'
 import { listField, useClientBookFilter } from '@/app/client-book-filter'
 import { toast } from '@/app/toast'
 import { fuzzyRank } from '@/lib/fuzzy-rank'
@@ -59,20 +60,35 @@ function AudienceDrawer({
   onSubmit: () => void
   pending: boolean
 }) {
+  const { t } = useI18n()
   return (
     <Drawer
       open={open}
       onClose={onClose}
       width="lg"
-      title="Thêm người nhận"
-      subtitle="Chỉ hiện lead chưa có trong danh sách."
+      title={t(message('Thêm người nhận', 'Add recipients', '수신자 추가'))}
+      subtitle={t(
+        message(
+          'Chỉ hiển thị những lead chưa có trong danh sách.',
+          'Only leads not already on the list are shown.',
+          '목록에 아직 없는 리드만 표시됩니다.',
+        ),
+      )}
       footer={
         <div className="flex justify-end gap-2">
           <Button size="lg" variant="ghost" onClick={onClose} disabled={pending}>
-            Huỷ
+            {t(message('Huỷ', 'Cancel', '취소'))}
           </Button>
           <Button size="lg" onClick={onSubmit} disabled={selected.size === 0 || pending}>
-            {pending ? 'Đang thêm…' : `Thêm ${selected.size} người`}
+            {pending
+              ? t(message('Đang thêm…', 'Adding…', '추가 중…'))
+              : t(
+                  message(
+                    `Thêm ${selected.size} người`,
+                    `Add ${selected.size} recipients`,
+                    `${selected.size}명 추가`,
+                  ),
+                )}
           </Button>
         </div>
       }
@@ -98,6 +114,83 @@ const EMAIL_MISSING = 'missing'
 
 const memberFields = (m: CampaignMemberRow) => [m.leadCode, m.company, m.contactName, m.email]
 
+const TEXT = {
+  recipientRemoved: message(
+    'Đã gỡ khỏi danh sách người nhận',
+    'Recipient removed',
+    '수신자를 목록에서 삭제했습니다',
+  ),
+  couldNotRemoveRecipient: message(
+    'Không gỡ được người nhận',
+    'Could not remove recipient',
+    '수신자를 삭제할 수 없습니다',
+  ),
+  youCanAddLeadsWithout: message(
+    'Bạn vẫn có thể thêm lead chưa có email, nhưng họ sẽ không nhận được thư.',
+    'You can add leads without an email address, but they will not receive emails.',
+    '이메일 주소가 없는 리드도 추가할 수 있지만 이메일은 받을 수 없습니다.',
+  ),
+  searchByCompanyContactOr: message(
+    'Tìm theo công ty, người liên hệ hoặc mã lead…',
+    'Search by company, contact, or lead ID…',
+    '회사, 담당자 또는 리드 ID로 검색…',
+  ),
+  noRecipientsMatchTheseFilters: message(
+    'Không có người nhận nào khớp bộ lọc.',
+    'No recipients match these filters.',
+    '필터와 일치하는 수신자가 없습니다.',
+  ),
+}
+
+/** The email column's filter header. Tallies count the page already loaded. */
+function EmailFilter({
+  selected,
+  withEmail,
+  withoutEmail,
+  onApply,
+}: {
+  selected: string[]
+  withEmail: number
+  withoutEmail: number
+  onApply: (email: string[]) => void
+}) {
+  const { t } = useI18n()
+  return (
+    <ColumnFilter label="Email" active={selected.length > 0}>
+      {(close) => (
+        <ColumnFilterList
+          searchable={false}
+          options={[
+            {
+              value: EMAIL_PRESENT,
+              label: t(
+                message(
+                  `Có email · ${withEmail}`,
+                  `Has email · ${withEmail}`,
+                  `이메일 있음 · ${withEmail}`,
+                ),
+              ),
+            },
+            {
+              value: EMAIL_MISSING,
+              label: t(
+                message(
+                  `Chưa có email · ${withoutEmail}`,
+                  `No email · ${withoutEmail}`,
+                  `이메일 없음 · ${withoutEmail}`,
+                ),
+              ),
+            },
+          ]}
+          selected={selected}
+          close={close}
+          onApply={onApply}
+        />
+      )}
+    </ColumnFilter>
+  )
+}
+
 /** WHO IS ALREADY IN — one `.glass-b` card: a toolbar, the table, and the door
  *  to take somebody out. Search and the email filter run on the rows already
  *  loaded here (cheap: this door loads the whole audience up to
@@ -119,6 +212,7 @@ function MemberCard({
   canEdit: boolean
   onAdd: () => void
 }) {
+  const { t, number } = useI18n()
   const { data, isPending } = useQuery(campaignMembersQuery(code))
   const rows = data?.rows ?? []
   const total = data?.total ?? 0
@@ -141,33 +235,33 @@ function MemberCard({
       { remove: [leadCode] },
       {
         onSuccess: (res) =>
-          toast('Đã gỡ khỏi danh sách người nhận', {
+          toast(t(TEXT.recipientRemoved), {
             tone: 'success',
-            detail: `Còn ${res.audienceCount} người nhận.`,
+            detail: t(
+              message(
+                `Còn ${number(res.audienceCount)} người nhận.`,
+                `${number(res.audienceCount)} recipients remaining.`,
+                `남은 수신자 ${number(res.audienceCount)}명.`,
+              ),
+            ),
           }),
         onError: (err) =>
-          toast('Không gỡ được người nhận', {
+          toast(t(TEXT.couldNotRemoveRecipient), {
             tone: 'danger',
-            detail: isApiError(err) ? userMessage(err) : 'Thử lại.',
+            detail: isApiError(err)
+              ? userMessage(err)
+              : t(message('Hãy thử lại.', 'Please try again.', '다시 시도해 주세요.')),
           }),
       },
     )
 
   const emailFilter = (
-    <ColumnFilter label="Email" active={filters.email.length > 0}>
-      {(close) => (
-        <ColumnFilterList
-          searchable={false}
-          options={[
-            { value: EMAIL_PRESENT, label: `Có email · ${withEmail}` },
-            { value: EMAIL_MISSING, label: `Chưa có email · ${searched.length - withEmail}` },
-          ]}
-          selected={filters.email}
-          close={close}
-          onApply={(email) => patch({ email })}
-        />
-      )}
-    </ColumnFilter>
+    <EmailFilter
+      selected={filters.email}
+      withEmail={withEmail}
+      withoutEmail={searched.length - withEmail}
+      onApply={(email) => patch({ email })}
+    />
   )
 
   /* Nothing to search or filter yet, and the act that fills the list is in
@@ -175,13 +269,15 @@ function MemberCard({
   if (!isPending && total === 0) {
     return (
       <GlassCard
-        aria-label="Người nhận"
+        aria-label={t(message('Người nhận', 'Recipients', '수신자'))}
         className="flex flex-col items-center gap-2 px-6 py-12 text-center"
       >
         <Icon icon={Users} size={24} className="text-muted-foreground" />
-        <h3 className="m-0 text-[14px] font-semibold">Chưa có người nhận</h3>
+        <h3 className="m-0 text-[14px] font-semibold">
+          {t(message('Chưa có người nhận', 'No recipients yet', '아직 수신자가 없습니다'))}
+        </h3>
         <p className="text-muted-foreground m-0 max-w-[440px] text-pretty text-[12px] leading-[1.6]">
-          Lead chưa có email vẫn thêm được nhưng không nhận thư.
+          {t(TEXT.youCanAddLeadsWithout)}
         </p>
       </GlassCard>
     )
@@ -192,20 +288,20 @@ function MemberCard({
       <GlassCard variant="b" className="flex flex-col p-0">
         <div className="flex flex-wrap items-center gap-2 px-5 py-4">
           <SearchField
-            placeholder="Tìm theo công ty, người liên hệ hoặc mã lead…"
+            placeholder={t(TEXT.searchByCompanyContactOr)}
             value={text}
             onChange={setText}
             className="pointer-coarse:h-12 min-w-0 flex-1 sm:max-w-[320px]"
           />
           {dirty && (
             <Button size="md" variant="ghost" onClick={clear} className="pointer-coarse:h-12">
-              Bỏ hết bộ lọc
+              {t(message('Bỏ hết bộ lọc', 'Clear filters', '필터 지우기'))}
             </Button>
           )}
           {canEdit && (
             <Button size="md" onClick={onAdd} className="pointer-coarse:h-12 ml-auto">
               <Icon icon={Plus} size={16} />
-              Thêm người nhận
+              {t(message('Thêm người nhận', 'Add recipients', '수신자 추가'))}
             </Button>
           )}
         </div>
@@ -222,8 +318,11 @@ function MemberCard({
           ) : visible.length === 0 ? (
             <EmptyState
               icon={Inbox}
-              message="Không có người nhận nào khớp bộ lọc."
-              action={{ label: 'Bỏ hết bộ lọc', onClick: clear }}
+              message={t(TEXT.noRecipientsMatchTheseFilters)}
+              action={{
+                label: t(message('Bỏ hết bộ lọc', 'Clear filters', '필터 지우기')),
+                onClick: clear,
+              }}
               className="py-8"
             />
           ) : (
@@ -242,7 +341,13 @@ function MemberCard({
 
       {rows.length < total && (
         <p className="text-muted-foreground text-[12px]">
-          Đang hiện {rows.length} trên {total} người.
+          {t(
+            message(
+              `Đang hiện ${number(rows.length)} trên ${number(total)} người.`,
+              `Showing ${number(rows.length)} of ${number(total)} recipients.`,
+              `${number(total)}명 중 ${number(rows.length)}명 표시 중.`,
+            ),
+          )}
         </p>
       )}
     </div>
@@ -262,19 +367,20 @@ function MemberTable({
   onRemove?: (leadCode: string) => void
   removing: boolean
 }) {
+  const { t } = useI18n()
   return (
     <DataTable
       flush
       className="min-w-[720px]"
       columns={[
-        { header: 'Mã', width: 'minmax(0,0.8fr)' },
-        { header: 'Công ty', width: 'minmax(0,1.7fr)' },
-        { header: 'Người liên hệ', width: 'minmax(0,1.3fr)' },
+        { header: t(message('Mã', 'ID', 'ID')), width: 'minmax(0,0.8fr)' },
+        { header: t(message('Công ty', 'Company', '회사')), width: 'minmax(0,1.7fr)' },
+        { header: t(message('Người liên hệ', 'Contact', '담당자')), width: 'minmax(0,1.3fr)' },
         { header: emailHeader, width: 'minmax(0,1.6fr)' },
         ...(onRemove
           ? [
               {
-                header: <span className="sr-only">Gỡ</span>,
+                header: <span className="sr-only">{t(message('Gỡ', 'Remove', '삭제'))}</span>,
                 width: '48px',
                 align: 'center' as const,
               },
@@ -297,7 +403,7 @@ function MemberTable({
             </span>
           ) : (
             <span key="e" className="text-warning">
-              Chưa có email
+              {t(message('Chưa có email', 'No email', '이메일 없음'))}
             </span>
           ),
           ...(onRemove
@@ -306,8 +412,20 @@ function MemberTable({
                   key="rm"
                   size="sm"
                   variant="ghost"
-                  aria-label={`Gỡ ${m.company} khỏi danh sách người nhận`}
-                  title="Gỡ khỏi danh sách người nhận"
+                  aria-label={t(
+                    message(
+                      `Gỡ ${m.company} khỏi danh sách người nhận`,
+                      `Remove ${m.company} from recipients`,
+                      `${m.company}을(를) 수신자에서 삭제`,
+                    ),
+                  )}
+                  title={t(
+                    message(
+                      'Gỡ khỏi danh sách người nhận',
+                      'Remove from recipients',
+                      '수신자에서 삭제',
+                    ),
+                  )}
                   className={ROW_ICON}
                   onClick={() => onRemove(m.leadCode)}
                   disabled={removing}
@@ -336,6 +454,7 @@ export function AudienceTab({
   adding: boolean
   onAdding: (open: boolean) => void
 }) {
+  const { t, number } = useI18n()
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set())
 
   /* A fresh sheet every time it opens — see `AudienceDrawer`'s docblock for why
@@ -379,17 +498,43 @@ export function AudienceTab({
       { add: [...selected] },
       {
         onSuccess: (res) => {
-          toast(`Đã thêm ${res.added} lead`, {
-            tone: 'success',
-            detail: `Danh sách có ${res.audienceCount} người nhận.`,
-          })
+          toast(
+            t(
+              message(
+                `Đã thêm ${number(res.added)} lead`,
+                `${number(res.added)} leads added`,
+                `리드 ${number(res.added)}개 추가 완료`,
+              ),
+            ),
+            {
+              tone: 'success',
+              detail: t(
+                message(
+                  `Danh sách hiện có ${number(res.audienceCount)} người nhận.`,
+                  `The list now has ${number(res.audienceCount)} recipients.`,
+                  `목록에 수신자 ${number(res.audienceCount)}명이 있습니다.`,
+                ),
+              ),
+            },
+          )
           onAdding(false)
         },
         onError: (err) =>
-          toast('Không thêm được người nhận', {
-            tone: 'danger',
-            detail: isApiError(err) ? userMessage(err) : 'Thử lại.',
-          }),
+          toast(
+            t(
+              message(
+                'Không thêm được người nhận',
+                'Could not add recipients',
+                '수신자를 추가할 수 없습니다',
+              ),
+            ),
+            {
+              tone: 'danger',
+              detail: isApiError(err)
+                ? userMessage(err)
+                : t(message('Hãy thử lại.', 'Please try again.', '다시 시도해 주세요.')),
+            },
+          ),
       },
     )
   }

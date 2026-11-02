@@ -1,9 +1,10 @@
 import { useState, type ReactNode } from 'react'
 import { GlassCard, MetaPill, SectionTitle, SegmentedControl } from '@pv/ui'
-import { LEAD_SIDE_LABEL, LeadSide, type LeadMotion } from '@pv/contracts'
+import { LeadSide, type LeadMotion } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 import { OWNER_SOURCE_FIELDS, originValue, readField, type FormField } from '@/data/lead-form'
 import type { LeadDraft } from '@/data/lead-draft'
-import { NO_OWNER_TITLE } from '@/data/leads'
+import { LEAD_COPY, leadMotionText } from '@/data/lead-copy'
 import {
   CampaignPicker,
   OriginPicker,
@@ -20,13 +21,14 @@ import {
  *  Three fields, three different write doors: the holder is a hand-over of its
  *  own, the motion is settled here at intake, and the origin is asked once. */
 export function OwnerSourceCard({ draft }: { draft: LeadDraft }) {
+  const { t } = useI18n()
   return (
     <GlassCard
       variant="b"
       className="flex flex-col gap-5 p-4 sm:p-5"
-      aria-label="Phụ trách và nguồn"
+      aria-label={t(LEAD_COPY.ownerSource)}
     >
-      <SectionTitle size="detail">Phụ trách và nguồn</SectionTitle>
+      <SectionTitle size="detail">{t(LEAD_COPY.ownerSource)}</SectionTitle>
       <CreateBody draft={draft} />
     </GlassCard>
   )
@@ -49,13 +51,14 @@ const REFERRER_BOX = boxOf('refCode')
  *  and whichever of origin · campaign · referrer its `asks` names; the server
  *  derives the origin from the other two. */
 function CreateBody({ draft }: { draft: LeadDraft }) {
+  const { t } = useI18n()
   return (
     <>
       {/* Stated, not asked: `LeadCreate` names its holder by `ownerId` and this
           draft carries no box that speaks it, so a picker here would swallow
           whoever was picked. Handing the lead over is its own door. */}
-      <Block label="Lead PIC" hint="Lead mới nằm ở kho chung.">
-        <MetaPill title={NO_OWNER_TITLE}>Chưa ai nhận</MetaPill>
+      <Block label={t(LEAD_COPY.owner)} hint={t(LEAD_COPY.poolHint)}>
+        <MetaPill title={t(LEAD_COPY.poolHint)}>{t(LEAD_COPY.unclaimed)}</MetaPill>
       </Block>
 
       <MotionBlock draft={draft} />
@@ -68,13 +71,20 @@ function CreateBody({ draft }: { draft: LeadDraft }) {
 
 /** Six motions in two halves — who moved first reads before which channel. */
 function MotionBlock({ draft }: { draft: LeadDraft }) {
+  const { t, lang } = useI18n()
   if (!MOTION_BOX) return null
   const value = readField(draft.values, 'motion')
   return (
     <Block
-      label="Phương án tiếp cận"
+      label={t(LEAD_COPY.approach)}
       required
-      hint={MOTION_BOX.hint}
+      hint={t(
+        message(
+          'Ai chủ động trước.',
+          'Who made the first move.',
+          '누가 먼저 연락했는지 표시합니다.',
+        ),
+      )}
       error={draft.fieldError('motion')}
     >
       {LeadSide.options.map((side) => {
@@ -83,9 +93,12 @@ function MotionBlock({ draft }: { draft: LeadDraft }) {
         return (
           <SegmentedControl
             key={side}
-            label={LEAD_SIDE_LABEL[side]}
+            label={t(side === 'PASSIVE' ? LEAD_COPY.firstInbound : LEAD_COPY.firstOutbound)}
             value={value}
-            options={options.map((m) => ({ value: m.motion, label: m.label }))}
+            options={options.map((m) => ({
+              value: m.motion,
+              label: leadMotionText(m.motion, m.label, lang),
+            }))}
             onChange={(raw) => write(draft, MOTION_BOX, raw)}
             className="flex-wrap"
           />
@@ -98,6 +111,7 @@ function MotionBlock({ draft }: { draft: LeadDraft }) {
 /** The draft holds only what goes on the wire, so each block keeps the name
  *  shown in its box and drops it once the draft moves on. */
 function OriginBlock({ draft }: { draft: LeadDraft }) {
+  const { t } = useI18n()
   const [origin, setOrigin] = useState<OriginChoice | null>(null)
   if (!ORIGIN_BOX) return null
   const raw = readField(draft.values, 'origin')
@@ -105,13 +119,13 @@ function OriginBlock({ draft }: { draft: LeadDraft }) {
   const motion = readField(draft.values, 'motion') as LeadMotion | ''
   return (
     <Block
-      label="Nguồn"
+      label={t(LEAD_COPY.source)}
       required
-      hint="Chọn nguồn đã có hoặc nhập tên mới."
+      hint={t(LEAD_COPY.sourceHint)}
       error={draft.fieldError('origin')}
     >
       <OriginPicker
-        label="Nguồn"
+        label={t(LEAD_COPY.source)}
         hideLabel
         value={shown}
         motion={motion === '' ? undefined : motion}
@@ -126,19 +140,20 @@ function OriginBlock({ draft }: { draft: LeadDraft }) {
 }
 
 function CampaignBlock({ draft }: { draft: LeadDraft }) {
+  const { t } = useI18n()
   const [campaign, setCampaign] = useState<CampaignChoice | null>(null)
   if (!CAMPAIGN_BOX) return null
   const raw = readField(draft.values, 'campaignCode')
   const shown = campaign && campaign.code === raw ? campaign : null
   return (
     <Block
-      label="Chiến dịch"
+      label={t(LEAD_COPY.campaign)}
       required
-      hint="Chỉ chiến dịch còn nhận lead. Nguồn lấy theo chiến dịch."
+      hint={t(LEAD_COPY.campaignHint)}
       error={draft.fieldError('campaignCode')}
     >
       <CampaignPicker
-        label="Chiến dịch"
+        label={t(LEAD_COPY.campaign)}
         hideLabel
         required
         value={shown}
@@ -153,6 +168,7 @@ function CampaignBlock({ draft }: { draft: LeadDraft }) {
 }
 
 function ReferrerBlock({ draft }: { draft: LeadDraft }) {
+  const { t } = useI18n()
   const [partner, setPartner] = useState<PartnerChoice | null>(null)
   if (!REFERRER_BOX) return null
   const raw = readField(draft.values, 'refCode')
@@ -160,17 +176,23 @@ function ReferrerBlock({ draft }: { draft: LeadDraft }) {
   const motion = readField(draft.values, 'motion') as LeadMotion | ''
   return (
     <Block
-      label="Mã giới thiệu"
+      label={t(message('Mã giới thiệu', 'Referral code', '추천 코드'))}
       required
       hint={
         shown?.originName
-          ? `Nguồn lấy theo mã giới thiệu: ${shown.originName}.`
-          : 'Nguồn lấy theo mã giới thiệu.'
+          ? t(
+              message(
+                `Nguồn: ${shown.originName}.`,
+                `Source: ${shown.originName}.`,
+                `유입 경로: ${shown.originName}.`,
+              ),
+            )
+          : t(LEAD_COPY.referrerHint)
       }
       error={draft.fieldError('refCode')}
     >
       <PartnerPicker
-        label="Mã giới thiệu"
+        label={t(message('Mã giới thiệu', 'Referral code', '추천 코드'))}
         hideLabel
         value={shown}
         motion={motion === '' ? undefined : motion}

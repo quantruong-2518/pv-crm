@@ -12,6 +12,7 @@ import {
 } from '@pv/ui'
 import type { AiPrice } from '@pv/contracts'
 import { useCan } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
 import { SettingsShell } from '@/components/settings-shell'
 import {
   aiCostsQuery,
@@ -51,6 +52,7 @@ const seedOf = (row: AiPrice): PriceSeed => ({
 })
 
 export function AdminCostsPage() {
+  const { t } = useI18n()
   const canSet = useCan('cost.view')
 
   const [pick, setPick] = useState<PeriodPick>(() => ({ ...currentPick(), grain: 'month' }))
@@ -77,20 +79,35 @@ export function AdminCostsPage() {
   return (
     <SettingsShell>
       <ScreenHeader
-        title="Chi phí"
-        description="Tính theo bảng giá bên dưới, có thể khác hoá đơn của nhà cung cấp."
+        title={t(message('Chi phí', 'AI costs', 'AI 비용'))}
+        description={t(
+          message(
+            'Chi phí được ước tính theo bảng giá bên dưới và có thể khác hóa đơn của nhà cung cấp.',
+            'Costs are estimated using the prices below and may differ from your provider invoice.',
+            '아래 가격표를 기준으로 비용을 추정하며, 공급업체 청구 금액과 다를 수 있습니다.',
+          ),
+        )}
         actions={<CostMonthPicker pick={pick} onPick={setPick} />}
       />
 
-      <QueryBlock query={report} what="chi phí của tháng">
+      <QueryBlock
+        query={report}
+        what={t(message('chi phí tháng này', 'this month’s costs', '이번 달 비용'))}
+      >
         {(data) =>
           data.totals.calls === 0 ? (
             <GlassCard>
               <EmptyState
                 icon={Inbox}
-                message="Tháng này chưa dùng AI lần nào."
+                message={t(
+                  message(
+                    'Tháng này chưa có lượt dùng AI.',
+                    'No AI calls this month yet.',
+                    '이번 달 AI 호출이 아직 없습니다.',
+                  ),
+                )}
                 action={{
-                  label: 'Xem tháng trước',
+                  label: t(message('Xem tháng trước', 'View last month', '지난달 보기')),
                   onClick: earlier ? () => setPick(earlier) : undefined,
                 }}
                 className="py-12"
@@ -106,7 +123,9 @@ export function AdminCostsPage() {
               />
               <CostTotals line={data.totals} />
               <section className="flex flex-col gap-3">
-                <SectionTitle size="md">Chi phí theo ngày</SectionTitle>
+                <SectionTitle size="md">
+                  {t(message('Chi phí theo ngày', 'Daily costs', '일별 비용'))}
+                </SectionTitle>
                 <CostByDay days={data.byDay} />
               </section>
               <CostBreakdown report={data} />
@@ -122,14 +141,18 @@ export function AdminCostsPage() {
             canSet && (
               <Button size="md" className="pointer-coarse:h-12" onClick={() => openWith(blank())}>
                 <Icon icon={Plus} size={16} />
-                Đặt giá
+                {t(message('Đặt giá', 'Set price', '가격 설정'))}
               </Button>
             )
           }
         >
-          Bảng giá
+          {t(message('Bảng giá', 'Price list', '가격표'))}
         </SectionTitle>
-        <QueryBlock query={prices} what="bảng giá" variant="b">
+        <QueryBlock
+          query={prices}
+          what={t(message('bảng giá', 'price list', '가격표'))}
+          variant="b"
+        >
           {(data) => (
             <PriceTable
               rows={data.rows}

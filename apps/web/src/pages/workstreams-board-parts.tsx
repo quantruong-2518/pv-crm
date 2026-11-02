@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { Badge, GlassCard, Icon, Lock, Skeleton, cn, initialsOf } from '@pv/ui'
 import type { WorkstreamBoardColumn, WorkstreamBookQuery, WorkstreamRow } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
+import { salesLabel } from '@/data/sales-labels-i18n'
 import { dm } from '@/lib/date'
 import {
   STAND_TONE,
@@ -68,11 +70,12 @@ export function StepRail({
   active: JourneyStepKey
   onSelect: (step: JourneyStepKey) => void
 }) {
+  const { t } = useI18n()
   const activeIndex = groups.findIndex((g) => g.step.key === active)
   return (
     <div
       role="group"
-      aria-label="Các bước của hành trình"
+      aria-label={t(message('Các bước của hành trình', 'Workstream steps', '영업 건 단계'))}
       className="-mx-1 flex items-stretch overflow-x-auto px-1 pb-4"
     >
       {groups.map((group, index) => (
@@ -99,6 +102,7 @@ function StepCard({
   phase: StepPhase
   onSelect: () => void
 }) {
+  const { t, number, lang } = useI18n()
   const current = phase === 'current'
   /* The SURFACE dims, never the ink: a step the catalogue sent no column for
      has to read as unavailable and still pass 4.5:1 in both themes (law 13).
@@ -113,7 +117,11 @@ function StepCard({
     if (current) box.current?.scrollIntoView({ inline: 'center', block: 'nearest' })
   }, [current])
 
-  const counted = group.total === null ? '' : ` · ${group.total} hành trình`
+  const counted =
+    group.total === null
+      ? ''
+      : ` · ${t(message(`${number(group.total)} hành trình`, `${number(group.total)} workstreams`, `영업 건 ${number(group.total)}개`))}`
+  const stepLabel = salesLabel(group.step.label, lang)
   return (
     <div
       ref={box}
@@ -123,9 +131,13 @@ function StepCard({
       <button
         type="button"
         aria-pressed={current}
-        aria-label={`Bước ${index + 1} · ${group.step.label} · ${
-          bookless ? 'chưa dùng được' : PHASE_NOTE[phase]
-        }${group.closedOnly ? ' · chỉ đếm hành trình đã đóng' : ''}${counted}`}
+        aria-label={t(
+          message(
+            `Bước ${index + 1} · ${stepLabel} · ${bookless ? 'chưa dùng được' : PHASE_NOTE[phase]}${group.closedOnly ? ' · chỉ đếm hành trình đã đóng' : ''}${counted}`,
+            `Step ${index + 1} · ${stepLabel} · ${bookless ? 'unavailable' : ({ current: 'current', done: 'completed', upcoming: 'upcoming' } as const)[phase]}${group.closedOnly ? ' · counts closed workstreams only' : ''}${counted}`,
+            `${index + 1}단계 · ${stepLabel} · ${bookless ? '사용할 수 없음' : ({ current: '현재', done: '완료', upcoming: '예정' } as const)[phase]}${group.closedOnly ? ' · 종료된 영업 건만 집계' : ''}${counted}`,
+          ),
+        )}
         onClick={onSelect}
         style={{ clipPath: index > 0 ? STEP_CLIP : STEP_CLIP_FIRST }}
         className={cn(
@@ -249,10 +261,20 @@ function ColumnNote({
 /** State 3 · a step with no book behind it. The screen draws this from
  *  `WORKSTREAM_JOURNEY_STEPS`; the server sends no column to draw it from. */
 export function LockedColumn({ label }: { label: string }) {
+  const { t, lang } = useI18n()
+  const stepLabel = salesLabel(label, lang)
   return (
     <ColumnShell label={label} count={DASH} dim>
       <div className={COLUMN_BODY}>
-        <ColumnNote icon={Lock}>{`Bước ${label} chưa dùng được`}</ColumnNote>
+        <ColumnNote icon={Lock}>
+          {t(
+            message(
+              `Bước ${stepLabel} chưa dùng được`,
+              `${stepLabel} is not available yet`,
+              `${stepLabel} 단계는 아직 사용할 수 없습니다`,
+            ),
+          )}
+        </ColumnNote>
       </div>
     </ColumnShell>
   )
@@ -376,6 +398,7 @@ function GuestAvatar({ name }: { name: string }) {
 }
 
 function JourneyCard({ row }: { row: WorkstreamRow }) {
+  const { t } = useI18n()
   const last = row.footprint.lastContactedAt
   return (
     /* Hover lifts by SHADOW, never by tinting the face: a tint lightens the
@@ -405,7 +428,9 @@ function JourneyCard({ row }: { row: WorkstreamRow }) {
       <span className="flex min-w-0 items-center gap-2">
         <GuestAvatar name={row.contact} />
         <span className="text-muted-foreground min-w-0 flex-1 truncate text-[11.5px]">
-          <span className="text-glass-foreground">Khách: </span>
+          <span className="text-glass-foreground">
+            {t(message('Khách: ', 'Customer: ', '고객: '))}
+          </span>
           {row.contact}
         </span>
         <span className="text-glass-foreground shrink-0 font-mono text-[10.5px]">{row.code}</span>
@@ -417,9 +442,18 @@ function JourneyCard({ row }: { row: WorkstreamRow }) {
         </span>
         <span
           className="tnum font-num text-muted-foreground shrink-0 text-[10.5px]"
-          title="Tổng số lần liên lạc · lần gần nhất"
+          title={t(
+            message(
+              'Tổng số lần liên lạc · lần gần nhất',
+              'Total interactions · latest',
+              '총 연락 횟수 · 최근 연락',
+            ),
+          )}
         >
-          {footprintTotal(row.footprint)} · {last === null ? 'chưa liên lạc' : dm(last)}
+          {footprintTotal(row.footprint)} ·{' '}
+          {last === null
+            ? t(message('chưa liên lạc', 'no interactions', '연락 기록 없음'))
+            : dm(last)}
         </span>
       </span>
     </Link>

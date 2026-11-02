@@ -11,6 +11,7 @@ import {
   ShellHeading,
 } from './brand-shell'
 import { COLOR_PRIMARY, formatMoment } from './ops-mail-style'
+import { mailText, type MailLang } from './mail-locale'
 
 /** THE LETTER THAT CARRIES A SET-PASSWORD LINK — one template, two greetings.
  *
@@ -64,6 +65,7 @@ export type PasswordResetData = {
    *  sitting at the screen. Same ticket, same destination, different greeting
    *  and a TTL two orders of magnitude apart. */
   purpose: 'invite' | 'reset'
+  lang?: MailLang
   /** For the greeting. Falls back to a neutral form when blank rather than
    *  printing "Chào ,". */
   name: string
@@ -99,29 +101,57 @@ type Copy = {
   reassurance: string
 }
 
-function copyFor(purpose: 'invite' | 'reset'): Copy {
+function copyFor(purpose: 'invite' | 'reset', lang: MailLang): Copy {
   if (purpose === 'invite') {
     return {
-      preview: `Tài khoản ${BRAND.product} của bạn đã sẵn sàng. Vui lòng đặt mật khẩu để bắt đầu sử dụng.`,
-      heading: `Tài khoản ${BRAND.product} của bạn đã được tạo`,
-      lead:
-        `Quản trị viên đã tạo cho bạn một tài khoản trên ${BRAND.product}. ` +
-        'Vui lòng nhấn nút bên dưới để đặt mật khẩu và bắt đầu sử dụng.',
-      cta: 'Đặt mật khẩu',
-      reassurance:
-        'Nếu đường dẫn đã hết hạn, vui lòng liên hệ quản trị viên để được gửi lại lời mời.',
+      preview: mailText(
+        lang,
+        `Đặt mật khẩu để bắt đầu dùng ${BRAND.product}.`,
+        `Set a password to start using ${BRAND.product}.`,
+        `비밀번호를 설정하고 ${BRAND.product}을 시작하세요.`,
+      ),
+      heading: mailText(
+        lang,
+        `Đặt mật khẩu cho ${BRAND.product}`,
+        `Set your ${BRAND.product} password`,
+        `${BRAND.product} 비밀번호 설정`,
+      ),
+      lead: mailText(
+        lang,
+        `Tài khoản ${BRAND.product} của bạn đã được tạo. Đặt mật khẩu để đăng nhập.`,
+        `Your ${BRAND.product} account is ready. Set a password to sign in.`,
+        `${BRAND.product} 계정이 준비되었습니다. 비밀번호를 설정하고 로그인하세요.`,
+      ),
+      cta: mailText(lang, 'Đặt mật khẩu', 'Set password', '비밀번호 설정'),
+      reassurance: mailText(
+        lang,
+        'Liên kết hết hạn? Nhờ quản trị viên gửi lời mời mới.',
+        'If this link has expired, ask your administrator to send a new invite.',
+        '링크가 만료되었으면 관리자에게 초대를 다시 보내 달라고 요청하세요.',
+      ),
     }
   }
   return {
-    preview: `Yêu cầu đặt lại mật khẩu cho tài khoản ${BRAND.product} của bạn.`,
-    heading: 'Đặt lại mật khẩu',
-    lead:
-      `Chúng tôi đã nhận được yêu cầu đặt lại mật khẩu cho tài khoản ${BRAND.product} của bạn. ` +
-      'Vui lòng nhấn nút bên dưới để tạo mật khẩu mới.',
-    reassurance:
-      'Nếu bạn không gửi yêu cầu này, vui lòng bỏ qua email, mật khẩu hiện tại vẫn được giữ ' +
-      'nguyên. Sau khi đặt mật khẩu mới, mọi thiết bị đang đăng nhập sẽ bị đăng xuất.',
-    cta: 'Đặt lại mật khẩu',
+    preview: mailText(
+      lang,
+      `Yêu cầu đặt lại mật khẩu ${BRAND.product}.`,
+      `Reset your ${BRAND.product} password.`,
+      `${BRAND.product} 비밀번호 재설정 요청입니다.`,
+    ),
+    heading: mailText(lang, 'Đặt lại mật khẩu', 'Reset your password', '비밀번호 재설정'),
+    lead: mailText(
+      lang,
+      `Dùng nút bên dưới để tạo mật khẩu mới cho ${BRAND.product}.`,
+      `Use the button below to create a new ${BRAND.product} password.`,
+      `아래 버튼을 눌러 ${BRAND.product}의 새 비밀번호를 설정하세요.`,
+    ),
+    reassurance: mailText(
+      lang,
+      'Nếu bạn không yêu cầu đặt lại, hãy bỏ qua thư này. Mật khẩu hiện tại vẫn dùng được. Đặt mật khẩu mới sẽ đăng xuất các thiết bị khác.',
+      'If you did not request a reset, ignore this email. Your current password will keep working. Setting a new password signs out your other sessions.',
+      '재설정을 요청하지 않았다면 이 이메일을 무시하세요. 현재 비밀번호는 계속 사용할 수 있습니다. 새 비밀번호를 설정하면 다른 기기에서 로그아웃됩니다.',
+    ),
+    cta: mailText(lang, 'Đặt lại mật khẩu', 'Reset password', '비밀번호 재설정'),
   }
 }
 
@@ -140,17 +170,34 @@ function copyFor(purpose: 'invite' | 'reset'): Copy {
  *  past — a clock skewed the wrong way must not tell somebody their live link
  *  expired. The body then falls back to printing the absolute moment, which is
  *  still true. */
-function remainingPhrase(expiresAtIso: string, now: number): string | null {
+function remainingPhrase(expiresAtIso: string, now: number, lang: MailLang): string | null {
   const at = new Date(expiresAtIso).getTime()
   if (Number.isNaN(at)) return null
 
   const minutes = (at - now) / 60_000
   if (minutes <= 0) return null
-  if (minutes < 90) return `${Math.max(1, Math.round(minutes))} phút`
+  if (minutes < 90) {
+    const value = Math.max(1, Math.round(minutes))
+    return mailText(
+      lang,
+      `${value} phút`,
+      `${value} ${value === 1 ? 'minute' : 'minutes'}`,
+      `${value}분`,
+    )
+  }
 
   const hours = minutes / 60
-  if (hours < 48) return `${Math.round(hours)} giờ`
-  return `${Math.round(hours / 24)} ngày`
+  if (hours < 48) {
+    const value = Math.round(hours)
+    return mailText(
+      lang,
+      `${value} giờ`,
+      `${value} ${value === 1 ? 'hour' : 'hours'}`,
+      `${value}시간`,
+    )
+  }
+  const days = Math.round(hours / 24)
+  return mailText(lang, `${days} ngày`, `${days} ${days === 1 ? 'day' : 'days'}`, `${days}일`)
 }
 
 /** Hạn dùng đứng ở HỘP SỐ LIỆU, không trộn vào câu văn.
@@ -164,27 +211,44 @@ function remainingPhrase(expiresAtIso: string, now: number): string | null {
  *  ngay, còn "15:20 ngày 29/08" là thứ vẫn đúng khi lá thư được đọc lại lần
  *  thứ hai, lúc con số kia đã sai. Không có khoảng cách — đồng hồ lệch, hoặc
  *  vé đã quá hạn — thì chỉ còn mốc tuyệt đối, thứ luôn luôn thật. */
-function expiryValue(remaining: string | null, moment: string): string {
-  return remaining ? `Còn ${remaining} · ${moment}` : moment
+function expiryValue(remaining: string | null, moment: string, lang: MailLang): string {
+  if (!remaining) return moment
+  return mailText(
+    lang,
+    `Còn ${remaining} · ${moment}`,
+    `${remaining} left · ${moment}`,
+    `${remaining} 남음 · ${moment}`,
+  )
 }
 
 export function PasswordResetEmail(data: PasswordResetData) {
-  const copy = copyFor(data.purpose)
-  const greeting = data.name.trim() || 'bạn'
-  const remaining = remainingPhrase(data.expiresAt, Date.now())
-  const moment = formatMoment(data.expiresAt)
+  const lang = data.lang ?? 'vi'
+  const copy = copyFor(data.purpose, lang)
+  const greeting = data.name.trim() || mailText(lang, 'bạn', 'there', '')
+  const remaining = remainingPhrase(data.expiresAt, Date.now(), lang)
+  const moment = formatMoment(data.expiresAt, lang)
 
   return (
-    <BrandShell preview={copy.preview} assetBaseUrl={data.assetBaseUrl}>
+    <BrandShell preview={copy.preview} assetBaseUrl={data.assetBaseUrl} lang={lang}>
       <ShellHeading>{copy.heading}</ShellHeading>
-      <Para>Xin chào {greeting},</Para>
+      <Para>
+        {mailText(
+          lang,
+          `Xin chào ${greeting},`,
+          `Hello ${greeting},`,
+          greeting ? `${greeting}님, 안녕하세요.` : '안녕하세요.',
+        )}
+      </Para>
       <Para>{copy.lead}</Para>
 
       <CtaButton href={data.link}>{copy.cta}</CtaButton>
 
       <FactBox>
-        <Fact label="Tài khoản" value={data.email} />
-        <Fact label="Thời hạn liên kết" value={expiryValue(remaining, moment)} />
+        <Fact label={mailText(lang, 'Tài khoản', 'Account', '계정')} value={data.email} />
+        <Fact
+          label={mailText(lang, 'Thời hạn liên kết', 'Link expires', '링크 만료')}
+          value={expiryValue(remaining, moment, lang)}
+        />
       </FactBox>
 
       {/* `FallbackLink` mang `margin: 0`, nên khoảng cách với đoạn kế tiếp
@@ -192,24 +256,43 @@ export function PasswordResetEmail(data: PasswordResetData) {
           dòng URL dài đang ngắt giữa chữ. */}
       <Section style={{ margin: '0 0 20px' }}>
         <Note>
-          Nếu nút không hoạt động, vui lòng sao chép đường dẫn sau và dán vào trình duyệt:
+          {mailText(
+            lang,
+            'Nếu nút không hoạt động, hãy sao chép liên kết sau và dán vào trình duyệt:',
+            'If the button does not work, copy this link and paste it into your browser:',
+            '버튼이 작동하지 않으면 아래 링크를 복사해 브라우저에 붙여 넣으세요:',
+          )}
         </Note>
         <FallbackLink url={data.link} />
       </Section>
 
-      <Note>Đường dẫn chỉ sử dụng được một lần. {copy.reassurance}</Note>
-      <Note>Vì lý do bảo mật, vui lòng không chuyển tiếp email này cho người khác.</Note>
       <Note>
-        Nếu cần hỗ trợ, vui lòng liên hệ{' '}
+        {mailText(
+          lang,
+          'Liên kết chỉ dùng được một lần.',
+          'This link can only be used once.',
+          '이 링크는 한 번만 사용할 수 있습니다.',
+        )}{' '}
+        {copy.reassurance}
+      </Note>
+      <Note>
+        {mailText(
+          lang,
+          'Vì lý do bảo mật, đừng chuyển tiếp email này.',
+          'For your security, do not forward this email.',
+          '보안을 위해 이 이메일을 전달하지 마세요.',
+        )}
+      </Note>
+      <Note>
+        {mailText(lang, 'Cần hỗ trợ? Liên hệ ', 'Need help? Contact ', '도움이 필요하면 ')}
         <Link href={`mailto:${BRAND.contactEmail}`} style={{ color: COLOR_PRIMARY }}>
           {BRAND.contactEmail}
         </Link>
-        .
       </Note>
 
       <Section style={{ margin: '20px 0 0' }}>
         <Para>
-          Trân trọng,
+          {mailText(lang, 'Trân trọng,', 'Regards,', '감사합니다,')}
           <br />
           {BRAND.product}
         </Para>

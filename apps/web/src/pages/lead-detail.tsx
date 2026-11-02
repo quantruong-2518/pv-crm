@@ -6,6 +6,7 @@ import type { LeadProfile } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
+import { useI18n } from '@/app/i18n'
 import { toastDone, toastFail } from '@/app/toast'
 import { leadContactsQuery } from '@/data/contacts'
 import { useLeadDealReach } from '@/data/deal-sale'
@@ -36,6 +37,7 @@ import { LeadDisabledNotice, LeadHeader, LeadTodo } from './lead-blocks'
 import { barPeopleOf, leadMoreChoices, mailBlockedOf } from './lead-model'
 import { useAiFillRun } from './lead-ai-fill'
 import { LeadForm } from './lead-parts'
+import { LEAD_COPY } from '@/data/lead-copy'
 
 /** Module 2 · one lead's profile — `/sales/leads/:code`, on the record shell
  *  (ADR 0078): run strip, header, then the body — todo card, the lead form as
@@ -46,7 +48,8 @@ import { LeadForm } from './lead-parts'
  *  hook of the profile runs only once there IS a profile. */
 
 export function LeadDetailPage() {
-  const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
+  const { t } = useI18n()
+  const chrome = useAppChrome({ searchPlaceholder: t(LEAD_COPY.search) })
   const navigate = useNavigate()
   const { code = '' } = useParams()
   const { data: lead, isPending, error } = useQuery(leadProfileQuery(code))
@@ -60,9 +63,9 @@ export function LeadDetailPage() {
           pending={isPending}
           failure={{
             error,
-            notFound: `Không tìm thấy lead ${code}.`,
-            fallback: 'Không mở được hồ sơ lead.',
-            back: { label: 'Về sổ lead', onClick: () => navigate('/sales/leads') },
+            notFound: `${t(LEAD_COPY.missingProfile)} ${code}.`,
+            fallback: t(LEAD_COPY.openFailed),
+            back: { label: t(LEAD_COPY.backBook), onClick: () => navigate('/sales/leads') },
           }}
         />
       )}
@@ -87,6 +90,7 @@ const leadDoors = (
 ): OwnerDoors => (door.shut || off ? {} : { [code]: { label: door.label, onClick: open } })
 
 function LeadScreen({ lead }: { lead: LeadProfile }) {
+  const { t } = useI18n()
   const navigate = useNavigate()
   const me = useSession((s) => s.actor)
   /* Switched off: the server already answers `canEdit: false`, which is not
@@ -141,8 +145,8 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
     {
       onClaim: () =>
         claim.mutate(undefined, {
-          onSuccess: () => toastDone(`Đã nhận ${lead.code}.`),
-          onError: (e) => toastFail('Không nhận được lead.', userMessage(e)),
+          onSuccess: () => toastDone(`${t(LEAD_COPY.claimDone)} ${lead.code}.`),
+          onError: (e) => toastFail(t(LEAD_COPY.claimFailed), userMessage(e)),
         }),
       onNurture: () => setNurturing(true),
       onHold: () => setHolding(true),
@@ -177,7 +181,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
           <LeadForm draft={draft} code={lead.code} canEdit={canWrite} ai={aiFill} />
         </>
       }
-      railLabel="Lịch sử liên hệ, người liên hệ và tài liệu của lead"
+      railLabel={t(LEAD_COPY.railLabel)}
       rail={
         <>
           <RunOwners
@@ -201,7 +205,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
       actionBar={
         !off && (
           <ActionBar
-            label="Thao tác lead"
+            label={t(LEAD_COPY.actions)}
             subject={{ code: lead.code, kind: 'lead' }}
             contacts={people}
             mailBlocked={mailBlocked}

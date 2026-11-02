@@ -1,21 +1,21 @@
 import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeftRight, Drawer, Skeleton, cn } from '@pv/ui'
-import {
-  OPPORTUNITY_CONTACT_ROLE_LABEL,
-  type ContactRow,
-  type OpportunityProfileResponse,
-} from '@pv/contracts'
+import { type ContactRow, type OpportunityProfileResponse } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { useI18n } from '@/app/i18n'
 import { ContactEditDrawer, ContactsCard } from '@/components/contacts-card'
 import { LeadAiMark } from '@/components/lead-ai-mark'
-import { NO_ROLE_LABEL } from '@/components/open-deal-contacts'
 import { accountProfileQuery } from '@/data/accounts'
 import { leadContactsQuery } from '@/data/contacts'
 import { contractDetailQuery } from '@/data/contracts'
 import { leadProfileQuery } from '@/data/lead-profile'
 import { opportunityProfileQuery } from '@/data/opportunities'
+import {
+  opportunityContactRoleLabel,
+  opportunityContactRoleUnknown,
+} from '@/data/sales-labels-i18n'
 import { ContactsEditDrawer } from './deal-contacts-edit'
 import { RunBlock } from './run-block'
 import { PersonList, PersonRow } from './run-person'
@@ -114,19 +114,23 @@ function LeadContacts({ code }: { code: string }) {
 
 /** Primary first, as the profile sends them. A deal without an email address
  *  cannot be mailed, so the line says so. */
-const dealPeople = (op: OpportunityProfileResponse): Person[] =>
+const dealPeople = (
+  op: OpportunityProfileResponse,
+  lang: ReturnType<typeof useI18n>['lang'],
+): Person[] =>
   op.contacts.map((c) => ({
     code: c.code,
     name: c.name,
     primary: c.primary,
     line:
-      [c.role && OPPORTUNITY_CONTACT_ROLE_LABEL[c.role], c.title].filter(Boolean).join(' · ') ||
-      NO_ROLE_LABEL,
+      [c.role && opportunityContactRoleLabel(c.role, lang), c.title].filter(Boolean).join(' · ') ||
+      opportunityContactRoleUnknown(lang),
     reach: c.email === null ? 'chưa có email' : null,
   }))
 
 /** `editing.session` remounts the editor per opening, so it seeds from the server's copy. */
 function DealContacts({ code }: { code: string }) {
+  const { lang } = useI18n()
   const { data: op, isPending, error } = useQuery(opportunityProfileQuery(code))
   const [editing, setEditing] = useState({ open: false, session: 0 })
   const open = () => setEditing((prev) => ({ open: true, session: prev.session + 1 }))
@@ -135,7 +139,7 @@ function DealContacts({ code }: { code: string }) {
   return (
     <RunBlock title="Người liên hệ">
       <PeopleBody
-        people={op && pencil(dealPeople(op))}
+        people={op && pencil(dealPeople(op, lang))}
         loading={isPending}
         error={error}
         required
@@ -182,6 +186,7 @@ function useContactEdit(leadCode: string) {
  *  floating bar reaches, so rail and bar answer one question. A signer who is
  *  one of them is said on their row, not twice. No deal read: the signer alone. */
 function ContractContacts({ code }: { code: string }) {
+  const { lang } = useI18n()
   const canView = useCan('contract.view')
   const canViewDeal = useCan('opportunity.view')
   const contract = useQuery({ ...contractDetailQuery(code), enabled: canView })
@@ -205,7 +210,7 @@ function ContractContacts({ code }: { code: string }) {
     primary: false,
     line: `${contract.data.contactRole} · ${SIGNER}`,
   }
-  const others = deal.data ? pencil(dealPeople(deal.data)) : []
+  const others = deal.data ? pencil(dealPeople(deal.data, lang)) : []
   const people =
     signer &&
     (others.some((p) => p.name === signer.name)

@@ -50,6 +50,7 @@ export type ResetTicketIssued = {
    *  know it exists yet. Same ticket table, same set-password screen, two
    *  different greetings and two very different TTLs; see `auth.schema.ts`. */
   purpose: 'invite' | 'reset'
+  lang: 'vi' | 'en' | 'ko'
   actorId: string
   /** For the greeting. The letter says a name, not a mailbox. */
   name: string

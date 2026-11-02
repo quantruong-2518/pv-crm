@@ -1,10 +1,11 @@
 import { GlassCard, cn } from '@pv/ui'
-import { KPI_METRIC_LABEL, type KpiForecastResponse } from '@pv/contracts'
+import { type KpiForecastResponse } from '@pv/contracts'
 import { StackTable, type StackColumn } from '@/components/stack-table'
 import type { KpiCatalog } from '@/data/kpi-catalog'
 import { forecastItems, type ForecastItem } from '@/data/kpi-forecast'
-import { ROLE_LABEL } from '@/data/users'
 import { NOTE } from './home-tiles'
+import { useI18n, message } from '@/app/i18n'
+import { kpiMetricText, kpiRoleText } from '@/data/kpi-i18n'
 import { FlagBadge, FlagRule } from './kpi-company-forecast'
 import { DASH, printShort } from './kpi-model'
 
@@ -24,11 +25,11 @@ const COLUMNS: StackColumn[] = [
 
 const FIGURE = 'tnum font-num'
 
-function cellsOf({ def, forecast }: ForecastItem, withRole: boolean) {
+function cellsOf({ def, forecast }: ForecastItem, withRole: boolean, lang: 'vi' | 'en' | 'ko') {
   return [
     <span key="metric" className="flex min-w-0 flex-col gap-1">
-      <span>{KPI_METRIC_LABEL[def.key]}</span>
-      {withRole && <span className={NOTE}>{ROLE_LABEL[forecast.role]}</span>}
+      <span>{kpiMetricText(def.key, lang)}</span>
+      {withRole && <span className={NOTE}>{kpiRoleText(forecast.role, lang)}</span>}
     </span>,
     <span key="projected" className={cn(FIGURE, 'font-semibold')}>
       {printShort(def.unit, forecast.projected)}
@@ -46,6 +47,7 @@ export function PersonForecast({
   data: KpiForecastResponse
   actorId: string
 }) {
+  const { t, lang } = useI18n()
   const items = forecastItems(
     catalog,
     data.items.filter((i) => i.actorId === actorId),
@@ -62,7 +64,15 @@ export function PersonForecast({
         ))}
       </ul>
       {items.length === 0 ? (
-        <p className="px-5 text-[12.5px] leading-5">Chưa có chỉ số nào để dự báo.</p>
+        <p className="px-5 text-[12.5px] leading-5">
+          {t(
+            message(
+              'Chưa có chỉ số nào để dự báo.',
+              'No metrics to forecast yet.',
+              '아직 예측할 지표가 없습니다.',
+            ),
+          )}
+        </p>
       ) : (
         <StackTable
           from="md"
@@ -72,7 +82,7 @@ export function PersonForecast({
           columns={COLUMNS}
           rows={items.map((item) => ({
             id: `${item.forecast.role}/${item.def.key}`,
-            cells: cellsOf(item, withRole),
+            cells: cellsOf(item, withRole, lang),
           }))}
         />
       )}

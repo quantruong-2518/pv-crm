@@ -6,12 +6,20 @@ import { cn } from '../lib/cn'
  *  Một trong ba chỗ được dùng rounded-full (luật 5 · docs/design-system/laws.md),
  *  hai chỗ kia là StatusDot và Avatar.
  *  Icon `orbit`: One ở tâm, bốn nhánh quay quanh — không `sparkles`, không `bot`. */
-export function AssistantFab({ onClick, className }: { onClick?: () => void; className?: string }) {
+export function AssistantFab({
+  onClick,
+  label = 'Mở Trợ lý AI',
+  className,
+}: {
+  onClick?: () => void
+  label?: string
+  className?: string
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label="Mở Trợ lý AI"
+      aria-label={label}
       className={cn(
         'motion-std fixed bottom-8 right-8 z-10 flex size-[60px] items-center justify-center rounded-full',
         'text-primary-foreground bg-[linear-gradient(135deg,var(--primary),var(--brand-blue))]',
