@@ -723,6 +723,7 @@ export class ContractRepository {
       q.amountMin !== undefined ? sql`${CONTRACT_VND} >= ${q.amountMin}` : undefined,
       q.amountMax !== undefined ? sql`${CONTRACT_VND} <= ${q.amountMax}` : undefined,
       q.q ? fuzzyAny(SEARCHED, q.q) : undefined,
+      q.codes ? inArray(contract.code, listOf(q.codes)) : undefined,
     ]
   }
 

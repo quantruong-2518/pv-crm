@@ -583,10 +583,10 @@ describe('limiter', () => {
     expect(await waited).toBeGreaterThanOrEqual(15)
   })
 
-  const fillSlots = () => {
+  const fillSlots = (pool: 'limiter' | 'assistantLimiter' = 'assistantLimiter') => {
     for (let i = 0; i < 4; i += 1) {
-      void gateway['limiter'].run('gemini', never)
-      void gateway['limiter'].run('anthropic', never)
+      void gateway[pool].run('gemini', never)
+      void gateway[pool].run('anthropic', never)
     }
   }
   const logged = () => vi.mocked(Logger.prototype.log).mock.calls.join()
@@ -618,7 +618,17 @@ describe('limiter', () => {
     expect(logged()).toMatch(/waited \d+ ms for a slot/)
   })
 
-  it('gives its slot back after each round: six rounds pass through four slots', async () => {
+  it('runs a round while lead fill and comm report hold every batch slot', async () => {
+    script([said('xong')])
+    fillSlots('limiter')
+    const turn = await open()
+
+    await turn.round(REQUEST, ignore, signal())
+
+    expect(gemini.seen).toHaveLength(1)
+  })
+
+  it('gives its slot back after each round: six rounds pass through the pool', async () => {
     script([toolsOnly, toolsOnly, toolsOnly, toolsOnly, toolsOnly, said('xong')])
     const turn = await open()
     for (let i = 0; i < 6; i += 1) await turn.round(REQUEST, ignore, signal())

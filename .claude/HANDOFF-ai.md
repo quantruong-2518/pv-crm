@@ -35,6 +35,14 @@ Chủ dự án trả lời câu hỏi mở 141 đến 153 (ADR 0134) và kéo 14
 Câu hỏi mở mới: 154 đến 157. Chưa có lượt gọi AI nào trên v206, nên ghi `ai_call` với cột mới
 chưa được thử thật trên production.
 
+## Đợt 1 CRM Agent: màn chat (ADR 0136, 02/11/2026)
+
+Đã làm, chưa ship tại thời điểm ghi (cần migration 0162 lên Neon trước khi deploy API). Chủ dự án
+cho dùng thử MỘT MÌNH trước lượt chạy có khoá: quyền mới `assistant.use`, mặc định chỉ giám đốc;
+mở cho Sales bằng cách tick từng vai trong ma trận vai trò, không cần code. Nút chỉ hiện khi
+tuyến `assistant` bật và người đó có quyền. Cổng 0 vẫn MỞ; mở cho cả phòng nên chờ lượt chạy có
+khoá. Câu hỏi mở mới: 165 và 166.
+
 ## Ghi âm trong báo cáo liên hệ (ADR 0135, 02/11/2026)
 
 Đã lên production 02/11/2026: commit 218822fa, Neon 0161, Fly v207, web Vercel. Tuyến

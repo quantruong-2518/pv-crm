@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, type Type } from '@nestjs/common'
 import { PATH_METADATA } from '@nestjs/common/constants'
 import { Reflector } from '@nestjs/core'
-import type { AssistantToolOutcome } from '@pv/contracts'
+import type { AssistantRef, AssistantToolOutcome } from '@pv/contracts'
 import type { AccessControl, Actor, DenyReason } from '@pv/engines'
 import { z, type ZodType } from 'zod'
 import { NEED_KEY, PUBLIC_KEY, type RouteNeed } from '../access/need.decorator'
@@ -32,12 +32,15 @@ export const door = <C>(controller: Type<C>, handler: keyof C & string): ToolDoo
 /** What a door answered, already projected. `data` splits each record into
  *  `trusted` (only values whose zod type is a whitelisted code, enum, id, date or
  *  number, D5) and `untrusted`. `hidden` is the door's own count, null when it
- *  gives none; a tool never derives one. */
+ *  gives none; a tool never derives one. `refs` name the records for the screen
+ *  and never reach a model; `steps` counts next steps, which have no code. */
 export type ToolRead = {
   data: object
   codes: readonly string[]
   rowCount: number
   hidden: number | null
+  refs?: readonly AssistantRef[]
+  steps?: number
 }
 
 type ToolSpec<I, K extends string> = {
@@ -47,12 +50,36 @@ type ToolSpec<I, K extends string> = {
   /** Keyed, because one need is one permission and `get_record` stands for one
    *  door per kind: the need is chosen after `input` has fixed the kind. */
   doors: Readonly<Record<K, ToolDoor>>
-  doorFor: (input: I) => K
-  run: (who: Actor, input: I) => Promise<ToolRead>
+  /** Several keys = a call that reads several doors; it runs over those that pass. */
+  doorFor: (input: I) => K | readonly K[]
+  /** `open` holds only the doors whose need passed: read nothing behind another. */
+  run: (who: Actor, input: I, open: ReadonlySet<K>) => Promise<ToolRead>
+  recheck?: ToolRecheck
+  /** Next steps a stored call read: they have no code, and no column keeps the count. */
+  stepsOf?: (input: I, stored: Stored) => number
 }
 
+/** How a tool that opens records reads stored codes again as the person is now:
+ *  one call per kind and batch, through a door named here and gated like a tool's.
+ *  `read` answers the codes still readable. A code it leaves out is read once more
+ *  by the tool itself with `one`'s input, since a book can fence tighter than the
+ *  door that first opened the record. */
+export type ToolRecheck = {
+  kindOf: (code: string) => string | null
+  doors: Readonly<Record<string, ToolDoor>>
+  read: (who: Actor, kind: string, codes: readonly string[]) => Promise<readonly AssistantRef[]>
+  one: (code: string) => AiToolCall['input'] | null
+}
+
+/** What `assistant_tool_call` keeps of an `ok` call. */
+type Stored = { rowCount: number; codes: readonly string[] }
+
 type Prepared =
-  | { ok: true; doorKey: string; run: (who: Actor) => Promise<ToolRead> }
+  | {
+      ok: true
+      doorKeys: readonly string[]
+      run: (who: Actor, open: ReadonlySet<string>) => Promise<ToolRead>
+    }
   | { ok: false; issues: readonly string[] }
 
 export type AssistantTool = {
@@ -61,6 +88,8 @@ export type AssistantTool = {
   parameters: object
   doors: Readonly<Record<string, ToolDoor>>
   prepare: (raw: unknown) => Prepared
+  recheck?: ToolRecheck
+  stepsOf?: (raw: unknown, stored: Stored) => number
 }
 
 /** Closes over `I` so the registry holds tools of different inputs in one map. */
@@ -72,6 +101,11 @@ export function defineTool<I, K extends string>(spec: ToolSpec<I, K>): Assistant
        `$schema` is dropped for the gateway's reason: neither vendor lists it. */
     parameters: { ...z.toJSONSchema(spec.input, { io: 'input' }), $schema: undefined },
     doors: spec.doors,
+    recheck: spec.recheck,
+    stepsOf: (raw, stored) => {
+      const parsed = spec.input.safeParse(raw)
+      return parsed.success && spec.stepsOf ? spec.stepsOf(parsed.data, stored) : 0
+    },
     prepare(raw) {
       const parsed = spec.input.safeParse(raw)
       if (!parsed.success) {
@@ -79,8 +113,8 @@ export function defineTool<I, K extends string>(spec: ToolSpec<I, K>): Assistant
       }
       return {
         ok: true,
-        doorKey: spec.doorFor(parsed.data),
-        run: (who) => spec.run(who, parsed.data),
+        doorKeys: [spec.doorFor(parsed.data)].flat() as K[],
+        run: (who, open) => spec.run(who, parsed.data, open as ReadonlySet<K>),
       }
     },
   }
@@ -93,7 +127,8 @@ export interface AssistantToolSource {
 }
 
 /** One call's result as the loop needs it. `denied` is E2's reason when the gate
- *  refused; the round writes that audit line with its other rows. */
+ *  refused; `skipped` the doors it refused while the call ran on the others. The
+ *  round writes a refusal line for each, with its other rows (D4). */
 export type ToolVerdict = {
   outcome: AssistantToolOutcome
   output: object
@@ -101,7 +136,10 @@ export type ToolVerdict = {
   rowCount: number | null
   hidden: number | null
   denied: DenyReason | null
+  skipped: readonly { door: string; reason: DenyReason }[]
   latencyMs: number | null
+  refs: readonly AssistantRef[]
+  steps: number
 }
 
 /** A call that read nothing; the loop uses it for the calls its caps turn away. */
@@ -116,10 +154,42 @@ export const notRun = (
   rowCount: null,
   hidden: null,
   denied,
+  skipped: [],
   latencyMs: null,
+  refs: [],
+  steps: 0,
 })
 
-type Registered = { tool: AssistantTool; needs: Readonly<Record<string, RouteNeed>> }
+type Needs = Readonly<Record<string, RouteNeed>>
+type Registered = { tool: AssistantTool; needs: Needs; recheckNeeds: Needs }
+
+const DENIED = { ok: false, reason: 'permission-denied' } as const
+/** Codes per re-check call: the largest page a book door serves. */
+const RECHECK_BATCH = 200
+/** Codes a book left out, read one by one: a few, since a book and its profile door
+ *  disagree only at their edges (a co-owner on a signed deal). Each is a door read. */
+const RECHECK_SINGLES = 20
+const RECHECK_PARALLEL = 4
+
+const errorName = (error: unknown): string => (error instanceof Error ? error.name : 'unknown')
+
+/** `size` workers over `items`; answers keep the order of the calls. */
+export async function inPool<T, R>(
+  items: readonly T[],
+  size: number,
+  work: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const answers: R[] = []
+  let next = 0
+  const worker = async (): Promise<void> => {
+    while (next < items.length) {
+      const index = next++
+      answers[index] = await work(items[index] as T, index)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(size, items.length) }, worker))
+  return answers
+}
 
 const reflector = new Reflector()
 
@@ -148,8 +218,9 @@ function register(tool: AssistantTool): Registered {
   }
   const doors = Object.entries(tool.doors)
   if (doors.length === 0) throw new Error(`assistant tool ${tool.name}: names no door`)
-  const needs = Object.fromEntries(doors.map(([key, d]) => [key, needOf(tool.name, d)]))
-  return { tool, needs }
+  const needsOf = (named: Readonly<Record<string, ToolDoor>>): Needs =>
+    Object.fromEntries(Object.entries(named).map(([key, d]) => [key, needOf(tool.name, d)]))
+  return { tool, needs: needsOf(tool.doors), recheckNeeds: needsOf(tool.recheck?.doors ?? {}) }
 }
 
 /** Throws from its constructor, so a tool with no need stops the boot: a door that
@@ -183,22 +254,93 @@ export class AssistantToolGate {
     if (!entry) return notRun('unknown-tool', { error: 'unknown-tool' })
     const prepared = entry.tool.prepare(call.input)
     if (!prepared.ok) return notRun('bad-input', { error: 'bad-input', fields: prepared.issues })
-    /* An unknown key cannot happen by type; if it does, this stays shut. */
-    const need = entry.needs[prepared.doorKey]
-    const verdict = need
-      ? this.access.check(who, need)
-      : ({ ok: false, reason: 'permission-denied' } as const)
-    if (!verdict.ok) return notRun('refused', { error: 'not-allowed' }, verdict.reason)
+    const verdicts = prepared.doorKeys.map((key) => {
+      const need = entry.needs[key]
+      /* An unknown key cannot happen by type; if it does, this stays shut. */
+      return [key, need ? this.access.check(who, need) : DENIED] as const
+    })
+    const open = new Set(verdicts.flatMap(([key, v]) => (v.ok ? [key] : [])))
+    const skipped = verdicts.flatMap(([door, v]) => (v.ok ? [] : [{ door, reason: v.reason }]))
+    if (open.size === 0 && skipped[0]) {
+      return notRun('refused', { error: 'not-allowed' }, skipped[0].reason)
+    }
 
     const started = Date.now()
     try {
-      const { data, ...counts } = await prepared.run(who)
+      const { data, ...counts } = await prepared.run(who, open)
       /* In the result too: the prompt's hidden-items sentence reads only what reaches it. */
       const output = counts.hidden === null ? data : { ...data, hidden: counts.hidden }
-      return { ...notRun('ok', output), ...counts, latencyMs: Date.now() - started }
+      return { ...notRun('ok', output), ...counts, skipped, latencyMs: Date.now() - started }
     } catch (error) {
       return { ...this.failed(call.name, error), rowCount: 0, latencyMs: Date.now() - started }
     }
+  }
+
+  /** Stored codes read again as `who` is now, through the door each kind's re-check
+   *  names: E2 on its need, then one read per kind and batch. A code read back maps
+   *  to its ref, one refused or not found to null; a code whose read failed is left
+   *  out, so the caller can tell "not readable" from "not checked". No audit line:
+   *  nothing here reaches a model. */
+  async recheck(who: Actor, codes: readonly string[]): Promise<Map<string, AssistantRef | null>> {
+    const found = new Map<string, AssistantRef | null>()
+    const entry = [...this.registered.values()].find((r) => r.tool.recheck)
+    const spec = entry?.tool.recheck
+    const byKind = new Map<string | null, string[]>()
+    for (const code of new Set(codes)) {
+      const kind = spec?.kindOf(code) ?? null
+      byKind.set(kind, [...(byKind.get(kind) ?? []), code])
+    }
+    const omitted: string[] = []
+    for (const [kind, list] of byKind) {
+      const need = kind === null ? undefined : entry?.recheckNeeds[kind]
+      if (!spec || kind === null || !need || !this.access.check(who, need).ok) {
+        for (const code of list) found.set(code, null)
+        continue
+      }
+      for (let at = 0; at < list.length; at += RECHECK_BATCH) {
+        const batch = list.slice(at, at + RECHECK_BATCH)
+        const read = await spec.read(who, kind, batch).catch((error: unknown) => {
+          this.log.error(`recheck ${kind} failed: ${errorName(error)}`)
+          return null
+        })
+        if (!read) continue
+        const back = new Map(read.map((ref) => [ref.code, ref]))
+        for (const code of batch) found.set(code, back.get(code) ?? null)
+        omitted.push(...batch.filter((code) => !back.has(code)))
+      }
+    }
+    if (entry && spec) await this.recheckOne(who, entry.tool.name, spec, omitted, found)
+    return found
+  }
+
+  /** The book's misses, each through the tool's own door; past the cap, unchecked. */
+  private async recheckOne(
+    who: Actor,
+    name: string,
+    spec: ToolRecheck,
+    codes: readonly string[],
+    found: Map<string, AssistantRef | null>,
+  ): Promise<void> {
+    await inPool(codes.slice(0, RECHECK_SINGLES), RECHECK_PARALLEL, async (code) => {
+      const input = spec.one(code)
+      const verdict = input ? await this.call(who, { id: 'recheck', name, input }) : null
+      if (verdict?.outcome === 'error') found.delete(code)
+      else found.set(code, verdict?.refs.find((r) => r.code === code) ?? null)
+    })
+    for (const code of codes.slice(RECHECK_SINGLES)) found.delete(code)
+  }
+
+  /** Next steps an `ok` stored call read, as its tool counts them; 0 for any other. */
+  stepsOf(call: {
+    name: string
+    input: unknown
+    outcome: string
+    rowCount: number | null
+    codes: readonly string[]
+  }): number {
+    const { outcome, rowCount, codes } = call
+    if (outcome !== 'ok' || rowCount === null) return 0
+    return this.registered.get(call.name)?.tool.stepsOf?.(call.input, { rowCount, codes }) ?? 0
   }
 
   /** 403 and 404 read the same to the model: the lead door tells them apart, the

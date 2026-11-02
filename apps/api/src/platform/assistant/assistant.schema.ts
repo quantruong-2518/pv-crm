@@ -16,6 +16,7 @@ import type {
   AssistantEndedBy,
   AssistantMessageState,
   AssistantRecordKind,
+  AssistantReportReason,
   AssistantRole,
   AssistantToolOutcome,
 } from '@pv/contracts'
@@ -176,9 +177,43 @@ export const assistantToolCall = platform.table(
   ],
 )
 
+/** One press of "report a wrong answer" on one assistant answer. One row per
+ *  person per answer, so a second press updates the row rather than stacking one. */
+export const assistantReport = platform.table(
+  'assistant_report',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** A purged session takes its reports with it. */
+    messageId: uuid('message_id')
+      .notNull()
+      .references(() => assistantMessage.id, { onDelete: 'cascade' }),
+    /** Cascades for `assistant_message.actor_id`'s reason. */
+    actorId: text('actor_id')
+      .notNull()
+      .references(() => actor.id, { onDelete: 'cascade' }),
+    reason: text('reason').$type<AssistantReportReason>().notNull(),
+    note: text('note'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    /** Also answers "did I already report this answer", leading on `message_id`. */
+    unique('assistant_report_message_actor_uq').on(t.messageId, t.actorId),
+    /** "Which answers were reported, newest first": the admin list. */
+    index('assistant_report_created_idx').on(t.createdAt.desc()),
+    /** The contract's enum, copied by hand for `assistant_message_role_known`'s reason. */
+    check(
+      'assistant_report_reason_known',
+      sql`"reason" IN ('wrong-figure', 'missing', 'off-target')`,
+    ),
+    check('assistant_report_note_length', sql`"note" IS NULL OR char_length("note") <= 500`),
+  ],
+)
+
 export type AssistantSessionRowDb = typeof assistantSession.$inferSelect
 export type AssistantSessionValues = typeof assistantSession.$inferInsert
 export type AssistantMessageRowDb = typeof assistantMessage.$inferSelect
 export type AssistantMessageValues = typeof assistantMessage.$inferInsert
 export type AssistantToolCallRowDb = typeof assistantToolCall.$inferSelect
 export type AssistantToolCallValues = typeof assistantToolCall.$inferInsert
+export type AssistantReportRowDb = typeof assistantReport.$inferSelect
+export type AssistantReportValues = typeof assistantReport.$inferInsert

@@ -1,7 +1,9 @@
-import { sql } from 'drizzle-orm'
+import { randomUUID } from 'node:crypto'
+import { eq } from 'drizzle-orm'
 import { AiVendorError } from '@api/platform/ai/ai-client'
-import { assistantMessage } from '@api/platform/assistant/assistant.schema'
-import { newSession, runTurn } from './bench'
+import { aiCall } from '@api/platform/ai/ai-cost.schema'
+import { assistantSession } from '@api/platform/assistant/assistant.schema'
+import { runTurn } from './bench'
 import type { Tally } from './report'
 import { NAMED_SEATS } from './seed-data'
 import { parrot, toolOutputs, type Seen, type Said } from './scripted-client'
@@ -225,19 +227,21 @@ async function writing(world: World, tally: Tally): Promise<void> {
   )
 }
 
+/** The hour counts turns a vendor was asked for, from the ledger, so a chat deleted
+ *  gives nothing back: 59 earlier turns are 59 ledger rows of their own turn ids. */
 async function hourly(world: World, tally: Tally): Promise<void> {
   const person = NAMED_SEATS.hourly
   const fill = async (n: number): Promise<void> => {
-    const sessionId = await newSession(world.db, person.id)
-    await world.db.insert(assistantMessage).values(
-      Array.from({ length: n }, (_, i) => ({
-        sessionId,
+    await world.db.insert(aiCall).values(
+      Array.from({ length: n }, () => ({
+        task: 'assistant' as const,
+        model: 'gemini-3.8-flash',
+        tokensIn: 1,
+        tokensOut: 1,
+        outcome: 'ok' as const,
         actorId: person.id,
-        seq: i + 1,
-        role: 'user' as const,
-        body: 'cũ',
-        state: 'done' as const,
-        finishedAt: sql`now()`,
+        turnId: randomUUID(),
+        round: 1,
       })),
     )
   }
@@ -245,8 +249,9 @@ async function hourly(world: World, tally: Tally): Promise<void> {
     await fill(59)
     const sixtieth = await runTurn(world, { who: person, script: [{ deltas: ['Được.'] }] })
     c.eq(sixtieth.turn?.endedBy, 'answer', 'the 60th')
+    await world.db.delete(assistantSession).where(eq(assistantSession.ownerId, person.id))
     const next = await runTurn(world, { who: person, script: [{ deltas: ['Không.'] }] })
-    c.eq(next.witness.seen.length, 0, 'the 61st reaches no vendor')
+    c.eq(next.witness.seen.length, 0, 'the 61st reaches no vendor, chats deleted or not')
     c.eq(next.messages, [], 'and leaves no row to count')
     c.ok(
       next.events.some((e) => e.type === 'error'),

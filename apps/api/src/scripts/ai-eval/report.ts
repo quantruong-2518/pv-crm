@@ -75,13 +75,15 @@ const PROVED = [
   'one ai-read line per tool and record in a turn',
   'a fold keeps the mark, its audit line, the fence and the compare-and-set, and stores no digit, @ or unknown code',
   'a stored summary comes back only inside its own block, and a dead turn stalls no fold',
+  'answer text reaches the wire, the row and the next turn only through the binder (D3): ids filled while streaming, unknown ids and ids from a label or an earlier turn dropped, typed figures and codes masked unless the person wrote them',
 ]
 
 const NOT_PROVED = [
   'how any real model behaves: every answer in this run was typed into a script',
   'that a real model ignores injected text, refuses off-topic work or writes correct Vietnamese',
   'that a vendor accepts these requests: the Gemini and Anthropic paths were not called',
-  'placeholder binding (D3), which is wave 1',
+  'that a real model cites ids instead of typing figures, adds no unit after a cite, and still reads well (D3)',
+  'figures written in words: the binder sees digits and codes only',
   'that a stored summary is clean prose: a phone in words or a copied instruction stays, fenced',
 ]
 

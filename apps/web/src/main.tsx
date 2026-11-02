@@ -9,6 +9,7 @@ import { closeMasMail } from '@/app/mas-mail-composer'
 import { queryClient } from '@/app/query-client'
 import { startReleaseWatch } from '@/app/release'
 import { AiTaskTrayHost } from '@/components/ai-task-tray-host'
+import { AssistantPanelHost } from '@/components/assistant-panel-host'
 import { AppToasts } from '@/components/app-toasts'
 import { MasMailComposerHost } from '@/components/mas-mail-composer-host'
 import { ReleaseNotesDrawer } from '@/components/release-notes-drawer'
@@ -45,6 +46,7 @@ createRoot(host).render(
       <MasMailComposerHost />
       <AppToasts />
       <AiTaskTrayHost />
+      <AssistantPanelHost />
       <ReleaseNotesDrawer />
       {/* Above every screen and every other layer: when the server is gone, the
           session lock cannot let anyone back in either. See `server-down.tsx`. */}

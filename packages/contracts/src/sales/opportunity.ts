@@ -592,6 +592,11 @@ export const OpportunityBookQuery = PageQuery.extend({
    *  with codes of their own. */
   account: z.string().min(1).max(1200).optional(),
 
+  /** Exact deal codes joined by commas: just these rows, still inside the caller's
+   *  scope, held ones included. The assistant re-checks what a person may still
+   *  read with it, as `LeadBookQuery.codes`. */
+  codes: z.string().min(1).max(4000).optional(),
+
   /** Free text, matched against the deal name, the deal code and the customer.
    *  Three fields rather than one because the box above the book is one box and
    *  people type all three into it — a deal code out of an email, half a
@@ -659,6 +664,7 @@ export const OpportunityBookResponse = paged(OpportunityBookRow)
  *  paging, scoped like the book. Replaces the web's `size=200` facet read,
  *  which silently dropped choices past deal 200. */
 export const OpportunityFacetsQuery = OpportunityBookQuery.omit({
+  codes: true,
   pinned: true,
   state: true,
   page: true,

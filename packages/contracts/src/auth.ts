@@ -122,6 +122,12 @@ export const Permission = z.enum([
   /** Read the trail of what the AI read. Not `audit-log.view`: it shows what each
    *  person looked up, so account-executive stays out (ADR 0134, question 142). */
   'ai-read.view',
+  /** Ask the CRM assistant. Director alone by default while the owner tries it
+   *  (ADR 0136); ticking it for a role in the matrix opens it to that role. */
+  'assistant.use',
+  /** Read an answer someone reported as wrong, and only that answer. Admin alone:
+   *  managers never read chats (ADR 0133 §2). */
+  'assistant.review',
   /** AI spend screen and unit prices — admin only, `director` by default. */
   'cost.view',
   'user.manage',

@@ -1,13 +1,28 @@
 import { Inject, Injectable } from '@nestjs/common'
-import { and, asc, count, desc, eq, gt, isNull, lt, ne, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  countDistinct,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNull,
+  lt,
+  lte,
+  ne,
+  sql,
+} from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import type { AssistantEndedBy, AssistantMessageState, AssistantRecordKind } from '@pv/contracts'
+import { aiCall } from '../ai/ai-cost.schema'
 import { DB, type Db } from '../db/db.module'
 import { CUT_SHORT } from './assistant-context'
 import {
   assistantMessage,
   assistantSession,
   assistantToolCall,
+  type AssistantToolCallRowDb,
   type AssistantToolCallValues,
 } from './assistant.schema'
 
@@ -23,7 +38,9 @@ const REPLAY_TURNS = 10
 /* Two rows a turn, doubled: a turn that died with no text takes rows and replays nothing. */
 const HISTORY_ROWS = REPLAY_TURNS * 4
 
-export type TurnLine = { role: 'user' | 'assistant'; body: string }
+/** `turnId`: the assistant row of the exchange, on both of its lines, so the
+ *  replay drops a withheld exchange whole and the roles keep alternating. */
+export type TurnLine = { role: 'user' | 'assistant'; body: string; turnId: string }
 
 /** An exchange with text on both sides; `seq` is its assistant row's, its last. */
 export type WholeTurn = { seq: number; question: string; answer: string }
@@ -43,6 +60,11 @@ export type TurnBegun = {
   history: readonly TurnLine[]
 }
 export type TurnRefused = { ok: false; reason: 'no-session' | 'hourly-limit' | 'running' }
+
+export type StoredCall = Pick<
+  AssistantToolCallRowDb,
+  'name' | 'input' | 'outcome' | 'rowCount' | 'codes'
+>
 
 export type TurnFinish = {
   state: Exclude<AssistantMessageState, 'running'>
@@ -123,12 +145,66 @@ export class AssistantRepository {
     })
   }
 
-  /** `state = 'running'`: a turn the sweep already called a crash stays one. */
-  async finishTurn(turnId: string, end: TurnFinish): Promise<void> {
-    await this.db
+  /** `state = 'running'`: a turn the sweep already called a crash stays one.
+   *  False = the sweep got there first. */
+  async finishTurn(turnId: string, end: TurnFinish): Promise<boolean> {
+    const saved = await this.db
       .update(assistantMessage)
       .set({ ...end, finishedAt: sql`now()` })
       .where(and(eq(assistantMessage.id, turnId), eq(assistantMessage.state, 'running')))
+      .returning({ id: assistantMessage.id })
+    return saved.length > 0
+  }
+
+  /** Each turn's tool calls as stored, by assistant message id: what refs and the
+   *  footer are rebuilt from. */
+  async callsOf(messageIds: readonly string[]): Promise<Map<string, StoredCall[]>> {
+    const calls = new Map(messageIds.map((id) => [id, [] as StoredCall[]]))
+    if (messageIds.length === 0) return calls
+    const rows = await this.db
+      .select({
+        messageId: assistantToolCall.messageId,
+        name: assistantToolCall.name,
+        input: assistantToolCall.input,
+        outcome: assistantToolCall.outcome,
+        rowCount: assistantToolCall.rowCount,
+        codes: assistantToolCall.codes,
+      })
+      .from(assistantToolCall)
+      .where(inArray(assistantToolCall.messageId, [...messageIds]))
+    for (const { messageId, ...call } of rows) calls.get(messageId)?.push(call)
+    return calls
+  }
+
+  /** A chat's answers, oldest first, up to `throughSeq` when given: the re-check
+   *  walks forward from the first one. */
+  async answersOf(sessionId: string, throughSeq?: number): Promise<string[]> {
+    const rows = await this.db
+      .select({ id: assistantMessage.id })
+      .from(assistantMessage)
+      .where(
+        and(
+          eq(assistantMessage.sessionId, sessionId),
+          eq(assistantMessage.role, 'assistant'),
+          throughSeq === undefined ? undefined : lte(assistantMessage.seq, throughSeq),
+        ),
+      )
+      .orderBy(asc(assistantMessage.seq))
+    return rows.map((r) => r.id)
+  }
+
+  /** How a turn's row stands, to tell a finish that landed from one that did not. */
+  async endOf(turnId: string): Promise<{ state: string; endedBy: string | null } | null> {
+    const [row] = await this.db
+      .select({ state: assistantMessage.state, endedBy: assistantMessage.endedBy })
+      .from(assistantMessage)
+      .where(eq(assistantMessage.id, turnId))
+    return row ?? null
+  }
+
+  /** The boot sweep's door to `sweepStale`; returns how many rows it closed. */
+  async sweepInterrupted(): Promise<number> {
+    return this.sweepStale(this.db)
   }
 
   /** After the tools return: `outcome` is NOT NULL, so a call has no row before. */
@@ -191,24 +267,29 @@ export class AssistantRepository {
   }
 
   /** `finished_at` in the same UPDATE: the table refuses a finished state without it. */
-  private async sweepStale(tx: Db): Promise<void> {
-    await tx
+  private async sweepStale(tx: Db): Promise<number> {
+    const swept = await tx
       .update(assistantMessage)
       .set({ state: 'failed', endedBy: 'crash', finishedAt: sql`now()` })
       .where(
         and(eq(assistantMessage.state, 'running'), lt(assistantMessage.createdAt, STALE_AFTER)),
       )
+      .returning({ id: assistantMessage.id })
+    return swept.length
   }
 
+  /** From the ledger, not from messages: deleting a chat takes its messages with it
+   *  and would give the hour back. A turn counts once a vendor was asked; one still
+   *  in its first request, or refused before any, does not. */
   private async turnsLastHour(tx: Db, actorId: string): Promise<number> {
     const [row] = await tx
-      .select({ n: count() })
-      .from(assistantMessage)
+      .select({ n: countDistinct(aiCall.turnId) })
+      .from(aiCall)
       .where(
         and(
-          eq(assistantMessage.actorId, actorId),
-          eq(assistantMessage.role, 'user'),
-          gt(assistantMessage.createdAt, LAST_HOUR),
+          eq(aiCall.actorId, actorId),
+          inArray(aiCall.task, ['assistant', 'assistant-deep']),
+          gt(aiCall.at, LAST_HOUR),
         ),
       )
     return row?.n ?? 0
@@ -217,18 +298,20 @@ export class AssistantRepository {
 
 /** Oldest first, whole turns only. A turn that died before its first text has
  *  no answer, and a blank text block is a 400 at Anthropic. */
-function replayable(newestFirst: readonly (typeof assistantMessage.$inferSelect)[]): WholeTurn[] {
-  const turns: WholeTurn[] = []
+function replayable(
+  newestFirst: readonly (typeof assistantMessage.$inferSelect)[],
+): (WholeTurn & { id: string })[] {
+  const turns: (WholeTurn & { id: string })[] = []
   for (const [i, row] of newestFirst.entries()) {
     const question = newestFirst[i + 1]
     if (row.role !== 'assistant' || question?.role !== 'user') continue
     if (row.body.trim() === '' || question.body.trim() === '') continue
-    turns.unshift({ seq: row.seq, question: question.body, answer: row.body })
+    turns.unshift({ id: row.id, seq: row.seq, question: question.body, answer: row.body })
   }
   return turns
 }
 
-const linesOf = ({ question, answer }: WholeTurn): TurnLine[] => [
-  { role: 'user', body: question },
-  { role: 'assistant', body: answer },
+const linesOf = ({ id, question, answer }: WholeTurn & { id: string }): TurnLine[] => [
+  { role: 'user', body: question, turnId: id },
+  { role: 'assistant', body: answer, turnId: id },
 ]

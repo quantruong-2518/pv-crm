@@ -2,16 +2,20 @@ import { Inject, Injectable } from '@nestjs/common'
 import type { AccessControl, Actor } from '@pv/engines'
 import {
   AssistantRecordKind,
+  ContractBookQuery,
   ContractCode,
   ContractDetailResponse,
   ContractTermination,
   GetRecordInput,
   InstallmentRow,
+  LeadBookQuery,
   LeadProfile,
   ObjectCode,
+  OpportunityBookQuery,
   OpportunityProfileResponse,
   SearchQuery,
   SearchRecordsInput,
+  type AssistantRef,
   type SearchHit,
   type SearchResult,
 } from '@pv/contracts'
@@ -29,13 +33,16 @@ import { ContractController } from '../contract/contract.controller'
 import { ContractService } from '../contract/contract.service'
 import { LeadController } from '../lead/lead.controller'
 import { LeadService } from '../lead/lead.service'
+import { OpportunityStepService } from '../next-step/next-step-opportunity.service'
+import { NextStepService } from '../next-step/next-step.service'
 import { OpportunityController } from '../opportunity/opportunity.controller'
 import { OpportunityService } from '../opportunity/opportunity.service'
 import { SearchController } from '../search/search.controller'
 import { SearchService } from '../search/search.service'
+import { listMyWork } from './list-my-work'
 
-/** The Sales branch's tools (ADR 0133 D2, wave 0): four door methods, each taking
- *  the `Actor` first and fencing rows itself, never a sub-service.
+/** The Sales branch's tools (ADR 0133 D2): door methods, each taking the `Actor`
+ *  first and fencing rows itself, never a sub-service. `list_my_work` is its own file.
  *
  *  A tool repeats its door's pipe (`zod(...)`), because the pipe is the door's
  *  first fence and a wrapper would skip it. A `trusted` half is the contract's own
@@ -110,6 +117,16 @@ const ContractTrusted = ContractDetailResponse.pick({
 /** A hit's `code` is a bare string in the contract: re-checked here to earn `trusted`. */
 const HitTrusted = z.object({ kind: AssistantRecordKind, code: ContractCode.or(ObjectCode) })
 
+/** The prefixes the code sequences print (`seqCodes` in each repository). */
+const KIND_OF_PREFIX: readonly (readonly [string, AssistantRecordKind])[] = [
+  ['LD-', 'lead'],
+  ['OP-', 'opportunity'],
+  ['HĐ-', 'contract'],
+]
+
+const kindOfCode = (code: string): AssistantRecordKind | null =>
+  KIND_OF_PREFIX.find(([prefix]) => code.startsWith(prefix))?.[1] ?? null
+
 type Reach = { phone?: string | null; email?: string | null }
 
 /** Keys left out rather than nulled: a null tells the model the record has none. */
@@ -152,8 +169,20 @@ function maskContact(value: unknown): unknown {
   )
 }
 
-const oneRecord = (
+/** The chip on screen; the model never reads a label (D5). It is still the
+ *  assistant speaking, so a phone typed into a name is masked like the rest (0134 §4). */
+function refOf(
+  kind: AssistantRecordKind,
   code: string,
+  label: string,
+  mayReach: boolean,
+): AssistantRef {
+  const shown = mayReach ? label : (maskContact(label) as string)
+  return { kind, code, label: shown.trim() || code }
+}
+
+const oneRecord = (
+  ref: AssistantRef,
   trusted: object,
   untrusted: object,
   mayReach: boolean,
@@ -165,15 +194,16 @@ const oneRecord = (
     (people.some((c) => c.phone || c.email) || JSON.stringify(shown) !== JSON.stringify(untrusted))
   return {
     data: { trusted, untrusted: shown, ...(contactInfoWithheld && { contactInfoWithheld }) },
-    codes: [code],
+    codes: [ref.code],
     rowCount: 1,
     hidden: null,
+    refs: [ref],
   }
 }
 
 const leadRead = (p: LeadProfile, mayReach: boolean): ToolRead =>
   oneRecord(
-    p.code,
+    refOf('lead', p.code, p.company, mayReach),
     LeadTrusted.parse(p),
     {
       company: p.company,
@@ -200,7 +230,7 @@ const leadRead = (p: LeadProfile, mayReach: boolean): ToolRead =>
 
 const opportunityRead = (p: OpportunityProfileResponse, mayReach: boolean): ToolRead =>
   oneRecord(
-    p.code,
+    refOf('opportunity', p.code, p.name, mayReach),
     OpportunityTrusted.parse(p),
     {
       name: p.name,
@@ -227,7 +257,7 @@ const opportunityRead = (p: OpportunityProfileResponse, mayReach: boolean): Tool
 /** No contact fields: `contact` is the lead's contact name, so only text can hold one. */
 const contractRead = (p: ContractDetailResponse, mayReach: boolean): ToolRead =>
   oneRecord(
-    p.code,
+    refOf('contract', p.code, p.customer, mayReach),
     ContractTrusted.parse(p),
     {
       customer: p.customer,
@@ -247,17 +277,19 @@ const contractRead = (p: ContractDetailResponse, mayReach: boolean): ToolRead =>
 function searchRead(result: SearchResult, mayReach: boolean): ToolRead {
   const hits = result.groups.flatMap((g) => g.hits)
   const text = (h: SearchHit) => ({ title: h.title, subtitle: h.subtitle })
+  const trusted = hits.map((h) => HitTrusted.parse(h))
   return {
     data: {
       trusted: { more: result.groups.filter((g) => g.more).map((g) => g.kind) },
-      hits: hits.map((h) => ({
-        trusted: HitTrusted.parse(h),
+      hits: hits.map((h, i) => ({
+        trusted: trusted[i],
         untrusted: mayReach ? text(h) : maskContact(text(h)),
       })),
     },
     codes: hits.map((h) => h.code),
     rowCount: hits.length,
     hidden: null,
+    refs: trusted.map((t, i) => refOf(t.kind, t.code, hits[i]?.title ?? '', mayReach)),
   }
 }
 
@@ -269,6 +301,8 @@ export class SalesAssistantTools implements AssistantToolSource {
     private readonly contracts: ContractService,
     private readonly searches: SearchService,
     @Inject(ACCESS) private readonly access: AccessControl,
+    private readonly leadSteps: NextStepService,
+    private readonly dealSteps: OpportunityStepService,
   ) {}
 
   tools(): readonly AssistantTool[] {
@@ -293,6 +327,26 @@ export class SalesAssistantTools implements AssistantToolSource {
         },
         doorFor: (input) => input.kind,
         run: (who, input) => this.read(who, input),
+        recheck: {
+          kindOf: kindOfCode,
+          doors: {
+            lead: door(LeadController, 'book'),
+            opportunity: door(OpportunityController, 'book'),
+            contract: door(ContractController, 'book'),
+          },
+          read: (who, kind, codes) => this.reread(who, kind, codes),
+          one: (code) => {
+            const kind = kindOfCode(code)
+            return kind ? { kind, code } : null
+          },
+        },
+      }),
+      listMyWork({
+        leads: this.leads,
+        opportunities: this.opportunities,
+        leadSteps: this.leadSteps,
+        dealSteps: this.dealSteps,
+        refOf: (who, kind, code, label) => refOf(kind, code, label, this.mayReach(who)),
       }),
     ]
   }
@@ -312,6 +366,33 @@ export class SalesAssistantTools implements AssistantToolSource {
    *  No `ref`: the door has fenced the row, and this is a question about the role. */
   private mayReach(who: Actor): boolean {
     return this.access.allows(who, 'data.export')
+  }
+
+  /** The book doors with `codes`, in the person's scope now, fenced like the profile
+   *  door: every state, held deals included, a lead's book cut on a live lead. A
+   *  switched-off lead is in the book only under `disabled`, for `lead.disable`. */
+  private async reread(who: Actor, kind: string, codes: readonly string[]) {
+    const mayReach = this.mayReach(who)
+    const asked = { codes: codes.join(','), size: codes.length }
+    const ref = (k: AssistantRecordKind) => (r: { code: string }, label: string) =>
+      refOf(k, r.code, label, mayReach)
+    if (kind === 'lead') {
+      const q = (more = {}) => zod(LeadBookQuery).transform({ ...asked, state: 'all', ...more })
+      const { rows } = await this.leads.book(who, q())
+      const off = this.access.allows(who, 'lead.disable')
+        ? (await this.leads.book(who, q({ disabled: 'true' }))).rows
+        : []
+      return [...rows, ...off].map((r) => ref('lead')(r, r.company))
+    }
+    if (kind === 'opportunity') {
+      const { rows } = await this.opportunities.book(
+        who,
+        zod(OpportunityBookQuery).transform(asked),
+      )
+      return rows.map((r) => ref('opportunity')(r, r.name))
+    }
+    const { rows } = await this.contracts.book(who, zod(ContractBookQuery).transform(asked))
+    return rows.map((r) => ref('contract')(r, r.customer))
   }
 
   private async read(who: Actor, { kind, code }: GetRecordInput): Promise<ToolRead> {

@@ -225,8 +225,8 @@ describe('a fold', () => {
     if (!begun.ok) throw new Error('turn refused')
     expect(begun.summary).toBe(`Asking: ${GOOD.asking}\nDecided: ${GOOD.decided}`)
     expect(begun.history).toHaveLength(12)
-    expect(begun.history[0]).toEqual({ role: 'user', body: 'hỏi 5' })
-    expect(begun.history.at(-1)).toEqual({ role: 'assistant', body: 'đáp 10' })
+    expect(begun.history[0]).toMatchObject({ role: 'user', body: 'hỏi 5' })
+    expect(begun.history.at(-1)).toMatchObject({ role: 'assistant', body: 'đáp 10' })
   })
 
   it('writes one ledger row under its own task, on the person', async () => {
@@ -927,8 +927,8 @@ describe('replay', () => {
     if (!begun.ok) throw new Error('turn refused')
 
     expect(begun.history).toHaveLength(20)
-    expect(begun.history[0]).toEqual({ role: 'user', body: 'hỏi 3' })
-    expect(begun.history.at(-1)).toEqual({ role: 'assistant', body: 'đáp 12' })
+    expect(begun.history[0]).toMatchObject({ role: 'user', body: 'hỏi 3' })
+    expect(begun.history.at(-1)).toMatchObject({ role: 'assistant', body: 'đáp 12' })
   })
 
   it('replays turns past the old 6, and every one waiting to be folded', async () => {

@@ -6,6 +6,7 @@ import { hostileModel } from './hostile'
 import { liveRun, type LiveClients } from './live'
 import { gateLine, printProof, say, Tally, type LiveResult } from './report'
 import { runnerAudit } from './runner-audit'
+import { runnerBind } from './runner-bind'
 import { runnerCaps } from './runner-caps'
 import { runnerGateway } from './runner-gateway'
 import { runnerSummary } from './runner-summary'
@@ -39,6 +40,7 @@ async function scripted(
   await runnerGateway(world, tally)
   await runnerAudit(world, tally)
   await runnerSummary(world, tally)
+  await runnerBind(world, tally)
   await scriptedCases(world, tally, cases)
   await tally.run('no-write', 'no business table moved in the scripted run', async (c) => {
     c.eq(moved(before, await businessChecksum(world.db)), [], 'tables that moved')

@@ -449,6 +449,9 @@ export const ContractBookQuery = PageQuery.extend({
   amountMax: z.coerce.number().int().nonnegative().optional(),
   /** Substring of the contract code or the customer's company name. */
   q: searchText,
+  /** Exact contract codes joined by commas: just these rows, still inside the
+   *  caller's scope, as `LeadBookQuery.codes`. */
+  codes: z.string().min(1).max(4000).optional(),
   sort: ContractSortKey.default('nextDue'),
   dir: SortDir.default('asc'),
 })

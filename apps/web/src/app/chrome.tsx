@@ -19,6 +19,7 @@ import {
   LogOut,
   Mail,
   Megaphone,
+  MessageSquare,
   Route,
   ShieldCheck,
   SlidersHorizontal,
@@ -43,6 +44,7 @@ import {
   unreadNotificationsQuery,
   useNotificationStream,
 } from '@/data/notifications'
+import { useAssistantEntry } from '@/data/assistant-live'
 import { useOverdueBanners } from '@/data/contract-overdue-banner'
 import { useHeaderSearch } from '@/data/search'
 import { MeetingCountdownBar } from '@/components/meeting-countdown-bar'
@@ -204,6 +206,14 @@ const ADMIN_ENTRIES: SettingsEntry[] = [
     description: 'Chi phí dùng AI theo tháng và bảng giá', // i18n-ignore
     path: '/admin/costs',
     permission: 'cost.view',
+    group: 'admin',
+  },
+  {
+    icon: MessageSquare,
+    label: 'Câu trả lời bị báo sai', // i18n-ignore
+    description: 'Câu trả lời của Trợ lý mà người dùng báo sai', // i18n-ignore
+    path: '/admin/assistant-reports',
+    permission: 'assistant.review',
     group: 'admin',
   },
 ]
@@ -638,6 +648,8 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     meetingToday,
   } = useChromeFeeds()
   const records = useHeaderSearch()
+  /* Present only while the server says the assistant is on for this person (ADR 0133). */
+  const openAssistant = useAssistantEntry()
 
   /** Two axes, two different answers.
    *
@@ -800,12 +812,6 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
 
   /** Gói props của `AppShell`. Màn spread nguyên gói, không cầm mảnh nào.
    *
-   *  `onOpenAssistant` CỐ TÌNH vắng mặt: màn 04 · Trợ lý AI chưa dựng. Thiếu nó
-   *  thì `AssistantFab` không render và mục 'assistant' của BottomNav nằm trong
-   *  `lockedNav` — không có nút nào hứa một màn không tồn tại. Dựng xong màn 04
-   *  thì thêm `onOpenAssistant` vào đây và điền `path` cho dòng 'assistant'
-   *  của `BOTTOM_NAV`.
-   *
    *  KIỂU KHAI TƯỜNG MINH, có lý do: JSX bỏ qua kiểm dư thừa trên spread, nên
    *  `<AppShell {...shell}>` nuốt im lặng mọi prop mà `AppShell` không biết.
    *  Gõ sai một tên ở đây là mất nguyên một dây điều hướng mà `tsc` vẫn xanh —
@@ -814,8 +820,9 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     header,
     copy: shellCopyOf(lang),
     activeNav,
-    lockedNav: LOCKED_NAV,
+    lockedNav: openAssistant ? LOCKED_NAV.filter((key) => key !== 'assistant') : LOCKED_NAV,
     onNavigate,
+    onOpenAssistant: openAssistant,
     subBar: <MeetingCountdownBar today={meetingToday} />,
     banners: overdueBanners.items,
     onDismissBanner: overdueBanners.dismiss,

@@ -83,6 +83,21 @@ const skim = defineTool({
   run: async () => ({ data: {}, codes: ['LD-0001'], rowCount: 1, hidden: null }),
 })
 
+/* Two doors in one call: marketing passes the lead one and not the contract one. */
+const both = defineTool({
+  name: 'both_x',
+  description: 'Fake.',
+  input: z.object({}).strict(),
+  doors: { lead: door(FakeDoors, 'lead'), contract: door(FakeDoors, 'contract') },
+  doorFor: () => ['lead', 'contract'] as const,
+  run: async (_who, _input, open) => ({
+    data: { trusted: { open: [...open] } },
+    codes: ['LD-0001'],
+    rowCount: 1,
+    hidden: null,
+  }),
+})
+
 type Limits = AiLimits & { signal: AbortSignal }
 type Step =
   | Partial<AiRound>
@@ -143,7 +158,7 @@ const auditRepo = () => new AuditRepository(db)
 function runnerWith(client: Scripted, audits = auditRepo()) {
   const routes = new AiRouteRepository(db)
   const gateway = new AiGateway(routes, new AiLedger(), { gemini: client, anthropic: client }, db)
-  const gate = new AssistantToolGate({ tools: () => [tool, skim] }, createAccessControl())
+  const gate = new AssistantToolGate({ tools: () => [tool, skim, both] }, createAccessControl())
   return new AssistantRunner(gateway, new AssistantRepository(db), audits, gate)
 }
 
@@ -210,7 +225,7 @@ describe('a round', () => {
     expect(seen).toEqual({ audits: 1, calls: 1 })
     expect(turn).toMatchObject({ state: 'done', endedBy: 'answer', rounds: 2 })
     expect(turn.body).toBe('Lead đang được chăm sóc.')
-    expect(turn.promptVersion).toBe('assistant@3')
+    expect(turn.promptVersion).toBe('assistant@5')
     expect(rows[0]).toMatchObject({ role: 'user', state: 'done' })
     expect(rows[0]!.finishedAt).not.toBeNull()
     /* The sink threw on every event and the turn still ran to its end. */
@@ -251,7 +266,8 @@ describe('a round', () => {
     expect(JSON.stringify(events)).not.toContain(STORED)
     expect(events).toContainEqual({
       type: 'error',
-      message: 'Trợ lý đang bận. Thử lại sau ít phút.',
+      code: 'failed',
+      message: 'Trợ lý chưa trả lời được. Thử lại.',
     })
   })
 
@@ -265,6 +281,21 @@ describe('a round', () => {
     expect(lines[0]!.note).toMatch(/^chặn assistant\.read_x · turn .+ · permission-denied$/)
     expect(JSON.stringify(client.requests[1]!.messages.at(-1))).toContain('not-allowed')
     expect(JSON.stringify(client.requests[1]!.messages)).not.toContain(STORED)
+  })
+
+  it('writes a refusal line for the one door refused in a call that ran on the other', async () => {
+    const both = { calls: [{ id: 'vendor-1', name: 'both_x', input: {} }], stop: 'tools' as const }
+    const client = new Scripted([both, { text: 'Chỉ xem được lead.' }])
+    const { turn } = await ask(client)
+
+    const lines = await auditOf(turn.id)
+    const refused = lines.filter((l) => l.action === 'view')
+    expect(refused).toHaveLength(1)
+    expect(refused[0]!.note).toMatch(
+      /^chặn assistant\.both_x · turn .+ · contract · permission-denied$/,
+    )
+    expect(lines.filter((l) => l.action === 'ai-read').map((l) => l.code)).toEqual(['LD-0001'])
+    expect(JSON.stringify(client.requests[1]!.messages.at(-1))).not.toContain('contract')
   })
 
   it('writes a second line when a search hit is opened', async () => {
@@ -346,6 +377,31 @@ describe('the answer', () => {
     expect(turn.body).toBe('Để tôi xem.\n\nLead đang được chăm sóc.')
     const wire = events.flatMap((e) => (e.type === 'text' ? [e.delta] : []))
     expect(wire.join('')).toBe(turn.body)
+  })
+
+  it('fills a cited value while it streams, and stores the filled text (D3)', async () => {
+    const client = new Scripted([
+      toolRound('lead'),
+      async (_r, _limits, onText) => {
+        onText('Lead ⟦v')
+        onText('2⟧ có ⟦v1⟧ hồ sơ, giá 500 triệu. ')
+        onText('⟦v9⟧Xong.')
+        return {}
+      },
+    ])
+    const { turn, events } = await ask(client)
+
+    const sent = (
+      client.requests[1]!.messages.at(-1) as { results: { output: string }[] }
+    ).results[0]!.output.split('\n')[1]!
+    expect(JSON.parse(sent)).toMatchObject({
+      rows: { value: 1, cite: '⟦v1⟧' },
+      trusted: { code: { value: 'LD-0001', cite: '⟦v2⟧' } },
+    })
+    expect(turn.body).toBe('Lead LD-0001 có 1 hồ sơ, giá [chưa rõ] triệu. Xong.')
+    const wire = events.flatMap((e) => (e.type === 'text' ? [e.delta] : []))
+    expect(wire.join('')).toBe(turn.body)
+    expect(wire.some((delta) => /[⟦⟧]/.test(delta))).toBe(false)
   })
 })
 

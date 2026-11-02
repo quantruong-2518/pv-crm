@@ -143,3 +143,4 @@ question written up as an accepted decision is what the next agent builds on.
 
 Plus `open-questions.md` — the numbered questions the project owner still has
 to answer, each naming the decision it hangs on.
+| 0136 | The assistant chat opens to the director alone first, by the owner's override of gate 0: permission `assistant.use` (director by default, widen per role in the matrix), entry shown only when the `assistant` route is on and the person holds it; `assistant.review` reads a reported answer and the question before it; SSE turn over POST, stop is its own route and per machine; refs re-checked per message on load and replay, fail closed past a cap; `list_my_work` is the asker's own; D3 built with `⟦vN⟧` cite ids; report "Báo câu trả lời sai", migration 0162 | accepted (amends 0133, 0134) | `0136-the-assistant-chat-opens-to-the-director-alone-first-and-cites-by-id.md` |

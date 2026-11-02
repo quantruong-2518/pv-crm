@@ -3,13 +3,14 @@ import { Moment } from './primitives'
 import { SearchKind } from './sales/search'
 import { SEARCH_MAX_CHARS, SEARCH_MIN_CHARS } from './search-text'
 
-/** CRM assistant — rows in `platform.assistant_session|message|tool_call` and the
- *  events a turn emits. No HTTP route yet; wave 0 ships shapes only.
+/** CRM assistant — rows in `platform.assistant_session|message|tool_call`, the
+ *  events a turn streams on `POST /assistant/turns`, and the tool inputs. The
+ *  HTTP params and bodies of wave 1 live in `./assistant-http`.
  *
  *  An assistant message row IS the turn (its id is the turn id). Tool output is
  *  never persisted: `AssistantToolResult` carries counts only. Tool inputs are
  *  `.strict()` and have no actor or owner field, so identity can only come from
- *  the signed-in user, never from model output. ADR 0133 D2 and D8. */
+ *  the signed-in user, never from model output. ADR 0133 D2 and D8, ADR 0134. */
 
 /** Values mirror the CHECK constraints in migration 0159; widen both together. */
 export const AssistantRole = z.enum(['user', 'assistant'])
@@ -40,7 +41,7 @@ export const AssistantToolOutcome = z.enum([
 ])
 export type AssistantToolOutcome = z.infer<typeof AssistantToolOutcome>
 
-/** Only the kinds a wave 0 tool can open; taken from the global search kinds so a code means the same everywhere. */
+/** Only the kinds `get_record` can open; taken from the global search kinds so a code means the same everywhere. */
 export const AssistantRecordKind = SearchKind.extract(['lead', 'opportunity', 'contract'])
 export type AssistantRecordKind = z.infer<typeof AssistantRecordKind>
 
@@ -48,32 +49,87 @@ const RecordCode = z.string().trim().min(1).max(64)
 /** Same shape as the `assistant_tool_call.name` CHECK. */
 const ToolName = z.string().regex(/^[a-z_]+$/)
 
+/** The record the person is looking at while asking. */
+export const AssistantSubject = z.object({ kind: AssistantRecordKind, code: RecordCode })
+export type AssistantSubject = z.infer<typeof AssistantSubject>
+
 export const AssistantSession = z.object({
   id: z.string().uuid(),
   title: z.string().nullable(),
   /** Both set or both null, like the table CHECK. */
-  subject: z.object({ kind: AssistantRecordKind, code: RecordCode }).nullable(),
+  subject: AssistantSubject.nullable(),
   pinned: z.boolean(),
   lastOpenedAt: Moment,
   createdAt: Moment,
 })
 export type AssistantSession = z.infer<typeof AssistantSession>
 
+/** One question as typed or as a suggestion chip sends it; one schema so a chip always passes as a turn. */
+export const AssistantQuestion = z.string().trim().min(1).max(2000)
+
+/** A record an answer names. `label` is the chip text on screen and never enters a model request (D5). */
+export const AssistantRef = AssistantSubject.extend({ label: z.string().min(1) })
+export type AssistantRef = z.infer<typeof AssistantRef>
+
+/** What the turn read, per kind, and when: the line under an answer ("read 12 leads, 3 contracts · as of 09:42"). */
+export const AssistantFooter = z.object({
+  read: z.array(
+    z.object({
+      kind: z.union([AssistantRecordKind, z.literal('next-step')]),
+      count: z.number().int().positive(),
+    }),
+  ),
+  at: Moment,
+})
+export type AssistantFooter = z.infer<typeof AssistantFooter>
+
 export const AssistantMessage = z.object({
   id: z.string().uuid(),
   seq: z.number().int().nonnegative(),
   role: AssistantRole,
+  /** Empty, with no refs and no footer, when `withheld` or `unchecked`. */
   body: z.string(),
+  refs: z.array(AssistantRef),
+  /** It, or an earlier answer of the chat, names a record the person can no longer read. */
+  withheld: z.boolean(),
+  /** Past the re-check's cap, or its read failed, so not known to be readable. */
+  unchecked: z.boolean(),
   state: AssistantMessageState,
   /** `null` while running and on user rows. */
   endedBy: AssistantEndedBy.nullable(),
+  /** What the turn read, rebuilt from its tool calls on load; `null` on user rows. */
+  footer: AssistantFooter.nullable(),
   createdAt: Moment,
   finishedAt: Moment.nullable(),
 })
 export type AssistantMessage = z.infer<typeof AssistantMessage>
 
-export const AssistantSessionList = z.object({ sessions: z.array(AssistantSession) })
+/** Pinned first, then last opened. `nextBefore` goes back as `before` for the next
+ *  page, as it came; `null` = no more. */
+export const AssistantSessionList = z.object({
+  sessions: z.array(AssistantSession),
+  nextBefore: z.string().nullable(),
+})
 export type AssistantSessionList = z.infer<typeof AssistantSessionList>
+
+/** A chip's template; the screen writes its label and question in the viewer's
+ *  language. `params.code`, when present, is the record the chip asks about. */
+export const AssistantSuggestionKey = z.enum([
+  'overdue-steps',
+  'stale-leads',
+  'closing-deals',
+  'lead-converted',
+  'deal-contract',
+  'contract-collected',
+  'open-first-hit',
+])
+export type AssistantSuggestionKey = z.infer<typeof AssistantSuggestionKey>
+
+export const AssistantSuggestion = z.object({
+  key: AssistantSuggestionKey,
+  params: z.object({ code: RecordCode.optional() }).strict(),
+})
+export type AssistantSuggestion = z.infer<typeof AssistantSuggestion>
 
 export const AssistantSessionDetail = z.object({
   session: AssistantSession,
@@ -91,7 +147,18 @@ export const AssistantToolResult = z.object({
 })
 export type AssistantToolResult = z.infer<typeof AssistantToolResult>
 
+export const AssistantErrorCode = z.enum(['off', 'busy', 'limit', 'interrupted', 'failed'])
+export type AssistantErrorCode = z.infer<typeof AssistantErrorCode>
+
+/** `session` opens every turn; `heartbeat` keeps the stream alive every 25 s. */
 export const AssistantEvent = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('session'),
+    sessionId: z.string().uuid(),
+    /** The turn's own id, so the stop button can name it before `done`. */
+    messageId: z.string().uuid(),
+    title: z.string().nullable(),
+  }),
   z.object({
     type: z.literal('step'),
     round: z.number().int().min(1).max(8),
@@ -99,8 +166,18 @@ export const AssistantEvent = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('text'), delta: z.string() }),
   z.object({ type: z.literal('tool-result'), result: AssistantToolResult }),
-  z.object({ type: z.literal('done'), messageId: z.string().uuid(), endedBy: AssistantEndedBy }),
-  z.object({ type: z.literal('error'), message: z.string() }),
+  z.object({ type: z.literal('refs'), refs: z.array(AssistantRef) }),
+  /** Template keys from the server, so no tool prose or model text reaches a chip (D5). */
+  z.object({ type: z.literal('suggestions'), items: z.array(AssistantSuggestion).max(3) }),
+  z.object({
+    type: z.literal('done'),
+    messageId: z.string().uuid(),
+    endedBy: AssistantEndedBy,
+    footer: AssistantFooter,
+  }),
+  z.object({ type: z.literal('heartbeat') }),
+  /** `message` is plain Vietnamese for the screen; `code` is what the screen branches on. */
+  z.object({ type: z.literal('error'), code: AssistantErrorCode, message: z.string() }),
 ])
 export type AssistantEvent = z.infer<typeof AssistantEvent>
 
@@ -115,3 +192,9 @@ export type SearchRecordsInput = z.infer<typeof SearchRecordsInput>
 
 export const GetRecordInput = z.object({ kind: AssistantRecordKind, code: RecordCode }).strict()
 export type GetRecordInput = z.infer<typeof GetRecordInput>
+
+/** Absent `kind` lists all three. Always the asker's own work: there is no field to name anyone else. */
+export const ListMyWorkInput = z
+  .object({ kind: z.enum(['lead', 'opportunity', 'next-step']).optional() })
+  .strict()
+export type ListMyWorkInput = z.infer<typeof ListMyWorkInput>

@@ -1,6 +1,14 @@
 import { runTurn, trailText, type Trail } from './bench'
 import type { Check, Tally } from './report'
-import { askDoor, canariesIn, leaves, PROBES, type DoorAnswer } from './scope-door'
+import {
+  askDoor,
+  canariesIn,
+  leaves,
+  PROBES,
+  shownCanariesIn,
+  unbound,
+  type DoorAnswer,
+} from './scope-door'
 import { FACTS } from './scope-facts'
 import {
   agreeOnReach,
@@ -117,9 +125,11 @@ function agreeOnAnswer(
     '\n',
   )
   c.ok(!!fence && !!body, 'the second request carries the tool result')
-  /* The flag is the tool's word, not door data; `agreeOnReach` holds it to its value. */
-  const parsed = JSON.parse(body ?? '{}') as object
-  const handed = leaves({ ...parsed, contactInfoWithheld: null })
+  /* The flag is the tool's word, not door data; `agreeOnReach` holds it to its value.
+     `rows` is the binder's count, held to the door's own. */
+  const { rows, ...parsed } = JSON.parse(body ?? '{}') as { rows?: unknown }
+  c.eq(unbound(rows), door.rows, 'the rows the model may cite')
+  const handed = leaves(unbound({ ...parsed, contactInfoWithheld: null }))
   const extra = handed.filter((leaf) => !allowed.has(leaf))
   c.eq(extra, [], 'the tool hands over nothing the door did not')
 
@@ -154,9 +164,11 @@ async function runCell(world: World, c: Check, cell: Cell, log: ReachLog): Promi
   const seen = canariesIn(text)
   c.eq([...new Set(seen.filter((t) => !shown.has(t)))], [], 'a canary the door never showed')
 
-  /* The control: with a leak-free tool, an allowed read must still light up. */
+  /* The control: with a leak-free tool, an allowed read must still light up. The
+     binder masks a canary's digits on the way out, so the raw stream carries it whole. */
   if (door.ok && door.rows > 0) {
-    c.ok(canariesIn(trail.turn?.body ?? '').length > 0, 'an allowed read reaches the answer')
+    c.ok(canariesIn(trail.witness.deltas.join('')).length > 0, 'an allowed read reaches the model')
+    c.ok(shownCanariesIn(trail.turn?.body ?? '').length > 0, 'an allowed read reaches the answer')
   }
   return door
 }

@@ -5,6 +5,7 @@ import { LeadController } from '@api/branches/sales/lead/lead.controller'
 import { OpportunityController } from '@api/branches/sales/opportunity/opportunity.controller'
 import { SearchController } from '@api/branches/sales/search/search.controller'
 import { NEED_KEY, type RouteNeed } from '@api/platform/access/need.decorator'
+import { UNSURE } from '@api/platform/assistant/assistant-bind'
 import { PvError } from '@api/platform/http/problem'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CANARY } from './seed-data'
@@ -90,6 +91,30 @@ export async function askDoor(
 }
 
 export const canariesIn = (text: string): string[] => [...text.matchAll(CANARY)].map((m) => m[0])
+
+/* A canary's letters and then the marker: what the binder leaves of its digits (D3). */
+const SHOWN_CANARY = new RegExp(`CNRY[A-Z]{2}${UNSURE.replace(/[[\]]/g, '\\$&')}`, 'g')
+
+/** Canaries as an answer shows them once the model repeated them. */
+export const shownCanariesIn = (text: string): string[] => text.match(SHOWN_CANARY) ?? []
+
+const CITE = /^⟦v\d+⟧$/
+
+/** A tool output without the binder's frame (D3): each `{ value, cite }` back to its
+ *  value, each trusted `{ count, items }` back to its items. Throws on a cite that is
+ *  not an id, so a frame cannot carry anything past the door comparison. */
+export function unbound(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(unbound)
+  if (typeof value !== 'object' || value === null) return value
+  const keys = Object.keys(value).sort().join(',')
+  if (keys === 'cite,value') {
+    const { cite, value: inner } = value as { cite: unknown; value: unknown }
+    if (typeof cite !== 'string' || !CITE.test(cite)) throw new Error(`not an id: ${cite}`)
+    return inner
+  }
+  if (keys === 'count,items') return unbound((value as { items: unknown }).items)
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, unbound(item)]))
+}
 
 /** Every string, number and boolean under `value`, at any depth. */
 export function leaves(value: unknown): string[] {

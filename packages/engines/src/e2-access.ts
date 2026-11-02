@@ -84,19 +84,25 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
    *  liệt kê lại: thêm quyền mới mà quên thêm cho Giám đốc là lỗi vô hình. */
   director: PERMISSIONS,
 
-  /** TP Kinh doanh — người gật của cả phòng: mọi màn Sales đều ghi "người gật
-   *  là TP Kinh doanh".
+  /** Head of sales: the approver of the whole department, so every Sales screen
+   *  names this role as the one who approves.
    *
-   *  Trùng Giám đốc trừ `lead.disable`, `role.manage` và `cost.view` (chủ dự án chốt
-   *  07/10/2026: chỉ Giám đốc tắt được lead, và TP không sửa bảng quyền — sửa
-   *  được thì tự cấp lại được), và phần trùng đó KHÔNG phải chép nhầm. Trong phạm vi Sales
-   *  hai vai này làm được như nhau; thứ tách họ ra là TRỤC LICENSE — Giám đốc
-   *  có cả năm nhánh, TP chỉ có One + Sales, nên cùng một ma trận vai vẫn ra hai
-   *  hệ màn khác hẳn nhau. Nhét khác biệt đó vào ma trận vai là đặt nó nhầm
-   *  trục, và sẽ sai ngay khi công ty mua thêm nhánh thứ hai cho phòng. */
+   *  The director's row minus five, and the overlap is on purpose: `lead.disable`
+   *  and `role.manage` (owner, 07/10/2026: only the director switches a lead off,
+   *  and a role that edits the matrix could grant itself back), `cost.view`,
+   *  `assistant.use` and `assistant.review` (managers never read chats). Within
+   *  Sales the two roles act alike; the license axis tells them apart, since the
+   *  director holds all five branches. Putting that gap in this matrix would put
+   *  it on the wrong axis. */
   'head-of-sales': PERMISSIONS.filter(
     // `cost.view`: the owner keeps product spend with the director alone (ADR 0102).
-    (p) => p !== 'lead.disable' && p !== 'role.manage' && p !== 'cost.view',
+    // `assistant.use`: the owner tries the assistant alone first (ADR 0136).
+    (p) =>
+      p !== 'lead.disable' &&
+      p !== 'role.manage' &&
+      p !== 'cost.view' &&
+      p !== 'assistant.use' &&
+      p !== 'assistant.review',
   ),
 
   /** Marketing — sở hữu chiến dịch, đọc lead để biết nguồn nào ra khách. Không

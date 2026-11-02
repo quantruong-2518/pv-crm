@@ -47,6 +47,11 @@ export type AiCaller = {
 }
 export type AiResult<T> = { value: T; model: string; attempts: readonly AiAttempt[] }
 
+/** Assistant rounds per vendor in flight from this process, apart from the batch
+ *  pool: the pilot is a handful of people, and the two pools together stay under
+ *  the vendor's per-minute quota. */
+const ASSISTANT_SLOTS_PER_PROVIDER = 3
+
 type Outcome<T> = { ok: true; value: T } | { ok: false; kind: AiFailureKind; message: string }
 type Run<T> = {
   task: AiTask
@@ -63,6 +68,7 @@ export class AiGateway {
   private readonly log = new Logger('AiGateway')
   private readonly breaker = new ModelBreaker()
   private readonly limiter = new ProviderLimiter()
+  private readonly assistantLimiter = new ProviderLimiter(ASSISTANT_SLOTS_PER_PROVIDER)
 
   constructor(
     private readonly routes: AiRouteRepository,
@@ -133,13 +139,13 @@ export class AiGateway {
     who: AiTurnCaller,
   ): Promise<AiConversation> {
     const { models } = await this.admit(task, who.actorId, this.db, !who.admitted)
-    const { routes, ledger, clients, breaker, limiter, log, db } = this
+    const { routes, ledger, clients, breaker, assistantLimiter, log, db } = this
     return new AiConversation(task, who, models, {
       routes,
       ledger,
       clients,
       breaker,
-      limiter,
+      limiter: assistantLimiter,
       log,
       db,
     })

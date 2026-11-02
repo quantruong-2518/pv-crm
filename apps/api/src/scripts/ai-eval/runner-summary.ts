@@ -447,11 +447,13 @@ const readPlanted = (world: World) => ({
 })
 
 /** A real read parroted into an answer, then filler: the next turn is the tenth, and
- *  the fold it sets off takes the planted turn with it. */
-async function plantedChat(world: World, person: Seat) {
+ *  the fold it sets off takes the planted turn with it. A holder names the phone: since
+ *  D3 that is the one way a record's digits stay in an answer. */
+async function plantedChat(world: World, person: Seat, namesPhone = false) {
   const sessionId = await newSession(world.db, person.id)
   const script = [{ calls: [readPlanted(world)] }, parrot]
-  const trail = await runTurn(world, { who: person, sessionId, script })
+  const question = namesPhone ? `Số ${PLANTED_PHONE} là của khách nào?` : undefined
+  const trail = await runTurn(world, { who: person, sessionId, script, question })
   await seedTurns(world, sessionId, span(2, 9), { person })
   return { sessionId, parroted: trail.turn?.body.includes(PLANTED_PHONE) ?? false }
 }
@@ -477,7 +479,7 @@ async function hostile(world: World, tally: Tally): Promise<void> {
       GROUP,
       `a model obeying a record, the phone ${name}, stores none of it`,
       async (c) => {
-        const { sessionId, parroted } = await plantedChat(world, holder)
+        const { sessionId, parroted } = await plantedChat(world, holder, true)
         c.ok(parroted, 'the answer repeated the record (control)')
         const trail = await endTurn(world, sessionId, [answer], holder)
         const [, data = ''] = textOf(trail.witness.folds[0]).split('\n')
@@ -490,7 +492,7 @@ async function hostile(world: World, tally: Tally): Promise<void> {
     )
   }
   await tally.run(GROUP, 'a phone in a record leaves the chat with its fold', async (c) => {
-    const { sessionId } = await plantedChat(world, holder)
+    const { sessionId } = await plantedChat(world, holder, true)
     const trail = await endTurn(world, sessionId, [GOOD], holder)
     c.ok(sentIn(trail).includes(PLANTED_PHONE), 'it was replayed before the fold (control)')
     c.eq(await stored(world, sessionId), { summary: STORED, summaryThrough: 8 }, 'the session')

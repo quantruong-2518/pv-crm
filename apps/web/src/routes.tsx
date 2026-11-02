@@ -163,6 +163,22 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/admin-costs'),
   },
   {
+    /** The CRM assistant as a full page (ADR 0136). Sales, like the API's turn
+     *  door; the panel over every screen is mounted in `main.tsx`, not here. */
+    path: '/assistant',
+    name: 'Trợ lý', // i18n-ignore: route key, translated in route-copy
+    branch: 'Sales',
+    permission: 'assistant.use',
+    load: () => import('@/pages/assistant'),
+  },
+  {
+    /** One Core · Admin · assistant answers reported as wrong (ADR 0133 §2). */
+    path: '/admin/assistant-reports',
+    name: 'Câu trả lời bị báo sai', // i18n-ignore: route key, translated in route-copy
+    permission: 'assistant.review',
+    load: () => import('@/pages/admin-assistant-reports'),
+  },
+  {
     /** Admin · lead origins — the origin catalogue behind every lead, plus
      *  the per-motion policy. Sales data, so it carries the Sales licence. */
     path: '/admin/lead-origins',

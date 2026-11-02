@@ -14,6 +14,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { AssistantToolGate } from '@api/platform/assistant/assistant-tools'
 import type { ContractService } from '../contract/contract.service'
 import type { LeadService } from '../lead/lead.service'
+import type { OpportunityStepService } from '../next-step/next-step-opportunity.service'
+import type { NextStepService } from '../next-step/next-step.service'
 import type { OpportunityService } from '../opportunity/opportunity.service'
 import type { SearchService } from '../search/search.service'
 import { SalesAssistantTools } from './sales-assistant-tools'
@@ -63,6 +65,7 @@ const CONTACT: OpportunityContact = {
 
 const OPPORTUNITY = {
   code: 'OP-0301',
+  name: 'Triển khai MES',
   leadCode: 'LD-0001',
   state: 'open',
   contractCodes: [],
@@ -85,6 +88,7 @@ const OPPORTUNITY = {
 /** Phone and mail no real contract carries: the projection must not pass them on. */
 const CONTRACT = {
   code: 'HĐ-2711',
+  customer: 'Sao Đỏ',
   opportunityCode: 'OP-0301',
   leadCode: 'LD-0001',
   kind: null,
@@ -117,20 +121,29 @@ const HITS: SearchResult = {
   ],
 }
 
+const page = <R>(rows: R[]) => ({ rows, total: rows.length, hidden: 0 })
+
 function setup() {
-  const leads = { profile: vi.fn(async () => LEAD) }
-  const opportunities = { profile: vi.fn(async () => OPPORTUNITY) }
-  const contracts = { profile: vi.fn(async () => CONTRACT) }
+  const leads = { profile: vi.fn(async () => LEAD), book: vi.fn(async () => page([])) }
+  const opportunities = {
+    profile: vi.fn(async () => OPPORTUNITY),
+    book: vi.fn(async () => page([])),
+  }
+  const contracts = { profile: vi.fn(async () => CONTRACT), book: vi.fn(async () => page([])) }
   const searches = { search: vi.fn(async () => HITS) }
+  const leadSteps = { get: vi.fn(async () => ({ step: null })) }
+  const dealSteps = { get: vi.fn(async () => ({ step: null })) }
   const source = new SalesAssistantTools(
     leads as unknown as LeadService,
     opportunities as unknown as OpportunityService,
     contracts as unknown as ContractService,
     searches as unknown as SearchService,
     createAccessControl(),
+    leadSteps as unknown as NextStepService,
+    dealSteps as unknown as OpportunityStepService,
   )
   const gate = new AssistantToolGate(source, createAccessControl())
-  return { gate, leads, opportunities, contracts, searches }
+  return { gate, leads, opportunities, contracts, searches, leadSteps, dealSteps }
 }
 
 const getRecord = (kind: string, code: string) => ({
@@ -159,9 +172,9 @@ async function outputOf(who: Actor, call: ReturnType<typeof getRecord>) {
 }
 
 describe('the sales tools', () => {
-  it('boots on the real doors and declares both tools as strict', () => {
+  it('boots on the real doors and declares every tool as strict', () => {
     const declared = setup().gate.declarations()
-    expect(declared.map((t) => t.name)).toEqual(['search_records', 'get_record'])
+    expect(declared.map((t) => t.name)).toEqual(['search_records', 'get_record', 'list_my_work'])
     for (const tool of declared) {
       expect(tool.parameters).toMatchObject({ additionalProperties: false })
     }
@@ -508,5 +521,263 @@ describe('text shaped like a phone or mail is masked for a non-holder', () => {
     expect(output).toMatchObject({
       hits: [{ untrusted: { title: `Công ty Sao Đỏ ${PHONE}`, subtitle: `Liên hệ ${EMAIL}` } }],
     })
+  })
+})
+
+describe('list_my_work', () => {
+  const director = actor('director')
+  const SOMEONE = 'u-someone'
+  const lead = (code: string, ownerId: string) => ({
+    code,
+    ownerId,
+    company: `${HOSTILE} ${code}`,
+    contactName: 'Anh Nam',
+    phone: PHONE,
+    email: EMAIL,
+    state: 'working',
+    stateSince: '2026-10-01T00:00:00.000Z',
+    daysHere: 3,
+    signed: false,
+    createdAt: '2026-09-01T00:00:00.000Z',
+  })
+  const deal = (code: string, sale: string | null, bd: string | null) => ({
+    code,
+    sale,
+    bd,
+    name: `${HOSTILE} ${code}`,
+    leadCode: 'LD-0001',
+    stage: 'engaged',
+    daysInStage: 2,
+    quotationRounds: 0,
+    expectedClose: '2026-12-01',
+    amount: null,
+    currency: null,
+    probability: null,
+  })
+  const step = (doer: string) => ({
+    step: {
+      text: `Gọi ${PHONE}`,
+      due: '2026-11-03',
+      dueLevel: 'due',
+      doer: { id: doer },
+      kind: null,
+    },
+  })
+  const LEADS = [
+    lead('LD-0001', director.id),
+    lead('LD-0002', SOMEONE),
+    lead('LD-0003', 'u-marketing'),
+  ]
+  const DEALS = [
+    deal('OP-0301', director.id, null),
+    deal('OP-0302', SOMEONE, director.id),
+    deal('OP-0303', SOMEONE, SOMEONE),
+  ]
+  type Q = { owner?: string; sale?: string; bd?: string; state?: string }
+
+  /** Books that answer by their own filter, as the real doors do in SQL. */
+  function desk() {
+    const s = setup()
+    s.leads.book.mockImplementation((async (_who: Actor, q: Q) =>
+      page(LEADS.filter((l) => l.ownerId === q.owner))) as never)
+    s.opportunities.book.mockImplementation((async (_who: Actor, q: Q) =>
+      page(DEALS.filter((d) => (q.sale && d.sale === q.sale) || (q.bd && d.bd === q.bd)))) as never)
+    s.leadSteps.get.mockImplementation((async () => step(director.id)) as never)
+    s.dealSteps.get.mockImplementation((async (_who: Actor, code: string) =>
+      step(code === 'OP-0301' ? director.id : SOMEONE)) as never)
+    return s
+  }
+  const call = (input: object) => ({ id: 'c1', name: 'list_my_work', input })
+
+  it("gives a director their own desk, not the company's", async () => {
+    const s = desk()
+    const verdict = await s.gate.call(director, call({}))
+
+    expect(verdict.outcome).toBe('ok')
+    expect(s.leads.book).toHaveBeenCalledWith(
+      director,
+      expect.objectContaining({ owner: director.id, state: 'open' }),
+    )
+    const { trusted } = verdict.output as {
+      trusted: Record<string, { code: string }[]>
+    }
+    expect(trusted.leads!.map((r) => r.code)).toEqual(['LD-0001'])
+    expect(trusted.opportunities!.map((r) => r.code)).toEqual(['OP-0301', 'OP-0302'])
+    expect(trusted.nextSteps).toEqual([
+      { code: 'LD-0001', due: '2026-11-03', dueLevel: 'due' },
+      { code: 'OP-0301', due: '2026-11-03', dueLevel: 'due' },
+    ])
+    expect(verdict).toMatchObject({ codes: ['LD-0001', 'OP-0301', 'OP-0302'], rowCount: 5 })
+    expect(verdict.steps).toBe(2)
+    expect(verdict.refs.map((r) => [r.kind, r.code])).toEqual([
+      ['lead', 'LD-0001'],
+      ['opportunity', 'OP-0301'],
+      ['opportunity', 'OP-0302'],
+    ])
+    const body = JSON.stringify(verdict.output)
+    for (const text of [HOSTILE, PHONE, EMAIL, 'Anh Nam']) expect(body).not.toContain(text)
+  })
+
+  it('lists only the steps the asker does, under `next-step`', async () => {
+    const s = desk()
+    const verdict = await s.gate.call(director, call({ kind: 'next-step' }))
+
+    const { trusted } = verdict.output as { trusted: Record<string, unknown[]> }
+    expect(trusted.leads).toEqual([])
+    expect(trusted.opportunities).toEqual([])
+    expect(trusted.nextSteps).toHaveLength(2)
+    expect(verdict).toMatchObject({ codes: ['LD-0001', 'OP-0301'], rowCount: 2, steps: 2 })
+  })
+
+  it('reads no deal door for marketing, who may not open one', async () => {
+    const s = desk()
+    const verdict = await s.gate.call(actor('marketing'), call({}))
+
+    expect(verdict.outcome).toBe('ok')
+    expect(s.opportunities.book).not.toHaveBeenCalled()
+    expect(s.dealSteps.get).not.toHaveBeenCalled()
+    expect(s.leadSteps.get).toHaveBeenCalledTimes(1)
+    expect(verdict).toMatchObject({ codes: ['LD-0003'], steps: 0 })
+    /* Unknown, not empty: the model reads it, the loop writes a refusal line per door. */
+    expect((verdict.output as { trusted: { skipped: string[] } }).trusted.skipped).toEqual([
+      'opportunity',
+    ])
+    expect(verdict.skipped).toEqual([
+      { door: 'opportunity', reason: 'permission-denied' },
+      { door: 'opportunity-step', reason: 'permission-denied' },
+    ])
+  })
+
+  it('refuses marketing a deals-only ask at the gate', async () => {
+    const s = desk()
+    const verdict = await s.gate.call(actor('marketing'), call({ kind: 'opportunity' }))
+
+    expect(verdict).toMatchObject({ outcome: 'refused', denied: 'permission-denied' })
+    expect(s.opportunities.book).not.toHaveBeenCalled()
+  })
+
+  it('reads deal steps beside a long lead list, and says the list was cut', async () => {
+    const s = desk()
+    const many = Array.from({ length: 15 }, (_, i) => lead(`LD-${1100 + i}`, director.id))
+    const deals = Array.from({ length: 15 }, (_, i) => deal(`OP-${1100 + i}`, director.id, null))
+    s.leads.book.mockImplementation((async () => page(many)) as never)
+    s.opportunities.book.mockImplementation((async (_who: Actor, q: Q) =>
+      page(q.sale ? deals : [])) as never)
+    s.dealSteps.get.mockImplementation((async () => step(director.id)) as never)
+    const verdict = await s.gate.call(director, call({ kind: 'next-step' }))
+
+    const { trusted } = verdict.output as {
+      trusted: { nextSteps: { code: string }[]; more: boolean }
+    }
+    expect(trusted.nextSteps).toHaveLength(20)
+    expect(trusted.nextSteps.filter((n) => n.code.startsWith('OP-'))).toHaveLength(10)
+    expect(trusted.more).toBe(true)
+  })
+
+  it('counts back from a stored call the steps the footer showed', async () => {
+    const s = desk()
+    for (const input of [{}, { kind: 'next-step' }, { kind: 'lead' }]) {
+      const live = await s.gate.call(director, call(input))
+      const stored = { name: 'list_my_work', input, outcome: live.outcome, ...live }
+      expect(s.gate.stepsOf({ ...stored, codes: [...live.codes] })).toBe(live.steps)
+    }
+  })
+})
+
+describe('get_record re-reads a stored code', () => {
+  it('masks a phone typed into a chip label for a non-holder, and not for a holder', async () => {
+    const { gate, leads } = setup()
+    leads.profile.mockResolvedValue({ ...LEAD, company: `Sơn Trà ${PHONE}` })
+
+    expect((await gate.call(actor('sale'), LEAD_CALL)).refs[0]?.label).toBe('Sơn Trà [withheld]')
+    expect((await gate.call(actor('director'), LEAD_CALL)).refs[0]?.label).toBe(`Sơn Trà ${PHONE}`)
+  })
+
+  type Codes = { codes?: string; disabled?: boolean }
+  const asked = (q: Codes) => (q.codes ?? '').split(',')
+
+  /** Book doors that answer the codes they were asked, as the real ones do in SQL. */
+  function books() {
+    const s = setup()
+    s.leads.book.mockImplementation((async (_who: Actor, q: Codes) =>
+      page(
+        asked(q)
+          .filter((code) => code === 'LD-0001')
+          .map((code) => ({ ...LEAD, code, company: `Sơn Trà ${PHONE}` })),
+      )) as never)
+    s.opportunities.book.mockImplementation((async (_who: Actor, q: Codes) =>
+      page(asked(q).map((code) => ({ ...OPPORTUNITY, code })))) as never)
+    s.contracts.book.mockImplementation((async (_who: Actor, q: Codes) =>
+      page(asked(q).map((code) => ({ ...CONTRACT, code })))) as never)
+    return s
+  }
+
+  it('reads each kind back in one book call, as the person is now, labels masked', async () => {
+    const s = books()
+    const refs = await s.gate.recheck(actor('sale'), [
+      'LD-0001',
+      'LD-0002',
+      'OP-0301',
+      'HĐ-2711',
+      'CT-0001',
+    ])
+
+    expect(refs.get('LD-0001')).toEqual({
+      kind: 'lead',
+      code: 'LD-0001',
+      label: 'Sơn Trà [withheld]',
+    })
+    expect(refs.get('LD-0002')).toBeNull()
+    expect(refs.get('OP-0301')).toMatchObject({ kind: 'opportunity', label: 'Triển khai MES' })
+    expect(refs.get('HĐ-2711')).toMatchObject({ kind: 'contract', label: 'Sao Đỏ' })
+    expect(refs.get('CT-0001')).toBeNull()
+    expect(s.leads.book).toHaveBeenCalledTimes(1)
+    expect(s.leads.book).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'u-sale' }),
+      expect.objectContaining({ codes: 'LD-0001,LD-0002', state: 'all', size: 2 }),
+    )
+    expect(s.opportunities.book).toHaveBeenCalledTimes(1)
+    expect(s.contracts.book).toHaveBeenCalledTimes(1)
+  })
+
+  it('reads a code the book left out through the profile door, as the tool first did', async () => {
+    const s = books()
+    s.leads.profile.mockImplementation((async (_who: Actor, code: string) => ({
+      ...LEAD,
+      code,
+    })) as never)
+    const refs = await s.gate.recheck(actor('sale'), ['LD-0001', 'LD-0002'])
+
+    expect(refs.get('LD-0002')).toMatchObject({ kind: 'lead', code: 'LD-0002' })
+    expect(s.leads.profile).toHaveBeenCalledTimes(1)
+    expect(s.leads.profile).toHaveBeenCalledWith(expect.anything(), 'LD-0002')
+  })
+
+  it('asks for switched-off leads only for a holder of lead.disable', async () => {
+    const s = books()
+    await s.gate.recheck(actor('director'), ['LD-0001'])
+
+    expect(s.leads.book).toHaveBeenCalledTimes(2)
+    expect(s.leads.book).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ disabled: true }),
+    )
+  })
+
+  it('shuts a kind whose book door the person may not open, reading nothing', async () => {
+    const s = books()
+    const refs = await s.gate.recheck(actor('marketing'), ['HĐ-2711'])
+
+    expect(refs.get('HĐ-2711')).toBeNull()
+    expect(s.contracts.book).not.toHaveBeenCalled()
+  })
+
+  it('leaves out a kind whose read failed, so it reads as not checked', async () => {
+    const s = books()
+    s.opportunities.book.mockRejectedValue(new Error('the pool is gone'))
+    const refs = await s.gate.recheck(actor('sale'), ['OP-0301', 'LD-0001'])
+
+    expect(refs.has('OP-0301')).toBe(false)
+    expect(refs.get('LD-0001')).not.toBeNull()
   })
 })

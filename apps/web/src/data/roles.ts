@@ -112,6 +112,7 @@ const RESOURCE_COPY = {
   cost: message('Chi phí', 'Costs', '비용'),
   'audit-log': message('Nhật ký thao tác', 'Activity log', '작업 기록'),
   'ai-read': message('Nhật ký AI đã đọc', 'AI read log', 'AI 열람 기록'),
+  assistant: message('Trợ lý AI', 'AI assistant', 'AI 도우미'),
   user: message('Tài khoản người dùng', 'User accounts', '사용자 계정'),
   role: message('Vai trò & quyền', 'Roles & permissions', '역할 및 권한'),
   approval: message('Phê duyệt', 'Approvals', '승인'),
@@ -252,10 +253,16 @@ const PERMISSION_COPY = {
     'View the log of records the AI read',
     'AI가 열람한 기록 이력 보기',
   ),
+  'assistant.use': message('Hỏi Trợ lý AI', 'Ask the AI assistant', 'AI 도우미에게 질문'),
+  'assistant.review': message(
+    'Đọc câu trả lời bị báo sai',
+    'Read answers reported as wrong',
+    '잘못 신고된 답변 읽기',
+  ),
   'user.manage': message(
-    'Tạo tài khoản, chọn vai trò, khoá tài khoản',
-    'Create accounts, assign roles, lock accounts',
-    '계정 생성, 역할 지정, 계정 잠금',
+    'Tạo và sửa tài khoản, chọn vai trò',
+    'Create and edit accounts, assign roles',
+    '계정 생성 및 수정, 역할 지정',
   ),
   'role.manage': message(
     'Sửa quyền của từng vai trò',

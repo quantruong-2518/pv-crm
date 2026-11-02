@@ -22,10 +22,11 @@ import { NextStepService } from './next-step.service'
  *  same transaction. `EnginesModule` for E2: naming a doer other than the holder
  *  needs `lead.assign`, and `SessionModule` builds that doer as an `Actor` to ask
  *  whether they can reach the lead. The deal door reads the opportunity tables
- *  itself, so it imports no `OpportunityModule`. Other doors use `next-step.handover`;
- *  the one export is comms' close-out hook, bound in `app.module.ts` (ADR 0074 §7),
+ *  itself, so it imports no `OpportunityModule`. Other doors use `next-step.handover`.
+ *  Exports: comms' close-out hook, bound in `app.module.ts` (ADR 0074 §7),
  *  which asks `SalesConfigModule` for the evaluation lists and `MeetingModule`
- *  to mark a meeting held on close-meeting. */
+ *  to mark a meeting held on close-meeting; and the two step services the
+ *  assistant's `list_my_work` reads a step through, as their doors do. */
 @Module({
   imports: [
     EnginesModule,
@@ -47,6 +48,6 @@ import { NextStepService } from './next-step.service'
     /* Bare, a stateless SQL class: the close-out writes a bought customer's reading. */
     CustomerTemperatureRepository,
   ],
-  exports: [NextStepDebriefHook],
+  exports: [NextStepDebriefHook, NextStepService, OpportunityStepService],
 })
 export class NextStepModule {}

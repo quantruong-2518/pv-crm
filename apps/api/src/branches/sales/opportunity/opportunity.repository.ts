@@ -141,7 +141,8 @@ const TERMINATED = sql<boolean>`${dealTerminated(opportunity.code)}`
 const AMOUNT_VND = toVndSql(opportunity.amount, opportunity.currency)
 
 /** The book's filters without paging — what the book and its facets share. */
-export type BookFilters = OpportunityFacetsQuery & Pick<OpportunityBookQuery, 'state' | 'pinned'>
+export type BookFilters = OpportunityFacetsQuery &
+  Pick<OpportunityBookQuery, 'state' | 'pinned' | 'codes'>
 
 export type OpportunityBookPage = {
   rows: OpportunityRead[]
@@ -890,15 +891,17 @@ export class OpportunityRepository {
       ownerFilter(this.db, 'SALE', q.sale),
       ownerFilter(this.db, 'BD', q.bd),
       q.account ? inArray(lead.company, csvOf(q.account)) : undefined,
+      q.codes ? inArray(opportunity.code, csvOf(q.codes)) : undefined,
       q.q ? fuzzyAny(SEARCHED, q.q) : undefined,
     ]
   }
 
   /** A held deal is off the book and the board (ADR 0097 §3) — except in a
-   *  per-lead list (`leadCode`), which answers "what deals does this lead have".
+   *  per-lead list (`leadCode`), which answers "what deals does this lead have",
+   *  and a read of named codes, which the profile door opens held or not.
    *  Not in `filtersOf`: the facets count `held` under those same filters. */
-  onBoard(q: Pick<BookFilters, 'leadCode'>): SQL | undefined {
-    return q.leadCode ? undefined : not(dealHeld(opportunity.code))
+  onBoard(q: Pick<BookFilters, 'leadCode' | 'codes'>): SQL | undefined {
+    return q.leadCode || q.codes ? undefined : not(dealHeld(opportunity.code))
   }
 
   /** Filter by read state; two of the four have no column. `won` is a live

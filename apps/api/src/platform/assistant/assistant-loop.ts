@@ -3,6 +3,7 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common'
 import type {
   AiUnavailableReason,
   AssistantEndedBy,
+  AssistantErrorCode,
   AssistantEvent,
   AssistantMessageState,
 } from '@pv/contracts'
@@ -20,9 +21,18 @@ import {
   requestOf,
   tokensOf,
 } from './assistant-context'
+import { TurnBinding } from './assistant-bind'
+import { recheck } from './assistant-refs'
 import { AssistantSummarizer } from './assistant-summary'
-import { AssistantToolGate, notRun, type ToolVerdict } from './assistant-tools'
-import { AssistantRepository, type TurnBegun, type TurnRefused } from './assistant.repository'
+import { AssistantToolGate, inPool, notRun, type ToolVerdict } from './assistant-tools'
+import { footerOf, newReads, noteReads, suggestionsOf, type TurnReads } from './assistant-turn-read'
+import {
+  AssistantRepository,
+  type TurnBegun,
+  type TurnFinish,
+  type TurnLine,
+  type TurnRefused,
+} from './assistant.repository'
 import type { AssistantToolCallValues } from './assistant.schema'
 
 /** One turn of the assistant: the capped loop over the gateway's conversation
@@ -44,19 +54,31 @@ const CALLS_PER_ROUND = 6
 const PARALLEL_TOOLS = 3
 
 const WRITE_NOW = 'No more tool calls in this turn. Answer now from what you already have.'
-const BUSY = 'Trợ lý đang bận. Thử lại sau ít phút.'
 
-const REFUSED: Record<TurnRefused['reason'], string> = {
-  'no-session': 'Không tìm thấy cuộc trò chuyện này.',
-  'hourly-limit': 'Bạn đã hết lượt hỏi trong 1 giờ qua. Thử lại sau.',
-  running: 'Câu trước chưa trả lời xong. Chờ một chút rồi hỏi lại.',
+type Refusal = { code: AssistantErrorCode; message: string }
+
+/** `failed` is what nothing more precise names; the screen branches on the code. */
+export const FAILED: Refusal = { code: 'failed', message: 'Trợ lý chưa trả lời được. Thử lại.' }
+export const OFF: Refusal = { code: 'off', message: 'Trợ lý đang tắt.' }
+const INTERRUPTED: Refusal = {
+  code: 'interrupted',
+  message: 'Câu trả lời bị ngắt giữa chừng. Hãy hỏi lại.',
 }
 
-const UNAVAILABLE: Record<AiUnavailableReason, string> = {
-  disabled: 'Chưa bật Trợ lý. Báo quản trị viên.',
-  'no-key': 'Chưa bật Trợ lý. Báo quản trị viên.',
-  'user-limit': 'Bạn đã hết lượt Trợ lý trong 24 giờ qua. Thử lại sau.',
-  budget: 'Đã hết hạn mức Trợ lý trong 24 giờ qua. Thử lại sau.',
+const REFUSED: Record<TurnRefused['reason'], Refusal> = {
+  'no-session': { code: 'failed', message: 'Không tìm thấy cuộc trò chuyện này.' },
+  'hourly-limit': { code: 'limit', message: 'Bạn đã hết lượt hỏi trong giờ này. Thử lại sau.' },
+  running: { code: 'busy', message: 'Câu trước chưa trả lời xong. Chờ một chút rồi hỏi lại.' },
+}
+
+export const UNAVAILABLE: Record<AiUnavailableReason, Refusal> = {
+  disabled: OFF,
+  'no-key': OFF,
+  'user-limit': {
+    code: 'limit',
+    message: 'Bạn đã hết lượt Trợ lý trong 24 giờ qua. Thử lại sau.',
+  },
+  budget: { code: 'limit', message: 'Trợ lý đã hết lượt dùng trong 24 giờ qua. Thử lại sau.' },
 }
 
 const STATE_OF: Record<AssistantEndedBy, Exclude<AssistantMessageState, 'running'>> = {
@@ -77,6 +99,8 @@ export type TurnContext = {
   /** Sent by the screen; the model reads it as context, nothing is decided on it. */
   screen: string | null
   task: 'assistant' | 'assistant-deep'
+  /** Once the running row stands: the caller can stop the turn by this id from now. */
+  onBegun?: (turnId: string) => void
 }
 
 type Cap = Extract<AssistantEndedBy, `cap-${string}`>
@@ -100,6 +124,11 @@ type Turn = {
   /** Tool and code pairs with an `ai-read` line this turn: a search hit and an
    *  opened record are two lines, so the trail tells a skim from a read of contacts. */
   audited: Set<string>
+  reads: TurnReads
+  /** D3: what the model writes reaches `text` and the wire only through this. */
+  binding: TurnBinding
+  /** Characters the model wrote, round breaks included; `text` lags it by a held word. */
+  wrote: number
 }
 
 /** A call on its way to the audit and to `assistant_tool_call`. `id` is ours, not
@@ -132,24 +161,6 @@ const storableJson = (value: unknown): unknown => {
   )
 }
 
-/** `size` workers over `items`; answers keep the order of the calls. */
-async function inPool<T, R>(
-  items: readonly T[],
-  size: number,
-  work: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  const answers: R[] = []
-  let next = 0
-  const worker = async (): Promise<void> => {
-    while (next < items.length) {
-      const index = next++
-      answers[index] = await work(items[index] as T, index)
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(size, items.length) }, worker))
-  return answers
-}
-
 /** The token cap, in call order: an over-cap result reaches neither the model nor
  *  the audit, because nothing of it was read. */
 function capped(
@@ -159,10 +170,13 @@ function capped(
 ): RoundCall[] {
   return verdicts.map((verdict, i) => {
     const base = { ...verdict, id: randomUUID(), call: calls[i] as AiToolCall }
-    const tokens = tokensOf(verdict.output)
+    const ok = verdict.outcome === 'ok'
+    const draft = ok ? turn.binding.draft(verdict.output, verdict.rowCount) : null
+    const tokens = tokensOf(draft?.output ?? verdict.output)
     if (turn.toolTokens + tokens <= TOOL_TOKEN_CAP) {
       turn.toolTokens += tokens
-      return { ...base, tokens, truncated: false }
+      if (draft) turn.binding.keep(draft)
+      return { ...base, output: draft?.output ?? verdict.output, tokens, truncated: false }
     }
     turn.cap ??= 'cap-tokens'
     const output = { truncated: true }
@@ -176,16 +190,17 @@ function auditLines(turn: Turn, calls: readonly RoundCall[]): AuditEntry[] {
   return calls.flatMap((c): AuditEntry[] => {
     const note = `assistant.${c.call.name} · turn ${turn.id} · call ${c.id}`
     if (c.denied) return [{ actorId, action: 'view', note: `chặn ${note} · ${c.denied}` }]
-    if (c.outcome !== 'ok') return []
+    const refusals = c.skipped.map(({ door, reason }): AuditEntry => ({
+      actorId,
+      action: 'view',
+      note: `chặn ${note} · ${door} · ${reason}`,
+    }))
+    if (c.outcome !== 'ok') return refusals
     const read = (code: string) => `${c.call.name} ${code}`
     const fresh = c.codes.filter((code) => !turn.audited.has(read(code)))
     for (const code of fresh) turn.audited.add(read(code))
-    const lines: AuditEntry[] = [...new Set(fresh)].map((code) => ({
-      actorId,
-      action: 'ai-read',
-      code,
-      note,
-    }))
+    const lines: AuditEntry[] = [...refusals]
+    for (const code of new Set(fresh)) lines.push({ actorId, action: 'ai-read', code, note })
     const rowCount = c.rowCount ?? 0
     const hidden = c.hidden ?? 0
     if (hidden > 0 || (c.codes.length === 0 && rowCount > 0)) {
@@ -244,9 +259,15 @@ function endOfRound(turn: Turn, round: AiRound): AssistantEndedBy | null {
 
 /** D7: the writing round failed, so a fixed sentence follows the partial text. */
 function addCutShort(turn: Turn): void {
-  const sentence = turn.text === '' ? CUT_SHORT : `\n\n${CUT_SHORT}`
-  turn.text += sentence
-  turn.emit({ type: 'text', delta: sentence })
+  say(turn, turn.binding.flush())
+  say(turn, turn.text === '' ? CUT_SHORT : `\n\n${CUT_SHORT}`)
+}
+
+/** The one way out for answer text, so the row and the wire hold the same string. */
+function say(turn: Turn, text: string): void {
+  if (text === '') return
+  turn.text += text
+  turn.emit({ type: 'text', delta: text })
 }
 
 @Injectable()
@@ -276,9 +297,11 @@ export class AssistantRunner {
       }
     }
     const begun = await this.repo.beginTurn(ctx.who.id, ctx.sessionId, ctx.question)
-    if (!begun.ok) return emit({ type: 'error', message: REFUSED[begun.reason] })
+    if (!begun.ok) return emit({ type: 'error', ...REFUSED[begun.reason] })
+    ctx.onBegun?.(begun.turnId)
 
-    const turn = this.open(ctx, begun, emit, signal)
+    const history = await this.replayable(ctx.who, ctx.sessionId, begun.history)
+    const turn = this.open(ctx, { ...begun, history }, emit, signal)
     const endedBy = await this.drive(turn, ctx, begun).catch((error: unknown) =>
       this.endOfError(turn, error),
     )
@@ -289,14 +312,16 @@ export class AssistantRunner {
 
   private open(ctx: TurnContext, begun: TurnBegun, emit: Turn['emit'], signal: AbortSignal): Turn {
     const startedAt = this.now()
-    const at = new Date(startedAt)
+    const messages = openingMessages(begun, { ...ctx, at: new Date(startedAt) })
     return {
       id: begun.turnId,
       who: ctx.who,
       signal,
       startedAt,
       emit,
-      messages: openingMessages(begun, { ...ctx, at }),
+      messages,
+      binding: new TurnBinding(ctx.question, begun.subject?.code ?? null),
+      wrote: 0,
       text: '',
       rounds: 0,
       toolTokens: 0,
@@ -305,6 +330,27 @@ export class AssistantRunner {
       cap: null,
       fence: null,
       audited: new Set(),
+      reads: newReads(),
+    }
+  }
+
+  /** Outside `beginTurn`'s transaction, which holds PGlite's one connection. The
+   *  whole chat is checked, since a shut answer shuts every later one. A failed
+   *  check replays nothing rather than everything. */
+  private async replayable(
+    who: Actor,
+    sessionId: string,
+    history: readonly TurnLine[],
+  ): Promise<TurnLine[]> {
+    try {
+      const ids = await this.repo.answersOf(sessionId)
+      const calls = await this.repo.callsOf(ids)
+      const chat = ids.map((id) => ({ id, codes: (calls.get(id) ?? []).flatMap((c) => c.codes) }))
+      const { shut } = await recheck(this.tools, who, chat)
+      return history.filter((line) => !shut.has(line.turnId))
+    } catch (error) {
+      this.log.error(`replay check failed: ${error instanceof Error ? error.name : 'unknown'}`)
+      return []
     }
   }
 
@@ -320,10 +366,11 @@ export class AssistantRunner {
     let before = 0
     const onText = (delta: string): void => {
       turn.firstTextMs ??= this.now() - turn.startedAt
-      /* Each round writes on its own: run together they read as one broken sentence. */
-      const text = before > 0 && turn.text.length === before ? `\n\n${delta}` : delta
-      turn.text += text
-      turn.emit({ type: 'text', delta: text })
+      /* Each round writes on its own: run together they read as one broken sentence.
+         `text` holds the earlier rounds whole here, flushed as each one ended. */
+      const text = turn.text !== '' && turn.wrote === before ? `\n\n${delta}` : delta
+      turn.wrote += text.length
+      say(turn, turn.binding.push(text))
     }
     for (;;) {
       if (turn.signal.aborted) return 'stopped'
@@ -333,18 +380,19 @@ export class AssistantRunner {
       /* A copy: a request must stay what was sent while the turn grows past it. */
       const messages = [...turn.messages]
       const request = requestOf(turn.who, this.tools.declarations(), choice, messages, effort)
-      before = turn.text.length
+      before = turn.wrote
       const round = await conversation
         .round(request, onText, turn.signal)
         .catch((error: unknown) => {
           this.noteLate(turn)
           const holds = turn.messages.some((m) => m.role === 'tool')
-          const wrote = turn.text.length > before
+          const wrote = turn.wrote > before
           const transient = error instanceof AiTransientError && !turn.signal.aborted
           /* The reserve timer killed a tool round: what was read still gets its answer. */
           if (choice === 'auto' && turn.cap && holds && !wrote && transient) return null
           throw error
         })
+      say(turn, turn.binding.flush())
       if (!round) continue
       turn.rounds += 1
       turn.model = round.model
@@ -376,6 +424,7 @@ export class AssistantRunner {
     await this.repo.recordToolCalls(calls.map((c, i) => toolCallRow(turn, c, i)))
     if (turn.rounds + 1 >= MAX_ROUNDS) turn.cap ??= 'cap-rounds'
     appendRound(turn, round, calls)
+    noteReads(turn.reads, calls)
     for (const c of calls) {
       turn.emit({
         type: 'tool-result',
@@ -393,7 +442,7 @@ export class AssistantRunner {
   private endOfError(turn: Turn, error: unknown): AssistantEndedBy {
     if (turn.signal.aborted) return 'stopped'
     if (error instanceof AiUnavailableError) {
-      turn.emit({ type: 'error', message: UNAVAILABLE[error.reason] })
+      turn.emit({ type: 'error', ...UNAVAILABLE[error.reason] })
       return 'disabled'
     }
     if (error instanceof AiCallError) {
@@ -401,30 +450,51 @@ export class AssistantRunner {
       return this.now() - turn.startedAt >= TURN_MS ? 'cap-time' : 'vendor'
     }
     this.log.error(`turn ${turn.id} crashed: ${error instanceof Error ? error.name : 'unknown'}`)
-    turn.emit({ type: 'error', message: BUSY })
+    turn.emit({ type: 'error', ...FAILED })
     return 'crash'
   }
 
-  /** A failed write leaves the row running for the sweep; the client still hears. */
+  /** A row the sweep closed first, or one two writes could not close, is not this
+   *  answer: the client is told `interrupted`, and the sweep calls it a crash. */
   private async close(turn: Turn, endedBy: AssistantEndedBy): Promise<void> {
+    /* A stop or a crash can leave a word held; the stored body is the filled text. */
+    say(turn, turn.binding.flush())
     const body = withoutNul(turn.text)
     /* The fixed sentence is not an answer: a cap that left only that failed the turn. */
     const unanswered = endedBy.startsWith('cap-') && body.replace(CUT_SHORT, '').trim() === ''
-    await this.repo
-      .finishTurn(turn.id, {
-        state: unanswered ? 'failed' : STATE_OF[endedBy],
-        endedBy,
-        body,
-        model: turn.model,
-        rounds: turn.rounds,
-        toolTokens: turn.toolTokens,
-        firstTextMs: turn.firstTextMs,
-        promptVersion: ASSISTANT_PROMPT_VERSION,
-      })
-      .catch((error: unknown) => {
+    const state = unanswered ? 'failed' : STATE_OF[endedBy]
+    const swept = await this.lost(turn.id, {
+      state,
+      endedBy,
+      body,
+      model: turn.model,
+      rounds: turn.rounds,
+      toolTokens: turn.toolTokens,
+      firstTextMs: turn.firstTextMs,
+      promptVersion: ASSISTANT_PROMPT_VERSION,
+    })
+    if (swept) turn.emit({ type: 'error', ...INTERRUPTED })
+    const { reads } = turn
+    if (reads.refs.size > 0) turn.emit({ type: 'refs', refs: [...reads.refs.values()] })
+    const items = !swept && state === 'done' ? suggestionsOf(reads) : []
+    if (items.length > 0) turn.emit({ type: 'suggestions', items })
+    const footer = footerOf(reads, new Date(this.now()))
+    turn.emit({ type: 'done', messageId: turn.id, endedBy: swept ? 'crash' : endedBy, footer })
+  }
+
+  /** One retry. A write that committed and then threw finds the row closed on the
+   *  retry, so a closed row is read back: it is ours if it holds this end. */
+  private async lost(turnId: string, end: TurnFinish): Promise<boolean> {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        if (await this.repo.finishTurn(turnId, end)) return false
+        const row = await this.repo.endOf(turnId)
+        return row?.state !== end.state || row.endedBy !== end.endedBy
+      } catch (error) {
         const kind = error instanceof Error ? error.name : 'unknown'
-        this.log.error(`turn ${turn.id} finish failed: ${kind}`)
-      })
-    turn.emit({ type: 'done', messageId: turn.id, endedBy })
+        this.log.error(`turn ${turnId} finish failed: ${kind}`)
+      }
+    }
+    return true
   }
 }

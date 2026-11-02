@@ -16,6 +16,8 @@ const ROUTE_COPY: Record<string, Message> = {
     '역할별 알림 설정',
   ),
   'Chi phí': message('Chi phí', 'Costs', '비용'),
+  'Trợ lý': message('Trợ lý', 'Assistant', '도우미'),
+  'Câu trả lời bị báo sai': message('Câu trả lời bị báo sai', 'Reported answers', '신고된 답변'),
   'Nguồn lead': message('Nguồn lead', 'Lead origins', '리드 유입 경로'),
   'Đối tác': message('Đối tác', 'Partners', '파트너'),
   'Sổ chiến dịch': message('Sổ chiến dịch', 'Campaigns', '캠페인 목록'),

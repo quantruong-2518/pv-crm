@@ -226,6 +226,11 @@ export const PERMISSIONS = [
   /** Read the trail of what the AI read (`ai-read` rows). Apart from
    *  `audit-log.view` because it shows what each person looked up (question 142). */
   'ai-read.view',
+  /** Ask the CRM assistant. Director alone by default during the owner's trial;
+   *  the matrix widens it (ADR 0136). */
+  'assistant.use',
+  /** Read an answer someone reported as wrong. Admin alone (ADR 0133 §2). */
+  'assistant.review',
   /** What the product spends on vendors (AI tokens first) — Admin · Costs —
    *  and the unit prices behind it. One key for both: the owner put the whole
    *  view in one person's hands (ADR 0102), so there is no reader to split off. */

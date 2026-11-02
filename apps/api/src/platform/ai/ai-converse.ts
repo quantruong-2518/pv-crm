@@ -95,7 +95,10 @@ export class AiConversation {
       return await this.attempts(pass)
     } finally {
       if (pass.queueMs > 0) {
-        this.deps.log.log(`ai ${this.task}: waited ${pass.queueMs} ms for a slot`)
+        const { turnId } = this.who
+        this.deps.log.log(
+          `ai ${this.task}: turn ${turnId} round ${this.number} waited ${pass.queueMs} ms for a slot`,
+        )
       }
     }
   }

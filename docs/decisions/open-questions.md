@@ -731,3 +731,13 @@ Raised while adding the recording to the comm AI report (ADR 0135).
 
 164.  **Could repeated recording timeouts trip the model breaker for other tasks
       sharing `gemini-3.8-flash` in the worker?** _(see ADR 0135 §5)_
+
+## CRM assistant chat (added 02/11/2026)
+
+Raised while building wave 1 of the chat (ADR 0136).
+
+165.  **Should the answer copy "[chưa rõ]" and the budget sentence "Trợ lý đã hết
+      lượt dùng trong 24 giờ qua. Thử lại sau." stay?** _(see ADR 0136 §5)_
+
+166.  **Should a co-owner on a signed deal see records their own books hide?**
+      The profile door shows them; the book does not. _(see ADR 0136 §3)_

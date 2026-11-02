@@ -34,6 +34,14 @@ export const CHROME_ENTRY_COPY: Record<string, { label: Message; description?: M
     label: m('Chi phí', 'Costs', '비용'),
     description: m('Chi phí AI và bảng giá', 'AI costs and pricing', 'AI 비용 및 요금'),
   },
+  '/admin/assistant-reports': {
+    label: m('Câu trả lời bị báo sai', 'Reported answers', '신고된 답변'),
+    description: m(
+      'Câu trả lời của Trợ lý mà người dùng báo sai',
+      'Assistant answers reported as wrong',
+      '잘못되었다고 신고된 도우미 답변',
+    ),
+  },
   '/admin/lead-origins': {
     label: m('Nguồn lead', 'Lead sources', '리드 유입 경로'),
     description: m(
