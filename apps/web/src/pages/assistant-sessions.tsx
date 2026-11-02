@@ -92,7 +92,7 @@ export function SessionList({
       ) : rows.length === 0 ? (
         <p className="text-muted-foreground m-0 px-5 text-[12.5px]">{t(COPY.none)}</p>
       ) : (
-        <ul className="m-0 flex list-none flex-col p-0">
+        <ul className="m-0 flex list-none flex-col gap-1 px-2 py-0">
           {rows.map((session) => (
             <SessionRow
               key={session.id}
@@ -176,7 +176,7 @@ function SessionRow({
 
   if (draft !== null) {
     return (
-      <li className="px-5 py-2">
+      <li className="px-3 py-2">
         <form className="flex items-center gap-2" onSubmit={save}>
           <Input
             autoFocus
@@ -204,7 +204,12 @@ function SessionRow({
   }
 
   return (
-    <li className={cn('flex items-center gap-1 px-3', current && 'bg-surface-ink/9')}>
+    <li
+      className={cn(
+        'motion-std flex items-center gap-1 rounded-md px-1',
+        current ? 'bg-accent' : 'hover:bg-surface-ink/5',
+      )}
+    >
       <button
         type="button"
         aria-current={current ? 'true' : undefined}

@@ -1,5 +1,16 @@
 import { useEffect, useRef, type FormEvent, type KeyboardEvent } from 'react'
-import { Button, ContextRail, Icon, Send, Skeleton, Textarea, TriangleAlert, cn } from '@pv/ui'
+import {
+  ArrowRight,
+  Button,
+  ContextRail,
+  Icon,
+  MessageCircle,
+  Send,
+  Skeleton,
+  Textarea,
+  TriangleAlert,
+  cn,
+} from '@pv/ui'
 import { AssistantQuestion, type AssistantSubject } from '@pv/contracts'
 import { useSession } from '@/app/auth'
 import { useI18n } from '@/app/i18n'
@@ -112,7 +123,7 @@ export function AssistantThread({
         item.kind === 'question' ? (
           <p
             key={item.key}
-            className="bg-surface-ink/9 text-foreground m-0 ml-auto max-w-[85%] whitespace-pre-line rounded-lg px-4 py-3 text-[13px] leading-[1.55]"
+            className="bg-accent text-foreground shadow-control-soft m-0 ml-auto max-w-[85%] whitespace-pre-line rounded-lg rounded-br-sm px-4 py-3 text-[13.5px] leading-[1.55]"
           >
             {item.text}
           </p>
@@ -141,20 +152,28 @@ function Samples({ convo }: { convo: Conversation }) {
   if (!questions.length) return null
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-muted-foreground m-0 text-[12.5px]">{t(C.tryAsking)}</p>
+      <p className="text-muted-foreground m-0 text-[12.5px] font-semibold">{t(C.tryAsking)}</p>
       <div className="flex flex-col gap-2">
         {questions.map((q) => (
-          <Button
+          <button
             key={q}
-            variant="secondary"
-            className="pointer-coarse:min-h-12 h-auto min-h-10 justify-start whitespace-normal py-2 text-left"
+            type="button"
+            className="motion-std bg-accent text-foreground shadow-control-soft hover:bg-primary/24 hover:shadow-ai group flex min-h-12 items-center gap-3 rounded-md px-4 py-2 text-left text-[13px] font-semibold hover:-translate-y-px"
             onClick={() => {
               setDraft(convo.origin, q)
               focusComposer(convo.origin, true)
             }}
           >
-            {q}
-          </Button>
+            <span className="bg-primary/16 text-accent-foreground flex size-8 shrink-0 items-center justify-center rounded-sm">
+              <Icon icon={MessageCircle} size={16} />
+            </span>
+            <span className="min-w-0 flex-1">{q}</span>
+            <Icon
+              icon={ArrowRight}
+              size={16}
+              className="text-muted-foreground group-hover:text-accent-foreground shrink-0"
+            />
+          </button>
         ))}
       </div>
     </div>
@@ -206,7 +225,15 @@ export function AssistantComposer({
         onChange={(e) => setDraft(origin, e.target.value)}
         onKeyDown={onKey}
       />
-      <Button type="submit" className={TOUCH} disabled={!ready}>
+      {/* Off: a flat tint, no ramp and no shadow, so it reads as waiting rather than gone. */}
+      <Button
+        type="submit"
+        className={cn(
+          TOUCH,
+          !ready && 'bg-primary/16 text-accent-foreground opacity-100 shadow-none',
+        )}
+        disabled={!ready}
+      >
         <Icon icon={Send} size={16} />
         {t(C.send)}
       </Button>
