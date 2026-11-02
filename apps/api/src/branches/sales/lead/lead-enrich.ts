@@ -11,7 +11,8 @@ import {
   type LeadAiJobStepKey,
 } from '@pv/contracts'
 import type { ZodType } from 'zod'
-import { AiOutputError } from '@api/platform/ai/ai-errors'
+import type { AiEffort } from '@api/platform/ai/ai-client'
+import { AiOutputError, AiTransientError } from '@api/platform/ai/ai-errors'
 import { AiGateway, type AiCaller } from '@api/platform/ai/ai-gateway'
 import { LEAD_IDENTIFY, LEAD_SITE } from '@api/platform/ai/prompts/lead-enrich.prompts'
 import { renderPrompt, type RenderedPrompt } from '@api/platform/ai/prompts/prompt-spec'
@@ -22,16 +23,17 @@ import { TAX_REGISTRY, type TaxRecord, type TaxRegistry } from './lead-enrich.ta
  *  writes no table, so a bulk step (sheet import, scan) can run it on drafts
  *  before they are leads; `LeadAiFillService` applies it to a stored lead.
  *
- *  Two model calls (slice A-1, decision 2): IDENTIFY the company by web search,
- *  verify its tax code with the registry, then READ the company's site: the
- *  draft's, else the mail domain's, else the one identified with confidence.
- *  The registry's code and name are sure only when its name folds to the
- *  draft's AND its address lies in the draft's province; the mail domain's
- *  website only when the model found the same host; a size band only when a
- *  page of the site read states it; a model value only when the model says so and
- *  names the page. The address is the factory from the site, else the head
- *  office marked unsure (decision 5); the province is read from it. Every
- *  value passes the patch door's own field schema, or it is dropped. */
+ *  Two model calls (slice A-1, decision 2): IDENTIFY the company by web search
+ *  and READ its site. The draft's or the mail domain's site is read beside
+ *  IDENTIFY; else, after it, the one it found with confidence; its tax codes go
+ *  to the registry once it answers. A busy call beside an answer leaves only its
+ *  own fields unfound. Registry code and name are sure only when its name folds
+ *  to the draft's AND its address lies in the draft's province; the mail
+ *  domain's website only when the model found the same host; a size band only
+ *  when a page of the site read states it; a model value only when the model
+ *  says so and names the page. The address is the site's factory, else the head
+ *  office marked unsure (decision 5); the province is read from it. Every value
+ *  passes the patch door's own field schema, or it is dropped. */
 
 export type LeadDraft = {
   company: string
@@ -64,6 +66,22 @@ export type EnrichStep = (
 
 type Identified = LeadIdentifyModelOutput
 type Hit = { code: string; record: TaxRecord; sure: boolean }
+type Asked<T> = { value: T | null } | { error: unknown }
+
+/** Kept, not thrown, so no call is left running unawaited when another fails. */
+const settled = <T>(call: Promise<T | null>): Promise<Asked<T>> =>
+  call.then(
+    (value) => ({ value }),
+    (error: unknown) => ({ error }),
+  )
+const valueOf = <T>(asked: Asked<T> | null): T | null =>
+  asked && 'value' in asked ? asked.value : null
+/** An answer whose every field is null or [] found nothing, so it buys no partial DONE. */
+const foundAny = (value: unknown): boolean =>
+  !!value &&
+  Object.values(value).some(
+    (v) => v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0),
+  )
 
 /** A registry lookup is one HTTP call each; more candidates than this is noise. */
 const MAX_TAX_CANDIDATES = 3
@@ -124,24 +142,47 @@ export class LeadEnricher {
     const domain = M.mailDomain(draft.email)
     const siteNeeded = keysFor(SITE_KEYS, wanted)
     const registryWanted = REGISTRY_FIELDS.some((f) => wanted.includes(f))
+    /* A site known up front is read beside identify, not after it. */
+    const early =
+      siteNeeded.length > 0 ? (M.companySite(draft.website) ?? M.companySite(domain)) : null
     /* The site call needs a site and the registry a code: identify finds what the draft lacks. */
     const identifyNeeded = keysFor(IDENTIFY_KEYS, [
       ...wanted,
-      ...(siteNeeded.length > 0 && !draft.website ? (['website'] as const) : []),
+      ...(siteNeeded.length > 0 && !early ? (['website'] as const) : []),
       ...(registryWanted && !draft.taxCode ? (['taxCode'] as const) : []),
+      /* The province is read from an address: one wanted alone needs the address found. */
+      ...(wanted.includes('province') ? (['address'] as const) : []),
     ])
-    const [identified, known] = await Promise.all([
+    /* One fill = two calls on the per-user count, checked once: side by side, before
+       both; in turn, by the first, the second skipping it. Never refused halfway. */
+    const together = !!early && identifyNeeded.length > 0
+    if (together && !who.admitted) await this.gateway.check('lead-enrich', who.actorId)
+    const first = together ? { ...who, admitted: true } : who
+    const second = { ...who, admitted: who.admitted || identifyNeeded.length > 0 }
+    const site = (host: string, legal: string | null) =>
+      settled(
+        this.ask(SITE, LeadSiteModelOutput, second, true, 'medium', () =>
+          M.siteInput(draft, host, legal, siteNeeded, lists),
+        ),
+      )
+    const identifying =
       identifyNeeded.length > 0
-        ? this.ask(IDENTIFY, LeadIdentifyModelOutput, who, false, () =>
-            M.identifyInput(draft, domain, identifyNeeded),
+        ? settled(
+            this.ask(IDENTIFY, LeadIdentifyModelOutput, first, false, 'low', () =>
+              M.identifyInput(draft, domain, identifyNeeded),
+            ),
           )
-        : null,
-      draft.taxCode ? this.verify(draft, [draft.taxCode]).then(done('tax-lookup')) : null,
-    ])
+        : null
+    const reading = early ? site(early, M.checked('legalName', draft.legalName)) : null
+    const known = draft.taxCode
+      ? this.verify(draft, [draft.taxCode]).then(done('tax-lookup'))
+      : null
+    const asked = await identifying
+    const identified = valueOf(asked)
 
     /* A site the model found is read only when it was sure of it. */
     const found = identified?.website?.confident ? identified.website.value : null
-    const host = M.companySite(draft.website) ?? M.companySite(domain) ?? M.companySite(found)
+    const host = early ?? M.companySite(found)
     if (siteNeeded.length > 0 && !host) {
       this.log.log(
         `lead-enrich: no website found, site reading skipped (${siteNeeded.length} field(s))`,
@@ -149,34 +190,49 @@ export class LeadEnricher {
     }
     const codes = identified ? [identified.taxCode?.value, ...identified.taxCodeCandidates] : []
     const legal = M.checked('legalName', draft.legalName ?? identified?.legalName?.value)
-    /* One fill = two calls on the per-user count; the second skips the check, so a
-       fill its first call admitted is never refused halfway. */
-    const second = { ...who, admitted: who.admitted || identifyNeeded.length > 0 }
-    const reading = siteNeeded.length > 0 && !!host
-    if (!reading) done('web-search')(null)
     const lookup = !draft.taxCode && registryWanted
-    const [read, hit] = await Promise.all([
-      reading
-        ? this.ask(SITE, LeadSiteModelOutput, second, true, () =>
-            M.siteInput(draft, host, legal, siteNeeded, lists),
-          ).then(done('web-search'))
-        : null,
-      draft.taxCode
-        ? known
-        : lookup
-          ? this.verify(draft, codes).then(done('tax-lookup', Date.now()))
-          : null,
-    ])
+    const hitting = draft.taxCode
+      ? known
+      : lookup
+        ? this.verify(draft, codes).then(done('tax-lookup', Date.now()))
+        : null
+    const read = await (reading ?? (siteNeeded.length > 0 && host ? site(host, legal) : null))
+    const searched = Date.now() - started
+    const hit = await hitting
     if (!draft.taxCode && !lookup) onStep('tax-lookup', 0)
-    return merge({ draft, wanted, lists, domain, host, identified, read, hit })
+    /* Reported only once no rethrow is left: a reported search reads as paid, never retried. */
+    this.kept([
+      [IDENTIFY, asked],
+      [SITE, read],
+    ])
+    onStep('web-search', searched)
+    return merge({ draft, wanted, lists, domain, host, identified, read: valueOf(read), hit })
   }
 
-  /** Research calls: web search, medium effort, the prompt's version on the ledger. */
+  /** Rethrows a refusal or any non-transient error; a transient failure only when
+   *  no call brought an answer, so a retry is not traded for an empty DONE. One
+   *  failed beside an answer leaves its own fields unfound, and the fill goes on. */
+  private kept(calls: [RenderedPrompt, Asked<unknown> | null][]): void {
+    const ran = calls.flatMap(([prompt, asked]) => (asked ? [{ prompt, asked }] : []))
+    const failed = ran.flatMap(({ prompt, asked }) =>
+      'error' in asked ? [{ prompt, error: asked.error }] : [],
+    )
+    const final = failed.find((f) => !(f.error instanceof AiTransientError))
+    if (final) throw final.error
+    const answered = ran.some(({ asked }) => 'value' in asked && foundAny(asked.value))
+    if (failed.length > 0 && !answered) throw failed[0]!.error
+    for (const f of failed) {
+      this.log.warn(`${f.prompt.prompt}: AiTransientError, filling from the other call`)
+    }
+  }
+
+  /** Research calls: web search at the caller's effort, the prompt's version on the ledger. */
   private async ask<T>(
     prompt: RenderedPrompt,
     schema: ZodType<T>,
     who: AiCaller,
     readPages: boolean,
+    effort: AiEffort,
     text: () => string,
   ): Promise<T | null> {
     const request = {
@@ -184,7 +240,7 @@ export class LeadEnricher {
       parts: [{ text: text() }],
       webSearch: true,
       readPages,
-      effort: 'medium' as const,
+      effort,
     }
     try {
       return (await this.gateway.run('lead-enrich', request, schema, who)).value

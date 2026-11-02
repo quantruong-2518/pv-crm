@@ -4,6 +4,7 @@ import type { ConstructorOptions, PGliteLike, Queue } from 'pg-boss'
 import type { Env } from '../config/env'
 import { connectWithRetry } from '../db/connection-retry'
 import type { DbHandle } from '../db/create-db'
+import { PAUSE_MS } from '../ai/ai-breaker'
 import { EMAIL_QUEUE, EMAIL_QUEUE_DEAD } from '../mail/mail.contract'
 import { AI_FILL_CONCURRENCY, AI_FILL_QUEUE, AI_FILL_RETRY_LIMIT } from './ai-fill-jobs'
 import { COMM_AI_CONCURRENCY, COMM_AI_QUEUE, COMM_AI_RETRY_LIMIT } from './comm-ai-jobs'
@@ -247,10 +248,12 @@ async function ensureQueues(boss: PgBoss, env: Env, notify: boolean): Promise<vo
 
   const aiFill: QueueSettings = {
     retryLimit: AI_FILL_RETRY_LIMIT,
-    retryDelay: 10,
+    /* Past the breaker's pause: a 10 s retry met a model it had just paused and failed at once. */
+    retryDelay: PAUSE_MS / 1000,
     retryBackoff: true,
-    /* Above two sequential gateway calls × 3 attempts × up to 60 s each. */
-    expireInSeconds: 600,
+    /* Two sequential gateway calls × 3 attempts × up to 90 s is 540 s; the rest is
+       for waiting on a vendor slot, which the route timeout does not bound. */
+    expireInSeconds: 900,
     retentionSeconds: 7 * DAY_SECONDS,
     notify,
   }

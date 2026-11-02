@@ -194,6 +194,7 @@ export function siteInput(
     website: `https://${host}`,
     company: d.company,
     legalName,
+    taxCode: d.taxCode,
     contactPerson: contactOf(d),
     ...vocabulary,
   }

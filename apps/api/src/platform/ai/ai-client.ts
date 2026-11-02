@@ -21,7 +21,7 @@ export type AiPart =
 /** `webSearch`: the model may search the web first. Known debt: both vendors
  *  bill each search on top of tokens, and the ledger records tokens only.
  *  `readPages`: it may also open the URLs it is given or finds (Gemini URL
- *  context, Claude web fetch). `effort`: `medium` for research, `low` otherwise.
+ *  context, Claude web fetch). `effort`: `low` unless the caller asks for more.
  *  `prompt`: the registered prompt's `id@version`, for the ledger only. */
 export type AiRequest = {
   system: string

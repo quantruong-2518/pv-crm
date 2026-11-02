@@ -36,7 +36,7 @@ import { anthropicRound } from './anthropic.converse'
  *  starts the searches over (and pays for them again) rather than resuming. */
 const WEB_SEARCH = { type: 'web_search_20250305', name: 'web_search', max_uses: 5 } as const
 /** Opens a URL from the prompt or a search result; citations stay off (its default).
- *  Five opens: the home page plus the four pages the site prompt names; each page's text is billed as input. */
+ *  Five opens: the home page plus the site prompt's lookups beyond it; each page's text is billed as input. */
 const WEB_FETCH = { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 5 } as const
 
 const IMAGE_MIME = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] as const

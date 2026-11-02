@@ -63,6 +63,8 @@ of expiry). Queue options (expiry 600 s, retention, retry delay) live in
 A transient failure after the `web-search` step is final: the paid calls are
 not re-run for free.
 
+_Amendment 02/11/2026: the rule above no longer holds for a partial result. If one call fails transient and the other found at least one value, the job ends DONE and the busy call's fields are listed in `notFound`. It rethrows (and so retries) only when no call found anything, or on any non-transient error. The retry delay is now the breaker's pause (`PAUSE_MS`) and the expiry is 900 s, because a 10 s retry landed on a just-paused model; "expiry 600 s" above is stale. Known limits: the tray shows "not found" for fields of a call that was busy; a database-busy error beside a paid Read call is retried and pays Read again; two fills can now hold all four vendor slots shared with the lead scan._
+
 ### 5 · Signal and read
 
 New SSE kind `ai-job`, raised by a trigger on the table. It is a signal only:
@@ -105,6 +107,8 @@ before; the toast and its own "Hoàn tác" go away.
 Migration 0157 raises the `lead-enrich` route's `timeout_ms` from 30000 to
 60000, only where it still holds 30000, so an admin's edit is never overwritten.
 Nothing blocks a screen any more, so the 30 s reason is gone.
+
+_Amendment 02/11/2026: the background web-search call hit 504 DEADLINE_EXCEEDED at 60 s, because the SDK sends the route timeout as the vendor's server deadline; the fallback failed too, on a vendor key problem the owner is fixing. Migration 0163 raises the route to 90 s, only where it still holds 60000, so an admin's edit stays. Migrate before or after the deploy; both are safe._
 
 ### 10 · Not in this slice
 

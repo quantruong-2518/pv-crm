@@ -24,7 +24,7 @@ export const COMPANY_FIELDS = {
   legalName: {
     meaning: "The company's registered legal name.",
     sources: [LOOKUP_PAGES, "The footer of the company's own website"],
-    how: "Search the company name (or the tax code, when known) on the lookup pages and open the company's own entry there.",
+    how: "Take it from the company's own entry on a lookup page, not from a similar name's.",
     format:
       'Exactly as registered, including the company type ("Công ty TNHH …", "Công ty Cổ phần …"), with every Vietnamese diacritic.',
     unsureWhen: "only the company's own website shows it.",
@@ -44,10 +44,9 @@ export const COMPANY_FIELDS = {
   },
   taxCodeCandidates: {
     meaning: 'Other tax codes you met for this company but did not choose for taxCode.',
-    sources: ['Any page you read for this company'],
+    sources: ['Any search result or page you saw for this company'],
     how: 'List them so the server can check each one with the national registry.',
     format: 'An array of codes in the taxCode format; [] when none. Never null.',
-    unsureWhen: 'not applicable: the server checks every candidate.',
     example: '["0108123456-001"]',
   },
   website: {
@@ -57,7 +56,7 @@ export const COMPANY_FIELDS = {
       LOOKUP_PAGES,
       'A web search by the company name',
     ],
-    how: 'Open the site and check that it names this company.',
+    how: "Only a host that the site itself, or the company's lookup entry, ties to this company.",
     format:
       'The host only, lowercase, without "https://" or a path. Never a social network, a marketplace or a business directory.',
     unsureWhen: 'only one weak source points to it.',
@@ -158,4 +157,4 @@ export const WEB_RULES = [
 
 /** The output section for schemas made of `{ value, sourceUrl, confident }` fields. */
 export const FOUND_OUTPUT =
-  'One JSON object matching the response schema. Each field above is null when not found, or { "value": …, "sourceUrl": "https://…", "confident": true | false }: value in the field\'s format, sourceUrl the page that shows it, confident false when the field\'s rule above says so or the page may be about another company. Return null for every field the request does not list under "Fields needed".'
+  'One JSON object matching the response schema. Each field above is null when not found, or { "value": …, "sourceUrl": "https://…", "confident": true | false }: value in the field\'s format, sourceUrl the page that shows it, confident false when the field\'s rule above says so or the page may be about another company. Return null (an array field: []) for every field the request does not list under "Fields needed".'

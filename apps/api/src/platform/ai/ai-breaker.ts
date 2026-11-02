@@ -9,7 +9,7 @@
  *  numbers are starting values, to be tuned from `ai_call.latency_ms`. */
 
 const TRIP_AFTER = 3
-const PAUSE_MS = 120_000
+export const PAUSE_MS = 120_000
 
 type State = { failures: number; pausedUntil: number }
 

@@ -40,6 +40,8 @@ Anthropic gets the same knob as `output_config.effort`. The enricher keeps its
 public shape (draft in, per-field suggestions out), so `LeadAiFillService` and
 a bulk step do not change.
 
+_Amendment 02/11/2026 (see 0131): production logs showed fills failing at `web-search` with 504 DEADLINE_EXCEEDED, and a success took about 60 s because the two calls ran in sequence. Read now runs beside Identify when the host is already known from the draft website or a company mail domain, using only the draft's legal name; otherwise it still waits for Identify's confident website. Identify runs at effort low, Read stays medium. Prompts `lead-identify` and `lead-site` are v3: steps match each call's real tools, and each call has a search budget and a stop rule. A wanted province alone makes Identify look for the address too. "MEDIUM for these research calls" above holds for Read only._
+
 ### 3 · Size is a band
 
 "Số người tại chỗ" becomes "Quy mô", stored as `size_band`: `lt50`, `50-200`,

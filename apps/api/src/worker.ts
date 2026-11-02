@@ -390,9 +390,9 @@ async function bootstrap(): Promise<void> {
 }
 
 /** How long `boss.stop` waits for running jobs. Above the mail queue's 60 s expiry,
- *  below the scan (300 s), `lead.ai-fill` (600 s) and `comm.ai-report` (1800 s) ones,
+ *  below the scan (300 s), `lead.ai-fill` (900 s) and `comm.ai-report` (1800 s) ones,
  *  by choice: past it pg-boss fails what still runs (`failWip`), and a job with a
- *  retry left comes back after its queue's delay, 10 s with backoff.
+ *  retry left comes back after its queue's delay (`boss.provider.ts`).
  *
  *  `fly.toml` sets no `kill_timeout`, so Fly's default decides whether this wait
  *  ends at all. A kill that comes first skips `failWip`, and the job stays active
