@@ -1,4 +1,11 @@
-import { useEffect, useRef, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
+import {
+  useEffect,
+  useRef,
+  type CSSProperties,
+  type FormEvent,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react'
 import {
   ArrowUpLong,
   Button,
@@ -62,7 +69,7 @@ export function AssistantThread({
   subject,
   openPath,
   onNewChat,
-  endClassName,
+  endStyle,
   empty,
 }: {
   convo: Conversation
@@ -70,7 +77,7 @@ export function AssistantThread({
   openPath: (path: string) => void
   onNewChat: () => void
   /** Scroll margin of the end marker, for a box docked over the thread's foot. */
-  endClassName?: string
+  endStyle?: CSSProperties
   /** Drawn while the chat has no message yet. */
   empty: ReactNode
 }) {
@@ -142,7 +149,7 @@ export function AssistantThread({
           />
         ),
       )}
-      <div ref={end} className={endClassName} />
+      <div ref={end} style={endStyle} />
     </div>
   )
 }

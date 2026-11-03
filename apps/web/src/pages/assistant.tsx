@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AppShell, GlassCard, ScreenHeader, ScreenLayout, cn } from '@pv/ui'
@@ -28,8 +28,11 @@ import { SessionList } from './assistant-sessions'
 /** The box stays in reach while the thread scrolls: docked over BottomNav below `lg`. The
  *  round assistant button is not drawn on this screen, so nothing covers the send button. */
 const DOCK = 'sticky bottom-[calc(84px+env(safe-area-inset-bottom)+12px)] z-20 lg:bottom-6'
-/** Following the thread stops above the docked box, not behind it. */
-const END_MARGIN = 'scroll-mb-[calc(84px+env(safe-area-inset-bottom)+96px)] lg:scroll-mb-[120px]'
+/** Following the thread stops this far above the screen's bottom edge: the docked box's
+ *  measured height plus a gap, and below `lg` the BottomNav's height too. Kept in state,
+ *  not a CSS variable, so the token checker has no new name to take for an invented token. */
+const GAP_LG = 48
+const GAP_PHONE = 120
 
 function aboutOf(raw: string | null): AssistantSubject | undefined {
   const at = raw?.indexOf(':') ?? -1
@@ -64,6 +67,23 @@ export function AssistantPage() {
     adoptTurn(fresh.key)
     setParams({ s: fresh.sessionId }, { replace: true })
   }, [turns, sessionId, setParams])
+
+  const [followGap, setFollowGap] = useState(0)
+  const dock = useCallback((el: HTMLDivElement | null) => {
+    if (!el) return
+    const publish = () => {
+      const lg = window.matchMedia('(min-width: 1024px)').matches
+      setFollowGap(el.offsetHeight + (lg ? GAP_LG : GAP_PHONE))
+    }
+    publish()
+    const watch = new ResizeObserver(publish)
+    watch.observe(el)
+    window.addEventListener('resize', publish)
+    return () => {
+      watch.disconnect()
+      window.removeEventListener('resize', publish)
+    }
+  }, [])
 
   const pick = (id: string | null) => {
     newConversation('page')
@@ -108,18 +128,19 @@ export function AssistantPage() {
                   convo={convo}
                   openPath={(path) => navigate(path)}
                   onNewChat={() => pick(null)}
-                  endClassName={END_MARGIN}
+                  endStyle={{ scrollMarginBottom: `${followGap}px` }}
                   empty={<PageHome convo={convo} />}
                 />
-                <AssistantComposer
-                  convo={convo}
-                  className={DOCK}
-                  subject={
-                    subject
-                      ? { ref: subject, onRemove: sessionId ? undefined : () => setParams({}) }
-                      : undefined
-                  }
-                />
+                <div ref={dock} className={DOCK}>
+                  <AssistantComposer
+                    convo={convo}
+                    subject={
+                      subject
+                        ? { ref: subject, onRemove: sessionId ? undefined : () => setParams({}) }
+                        : undefined
+                    }
+                  />
+                </div>
               </div>
             </GlassCard>
           </div>

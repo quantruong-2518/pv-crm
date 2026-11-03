@@ -200,7 +200,7 @@ describe('the sales tools', () => {
     expect(JSON.stringify(trusted)).not.toContain(HOSTILE)
     expect(trusted).toMatchObject({ code: 'LD-0001', state: 'working' })
     expect(untrusted).toMatchObject({ company: HOSTILE })
-    expect(verdict).toMatchObject({ codes: ['LD-0001'], rowCount: 1, hidden: null })
+    expect(verdict).toMatchObject({ codes: ['LD-0001'], rowCount: 1, hidden: 0 })
   })
 
   it('asks search for the three kinds only and drops what matched', async () => {
@@ -694,7 +694,7 @@ describe('get_record re-reads a stored code', () => {
   })
 
   type Codes = { codes?: string; disabled?: boolean }
-  const asked = (q: Codes) => (q.codes ?? '').split(',')
+  const asked = (q: Codes) => (q.codes ?? '').split(',').filter(Boolean)
 
   /** Book doors that answer the codes they were asked, as the real ones do in SQL. */
   function books() {
@@ -736,7 +736,11 @@ describe('get_record re-reads a stored code', () => {
       expect.objectContaining({ id: 'u-sale' }),
       expect.objectContaining({ codes: 'LD-0001,LD-0002', state: 'all', size: 2 }),
     )
-    expect(s.opportunities.book).toHaveBeenCalledTimes(1)
+    /* The second deal-book call is LD-0002's lead read, listing its deals. */
+    expect(s.opportunities.book).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ codes: 'OP-0301', size: 1 }),
+    )
     expect(s.contracts.book).toHaveBeenCalledTimes(1)
   })
 

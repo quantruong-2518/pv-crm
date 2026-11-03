@@ -13,9 +13,11 @@ import {
   ObjectCode,
   OpportunityBookQuery,
   OpportunityProfileResponse,
+  OpportunityRow,
   SearchQuery,
   SearchRecordsInput,
   type AssistantRef,
+  type OpportunityBookResponse,
   type SearchHit,
   type SearchResult,
 } from '@pv/contracts'
@@ -29,6 +31,7 @@ import {
 } from '@api/platform/assistant/assistant-tools'
 import { maskContact } from '@api/platform/assistant/assistant-contact'
 import { ACCESS } from '@api/platform/engines/tokens'
+import { denied } from '@api/platform/http/problem'
 import { zod } from '@api/platform/http/zod.pipe'
 import { ContractController } from '../contract/contract.controller'
 import { ContractService } from '../contract/contract.service'
@@ -91,6 +94,17 @@ const OpportunityTrusted = OpportunityProfileResponse.pick({
   createdAt: true,
   closedAt: true,
 })
+
+const DealTrusted = OpportunityRow.pick({
+  code: true,
+  state: true,
+  stage: true,
+  contractCodes: true,
+})
+
+/** A lead's deals read with it: search matches a deal by its own name, not its
+ *  lead's company, so "what deals does AIT have" had no other way to an answer. */
+const LEAD_DEALS = 20
 
 const ContractTrusted = ContractDetailResponse.pick({
   code: true,
@@ -237,6 +251,29 @@ const contractRead = (p: ContractDetailResponse, mayReach: boolean): ToolRead =>
     mayReach,
   )
 
+/** The deals ride on the lead's read; `hidden` is the book door's own count. */
+function withDeals(read: ToolRead, deals: OpportunityBookResponse, mayReach: boolean): ToolRead {
+  const trusted = deals.rows.map((r) => DealTrusted.parse(r))
+  const name = (r: { name: string }) => (mayReach ? r.name : (maskContact(r.name) as string))
+  return {
+    ...read,
+    data: {
+      ...read.data,
+      opportunities: {
+        trusted: { more: deals.total > deals.rows.length },
+        rows: deals.rows.map((r, i) => ({ trusted: trusted[i], untrusted: { name: name(r) } })),
+      },
+    },
+    codes: [...read.codes, ...trusted.map((t) => t.code)],
+    rowCount: read.rowCount + deals.rows.length,
+    hidden: deals.hidden,
+    refs: [
+      ...(read.refs ?? []),
+      ...deals.rows.map((r) => refOf('opportunity', r.code, r.name, mayReach)),
+    ],
+  }
+}
+
 /** `matched` and `score` stay behind: `matched.text` is the phone or email on a
  *  contact hit, and a deal's contact name on a deal hit. */
 function searchRead(result: SearchResult, mayReach: boolean): ToolRead {
@@ -283,15 +320,17 @@ export class SalesAssistantTools implements AssistantToolSource {
       }),
       defineTool({
         name: 'get_record',
-        description: 'Read one lead, opportunity or contract by its code.',
+        description:
+          "Read one lead, opportunity or contract by its code. A lead comes with its opportunities: use it, not search_records, for a lead's opportunities.",
         input: GetRecordInput,
         doors: {
           lead: door(LeadController, 'profile'),
+          leadDeals: door(OpportunityController, 'book'),
           opportunity: door(OpportunityController, 'profile'),
           contract: door(ContractController, 'profile'),
         },
-        doorFor: (input) => input.kind,
-        run: (who, input) => this.read(who, input),
+        doorFor: (input) => (input.kind === 'lead' ? ['lead', 'leadDeals'] : input.kind),
+        run: (who, input, open) => this.read(who, input, open),
         recheck: {
           kindOf: kindOfCode,
           doors: {
@@ -360,11 +399,22 @@ export class SalesAssistantTools implements AssistantToolSource {
     return rows.map((r) => ref('contract')(r, r.customer))
   }
 
-  private async read(who: Actor, { kind, code }: GetRecordInput): Promise<ToolRead> {
+  private async read(
+    who: Actor,
+    { kind, code }: GetRecordInput,
+    open: ReadonlySet<string>,
+  ): Promise<ToolRead> {
     const mayReach = this.mayReach(who)
     switch (kind) {
-      case 'lead':
-        return leadRead(await this.leads.profile(who, zod(ObjectCode).transform(code)), mayReach)
+      case 'lead': {
+        /* The deals door alone open must not read the lead past its own door. */
+        if (!open.has('lead')) throw denied('permission-denied')
+        const leadCode = zod(ObjectCode).transform(code)
+        const read = leadRead(await this.leads.profile(who, leadCode), mayReach)
+        if (!open.has('leadDeals')) return read
+        const q = zod(OpportunityBookQuery).transform({ leadCode, size: LEAD_DEALS })
+        return withDeals(read, await this.opportunities.book(who, q), mayReach)
+      }
       case 'opportunity':
         return opportunityRead(
           await this.opportunities.profile(who, zod(ObjectCode).transform(code)),
