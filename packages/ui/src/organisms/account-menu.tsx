@@ -4,7 +4,7 @@ import { Avatar } from '../ui/avatar'
 import { Icon } from '../ui/icon'
 import { THEMES, setTheme, useThemeMode, type ThemeMode } from '../ui/theme-switch'
 import { cn } from '../lib/cn'
-import type { HeaderAction } from './app-header'
+import type { HeaderAction, HeaderChoice } from './app-header'
 import { DEFAULT_SHELL_COPY, type ShellCopy } from './shell-copy'
 
 /** The avatar trigger and its menu, private to AppHeader.
@@ -23,6 +23,8 @@ type AccountMenuProps = {
   assistantLabel: string
   onOpenAssistant?: () => void
   actions?: HeaderAction[]
+  /** Set once per person, so it sits here beside the theme, not in the row. */
+  language?: HeaderChoice
   copy?: ShellCopy
 }
 
@@ -102,28 +104,31 @@ export function MenuRow({
 /** Menu radios rather than a SegmentedControl: inside `role="menu"` only menu
  *  items are announced, and the quiet ground keeps the lit cell at 4.5:1 in
  *  Aurora where white on primary does not reach it. */
-function ThemePicker({ theme, copy }: { theme: ThemeMode; copy: ShellCopy }) {
+function ChoicePicker({ choice }: { choice: HeaderChoice }) {
   return (
-    <div role="group" aria-label={copy.theme} className="flex flex-col gap-1 px-3 py-1">
+    <div role="group" aria-label={choice.label} className="flex flex-col gap-1 px-3 py-1">
       <span aria-hidden className="text-muted-foreground text-[12px]">
-        {copy.theme}
+        {choice.label}
       </span>
-      <div className="bg-surface-ink/5 grid grid-cols-3 gap-1 rounded-md p-1">
-        {THEMES.map((mode) => (
+      <div
+        className="bg-surface-ink/5 grid gap-1 rounded-md p-1"
+        style={{ gridTemplateColumns: `repeat(${choice.options.length}, minmax(0, 1fr))` }}
+      >
+        {choice.options.map((option) => (
           <button
-            key={mode}
+            key={option.value}
             type="button"
             role="menuitemradio"
-            aria-checked={mode === theme}
-            onClick={() => setTheme(mode)}
+            aria-checked={option.value === choice.value}
+            onClick={() => choice.onChange(option.value)}
             className={cn(
               'motion-std pointer-coarse:h-12 h-8 rounded-sm text-[12px] font-semibold',
-              mode === theme
+              option.value === choice.value
                 ? 'bg-surface-ink/12 text-foreground'
                 : 'text-muted-foreground hover:bg-surface-ink/8',
             )}
           >
-            {copy.themeNames[mode]}
+            {option.label}
           </button>
         ))}
       </div>
@@ -138,6 +143,7 @@ export function AccountMenu({
   assistantLabel,
   onOpenAssistant,
   actions = [],
+  language,
   copy = DEFAULT_SHELL_COPY,
 }: AccountMenuProps) {
   const [open, setOpen] = useState(false)
@@ -219,7 +225,15 @@ export function AccountMenu({
           <Divider />
           {/* Stays open on purpose: the point of the click is to watch the
               theme change, and closing would hide the very panel that changed. */}
-          <ThemePicker theme={theme} copy={copy} />
+          <ChoicePicker
+            choice={{
+              label: copy.theme,
+              value: theme,
+              options: THEMES.map((mode) => ({ value: mode, label: copy.themeNames[mode] })),
+              onChange: (mode) => setTheme(mode as ThemeMode),
+            }}
+          />
+          {language ? <ChoicePicker choice={language} /> : null}
           <Divider />
           {actions.map((action) => (
             <MenuRow key={action.label} action={action} onSelect={close} copy={copy} />

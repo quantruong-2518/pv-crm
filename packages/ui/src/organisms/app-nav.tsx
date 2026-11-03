@@ -64,10 +64,10 @@ function AppButton({
       aria-controls={menuButton && open ? menuId : undefined}
       aria-current={app.active ? 'page' : undefined}
       onClick={(e) => (menuButton ? onToggle(e.currentTarget) : app.onClick?.())}
-      /* Locked: only the icons dim, the label keeps `--muted-foreground`.
-         Dimming the whole button measured 2.29:1, below law 13's 4.5:1. */
+      /* Label only, no icon: icons are for actions, and six of them cost the row
+         the width that kept the last books out of view below 1650px. */
       className={cn(
-        'motion-std pointer-coarse:h-12 group flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 text-[14px] font-medium max-xl:w-10 max-xl:px-0',
+        'motion-std pointer-coarse:h-12 group flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 text-[14px] font-medium',
         /* A split half paints nothing: tint and hover belong to the one pill around both. */
         split && 'rounded-r-none pr-0',
         lit ? cn(!split && 'bg-primary/15', 'text-on-tint-primary') : 'text-foreground/80',
@@ -76,8 +76,7 @@ function AppButton({
           : cn(!split && 'hover:bg-surface-ink/10', 'hover:text-foreground'),
       )}
     >
-      <Icon icon={app.icon} size={18} className={cn(app.locked && 'opacity-55')} />
-      <span className="hidden xl:inline">{app.label}</span>
+      <span className={cn(app.locked && 'text-muted-foreground')}>{app.label}</span>
       {app.count ? (
         /* No fill on an active or hovered entry: warning/20 over primary/15
            measured 4.06:1 in stone, over the hover tint 4.16:1; the bare ink
@@ -95,7 +94,7 @@ function AppButton({
         <Icon
           icon={ChevronDown}
           size={14}
-          className={cn('motion-std -ml-1 hidden xl:block', open && 'rotate-180')}
+          className={cn('motion-std -ml-1', open && 'rotate-180')}
         />
       ) : null}
       {app.locked ? <LockMark /> : null}

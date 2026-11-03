@@ -48,6 +48,7 @@ import { useAssistantEntry } from '@/data/assistant-live'
 import { useOverdueBanners } from '@/data/contract-overdue-banner'
 import { useHeaderSearch } from '@/data/search'
 import { HeaderUtility } from '@/components/ai-tray-slot'
+import { languageChoice } from '@/data/auth-i18n'
 import { MeetingCountdownBar } from '@/components/meeting-countdown-bar'
 import { NotificationMenu } from '@/components/notification-menu'
 import { message, translate, useLang, type Lang, type Message } from './i18n'
@@ -666,22 +667,20 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
   const granted = (entry: NavEntry) =>
     !isParked(entry.permission) &&
     (!entry.permission || access.check(actor, { branch: null, permission: entry.permission }).ok)
-  const plain = (entry: NavEntry): HeaderAction => {
-    return {
-      icon: entry.icon,
-      label: entryLabel(entry),
-      slot: entry.slot,
-      count:
-        entry.slot === 'approvals'
-          ? pendingApprovals?.length
-          : entry.slot === 'notifications'
-            ? unreadNotifications
-            : entry.count,
-      locked: !entry.path,
-      active: entry.path ? pathname === entry.path : false,
-      onClick: entry.path ? () => navigate(entry.path!) : undefined,
-    }
-  }
+  const plain = (entry: NavEntry): HeaderAction => ({
+    icon: entry.icon,
+    label: entryLabel(entry),
+    slot: entry.slot,
+    count:
+      entry.slot === 'approvals'
+        ? pendingApprovals?.length
+        : entry.slot === 'notifications'
+          ? unreadNotifications
+          : entry.count,
+    locked: !entry.path,
+    active: entry.path ? pathname === entry.path : false,
+    onClick: entry.path ? () => navigate(entry.path!) : undefined,
+  })
 
   /** Sales modules follow the same rule: without the permission the entry is
    *  gone. A cluster left empty disappears too — `AppNav` drops empty groups. */
@@ -765,6 +764,7 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     user: { name: actor?.name ?? said(CHROME_MISC.guest), role: actor?.role },
     notificationsMenu: (close) => <NotificationMenu close={close} unread={unreadNotifications} />,
     utility: <HeaderUtility />,
+    language: languageChoice(lang),
     assistantLabel: said(CHROME_MISC.assistant),
     search: {
       placeholder:

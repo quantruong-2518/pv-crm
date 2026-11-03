@@ -55,6 +55,14 @@ export type HeaderApp = {
   count?: number
 }
 
+/** A pick-one setting shown as a row of radios in the avatar menu. */
+export type HeaderChoice = {
+  label: string
+  value: string
+  options: { value: string; label: string }[]
+  onChange: (value: string) => void
+}
+
 export type AppHeaderProps = {
   /** tên sản phẩm trung tâm — luôn "PV One" (luật 14) */
   product: string
@@ -79,8 +87,10 @@ export type AppHeaderProps = {
   notificationsMenu?: (close: () => void) => ReactNode
   onOpenAssistant?: () => void
   /** Free slot left of the approvals/bell cluster, for a control the app owns
-   *  (the language picker) that the header must not know the data of. */
+   *  (the AI tray button) that the header must not know the data of. */
   utility?: ReactNode
+  /** The language switch, drawn in the avatar menu below the theme. */
+  language?: HeaderChoice
   className?: string
   /** Width and side padding of the row inside the full-bleed bar — the shell
    *  passes main's own axis, so the brand lines up with the page title. */
@@ -241,6 +251,7 @@ export function AppHeader({
   accountActions,
   notificationsMenu,
   utility,
+  language,
   onOpenAssistant,
   className,
   frameClassName,
@@ -336,6 +347,7 @@ export function AppHeader({
             assistantLabel={assistantLabel}
             onOpenAssistant={onOpenAssistant}
             actions={accountActions}
+            language={language}
             copy={copy}
           />
         </div>

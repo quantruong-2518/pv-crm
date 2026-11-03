@@ -1,4 +1,5 @@
-import type { Lang } from '@/app/i18n'
+import type { HeaderChoice } from '@pv/ui'
+import { LANG_LABEL, setLang, type Lang } from '@/app/i18n'
 import { PASSWORD_MIN, type AuthError, type AuthErrorKey } from './auth'
 
 /** Auth flow copy — three languages, ONE place. Split out of `auth.ts` because
@@ -113,6 +114,14 @@ export const passwordEyeText = {
 export const langSwitchText = {
   label: tr('Đổi ngôn ngữ', 'Change language', '언어 변경'),
 }
+
+/** The language switch as data, for the header's avatar menu. */
+export const languageChoice = (lang: Lang): HeaderChoice => ({
+  label: langSwitchText.label[lang],
+  value: lang,
+  options: (['vi', 'en', 'ko'] as const).map((code) => ({ value: code, label: LANG_LABEL[code] })),
+  onChange: (code) => setLang(code as Lang),
+})
 
 export const emailHint: Text = tr(
   'ten@pebblevina.com',

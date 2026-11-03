@@ -12,8 +12,9 @@ import {
 
 /** The header's search, private to AppHeader.
  *
- *  Collapsed it is a 232px slot in the row; on focus (or ⌘K) it grows from that
- *  slot to the centre of the header while the rest of the row blurs.
+ *  Collapsed it is a 40px icon slot in the row (232px from `2xl`, where the
+ *  row has width to spare); on focus (or ⌘K) it grows from that slot to the
+ *  centre of the header while the rest of the row blurs.
  *
  *  Records are the app's business: with `records` the typed text is handed out
  *  and the groups that come back are all the panel lists. Without it there is
@@ -148,7 +149,7 @@ export function HeaderSearch({
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget)) change(false)
       }}
-      className="relative h-10 min-w-0 flex-1 lg:w-[232px] lg:flex-none"
+      className="relative h-10 min-w-0 flex-1 lg:w-10 lg:flex-none 2xl:w-[232px]"
     >
       <div
         data-open={open}
@@ -156,6 +157,7 @@ export function HeaderSearch({
         className="absolute left-0 top-0 z-10 w-full transition-[width,translate] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none lg:data-[open=true]:w-[var(--w)] lg:data-[open=true]:translate-x-[var(--dx)]"
       >
         <label
+          title={open ? undefined : `${placeholder ?? ''} · ⌘K`}
           className={cn(
             'motion-std flex h-10 items-center gap-2 rounded-md px-3 text-[13px]',
             open
@@ -163,7 +165,7 @@ export function HeaderSearch({
               : 'bg-input text-muted-foreground hover:bg-surface-ink/10',
           )}
         >
-          <Icon icon={Search} size={16} className="text-muted-foreground" />
+          <Icon icon={Search} size={16} className="text-muted-foreground shrink-0" />
           <input
             ref={inputRef}
             type="search"
@@ -178,7 +180,12 @@ export function HeaderSearch({
             onKeyDown={onKeyDown}
             className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-inherit outline-none"
           />
-          <kbd className="bg-surface-ink/10 text-muted-foreground hidden rounded-sm px-2 py-1 font-sans text-[11px] font-medium lg:block">
+          <kbd
+            className={cn(
+              'bg-surface-ink/10 text-muted-foreground hidden rounded-sm px-2 py-1 font-sans text-[11px] font-medium',
+              open ? 'lg:block' : '2xl:block',
+            )}
+          >
             {open ? 'esc' : '⌘K'}
           </kbd>
         </label>
