@@ -61,7 +61,6 @@ export default function ApprovalInboxScreen() {
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <ScreenHeader
-          kicker="One Core"
           title={t(message('Hộp duyệt', 'Approvals', '승인함'))}
           description={t(
             message(
@@ -128,7 +127,7 @@ export default function ApprovalInboxScreen() {
           />
         ) : (
           <div className="flex flex-col gap-4">
-            {rows.map((row) => (
+            {sortOldestFirst(rows).map((row) => (
               <RequestCard key={row.id} request={row} />
             ))}
           </div>
@@ -155,6 +154,49 @@ function chainSteps(request: ApprovalRequestView): ChainStep[] {
   }))
 }
 
+/** Oldest first: the request that has waited longest is the one to clear. */
+function sortOldestFirst(rows: ApprovalRequestView[]): ApprovalRequestView[] {
+  return [...rows].sort((a, b) => a.raisedAt.localeCompare(b.raisedAt))
+}
+
+/** A one-line "who is next"; the full chain opens on demand. */
+function ChainToggle({ request }: { request: ApprovalRequestView }) {
+  const { t } = useI18n()
+  const [open, setOpen] = useState(false)
+  const waitingIndex = request.chain.findIndex((link) => link.state === 'waiting')
+  const waiting = request.chain[waitingIndex]
+  const total = request.chain.length
+  if (total < 2) return null
+
+  return (
+    <div className="flex flex-col gap-3">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="text-muted-foreground hover:text-foreground w-fit text-left text-[11.5px]"
+      >
+        {waiting
+          ? t(
+              message(
+                `Bước ${waitingIndex + 1}/${total} · chờ ${waiting.person}`,
+                `Step ${waitingIndex + 1}/${total} · waiting on ${waiting.person}`,
+                `${waitingIndex + 1}/${total}단계 · ${waiting.person}님 대기`,
+              ),
+            )
+          : t(message('Chuỗi duyệt', 'Approval chain', '승인 단계'))}
+        {' · '}
+        <span className="underline">
+          {open
+            ? t(message('Ẩn', 'Hide', '숨기기'))
+            : t(message('Xem chuỗi duyệt', 'View chain', '단계 보기'))}
+        </span>
+      </button>
+      {open ? <ApprovalChain steps={chainSteps(request)} /> : null}
+    </div>
+  )
+}
+
 function RequestCard({ request }: { request: ApprovalRequestView }) {
   const { t, date } = useI18n()
   const decide = useDecideApproval(request.id)
@@ -176,10 +218,35 @@ function RequestCard({ request }: { request: ApprovalRequestView }) {
     })
   }
 
+  const actions = (
+    <div className="flex shrink-0 flex-wrap gap-2">
+      <Button
+        disabled={decide.isPending}
+        onClick={() =>
+          send(
+            { decision: 'approved' },
+            t(
+              message(
+                'Đã duyệt. Thay đổi đã có hiệu lực.',
+                'Approved. The change is now in effect.',
+                '승인했습니다. 변경 사항이 적용되었습니다.',
+              ),
+            ),
+          )
+        }
+      >
+        {t(message('Phê duyệt', 'Approve', '승인'))}
+      </Button>
+      <Button variant="ghost" disabled={decide.isPending} onClick={() => setRefusing(true)}>
+        {t(message('Từ chối', 'Reject', '거절'))}
+      </Button>
+    </div>
+  )
+
   return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
+    <GlassCard variant="b" className="flex flex-col gap-3 p-5">
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
           <Kicker tone="muted">{t(KIND_LABEL[request.kind])}</Kicker>
           <p className="font-display text-[15px] font-semibold">{request.consequence}</p>
           <p className="text-muted-foreground text-[11.5px]">
@@ -199,20 +266,21 @@ function RequestCard({ request }: { request: ApprovalRequestView }) {
             })}
           </p>
         </div>
+        {refusing ? null : actions}
+      </div>
 
-        {/* Rule 9 on screen: a proposal from the assistant says so, and says on
-            what grounds, before anybody presses anything. */}
-        {request.fromAi ? (
+      {/* Rule 9 on screen: an AI proposal says so, and on what grounds, in one block. */}
+      {request.fromAi ? (
+        <div className="flex flex-col items-start gap-2">
           <Badge tone="running">
             {t(message('Do trợ lý AI đề xuất', 'Suggested by AI assistant', 'AI 도우미의 제안'))}
           </Badge>
-        ) : null}
-      </div>
-
-      {request.fromAi && request.basis ? (
-        <p className="text-glass-foreground text-[12px] leading-[1.7]">
-          {t(message('Căn cứ:', 'Basis:', '근거:'))} {request.basis}
-        </p>
+          {request.basis ? (
+            <p className="text-glass-foreground text-[12px] leading-[1.7]">
+              {t(message('Căn cứ:', 'Basis:', '근거:'))} {request.basis}
+            </p>
+          ) : null}
+        </div>
       ) : null}
 
       {request.links.length > 0 ? (
@@ -225,7 +293,7 @@ function RequestCard({ request }: { request: ApprovalRequestView }) {
         </div>
       ) : null}
 
-      <ApprovalChain steps={chainSteps(request)} />
+      <ChainToggle request={request} />
 
       {failure ? (
         <p role="alert" className="text-destructive-foreground text-[11.5px] leading-[1.5]">
@@ -259,30 +327,7 @@ function RequestCard({ request }: { request: ApprovalRequestView }) {
             </Button>
           </div>
         </div>
-      ) : (
-        <div className="flex flex-wrap gap-2">
-          <Button
-            disabled={decide.isPending}
-            onClick={() =>
-              send(
-                { decision: 'approved' },
-                t(
-                  message(
-                    'Đã duyệt. Thay đổi đã có hiệu lực.',
-                    'Approved. The change is now in effect.',
-                    '승인했습니다. 변경 사항이 적용되었습니다.',
-                  ),
-                ),
-              )
-            }
-          >
-            {t(message('Phê duyệt', 'Approve', '승인'))}
-          </Button>
-          <Button variant="ghost" disabled={decide.isPending} onClick={() => setRefusing(true)}>
-            {t(message('Từ chối', 'Reject', '거절'))}
-          </Button>
-        </div>
-      )}
+      ) : null}
     </GlassCard>
   )
 }
