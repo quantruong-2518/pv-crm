@@ -16,11 +16,11 @@ import { MoneyCell } from '@/components/money-cell'
 
 /** The next-due caption (days, installment no., full date) needs about 200px;
  *  the standard money track would cut it, so this column is wider. */
-const NEXT_DUE_WIDTH = 'minmax(210px,1.2fr)'
+const NEXT_DUE_WIDTH = 'minmax(260px,1.6fr)'
 
 /** Customer takes the slack; people and money get what their content needs, no more. */
 const WIDTH = {
-  customer: 'minmax(220px,2.6fr)',
+  customer: 'minmax(200px,1.6fr)',
   person: 'minmax(136px,0.9fr)',
   value: '176px',
   collected: '168px',
@@ -46,7 +46,7 @@ export function contractCells(
 
   return [
     <span key="customer" className="flex min-w-0 flex-col">
-      <span className="truncate text-[12.5px]">{contract.customer}</span>
+      <span className="truncate text-[12.5px] font-semibold">{contract.customer}</span>
       <span className="text-muted-foreground truncate text-[11.5px]">
         {kindLabel(contract.kind, resolveKind)}
       </span>

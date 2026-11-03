@@ -37,33 +37,35 @@ import { bookMinWidth } from './book-columns'
 /** The row height every book draws, twice over: the table's class and the
  *  skeleton's pixels. `Skeleton` writes height into an inline style, so a class
  *  cannot set it — that is how books ended up waiting on 11px bars. */
-const ROW_CLASS = 'h-14'
+const ROW_CLASS = 'h-[var(--book-row-h,3.5rem)]'
 const ROW_PX = 56
 /* A book whose rows lead with a picture; the one geometry a screen may pick. */
-const TALL_ROW_CLASS = 'h-24'
+const TALL_ROW_CLASS = 'h-[var(--book-row-h,6rem)]'
 const TALL_ROW_PX = 96
 const rowOf = (tall?: boolean) =>
   tall ? { cls: TALL_ROW_CLASS, px: TALL_ROW_PX } : { cls: ROW_CLASS, px: ROW_PX }
 
 /** The header band: 40px, 64px under a finger, where a column filter's 48px
- *  trigger sets it. The footer slot: `TableFooter`'s 32px page buttons in
- *  `py-3`, 48px ones under a finger. Both kept in step with `DataTable` and
+ *  trigger sets it. The footer slot: `TableFooter`'s 28px page buttons in
+ *  `py-2`, 48px ones under a finger. Both kept in step with `DataTable` and
  *  `TableFooter` by hand — a class cannot be measured. */
 const HEAD_CLASS = 'h-10 pointer-coarse:h-16'
 const HEAD_PX = 40
 const HEAD_COARSE_PX = 64
-const FOOT_CLASS = 'h-14 pointer-coarse:h-18'
+const FOOT_CLASS = 'h-11 pointer-coarse:h-16'
 
 /** Below this many rows a short window scrolls the page instead of the table. */
-const FLOOR_ROWS = 5
+const FLOOR_ROWS = 2
 
 /** A full page, capped by the window: everything above the table and the
  *  pager below it are subtracted, then the shell's own bottom padding (the
- *  bottom nav's room below `lg`), so the pager is always in view and the rows
- *  scroll under a header that stays put. `--book-top`/`--book-foot` are measured. */
+ *  bottom nav's room below `lg`). The floating AI buttons overlay the page as
+ *  they do on every screen; the table does not dodge them.
+ *  `--book-top`/`--book-foot` are measured. */
 const RESERVED_CLASS = cn(
   'flex flex-col',
   'pointer-coarse:[--book-body:var(--book-rows-coarse)] [--book-body:var(--book-rows-fine)]',
+  'pointer-coarse:[--book-head:64px] [--book-head:40px]',
   '[--book-gap:calc(100px+env(safe-area-inset-bottom))] lg:[--book-gap:24px]',
   'h-[min(var(--book-body),max(var(--book-floor),calc(100dvh-var(--book-top,0px)-var(--book-foot,0px)-var(--book-gap))))]',
 )
@@ -80,13 +82,17 @@ function reservedHeight(rows: number, rowPx: number) {
   } as CSSProperties
 }
 
-/** Writes where the body starts on the page and how tall the pager is. Any
- *  height above it can change (score cards load, chips appear, the toolbar
- *  wraps), so it re-measures whenever `main` resizes. */
+/** Writes where the body starts on the page and how tall the pager is, then
+ *  stretches the rows to fill the body whole: the rows that fit are counted and
+ *  the leftover is shared between them, so no gap opens above the pager and no
+ *  row is cut. Any height above can change (score cards load, chips appear, the
+ *  toolbar wraps), so it re-measures whenever `main` resizes. */
 function useFitWindow(
   body: RefObject<HTMLDivElement | null>,
   foot: RefObject<HTMLDivElement | null>,
   on: boolean,
+  rows: number | undefined,
+  rowPx: number,
 ) {
   useLayoutEffect(() => {
     const el = body.current
@@ -94,16 +100,21 @@ function useFitWindow(
     const measure = () => {
       el.style.setProperty('--book-top', `${el.getBoundingClientRect().top + window.scrollY}px`)
       el.style.setProperty('--book-foot', `${foot.current?.offsetHeight ?? 0}px`)
+      const head = window.matchMedia('(pointer: coarse)').matches ? HEAD_COARSE_PX : HEAD_PX
+      const fit = Math.floor((el.clientHeight - head) / rowPx)
+      const count = Math.min(rows ?? fit, Math.max(FLOOR_ROWS, fit))
+      el.style.setProperty('--book-row-h', `${(el.clientHeight - head) / count}px`)
     }
     measure()
     const watch = new ResizeObserver(measure)
     watch.observe(el.closest('main') ?? document.body)
+    watch.observe(el)
     window.addEventListener('resize', measure)
     return () => {
       watch.disconnect()
       window.removeEventListener('resize', measure)
     }
-  }, [body, foot, on])
+  }, [body, foot, on, rows, rowPx])
 }
 
 export type BookTable = {
@@ -192,7 +203,7 @@ export function BookPage({
   const row = rowOf(table?.tall)
   const bodyRef = useRef<HTMLDivElement>(null)
   const footRef = useRef<HTMLDivElement>(null)
-  useFitWindow(bodyRef, footRef, reserve !== undefined)
+  useFitWindow(bodyRef, footRef, reserve !== undefined, reserve, row.px)
   /* The toolbar's own padding closes the chip line; without one it closes itself. */
   const chips = <ActiveFilters items={filters} className={hasToolbar ? undefined : 'pb-4'} />
   const toolbar = hasToolbar && (

@@ -19,13 +19,13 @@ export function AppToasts() {
   const { t } = useI18n()
   const items = useToasts((s) => s.items)
   const dismiss = useToasts((s) => s.dismiss)
-  /* Stacks above the AI task tray (`--ai-tray-h`, its height plus a gap), which sits above a form's bar. */
+  /* Sits above a form's sticky bar. */
   return (
     <ToastHost
       items={items}
       onDismiss={dismiss}
       closeLabel={t(message('Đóng thông báo', 'Dismiss notification', '알림 닫기'))}
-      className="bottom-[calc(max(118px,var(--sticky-bar-clear,0px))+var(--ai-tray-h,0px))] lg:bottom-[calc(max(24px,var(--sticky-bar-clear,0px))+var(--ai-tray-h,0px))]"
+      className="bottom-[max(118px,var(--sticky-bar-clear,0px))] lg:bottom-[max(24px,var(--sticky-bar-clear,0px))]"
     />
   )
 }

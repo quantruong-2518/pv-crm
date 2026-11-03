@@ -1,12 +1,13 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useLayoutEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown } from '../icons'
 import { Button } from '../ui/button'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
 import { AiTaskCard, type AiTaskCardCopy, type AiTaskItem } from './ai-task-card'
-import { StatusTile, TrayPill, overallStatus } from './ai-task-pill'
+import { StatusTile, TrayHeaderButton, TrayPill, overallStatus } from './ai-task-pill'
 
-/** O-12 · AiTaskTray — background AI work, in the corner.
+/** O-12 · AiTaskTray — background AI work, in the header.
  *
  *  The press only queues a job; this tray is where its five steps are watched
  *  and where Undo waits on a finished one. The screen maps its rows onto
@@ -23,11 +24,9 @@ export type AiTaskTrayProps = {
   onClearDone: () => void
   /** Drop the fixed corner placement (theme kit only). */
   inline?: boolean
-  /** The round assistant button holds the corner from `lg`: the pill goes to its
-   *  left on the same row, the open tray stacks above it. */
-  besideAssistant?: boolean
-  /** A screen docks its own box at the bottom (the assistant page): lift clear of it. */
-  aboveComposer?: boolean
+  /** Where the collapsed button lives: an element in the header. The open
+   *  panel drops from under it, so nothing on the page is covered while it waits. */
+  slot?: HTMLElement | null
   /** Wording the screen owns: pill, header, the cards and the clear button. */
   copy: AiTaskCardCopy & {
     title: string
@@ -39,46 +38,29 @@ export type AiTaskTrayProps = {
   }
 }
 
-/** Height of the open tray, published so the toast row can stack above it. */
-const TRAY_HEIGHT_VAR = '--ai-tray-h'
+/** Gap between the header's bottom edge and the open panel. */
+const PANEL_GAP = 12
 
-/* The button is 56px at 32px from the corner. The pill centres on it (36 = 32 + (56 - 48) / 2)
-   and sits 12px left of it (100 = 32 + 56 + 12); the open tray clears it with 20px of air. */
-const CORNER = {
-  base: 'fixed bottom-[max(calc(84px+env(safe-area-inset-bottom)+16px),var(--sticky-bar-clear,0px))] right-4 z-[45]',
-  pillAlone: 'lg:bottom-[max(24px,var(--sticky-bar-clear,0px))] lg:right-4',
-  lifted: 'lg:bottom-[max(120px,var(--sticky-bar-clear,0px))] lg:right-4',
-  pillBeside: 'lg:bottom-[max(36px,var(--sticky-bar-clear,0px))] lg:right-[100px]',
-  openBeside: 'lg:bottom-[max(108px,var(--sticky-bar-clear,0px))] lg:right-8',
-}
-
-/** O-12 · AiTaskTray — bottom right, above every screen, absent with no jobs. */
+/** O-12 · AiTaskTray — a header button that opens a panel, absent with no jobs. */
 export function AiTaskTray({
   tasks,
   open,
   onOpenChange,
   onClearDone,
   inline = false,
-  besideAssistant = false,
-  aboveComposer = false,
+  slot,
   copy,
 }: AiTaskTrayProps) {
-  const box = useRef<HTMLDivElement>(null)
   const shown = tasks.length > 0
+  const [top, setTop] = useState(72)
 
   useLayoutEffect(() => {
-    const root = document.documentElement
-    const el = box.current
-    if (inline || !el) return
-    const publish = () => root.style.setProperty(TRAY_HEIGHT_VAR, `${el.offsetHeight + 12}px`)
-    publish()
-    const watch = new ResizeObserver(publish)
-    watch.observe(el)
-    return () => {
-      watch.disconnect()
-      root.style.removeProperty(TRAY_HEIGHT_VAR)
-    }
-  }, [inline, shown, open])
+    if (inline || !open || !slot) return
+    const place = () => setTop(slot.getBoundingClientRect().bottom + PANEL_GAP)
+    place()
+    window.addEventListener('resize', place)
+    return () => window.removeEventListener('resize', place)
+  }, [inline, open, slot])
 
   if (!shown) return null
   const running = tasks.filter((t) => t.status === 'running').length
@@ -99,13 +81,9 @@ export function AiTaskTray({
     .filter(Boolean)
     .join(' · ')
 
-  const alone = aboveComposer ? CORNER.lifted : CORNER.pillAlone
-
   if (!open) {
-    /* Under overlays (50) like ActionBanner, over the nav (40). */
-    const corner = inline ? '' : cn(CORNER.base, besideAssistant ? CORNER.pillBeside : alone)
-    return (
-      <div ref={box} className={cn('pointer-events-none', corner)}>
+    if (inline) {
+      return (
         <TrayPill
           tasks={tasks}
           title={copy.title}
@@ -116,19 +94,27 @@ export function AiTaskTray({
           endedLabel={ended > 0 && status !== 'done' ? copy.done(ended) : undefined}
           onOpen={() => onOpenChange(true)}
         />
-      </div>
+      )
+    }
+    const button = (
+      <TrayHeaderButton
+        title={copy.title}
+        headline={summary}
+        count={status === 'running' ? running : status === 'failed' ? failed : ended}
+        status={status}
+        onOpen={() => onOpenChange(true)}
+      />
     )
+    return slot ? createPortal(button, slot) : null
   }
 
   return (
     <aside
-      ref={box}
+      style={inline ? undefined : { top }}
       aria-label={copy.title}
       className={cn(
-        'glass-overlay porcelain:rounded-2xl flex max-h-[min(640px,calc(100dvh-160px-var(--sticky-bar-clear,0px)))] w-[min(440px,calc(100vw-32px))] flex-col overflow-hidden rounded-lg',
-        (besideAssistant || aboveComposer) &&
-          'lg:max-h-[min(640px,calc(100dvh-240px-var(--sticky-bar-clear,0px)))]',
-        !inline && cn(CORNER.base, besideAssistant ? CORNER.openBeside : alone),
+        'glass-overlay porcelain:rounded-2xl flex max-h-[min(640px,calc(100dvh-120px))] w-[min(440px,calc(100vw-32px))] flex-col overflow-hidden rounded-lg',
+        !inline && 'fixed right-4 z-[45]',
       )}
     >
       <div className="flex items-center gap-3 py-3 pl-4 pr-3">

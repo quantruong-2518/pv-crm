@@ -47,9 +47,9 @@ import {
 import { useAssistantEntry } from '@/data/assistant-live'
 import { useOverdueBanners } from '@/data/contract-overdue-banner'
 import { useHeaderSearch } from '@/data/search'
+import { HeaderUtility } from '@/components/ai-tray-slot'
 import { MeetingCountdownBar } from '@/components/meeting-countdown-bar'
 import { NotificationMenu } from '@/components/notification-menu'
-import { LanguagePicker } from '@/components/auth-card'
 import { message, translate, useLang, type Lang, type Message } from './i18n'
 import { CHROME_ENTRY_COPY, CHROME_MISC } from './chrome-i18n'
 
@@ -764,7 +764,7 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     ],
     user: { name: actor?.name ?? said(CHROME_MISC.guest), role: actor?.role },
     notificationsMenu: (close) => <NotificationMenu close={close} unread={unreadNotifications} />,
-    utility: <LanguagePicker />,
+    utility: <HeaderUtility />,
     assistantLabel: said(CHROME_MISC.assistant),
     search: {
       placeholder:

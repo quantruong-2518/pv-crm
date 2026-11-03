@@ -47,7 +47,7 @@ function PageButton({
       onClick={onClick}
       /* 48px wherever the pointer is a finger — tablets page these books by touch (law 13). */
       className={cn(
-        'motion-std tnum font-num pointer-coarse:h-12 pointer-coarse:min-w-12 flex h-8 min-w-8 items-center justify-center rounded-md px-2 text-[12px]',
+        'motion-std tnum font-num pointer-coarse:h-12 pointer-coarse:min-w-12 flex h-7 min-w-7 items-center justify-center rounded-md px-2 text-[12px]',
         current ? 'bg-surface-ink/12 text-foreground font-semibold' : 'text-muted-foreground',
         disabled ? 'cursor-not-allowed opacity-45' : !current && 'hover:bg-surface-ink/8',
       )}
@@ -96,7 +96,7 @@ export function TableFooter({
   const { t, lang } = useI18n()
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+    <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-2">
       <span className="text-muted-foreground tnum text-[11.5px]">
         {noun
           ? `${total} ${noun} · ${pageOf(page + 1, pageCount, lang)}`

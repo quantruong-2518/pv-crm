@@ -29,6 +29,7 @@ export const COL = {
   moment: '120px',
   money: '152px',
   number: '96px',
+  count: 'minmax(104px,0.7fr)',
 } as const
 
 /** The unit an amount filter is typed in and its chip says: people say five

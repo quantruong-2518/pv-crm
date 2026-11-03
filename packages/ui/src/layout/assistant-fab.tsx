@@ -23,7 +23,7 @@ export function AssistantFab({
       onClick={onClick}
       aria-label={label}
       className={cn(
-        'motion-std focus-visible:outline-ring fixed bottom-8 right-8 z-10 flex size-14 items-center justify-center rounded-full',
+        'motion-std focus-visible:outline-ring fixed bottom-8 right-8 z-10 flex size-14 items-center justify-center rounded-full lg:bottom-[88px]',
         'bg-[conic-gradient(from_200deg,var(--primary),var(--aurora-2),var(--accent-foreground),var(--aurora-1),var(--primary))]',
         'shadow-[var(--shadow-pop)] hover:brightness-[1.06] focus-visible:outline-2 focus-visible:outline-offset-2',
         className,

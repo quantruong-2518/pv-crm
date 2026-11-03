@@ -1,4 +1,4 @@
-import { useCallback, useSyncExternalStore } from 'react'
+import { useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { AiTaskTray, type AiTaskItem, type AiTaskStep } from '@pv/ui'
 import {
@@ -19,7 +19,6 @@ import {
   useCommAiJobs,
   useDismissFinishedCommAiJobs,
 } from '@/data/comm-ai-job'
-import { useAssistantShown } from '@/data/assistant-live'
 import { inlineLabel } from '@/data/lead-ai-fill'
 import {
   isActive,
@@ -32,6 +31,7 @@ import {
   usePressAiFill,
   useUndoAiJob,
 } from '@/data/lead-ai-job'
+import { useAiTraySlot } from '@/components/ai-tray-slot-store'
 import { router } from '@/routes'
 
 /** The one mounted AI task tray (ADR 0131 §8): the caller's fill jobs and
@@ -299,12 +299,7 @@ export function AiTaskTrayHost() {
   const jobs = useAiJobs()
   const open = useAiTray((s) => s.open)
   const setOpen = useAiTray((s) => s.setOpen)
-  const assistantShown = useAssistantShown()
-  /* The shell draws no round button on its own screen, so the tray keeps the corner there. */
-  const onAssistantPage = useSyncExternalStore(
-    router.subscribe,
-    () => router.state.location.pathname === '/assistant',
-  )
+  const slot = useAiTraySlot()
   const press = usePressAiFill()
   const undo = useUndoAiJob()
   const clear = useDismissFinishedAiJobs()
@@ -363,8 +358,7 @@ export function AiTaskTrayHost() {
       open={open}
       onOpenChange={setOpen}
       onClearDone={clearDone}
-      besideAssistant={assistantShown && !onAssistantPage}
-      aboveComposer={onAssistantPage}
+      slot={slot}
       copy={{
         title: t(message('Việc AI', 'AI tasks', 'AI 작업')),
         running: (n) => t(message(`${n} đang chạy`, `${n} running`, `${n}건 진행 중`)),

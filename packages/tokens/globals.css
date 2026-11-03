@@ -67,7 +67,6 @@
   --ring: #6f9bff; /* status-new — the focus ring tone */
 
   --radius: 0.375rem; /* 6px — panel */
-  --ai-tray-h: 0px; /* AiTaskTray writes its height here so toasts stack above it */
   --sticky-bar-clear: 0px; /* a form's sticky bar writes its distance from the screen bottom here */
 
   /* ---- text inside an already-tinted block ----

@@ -91,3 +91,33 @@ export function TrayPill({
     </button>
   )
 }
+
+/** The collapsed face in the header: the status tile and one number, so the
+ *  tray holds no page content while it waits. The full line is the tooltip. */
+export function TrayHeaderButton({
+  title,
+  headline,
+  count,
+  status,
+  onOpen,
+}: {
+  title: string
+  headline: string
+  count: number
+  status: Status
+  onOpen: () => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-expanded={false}
+      aria-label={`${title} · ${headline}`}
+      title={`${title} · ${headline}`}
+      onClick={onOpen}
+      className="motion-std hover:bg-surface-ink/8 focus-visible:outline-ring pointer-coarse:h-12 flex h-10 items-center gap-2 rounded-lg px-2 text-[13px] font-semibold focus-visible:outline-2 focus-visible:outline-offset-2"
+    >
+      <StatusTile status={status} />
+      <span className="tnum">{count}</span>
+    </button>
+  )
+}

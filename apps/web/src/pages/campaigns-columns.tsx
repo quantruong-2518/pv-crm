@@ -49,27 +49,27 @@ export function campaignColumns(
     { header: m('Trạng thái', 'Status', '상태'), width: COL.status },
     {
       header: m('Số người nhận', 'Recipients', '수신자'),
-      width: COL.status,
+      width: COL.count,
       align: 'right',
       sortKey: 'audienceCount',
     },
     {
       header: m('Số đợt đã gửi', 'Waves sent', '발송한 웨이브'),
-      width: COL.status,
+      width: COL.count,
       align: 'right',
       sortKey: 'waveCount',
     },
     {
       header: m('Số thư đã gửi', 'Emails sent', '발송한 이메일'),
-      width: COL.status,
+      width: COL.count,
       align: 'right',
     },
     {
       header: m('Tỉ lệ thư đến nơi', 'Delivery rate', '전달률'),
-      width: COL.status,
+      width: COL.count,
       align: 'right',
     },
-    { header: m('Tỉ lệ bấm link', 'Click rate', '클릭률'), width: COL.status, align: 'right' },
+    { header: m('Tỉ lệ bấm link', 'Click rate', '클릭률'), width: COL.count, align: 'right' },
     {
       header: m('Ngày tạo', 'Created', '생성일'),
       width: COL.date,
