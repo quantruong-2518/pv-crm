@@ -33,9 +33,10 @@ Breaking one of these is a PR reject.
    active state, countable on every screen. Brand text is always `#A9C1FF`.
 4. **Borderless.** `--border: transparent`. Edges read by shadow + 1px inset
    sheen. **Single exception**: the high-contrast variant for outdoor kiosk
-   tablets, 2px border.
+   tablets, 2px border. On the assistant screens the record card in an answer,
+   the "Đang xem" row and code chips carry a light inset hairline (`docs/decisions/0137-the-assistant-look-the-owner-chose-on-03-11.md` §4).
 5. **Corner radius**: card 6 · control 4 · tag 3 · `rounded-full` reserved for
-   status dots, avatars and the floating AI Assistant button only (FAB, 60px,
+   status dots, avatars and the floating AI Assistant button only (FAB, 56px,
    bottom right corner). Sứ sets radius per theme: 8 · 12 · 16 · 24 (`docs/decisions/0108-third-theme-porcelain.md` §3).
 6. **Type**: Be Vietnam Pro carries text, headings and numbers alike · JetBrains
    Mono carries code and object codes. Numbers are always `tabular-nums`. Labels
@@ -48,7 +49,8 @@ Breaking one of these is a PR reject.
 8. **Tables and long lists** always sit on `.glass-b`, never `.glass-a`.
 9. **AI never acts on its own.** Every AI block carries a `'Căn cứ: …'` line
    and waits for a confirm button. There is a `'Chưa tạo gì cả'` empty state
-   directly under the button.
+   directly under the button. The assistant's read-only answer is not such a
+   block: it proposes nothing, so it has no button (0137 §2).
 10. **ContextRail is mandatory on every screen** — a row of mono-code chips
     linking the objects of one story
     (`HĐ-2607 → SO-0891 → WO-1180 → PO-0455 → L-2608-042`). Azure chip = the
@@ -72,10 +74,12 @@ Breaking one of these is a PR reject.
     Finance) because those are product names; capabilities inside a branch are
     always in Vietnamese — Nhân sự · Tài liệu & quy trình · Công việc · Báo
     cáo · Hiệu suất thiết bị. Do not abbreviate HR, DMS, BI, OEE in the UI.
-15. **No AI slop**: the AI Assistant icon is `orbit` (never `sparkles`, never
-    `bot`). Number deltas use the Hugeicons `trending-up/down/minus` icons, never
+15. **No AI slop**: the AI mark is `AiMark` (a sparkle cluster, drawn bare,
+    owner 03/11, 0137 §1); the raw vendor names `Sparkles`, `Bot`, `Wand` stay
+    banned so every screen takes the one mark. Number deltas use the Hugeicons
+    `trending-up/down/minus` icons, never
     ▲▼▬. No emoji, no decorative gradient outside the background glow, the AI
-    block and the primary button ramp, no
+    block, the primary button ramp and the assistant button's halo (0137 §5), no
     rounded-card-with-left-border-accent. Sứ adds one place: the sheen on
     `.glass-a` only (`docs/decisions/0108-third-theme-porcelain.md` §5).
 16. **Object status is always a text pill**, never a naked color dot. Lead,

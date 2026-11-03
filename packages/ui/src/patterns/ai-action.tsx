@@ -17,8 +17,6 @@ import { cn } from '../lib/cn'
 export type AiActionProps = {
   /** đề xuất của trợ lý, một câu, có hệ quả rõ */
   suggestion: ReactNode
-  /** Who is speaking, set beside the tile (panel only), so the tile never stands alone on a row. */
-  title?: ReactNode
   /** dữ liệu trợ lý đã đọc để ra đề xuất — BẮT BUỘC */
   basis: string
   /** nhãn dòng căn cứ — đổi được cho màn tiếng Anh, ví dụ "Basis" */
@@ -51,7 +49,6 @@ function AiTile() {
 
 export function AiAction({
   suggestion,
-  title,
   basis,
   basisLabel = 'Căn cứ',
   empty,
@@ -76,14 +73,7 @@ export function AiAction({
       )}
     >
       <div className={variant === 'strip' ? 'flex items-center gap-3.5' : 'flex flex-col gap-3.5'}>
-        {title && variant === 'panel' ? (
-          <div className="flex items-center gap-3">
-            <AiTile />
-            <span className="text-foreground text-[13px] font-semibold">{title}</span>
-          </div>
-        ) : (
-          <AiTile />
-        )}
+        <AiTile />
 
         <div className="text-on-tint-primary flex-1 text-[13px] leading-[1.55]">
           {suggestion}

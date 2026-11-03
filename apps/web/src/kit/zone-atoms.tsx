@@ -548,12 +548,12 @@ export function ZoneAtoms() {
         <SpecCard
           code="A-20"
           name="AssistantFab"
-          note="60px · rounded-full"
+          note="56px · rounded-full"
           bodyClassName="flex items-center justify-center px-4 py-6"
           footer={
             <>
-              Một trong ba chỗ được dùng rounded-full (luật 5) · icon `orbit`, không `sparkles`,
-              không `bot` (luật 15).
+              Một trong ba chỗ được dùng rounded-full (luật 5) · đĩa trắng, icon AiMark 26 màu
+              chính, viền sáng 2px chuyển màu (chủ sản phẩm, 03/11 — ngoại lệ của luật 15).
               <br />
               AppShell chỉ vẽ nút này khi màn có truyền `onOpenAssistant`. Một nút nổi bấm không ra
               gì thì tệ hơn không có nút — nó hứa một màn chưa tồn tại, trên mọi màn.

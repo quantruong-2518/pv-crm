@@ -27,6 +27,7 @@ export type AnswerView = {
   suggestions: AssistantSuggestion[]
   unchecked: boolean
   step: LiveTurn['step']
+  past: LiveTurn['past']
   failure: TurnFailure | null
   /** The question it answers, so a failed answer can ask it again. */
   question: string
@@ -67,6 +68,7 @@ function liveAnswer(turn: LiveTurn): AnswerView {
     footer: turn.footer,
     suggestions: turn.suggestions,
     step: turn.step,
+    past: turn.past,
     failure: turn.failure,
     question: turn.question,
     live: true,
@@ -92,6 +94,7 @@ function savedAnswer(msg: AssistantMessage, question: string, extra?: LiveTurn):
     footer: msg.footer ?? extra?.footer ?? null,
     suggestions: extra?.suggestions ?? [],
     step: null,
+    past: [],
     failure: failed ? (extra?.failure ?? failureOfEnd(msg.endedBy)) : null,
     question,
     live: false,

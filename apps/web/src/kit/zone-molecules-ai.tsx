@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import {
+  type AiTaskItem,
   AiChoices,
   AiFieldConflict,
   AiFieldMark,
@@ -7,6 +8,7 @@ import {
   AiFillField,
   AiTaskSteps,
   AiTaskTray,
+  AssistantFab,
   Button,
   Input,
 } from '@pv/ui'
@@ -105,7 +107,7 @@ export function AiFillCards() {
         note="bấm là điền"
         noteAccent
         bodyClassName="flex flex-col gap-3 p-4"
-        footer="chỉ còn icon Orbit 20, chữ ở title và aria-label · busy = nền nhạt màu chính + chấm, bấm mở khay · disabledReason = một dòng dưới nút · tablet 48px"
+        footer="chỉ còn icon AiMark 20, chữ ở title và aria-label · busy = nền nhạt màu chính + chấm, bấm mở khay · disabledReason = một dòng dưới nút · tablet 48px"
       >
         <KitState>Sẵn sàng</KitState>
         <AiFillButton onClick={() => {}} />
@@ -158,7 +160,7 @@ export function AiFillCards() {
         name="AiFieldMark"
         note="ô do AI điền"
         bodyClassName="flex flex-col gap-4 p-4"
-        footer="text-accent-foreground 12px · Orbit 12 · nguồn có href thì mở tab mới · unsure = Badge warning"
+        footer="text-accent-foreground 12px · AiMark 12 · nguồn có href thì mở tab mới · unsure = Badge warning"
       >
         <KitField label="Mã số thuế" under={<AiFieldMark source="tra cứu mã số thuế" />}>
           <Input defaultValue="0123456789" className="h-11 font-mono text-[13px]" />
@@ -214,6 +216,85 @@ const DEMO_STEPS = [
   { label: 'Điền vào lead', state: 'wait' },
 ] as const
 
+const TRAY_COPY = {
+  title: 'Việc AI',
+  running: (n: number) => `${n} đang chạy`,
+  failed: (n: number) => `${n} lỗi`,
+  done: (n: number) => `${n} xong`,
+  clear: 'Xoá việc đã xong',
+  collapse: 'Thu gọn khay',
+  steps: (n: number) => `Xem ${n} bước`,
+  hideSteps: 'Ẩn các bước',
+  progress: 'Tiến độ',
+}
+
+const TRAY_TASKS: AiTaskItem[] = [
+  {
+    id: 'a',
+    kind: 'Điền thông tin lead',
+    title: 'Nhựa Tân Á',
+    status: 'running',
+    badge: 'Bước 3/5',
+    steps: [...DEMO_STEPS],
+  },
+  {
+    id: 'd',
+    kind: 'Báo cáo liên hệ',
+    title: 'Gọi Sao Đỏ · 10/08',
+    status: 'running',
+    badge: 'Bước 2/3',
+    steps: [
+      { label: 'Đọc ghi chú và tệp', state: 'done', note: '2,1 giây' },
+      { label: 'Nghe ghi âm', state: 'now', note: 'đang chạy' },
+      { label: 'Viết tóm tắt và biên bản', state: 'wait' },
+    ],
+  },
+  {
+    id: 'c',
+    kind: 'Điền thông tin lead',
+    title: 'DAS Vina',
+    status: 'failed',
+    badge: 'Lỗi',
+    summary: 'Chưa điền được. Thử lại sau ít phút.',
+    meta: 'Dừng ở bước 2/5',
+    actions: [
+      { label: 'Thử lại', onClick: () => {}, primary: true },
+      { label: 'Mở lead', onClick: () => {} },
+    ],
+  },
+  {
+    id: 'b',
+    kind: 'Điền thông tin lead',
+    title: 'Meiko Electronics Việt Nam',
+    status: 'done',
+    badge: 'Xong',
+    summary: 'Đã điền 6 ô, 2 ô chưa chắc.',
+    meta: '5 bước · 38 giây',
+    actions: [
+      { label: 'Mở lead', onClick: () => {}, primary: true },
+      { label: 'Hoàn tác', onClick: () => {} },
+    ],
+  },
+]
+
+/** The collapsed pill on its own row beside the round button, as the shell lays them out. */
+function BesideFab({ tasks }: { tasks: AiTaskItem[] }) {
+  return (
+    <div className="flex items-center justify-end gap-3">
+      <AiTaskTray
+        inline
+        besideAssistant
+        open={false}
+        onOpenChange={() => {}}
+        onClearDone={() => {}}
+        copy={TRAY_COPY}
+        tasks={tasks}
+      />
+      <AssistantFab className="static" />
+    </div>
+  )
+}
+
 export function AiTaskCards() {
   const [open, setOpen] = useState(true)
   return (
@@ -234,52 +315,24 @@ export function AiTaskCards() {
         code="O-12"
         name="AiTaskTray"
         note="khay việc AI"
-        bodyClassName="flex flex-col gap-4 p-4"
-        footer="góc dưới bên phải, nổi trên mọi màn, không có việc thì không hiện · việc xong ở lại tới khi xoá hoặc sau 24 giờ"
+        bodyClassName="grid grid-cols-[minmax(0,1fr)_minmax(0,440px)] items-start gap-4 p-4"
+        footer="thu gọn = một viên 48px cạnh nút Trợ lý, cùng hàng (còn việc chạy / chỉ có lỗi / xong hết) · mở ra = khay xếp trên nút · thẻ việc: loại việc, tên, nhãn trạng thái, thanh tiến độ, bước đang chạy và nút xem đủ các bước · việc xong ở lại tới khi xoá hoặc sau 24 giờ"
       >
+        <div className="flex flex-col gap-4">
+          <KitState>Thu gọn · còn việc đang chạy</KitState>
+          <BesideFab tasks={TRAY_TASKS} />
+          <KitState>Thu gọn · chỉ có lỗi</KitState>
+          <BesideFab tasks={TRAY_TASKS.filter((t) => t.status === 'failed')} />
+          <KitState>Thu gọn · tất cả đã xong</KitState>
+          <BesideFab tasks={TRAY_TASKS.filter((t) => t.status === 'done')} />
+        </div>
         <AiTaskTray
           inline
           open={open}
           onOpenChange={setOpen}
           onClearDone={() => {}}
-          copy={{
-            title: 'Việc AI',
-            running: (n) => `${n} đang chạy`,
-            failed: (n) => `${n} lỗi`,
-            done: (n) => `${n} xong`,
-            clear: 'Xoá việc đã xong',
-            collapse: 'Thu gọn khay',
-          }}
-          tasks={[
-            {
-              id: 'a',
-              title: 'Điền hồ sơ · DAS Vina',
-              status: 'running',
-              badge: 'Bước 3/5',
-              steps: [...DEMO_STEPS],
-            },
-            {
-              id: 'c',
-              title: 'Điền hồ sơ · An Phú Điện Tử',
-              status: 'failed',
-              badge: 'Lỗi',
-              steps: [{ label: 'Bước 2/5 · Tìm thông tin trên web', state: 'fail', note: 'lỗi' }],
-              summary: 'Chưa điền gì. Dịch vụ tìm kiếm không trả lời.',
-              actions: [{ label: 'Thử lại', onClick: () => {}, primary: true }],
-            },
-            {
-              id: 'b',
-              title: 'Điền hồ sơ · Bán Dẫn Sao Mai',
-              status: 'done',
-              badge: 'Xong',
-              summary: 'Đã điền 7 ô, 2 ô chưa chắc. Không tìm thấy chức danh.',
-              meta: '5 bước · 11 giây',
-              actions: [
-                { label: 'Mở lead', onClick: () => {}, primary: true },
-                { label: 'Hoàn tác', onClick: () => {} },
-              ],
-            },
-          ]}
+          copy={TRAY_COPY}
+          tasks={TRAY_TASKS}
         />
       </SpecCard>
     </>

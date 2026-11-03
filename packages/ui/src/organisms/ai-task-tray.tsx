@@ -1,93 +1,20 @@
 import { useLayoutEffect, useRef } from 'react'
-import { Check, ChevronDown, CircleAlert, Loader, Orbit, X } from '../icons'
-import { Badge } from '../ui/badge'
+import { ChevronDown } from '../icons'
 import { Button } from '../ui/button'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
+import { AiTaskCard, type AiTaskCardCopy, type AiTaskItem } from './ai-task-card'
+import { StatusTile, TrayPill, overallStatus } from './ai-task-pill'
 
-/** M-27 · AiTaskSteps and O-12 · AiTaskTray — background AI work, in the corner.
+/** O-12 · AiTaskTray — background AI work, in the corner.
  *
  *  The press only queues a job; this tray is where its five steps are watched
  *  and where Undo waits on a finished one. The screen maps its rows onto
  *  `AiTaskItem`, so the kit knows nothing about leads or the queue. */
 
-export type AiTaskStepState = 'done' | 'now' | 'wait' | 'fail'
-
-export type AiTaskStep = {
-  label: string
-  state: AiTaskStepState
-  /** Elapsed time on a finished step, or a short state word. */
-  note?: string
-}
-
-const STEP_SR: Record<AiTaskStepState, string> = {
-  done: 'xong',
-  now: 'đang chạy',
-  wait: 'chờ',
-  fail: 'lỗi',
-}
-
-const STEP_TEXT: Record<AiTaskStepState, string> = {
-  done: 'text-muted-foreground',
-  now: 'text-foreground font-semibold',
-  wait: 'text-glass-foreground',
-  fail: 'text-destructive-foreground',
-}
-
-function StepMark({ state }: { state: AiTaskStepState }) {
-  if (state === 'done') return <Icon icon={Check} className="text-success" />
-  if (state === 'fail') return <Icon icon={X} />
-  if (state === 'now')
-    return <Icon icon={Loader} className="text-primary motion-safe:animate-spin" />
-  return <span aria-hidden className="mx-1 size-3 rounded-full ring-[1.75px] ring-current" />
-}
-
-export function AiTaskSteps({ steps }: { steps: AiTaskStep[] }) {
-  return (
-    <ol className="flex flex-col gap-2">
-      {steps.map((s) => (
-        <li
-          key={s.label}
-          aria-current={s.state === 'now' ? 'step' : undefined}
-          className={cn(
-            'grid grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-2 text-[13px] leading-5',
-            STEP_TEXT[s.state],
-          )}
-        >
-          <StepMark state={s.state} />
-          <span>
-            {s.label}
-            <span className="sr-only"> · {STEP_SR[s.state]}</span>
-          </span>
-          <span className="text-glass-foreground tnum text-[12px]">{s.note}</span>
-        </li>
-      ))}
-    </ol>
-  )
-}
-
-export type AiTaskAction = {
-  label: string
-  onClick: () => void
-  primary?: boolean
-  busy?: boolean
-}
-
-export type AiTaskItem = {
-  id: string
-  title: string
-  status: 'running' | 'done' | 'failed'
-  /** Short state pill text, e.g. the step counter or Done. */
-  badge: string
-  steps?: AiTaskStep[]
-  /** One plain sentence under the title once the job has ended. */
-  summary?: string
-  /** Right-aligned beside the actions: step count and total time. */
-  meta?: string
-  actions?: AiTaskAction[]
-}
-
-const BADGE_TONE = { running: 'running', done: 'success', failed: 'danger' } as const
+export { AiTaskSteps } from './ai-task-steps'
+export type { AiTaskStep, AiTaskStepState } from './ai-task-steps'
+export type { AiTaskAction, AiTaskItem } from './ai-task-card'
 
 export type AiTaskTrayProps = {
   tasks: AiTaskItem[]
@@ -96,10 +23,13 @@ export type AiTaskTrayProps = {
   onClearDone: () => void
   /** Drop the fixed corner placement (theme kit only). */
   inline?: boolean
-  /** The round assistant button holds the corner from `lg`: stack above it, not on it. */
-  aboveAssistant?: boolean
-  /** Wording the screen owns: pill, header and the clear button. */
-  copy: {
+  /** The round assistant button holds the corner from `lg`: the pill goes to its
+   *  left on the same row, the open tray stacks above it. */
+  besideAssistant?: boolean
+  /** A screen docks its own box at the bottom (the assistant page): lift clear of it. */
+  aboveComposer?: boolean
+  /** Wording the screen owns: pill, header, the cards and the clear button. */
+  copy: AiTaskCardCopy & {
     title: string
     running: (n: number) => string
     failed: (n: number) => string
@@ -109,40 +39,18 @@ export type AiTaskTrayProps = {
   }
 }
 
-function TaskRow({ task }: { task: AiTaskItem }) {
-  return (
-    <li className="flex flex-col gap-3 px-4 py-4">
-      <div className="flex items-center gap-2">
-        <span className="flex-1 text-[14px] font-semibold">{task.title}</span>
-        <Badge tone={BADGE_TONE[task.status]}>{task.badge}</Badge>
-      </div>
-      {task.steps && <AiTaskSteps steps={task.steps} />}
-      {task.summary && <span className="text-muted-foreground text-[13px]">{task.summary}</span>}
-      {(task.actions?.length || task.meta) && (
-        <div className="flex flex-wrap items-center gap-2">
-          {task.actions?.map((a) => (
-            <Button
-              key={a.label}
-              size="sm"
-              className="pointer-coarse:h-12"
-              variant={a.primary ? 'secondary' : 'ghost'}
-              onClick={a.busy ? undefined : a.onClick}
-              aria-busy={a.busy || undefined}
-            >
-              {a.label}
-            </Button>
-          ))}
-          {task.meta && (
-            <span className="text-glass-foreground tnum ml-auto text-[12px]">{task.meta}</span>
-          )}
-        </div>
-      )}
-    </li>
-  )
-}
-
 /** Height of the open tray, published so the toast row can stack above it. */
 const TRAY_HEIGHT_VAR = '--ai-tray-h'
+
+/* The button is 56px at 32px from the corner. The pill centres on it (36 = 32 + (56 - 48) / 2)
+   and sits 12px left of it (100 = 32 + 56 + 12); the open tray clears it with 20px of air. */
+const CORNER = {
+  base: 'fixed bottom-[max(calc(84px+env(safe-area-inset-bottom)+16px),var(--sticky-bar-clear,0px))] right-4 z-[45]',
+  pillAlone: 'lg:bottom-[max(24px,var(--sticky-bar-clear,0px))] lg:right-4',
+  lifted: 'lg:bottom-[max(120px,var(--sticky-bar-clear,0px))] lg:right-4',
+  pillBeside: 'lg:bottom-[max(36px,var(--sticky-bar-clear,0px))] lg:right-[100px]',
+  openBeside: 'lg:bottom-[max(108px,var(--sticky-bar-clear,0px))] lg:right-8',
+}
 
 /** O-12 · AiTaskTray — bottom right, above every screen, absent with no jobs. */
 export function AiTaskTray({
@@ -151,7 +59,8 @@ export function AiTaskTray({
   onOpenChange,
   onClearDone,
   inline = false,
-  aboveAssistant = false,
+  besideAssistant = false,
+  aboveComposer = false,
   copy,
 }: AiTaskTrayProps) {
   const box = useRef<HTMLDivElement>(null)
@@ -175,39 +84,38 @@ export function AiTaskTray({
   const running = tasks.filter((t) => t.status === 'running').length
   const failed = tasks.filter((t) => t.status === 'failed').length
   const ended = tasks.length - running - failed
-  /* Running outranks failed outranks done: a failure must not read as finished. */
+  const status = overallStatus(running, failed)
   const headline =
-    running > 0 ? copy.running(running) : failed > 0 ? copy.failed(failed) : copy.done(ended)
-  const lead = running > 0 ? Orbit : failed > 0 ? CircleAlert : Check
-  /* Under overlays (50) like ActionBanner, over the nav (40). */
-  const corner = inline
-    ? ''
-    : cn(
-        'fixed bottom-[max(calc(84px+env(safe-area-inset-bottom)+16px),var(--sticky-bar-clear,0px))] right-4 z-[45]',
-        /* The button is 60px at 32px from the corner; 16px of air above it. */
-        aboveAssistant
-          ? 'lg:bottom-[max(108px,var(--sticky-bar-clear,0px))] lg:right-8'
-          : 'lg:bottom-[max(24px,var(--sticky-bar-clear,0px))] lg:right-4',
-      )
+    status === 'running'
+      ? copy.running(running)
+      : status === 'failed'
+        ? copy.failed(failed)
+        : copy.done(ended)
+  const summary = [
+    running > 0 && copy.running(running),
+    failed > 0 && copy.failed(failed),
+    ended > 0 && copy.done(ended),
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+  const alone = aboveComposer ? CORNER.lifted : CORNER.pillAlone
 
   if (!open) {
+    /* Under overlays (50) like ActionBanner, over the nav (40). */
+    const corner = inline ? '' : cn(CORNER.base, besideAssistant ? CORNER.pillBeside : alone)
     return (
       <div ref={box} className={cn('pointer-events-none', corner)}>
-        <button
-          type="button"
-          aria-expanded={false}
-          onClick={() => onOpenChange(true)}
-          className="glass-overlay pointer-events-auto flex min-h-12 items-center gap-3 rounded-lg px-4 py-2 text-[13px]"
-        >
-          <Icon icon={lead} />
-          <span className="flex-1 text-left font-semibold">{headline}</span>
-          {running > 0 && ended + failed > 0 && (
-            <span className="text-glass-foreground">
-              · {failed > 0 ? copy.failed(failed) : copy.done(ended)}
-            </span>
-          )}
-          <Icon icon={ChevronDown} className="rotate-180" />
-        </button>
+        <TrayPill
+          tasks={tasks}
+          title={copy.title}
+          headline={headline}
+          running={running}
+          failed={failed}
+          failedLabel={copy.failed(failed)}
+          endedLabel={ended > 0 && status !== 'done' ? copy.done(ended) : undefined}
+          onOpen={() => onOpenChange(true)}
+        />
       </div>
     )
   }
@@ -217,17 +125,18 @@ export function AiTaskTray({
       ref={box}
       aria-label={copy.title}
       className={cn(
-        'glass-overlay flex max-h-[min(640px,calc(100dvh-160px-var(--sticky-bar-clear,0px)))] w-[min(400px,calc(100vw-32px))] flex-col overflow-hidden rounded-lg',
-        aboveAssistant && 'lg:max-h-[min(640px,calc(100dvh-240px-var(--sticky-bar-clear,0px)))]',
-        corner,
+        'glass-overlay porcelain:rounded-2xl flex max-h-[min(640px,calc(100dvh-160px-var(--sticky-bar-clear,0px)))] w-[min(440px,calc(100vw-32px))] flex-col overflow-hidden rounded-lg',
+        (besideAssistant || aboveComposer) &&
+          'lg:max-h-[min(640px,calc(100dvh-240px-var(--sticky-bar-clear,0px)))]',
+        !inline && cn(CORNER.base, besideAssistant ? CORNER.openBeside : alone),
       )}
     >
-      <div className="flex items-center gap-2 px-4 py-3">
-        <Icon icon={Orbit} />
-        <h2 className="flex-1 text-[15px] font-semibold">
-          {copy.title}{' '}
-          <span className="text-glass-foreground text-[13px] font-normal">· {headline}</span>
-        </h2>
+      <div className="flex items-center gap-3 py-3 pl-4 pr-3">
+        <StatusTile status={status} />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <h2 className="text-[15px] font-bold leading-5">{copy.title}</h2>
+          <span className="text-muted-foreground text-[12px] leading-4">{summary}</span>
+        </div>
         {ended + failed > 0 && (
           <Button size="sm" variant="ghost" className="pointer-coarse:h-12" onClick={onClearDone}>
             {copy.clear}
@@ -244,9 +153,9 @@ export function AiTaskTray({
           <Icon icon={ChevronDown} />
         </Button>
       </div>
-      <ul className="flex flex-col overflow-y-auto">
+      <ul className="flex flex-col gap-2 overflow-y-auto px-3 pb-3">
         {tasks.map((t) => (
-          <TaskRow key={t.id} task={t} />
+          <AiTaskCard key={t.id} task={t} copy={copy} />
         ))}
       </ul>
     </aside>

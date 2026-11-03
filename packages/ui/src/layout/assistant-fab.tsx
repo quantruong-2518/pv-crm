@@ -1,11 +1,13 @@
-import { Orbit } from '../icons'
+import { AiMark } from '../icons'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
 
-/** Nút Trợ lý AI nổi — 60px, góc phải dưới.
- *  Một trong ba chỗ được dùng rounded-full (luật 5 · docs/design-system/laws.md),
- *  hai chỗ kia là StatusDot và Avatar.
- *  Icon `orbit`: One ở tâm, bốn nhánh quay quanh — không `sparkles`, không `bot`. */
+/** Floating AI Assistant button — a 56px disc in the bottom-right corner.
+ *  One of the three places allowed `rounded-full` (law 5), with StatusDot and Avatar.
+ *
+ *  Owner, 03/11: the conic halo is a gradient outside the places law 15 allows.
+ *  It is the outer 56px disc showing 2px around a 52px inner disc: no padding and no
+ *  border, so laws 4 and 7 stay untouched. */
 export function AssistantFab({
   onClick,
   label = 'Mở Trợ lý AI',
@@ -21,13 +23,15 @@ export function AssistantFab({
       onClick={onClick}
       aria-label={label}
       className={cn(
-        'motion-std fixed bottom-8 right-8 z-10 flex size-[60px] items-center justify-center rounded-full',
-        'text-primary-foreground bg-[linear-gradient(135deg,var(--primary),var(--brand-blue))]',
-        'shadow-[var(--shadow-primary),inset_0_1px_0_var(--sheen-ai)] hover:brightness-[1.12]',
+        'motion-std focus-visible:outline-ring fixed bottom-8 right-8 z-10 flex size-14 items-center justify-center rounded-full',
+        'bg-[conic-gradient(from_200deg,var(--primary),var(--aurora-2),var(--accent-foreground),var(--aurora-1),var(--primary))]',
+        'shadow-[var(--shadow-pop)] hover:brightness-[1.06] focus-visible:outline-2 focus-visible:outline-offset-2',
         className,
       )}
     >
-      <Icon icon={Orbit} size={24} strokeWidth={1.9} />
+      <span className="bg-primary-foreground text-primary flex size-[52px] items-center justify-center rounded-full">
+        <Icon icon={AiMark} size={26} />
+      </span>
     </button>
   )
 }

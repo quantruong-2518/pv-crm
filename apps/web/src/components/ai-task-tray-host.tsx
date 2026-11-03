@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useSyncExternalStore } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { AiTaskTray, type AiTaskItem, type AiTaskStep } from '@pv/ui'
 import {
@@ -59,6 +59,9 @@ const FILL_FAILED = message(
   '자동 입력하지 못했습니다. 잠시 후 다시 시도하세요.',
 )
 
+const LEAD_KIND = message('Điền thông tin lead', 'Fill in lead details', '리드 정보 입력')
+const COMM_KIND = message('Báo cáo liên hệ', 'Contact report', '연락 보고서')
+
 const TOTAL = LEAD_AI_JOB_STEPS.length
 const COMM_TOTAL = COMM_AI_JOB_STEPS.length
 
@@ -100,6 +103,17 @@ function elapsed(job: Moving) {
       `${job.step} bước · ${time}`,
       `${job.step} ${job.step === 1 ? 'step' : 'steps'} · ${time}`,
       `${job.step}단계 · ${time}`,
+    ),
+  )
+}
+
+function stoppedAt(job: Moving, total: number) {
+  const at = Math.min(job.step + 1, total)
+  return translate(
+    message(
+      `Dừng ở bước ${at}/${total}`,
+      `Stopped at step ${at}/${total}`,
+      `${at}/${total}단계에서 멈췄어요`,
     ),
   )
 }
@@ -163,13 +177,8 @@ type Doors = {
 }
 
 function itemOf(job: LeadAiJob, doors: Doors): AiTaskItem {
-  const title = translate(
-    message(
-      `Điền hồ sơ · ${job.leadName}`,
-      `Fill profile · ${job.leadName}`,
-      `프로필 입력 · ${job.leadName}`,
-    ),
-  )
+  const title = job.leadName
+  const kind = translate(LEAD_KIND)
   const open = {
     label: translate(message('Mở lead', 'Open lead', '리드 열기')),
     onClick: () => doors.openLead(job.leadCode),
@@ -179,52 +188,41 @@ function itemOf(job: LeadAiJob, doors: Doors): AiTaskItem {
     return {
       id: job.id,
       title,
+      kind,
       status: 'running',
       badge: runningBadge(job, TOTAL),
       steps: stepsOf(job, LEAD_AI_JOB_STEPS, STEP_LABEL),
     }
   }
   if (job.state === 'FAILED') {
-    const at = Math.min(job.step, TOTAL - 1)
-    const key = LEAD_AI_JOB_STEPS[at] ?? 'write'
     const retryable = job.errorKind === 'busy' || job.errorKind === 'failed'
     return {
       id: job.id,
       title,
+      kind,
       status: 'failed',
       badge: translate(message('Lỗi', 'Error', '오류')),
-      /* Refused before any step (route off, limit): no step to blame. */
-      steps: retryable
-        ? [
-            {
-              label: translate(
-                message(
-                  `Bước ${at + 1}/${TOTAL} · ${STEP_LABEL[key].vi}`,
-                  `Step ${at + 1}/${TOTAL} · ${STEP_LABEL[key].en}`,
-                  `${at + 1}/${TOTAL}단계 · ${STEP_LABEL[key].ko}`,
-                ),
-              ),
-              state: 'fail',
-              note: translate(message('lỗi', 'error', '오류')),
-            },
-          ]
-        : undefined,
       summary: job.error ?? translate(FILL_FAILED),
-      actions: retryable
-        ? [
-            {
-              label: translate(message('Thử lại', 'Retry', '다시 시도')),
-              onClick: () => doors.retry(job.leadCode),
-              primary: true,
-              busy: doors.retrying(job.leadCode),
-            },
-          ]
-        : [],
+      /* Refused before any step (route off, limit): no step to blame. */
+      meta: retryable ? stoppedAt(job, TOTAL) : undefined,
+      actions: [
+        ...(retryable
+          ? [
+              {
+                label: translate(message('Thử lại', 'Retry', '다시 시도')),
+                onClick: () => doors.retry(job.leadCode),
+                primary: true,
+                busy: doors.retrying(job.leadCode),
+              },
+            ]
+          : []),
+        { ...open, primary: false },
+      ],
     }
   }
   if (job.undoneAt) {
     const badge = translate(message('Đã hoàn tác', 'Undone', '실행 취소됨'))
-    return { id: job.id, title, status: 'done', badge, actions: [open] }
+    return { id: job.id, title, kind, status: 'done', badge, actions: [open] }
   }
   const undo = job.canUndo
     ? [
@@ -238,6 +236,7 @@ function itemOf(job: LeadAiJob, doors: Doors): AiTaskItem {
   return {
     id: job.id,
     title,
+    kind,
     status: 'done',
     badge: translate(message('Xong', 'Done', '완료')),
     summary: job.result ? summaryOf(job.result) : undefined,
@@ -250,13 +249,9 @@ function itemOf(job: LeadAiJob, doors: Doors): AiTaskItem {
 function commItemOf(job: CommAiJob, openComm: (id: string) => void): AiTaskItem {
   const base = {
     id: job.id,
-    title: translate(
-      message(
-        `Tóm tắt và biên bản · ${job.subjectCode}`,
-        `Summary and minutes · ${job.subjectCode}`,
-        `요약 및 회의록 · ${job.subjectCode}`,
-      ),
-    ),
+    title: job.subjectCode,
+    titleMono: true,
+    kind: translate(COMM_KIND),
   }
   if (isCommJobActive(job)) {
     return {
@@ -279,6 +274,7 @@ function commItemOf(job: CommAiJob, openComm: (id: string) => void): AiTaskItem 
         status: 'failed',
         badge: translate(message('Lỗi', 'Error', '오류')),
         summary: job.error ?? translate(COMM_AI_JOB_FAILED),
+        meta: stoppedAt(job, COMM_TOTAL),
         actions,
       }
     : {
@@ -304,6 +300,11 @@ export function AiTaskTrayHost() {
   const open = useAiTray((s) => s.open)
   const setOpen = useAiTray((s) => s.setOpen)
   const assistantShown = useAssistantShown()
+  /* The shell draws no round button on its own screen, so the tray keeps the corner there. */
+  const onAssistantPage = useSyncExternalStore(
+    router.subscribe,
+    () => router.state.location.pathname === '/assistant',
+  )
   const press = usePressAiFill()
   const undo = useUndoAiJob()
   const clear = useDismissFinishedAiJobs()
@@ -362,7 +363,8 @@ export function AiTaskTrayHost() {
       open={open}
       onOpenChange={setOpen}
       onClearDone={clearDone}
-      aboveAssistant={assistantShown}
+      besideAssistant={assistantShown && !onAssistantPage}
+      aboveComposer={onAssistantPage}
       copy={{
         title: t(message('Việc AI', 'AI tasks', 'AI 작업')),
         running: (n) => t(message(`${n} đang chạy`, `${n} running`, `${n}건 진행 중`)),
@@ -370,6 +372,9 @@ export function AiTaskTrayHost() {
         done: (n) => t(message(`${n} xong`, `${n} done`, `${n}건 완료`)),
         clear: t(message('Xoá việc đã xong', 'Clear finished tasks', '완료된 작업 지우기')),
         collapse: t(message('Thu gọn khay', 'Collapse tray', '트레이 접기')),
+        steps: (n) => t(message(`Xem ${n} bước`, `Show ${n} steps`, `${n}단계 보기`)),
+        hideSteps: t(message('Ẩn các bước', 'Hide steps', '단계 숨기기')),
+        progress: t(message('Tiến độ', 'Progress', '진행률')),
       }}
     />
   )

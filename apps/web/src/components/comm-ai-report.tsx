@@ -1,5 +1,5 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
-import { AiAction, AiChoices, Button, Checkbox, Icon, Orbit, RotateCcw, Textarea } from '@pv/ui'
+import { AiAction, AiChoices, AiMark, Button, Checkbox, Icon, RotateCcw, Textarea } from '@pv/ui'
 import type { CommAiPart, CommVocabularyResponse, StepOptionsResponse } from '@pv/contracts'
 import { message, useI18n } from '@/app/i18n'
 import { dm } from '@/lib/date'
@@ -45,7 +45,7 @@ function AskButton({
       disabled={ai.asking !== null || (ai.needsNotice && !ai.notice)}
       onClick={() => ai.ask(part, note)}
     >
-      <Icon icon={Orbit} size={16} />
+      <Icon icon={AiMark} size={16} />
       {ai.asking === part ? t(message('Đang tạo…', 'Generating…', '생성 중…')) : children}
     </Button>
   )

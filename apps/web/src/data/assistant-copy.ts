@@ -33,10 +33,26 @@ export const ASSISTANT_COPY = {
   ),
   question: m('Câu hỏi', 'Question', '질문'),
   send: m('Gửi', 'Send', '보내기'),
-  tryAsking: m('Hỏi thử một câu', 'Try asking', '이렇게 물어보세요'),
+  tryAsking: m('Câu hỏi đề xuất', 'Suggested questions', '추천 질문'),
+  hint: m(
+    'Hỏi về khách, cơ hội, hợp đồng của bạn.',
+    'Ask about your customers, opportunities and contracts.',
+    '내 고객, 영업 기회, 계약에 대해 물어보세요.',
+  ),
+  viewing: m('Đang xem', 'Viewing', '보는 중'),
+  askAboutThis: m('Hỏi về hồ sơ này', 'Ask about this record', '이 기록에 대해 묻기'),
+  untitled: m('Chưa đặt tên', 'Untitled', '제목 없음'),
+  recent: m('Gần đây', 'Recent', '최근'),
+  seeAll: m('Xem tất cả', 'See all', '모두 보기'),
+  askNext: m('Hỏi tiếp', 'Ask next', '이어서 묻기'),
+  keys: m(
+    'Enter để gửi · Shift + Enter để xuống dòng',
+    'Enter to send · Shift + Enter for a new line',
+    'Enter로 보내기 · Shift + Enter로 줄 바꿈',
+  ),
+  value: m('Giá trị', 'Value', '금액'),
   aiLabel: m('Trợ lý trả lời', 'Assistant answer', '도우미 답변'),
   basisLabel: m('Căn cứ', 'Based on', '근거'),
-  readOnly: m('Chưa thay đổi gì cả.', 'Nothing was changed.', '아무것도 바꾸지 않았습니다.'),
   copy: m('Sao chép', 'Copy', '복사'),
   copied: m('Đã sao chép câu trả lời', 'Answer copied', '답변을 복사했습니다'),
   copyFailed: m('Không sao chép được', 'Could not copy', '복사하지 못했습니다'),
@@ -46,7 +62,7 @@ export const ASSISTANT_COPY = {
   reported: m('Đã gửi báo sai', 'Report sent', '신고를 보냈습니다'),
   cancel: m('Huỷ', 'Cancel', '취소'),
   withheld: m('Không còn quyền xem', 'You no longer have access', '더 이상 볼 권한이 없습니다'),
-  stop: m('Dừng', 'Stop', '중지'),
+  stop: m('Dừng trả lời', 'Stop answering', '답변 중지'),
   stopFailed: m(
     'Chưa dừng được. Thử lại.',
     'Could not stop. Try again.',
@@ -75,6 +91,28 @@ export const ASSISTANT_COPY = {
   ),
 } as const
 
+export const greeting = (name: string, lang: Lang) =>
+  translate(m(`Chào ${name}`, `Hi ${name}`, `${name}님, 안녕하세요`), lang)
+
+/** The text a press on "Ask about this record" sends. */
+export const aboutQuestion = (code: string, lang: Lang) =>
+  translate(
+    m(`${code} đang thế nào?`, `How is ${code} doing?`, `${code}은(는) 어떻게 되고 있나요?`),
+    lang,
+  )
+
+export const askingAbout = (code: string, lang: Lang) =>
+  translate(m(`Hỏi về ${code}`, `Asking about ${code}`, `${code}에 대해 묻기`), lang)
+
+export const dropSubject = (code: string, lang: Lang) =>
+  translate(
+    m(`Bỏ hồ sơ đang hỏi: ${code}`, `Stop asking about ${code}`, `${code}에 대한 질문 해제`),
+    lang,
+  )
+
+export const questionCount = (n: number, lang: Lang) =>
+  translate(m(`${n} câu hỏi`, `Questions: ${n}`, `질문 ${n}개`), lang)
+
 export const openLabel = (code: string, lang: Lang) =>
   translate(m(`Mở ${code}`, `Open ${code}`, `${code} 열기`), lang)
 
@@ -89,6 +127,16 @@ const LOOKING = m('Đang tra dữ liệu…', 'Looking up data…', '데이터 �
 
 export const stepLabel = (tool: string | undefined, lang: Lang) =>
   translate(tool ? (STEP[tool] ?? LOOKING) : WRITING, lang)
+
+/** Past tense of the same steps, for the rounds already finished. */
+const DONE: Record<string, Message> = {
+  search_records: m('Đã tìm hồ sơ', 'Searched records', '기록 검색함'),
+  get_record: m('Đã mở hồ sơ', 'Opened the record', '기록 열었음'),
+  list_my_work: m('Đã xem việc của bạn', 'Checked your work', '내 업무 확인함'),
+}
+const LOOKED = m('Đã tra dữ liệu', 'Looked up data', '데이터 조회함')
+
+export const doneStepLabel = (tool: string, lang: Lang) => translate(DONE[tool] ?? LOOKED, lang)
 
 /** The server cuts a phone or mail the reader may not see to this marker (ADR 0136 §3). */
 const CONTACT_HIDDEN = m('[liên hệ bị ẩn]', '[contact hidden]', '[연락처 숨김]')
@@ -139,7 +187,7 @@ const KIND_COPY: Record<ReadKind, Message> = {
   'next-step': m('việc tiếp theo', 'next steps', '다음 할 일'),
 }
 
-const clock = (at: string, lang: Lang) =>
+export const clock = (at: string, lang: Lang) =>
   formatDate(at, lang, { hour: '2-digit', minute: '2-digit', hour12: false })
 
 /** "read 12 leads, 3 contracts · as of 09:42" — lower case, it follows the basis label. */
@@ -164,6 +212,29 @@ export const dayMonth = (at: string, lang: Lang) =>
   ['day', 'month']
     .map((part) => formatDate(at, lang, { [part]: '2-digit' }))
     .join(lang === 'ko' ? '.' : '/')
+
+/** Sidebar meta: the time today, the weekday and time this week, otherwise day/month and time. */
+export function sessionWhen(at: string, lang: Lang, now = new Date()): string {
+  const time = clock(at, lang)
+  const then = new Date(at)
+  if (sameDay(then, now)) return time
+  const days = (now.getTime() - then.getTime()) / 86_400_000
+  const day = days < 7 ? formatDate(at, lang, { weekday: 'long' }) : dayMonth(at, lang)
+  return `${day} · ${time}`
+}
+
+export type SessionGroup = 'pinned' | 'today' | 'week' | 'older'
+
+/** The sidebar group of a chat: pinned first, then by how long ago it was last opened. */
+export function sessionGroup(
+  session: { pinned: boolean; lastOpenedAt: string },
+  now = new Date(),
+): SessionGroup {
+  if (session.pinned) return 'pinned'
+  const then = new Date(session.lastOpenedAt)
+  if (sameDay(then, now)) return 'today'
+  return now.getTime() - then.getTime() < 7 * 86_400_000 ? 'week' : 'older'
+}
 
 /** The day joins the time once the figures are not from today. */
 export const asOf = (at: string, lang: Lang) => {

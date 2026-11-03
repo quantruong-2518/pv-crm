@@ -1,5 +1,5 @@
 import { useId, useLayoutEffect, useRef, type ReactNode } from 'react'
-import { Orbit } from '../icons'
+import { AiMark } from '../icons'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { Icon } from '../ui/icon'
@@ -57,7 +57,7 @@ export function AiFillButton({
         aria-describedby={disabledReason ? reasonId : undefined}
         onClick={onClick}
       >
-        <Icon icon={Orbit} size={20} />
+        <Icon icon={AiMark} size={20} />
         {busy && (
           <span aria-hidden className="bg-primary absolute right-1.5 top-1.5 size-2 rounded-full" />
         )}
@@ -141,7 +141,7 @@ export function AiFieldMark({ source, sourceHref, unsure, className }: AiFieldMa
         className,
       )}
     >
-      <Icon icon={Orbit} size={12} />
+      <Icon icon={AiMark} size={12} />
       <span>AI điền ·</span>
       {sourceHref ? (
         <a

@@ -100,7 +100,7 @@ export function AppShell({
 
       {/* Nút Trợ lý nổi CHỈ khi có người nhận cú bấm.
           Màn 04 · Trợ lý AI chưa dựng, nên trên phần lớn màn `onOpenAssistant`
-          còn trống. Một nút 60px sáng azure ở góc phải dưới mà bấm không ra gì
+          còn trống. Một nút tròn 56px ở góc phải dưới mà bấm không ra gì
           tệ hơn hẳn việc không có nút: nó hứa một màn không tồn tại, và nó hứa
           trên MỌI màn. Có màn rồi thì màn truyền hàm vào, nút tự hiện lại. */}
       {onOpenAssistant && !hideAssistantFab ? (

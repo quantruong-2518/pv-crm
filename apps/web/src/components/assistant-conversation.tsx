@@ -1,21 +1,19 @@
-import { useEffect, useRef, type FormEvent, type KeyboardEvent } from 'react'
+import { useEffect, useRef, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
 import {
-  ArrowRight,
+  ArrowUpLong,
   Button,
   ContextRail,
   Icon,
-  MessageCircle,
-  Send,
   Skeleton,
   Textarea,
   TriangleAlert,
+  X,
   cn,
 } from '@pv/ui'
 import { AssistantQuestion, type AssistantSubject } from '@pv/contracts'
-import { useSession } from '@/app/auth'
 import { useI18n } from '@/app/i18n'
 import { refPath } from '@/data/assistant'
-import { ASSISTANT_COPY as C, sampleQuestions } from '@/data/assistant-copy'
+import { ASSISTANT_COPY as C, askingAbout, dropSubject } from '@/data/assistant-copy'
 import { composerId, focusComposer, setDraft, useAssistantLive } from '@/data/assistant-live'
 import type { Conversation } from '@/data/assistant-conversation'
 import { railOf } from '@/data/assistant-thread'
@@ -27,7 +25,7 @@ import { AssistantAnswer } from './assistant-answer'
  *
  *  Thread and composer are two pieces because the panel docks the composer in
  *  its footer; `useConversation` (`data/assistant-conversation.ts`) runs once
- *  in the parent and feeds both. */
+ *  in the parent and feeds both. The empty state is the caller's (`empty`). */
 
 const TOUCH = 'pointer-coarse:h-12'
 const QUESTION_MAX = AssistantQuestion.maxLength ?? undefined
@@ -65,6 +63,7 @@ export function AssistantThread({
   openPath,
   onNewChat,
   endClassName,
+  empty,
 }: {
   convo: Conversation
   subject?: AssistantSubject
@@ -72,6 +71,8 @@ export function AssistantThread({
   onNewChat: () => void
   /** Scroll margin of the end marker, for a box docked over the thread's foot. */
   endClassName?: string
+  /** Drawn while the chat has no message yet. */
+  empty: ReactNode
 }) {
   const { t } = useI18n()
   const { detail, items, busy, ask } = convo
@@ -99,13 +100,14 @@ export function AssistantThread({
       </div>
     )
   }
-  if (!items.length) return <Samples convo={convo} />
+  if (!items.length) return empty
 
   const rail = railOf(detail.data?.session.subject ?? subject, items)
   const last = items.filter((i) => i.kind === 'answer').at(-1)
   const finished = last?.kind === 'answer' && last.answer.live && last.answer.state === 'done'
+  const compact = convo.origin === 'panel'
   return (
-    <div className="flex flex-col gap-4">
+    <div className={cn('flex flex-col', compact ? 'gap-4' : 'gap-6')}>
       <p aria-live="polite" className="sr-only">
         {finished ? `${t(C.answered)} ${last.answer.body}` : ''}
       </p>
@@ -123,7 +125,7 @@ export function AssistantThread({
         item.kind === 'question' ? (
           <p
             key={item.key}
-            className="bg-accent text-foreground shadow-control-soft m-0 ml-auto max-w-[85%] whitespace-pre-line rounded-lg rounded-br-sm px-4 py-3 text-[13.5px] leading-[1.55]"
+            className="bg-primary-strong stone:bg-primary porcelain:bg-primary text-primary-foreground m-0 ml-auto max-w-[85%] whitespace-pre-line rounded-[16px_16px_4px_16px] px-4 py-3 text-[14px] leading-[1.55]"
           >
             {item.text}
           </p>
@@ -133,6 +135,7 @@ export function AssistantThread({
             answer={item.answer}
             last={item.key === last?.key}
             busy={busy}
+            compact={compact}
             ask={ask}
             openPath={openPath}
             onNewChat={onNewChat}
@@ -144,54 +147,45 @@ export function AssistantThread({
   )
 }
 
-/** A tap fills the box rather than sending, so the question can be read and changed first. */
-function Samples({ convo }: { convo: Conversation }) {
-  const { t, lang } = useI18n()
-  const role = useSession((s) => s.actor?.roleIds[0])
-  const questions = sampleQuestions(role, lang)
-  if (!questions.length) return null
+/** The record a chat asks about, drawn above the box on the page. A session's own
+ *  subject is fixed on the server, so only a chat not yet started may drop it. */
+export type ComposerSubject = { ref: AssistantSubject; onRemove?: () => void }
+
+const SUBJECT_CHIP =
+  'bg-accent text-accent-foreground pointer-coarse:h-12 inline-flex h-8 items-center gap-2 rounded-md px-3 text-[12px] font-semibold'
+
+function SubjectChip({ subject }: { subject: ComposerSubject }) {
+  const { lang } = useI18n()
+  const { code } = subject.ref
+  if (!subject.onRemove) return <span className={SUBJECT_CHIP}>{askingAbout(code, lang)}</span>
   return (
-    <div className="flex flex-col gap-3">
-      <p className="text-muted-foreground m-0 text-[12.5px] font-semibold">{t(C.tryAsking)}</p>
-      <div className="flex flex-col gap-2">
-        {questions.map((q) => (
-          <button
-            key={q}
-            type="button"
-            className="motion-std bg-accent text-foreground shadow-control-soft hover:bg-primary/24 hover:shadow-ai group flex min-h-12 items-center gap-3 rounded-md px-4 py-2 text-left text-[13px] font-semibold hover:-translate-y-px"
-            onClick={() => {
-              setDraft(convo.origin, q)
-              focusComposer(convo.origin, true)
-            }}
-          >
-            <span className="bg-primary/16 text-accent-foreground flex size-8 shrink-0 items-center justify-center rounded-sm">
-              <Icon icon={MessageCircle} size={16} />
-            </span>
-            <span className="min-w-0 flex-1">{q}</span>
-            <Icon
-              icon={ArrowRight}
-              size={16}
-              className="text-muted-foreground group-hover:text-accent-foreground shrink-0"
-            />
-          </button>
-        ))}
-      </div>
-    </div>
+    <button
+      type="button"
+      aria-label={dropSubject(code, lang)}
+      className={cn(SUBJECT_CHIP, 'motion-std hover:bg-primary/24')}
+      onClick={subject.onRemove}
+    >
+      {askingAbout(code, lang)}
+      <Icon icon={X} size={14} />
+    </button>
   )
 }
 
 export function AssistantComposer({
   convo,
   focusOnOpen = false,
+  subject,
   className,
 }: {
   convo: Conversation
   /** Only on a fine pointer: on a phone the keyboard would cover the answer. */
   focusOnOpen?: boolean
+  subject?: ComposerSubject
   className?: string
 }) {
   const { t } = useI18n()
   const { origin } = convo
+  const page = origin === 'page'
   const text = useAssistantLive((s) => s.drafts[origin])
   const ready = AssistantQuestion.safeParse(text).success && !convo.busy
   const submit = (e?: FormEvent) => {
@@ -211,32 +205,69 @@ export function AssistantComposer({
     const frame = requestAnimationFrame(() => focusComposer(origin, true))
     return () => cancelAnimationFrame(frame)
   }, [focusOnOpen, origin])
-  return (
-    <form className={cn('flex items-end gap-3', className)} onSubmit={submit}>
-      <Textarea
-        id={composerId(origin)}
-        rows={1}
-        autoGrow
-        maxLength={QUESTION_MAX}
-        aria-label={t(C.question)}
-        placeholder={t(C.placeholder)}
-        className="pointer-coarse:min-h-12 max-h-40 flex-1"
-        value={text}
-        onChange={(e) => setDraft(origin, e.target.value)}
-        onKeyDown={onKey}
-      />
-      {/* Off: a flat tint, no ramp and no shadow, so it reads as waiting rather than gone. */}
-      <Button
-        type="submit"
-        className={cn(
-          TOUCH,
-          !ready && 'bg-primary/16 text-accent-foreground opacity-100 shadow-none',
-        )}
-        disabled={!ready}
+  /* Off: a flat tint, no ramp and no shadow, so it reads as waiting rather than gone. */
+  const send = (
+    <Button
+      type="submit"
+      className={cn(
+        TOUCH,
+        !page && 'pointer-coarse:size-12 size-10 px-0',
+        !ready && 'bg-primary/16 text-accent-foreground opacity-100 shadow-none',
+      )}
+      aria-label={page ? undefined : t(C.send)}
+      disabled={!ready}
+    >
+      {page && t(C.send)}
+      <Icon icon={ArrowUpLong} size={16} />
+    </Button>
+  )
+  const field = (
+    <Textarea
+      id={composerId(origin)}
+      rows={page ? 2 : 1}
+      autoGrow
+      maxLength={QUESTION_MAX}
+      aria-label={t(C.question)}
+      placeholder={t(C.placeholder)}
+      className={cn(
+        'max-h-40 flex-1 bg-transparent p-0 focus-visible:shadow-none',
+        page
+          ? 'min-h-12 text-[15px] leading-[1.5]'
+          : 'pointer-coarse:min-h-12 py-2 text-[14px] leading-[1.6]',
+      )}
+      value={text}
+      onChange={(e) => setDraft(origin, e.target.value)}
+      onKeyDown={onKey}
+    />
+  )
+
+  if (!page) {
+    return (
+      <form
+        className={cn('bg-input flex items-end gap-2 rounded-lg py-2 pl-3 pr-2', className)}
+        onSubmit={submit}
       >
-        <Icon icon={Send} size={16} />
-        {t(C.send)}
-      </Button>
+        {field}
+        {send}
+      </form>
+    )
+  }
+  /* A utility ring, not `glass-overlay`: a ring utility would replace that class's whole shadow. */
+  return (
+    <form
+      className={cn(
+        'bg-muted stone:bg-popover porcelain:bg-popover focus-within:ring-ring flex flex-col gap-2 rounded-2xl py-3 pl-4 pr-3 shadow-[var(--shadow-pop),inset_0_1px_0_var(--sheen-a)] focus-within:ring-2',
+        className,
+      )}
+      onSubmit={submit}
+    >
+      {field}
+      <div className="flex flex-wrap items-center gap-2">
+        {subject && <SubjectChip subject={subject} />}
+        <span className="flex-1" />
+        <span className="text-glass-foreground hidden text-[12px] sm:inline">{t(C.keys)}</span>
+        {send}
+      </div>
     </form>
   )
 }

@@ -71,7 +71,6 @@ export {
   MessageSquare,
   Minus,
   Octagon,
-  Orbit,
   Package,
   Paperclip,
   PenLine,
@@ -124,6 +123,13 @@ export {
   Location01Icon as MapPin,
   Logout03Icon as LogOut,
   MoreHorizontalIcon as Ellipsis,
+  // The assistant's mark (owner, 03/11): a sparkle cluster replaces Orbit, drawn bare with no tile.
+  SparklesIcon as AiMark,
+  // Maximize01 in Hugeicons is a hand gesture; the diagonal expand arrows read as full screen.
+  ArrowExpandDiagonal01Icon as Maximize,
+  StopCircleIcon as StopCircle,
+  // `ArrowUp` is the chevron; Send in the assistant composer wants the arrow with a stem.
+  ArrowUp02Icon as ArrowUpLong,
   // The bare pencil read poorly at 14–16px; the pencil-in-a-square is the edit glyph.
   PencilEdit02Icon as Pencil,
   Moon02Icon as Moon,

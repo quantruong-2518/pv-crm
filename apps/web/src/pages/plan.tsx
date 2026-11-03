@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { IconGlyph } from '@pv/ui'
-import { CircleCheckBig, ClipboardList, Coins, Orbit, Send, Timer, TriangleAlert, X } from '@pv/ui'
+import { AiMark, CircleCheckBig, ClipboardList, Coins, Send, Timer, TriangleAlert, X } from '@pv/ui'
 import { useQuery } from '@tanstack/react-query'
 import {
   AiAction,
@@ -261,9 +261,9 @@ export function PlanPage() {
                   nút, và có dòng "Chưa tạo gì cả" ngay dưới nút. */}
               <section id="proposals" className="flex flex-col gap-4">
                 <div className="flex items-center gap-2">
-                  {/* Luật 15 · icon Trợ lý AI là `orbit`, size 20 vì đây là đầu
+                  {/* Luật 15 · icon Trợ lý AI là `AiMark`, size 20 vì đây là đầu
                       một khối chứ không phải icon trong nút. */}
-                  <Icon icon={Orbit} size={20} className="text-accent-foreground" />
+                  <Icon icon={AiMark} size={20} className="text-primary" />
                   <h3 className="text-[13px] font-semibold">
                     {t(
                       message('Đề xuất cho tháng tới', 'Proposals for next month', '다음 달 제안'),

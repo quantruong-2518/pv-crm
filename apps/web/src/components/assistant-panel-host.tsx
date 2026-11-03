@@ -1,9 +1,11 @@
-import { Button, Drawer, Icon, MessageSquare, Plus } from '@pv/ui'
+import { Button, Drawer, Icon, Maximize, Plus } from '@pv/ui'
 import { useI18n } from '@/app/i18n'
 import { ASSISTANT_COPY as C } from '@/data/assistant-copy'
 import { closeAssistant, newConversation, useAssistantLive } from '@/data/assistant-live'
 import { router } from '@/routes'
+import { AiGlyph } from './assistant-bits'
 import { AssistantComposer, AssistantThread } from './assistant-conversation'
+import { PanelHome } from './assistant-home'
 import { useConversation } from '@/data/assistant-conversation'
 
 /** The CRM assistant panel (ADR 0133): a right-hand Drawer over whatever
@@ -11,7 +13,9 @@ import { useConversation } from '@/data/assistant-conversation'
  *  `main.tsx`, like the AI task tray, so opening a record goes through `router`.
  *
  *  Opening a record closes the panel; the session stays, and the next opening
- *  shows it again. Mounted from the first opening on, so closing slides. */
+ *  shows it again. Mounted from the first opening on, so closing slides.
+ *  Full screen carries the chat over: the session, or the record on screen
+ *  when no chat has started (`?about=kind:code`). */
 
 const ICON_BUTTON = 'pointer-coarse:size-12 size-8 px-0'
 
@@ -28,13 +32,30 @@ function AssistantPanel() {
     closeAssistant()
     void router.navigate(path)
   }
+  const { subject } = context
+  const fullScreen = sessionId
+    ? `/assistant?s=${sessionId}`
+    : subject
+      ? `/assistant?about=${subject.kind}:${encodeURIComponent(subject.code)}`
+      : '/assistant'
+  const opening = convo.items.find((i) => i.kind === 'question')?.text
+  const line = convo.items.length
+    ? (convo.detail.data?.session.title ?? opening ?? t(C.subline))
+    : t(C.subline)
 
   return (
     <Drawer
       open={open}
       onClose={closeAssistant}
-      title={t(C.title)}
-      subtitle={t(C.subline)}
+      title={
+        <span className="flex items-center gap-3">
+          <AiGlyph />
+          <span className="flex min-w-0 flex-col">
+            <span>{t(C.title)}</span>
+            <span className="text-muted-foreground truncate text-[12px] font-normal">{line}</span>
+          </span>
+        </span>
+      }
       closeLabel={t(C.close)}
       meta={
         <div className="-mt-1 flex gap-1">
@@ -55,9 +76,9 @@ function AssistantPanel() {
             className={ICON_BUTTON}
             aria-label={t(C.fullScreen)}
             title={t(C.fullScreen)}
-            onClick={() => openPath(sessionId ? `/assistant?s=${sessionId}` : '/assistant')}
+            onClick={() => openPath(fullScreen)}
           >
-            <Icon icon={MessageSquare} size={16} />
+            <Icon icon={Maximize} size={16} />
           </Button>
         </div>
       }
@@ -65,9 +86,10 @@ function AssistantPanel() {
     >
       <AssistantThread
         convo={convo}
-        subject={context.subject}
+        subject={subject}
         openPath={openPath}
         onNewChat={() => newConversation('panel')}
+        empty={<PanelHome convo={convo} subject={subject} openPath={openPath} />}
       />
     </Drawer>
   )

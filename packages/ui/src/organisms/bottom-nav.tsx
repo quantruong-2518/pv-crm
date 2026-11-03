@@ -1,5 +1,5 @@
 import type { IconGlyph } from '../icons'
-import { House, Lock, Orbit, Search, SquareCheckBig } from '../icons'
+import { AiMark, House, Lock, Search, SquareCheckBig } from '../icons'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
 import { DEFAULT_SHELL_COPY, type ShellCopy } from './shell-copy'
@@ -17,7 +17,7 @@ const ITEMS: { key: BottomNavKey; icon: IconGlyph }[] = [
   { key: 'home', icon: House },
   { key: 'approvals', icon: SquareCheckBig },
   { key: 'search', icon: Search },
-  { key: 'assistant', icon: Orbit },
+  { key: 'assistant', icon: AiMark },
 ]
 
 export type BottomNavProps = {

@@ -1,17 +1,17 @@
 import type { ReactNode } from 'react'
-import { Chip } from '@pv/ui'
 import type { AssistantRef } from '@pv/contracts'
 import { useI18n } from '@/app/i18n'
 import { refPath } from '@/data/assistant'
 import { openLabel } from '@/data/assistant-copy'
+import { CodeChip } from './assistant-bits'
 
 /** The answer's plain text drawn for reading (ADR 0133), with no markdown library:
  *  blank lines split paragraphs, `- ` and `1. ` runs become lists, a code the answer
  *  names becomes a chip that opens it, the record's name is bold, and money, dates
  *  and percentages are tabular figures. Copy still takes the plain string.
  *
- *  `/16` at rest and `/24` on hover: the chip ink holds 4.8:1 on the AI wash in all
- *  three themes, where the kit chip's `/32` hover falls to 4.2:1 on stone (law 13). */
+ *  The chip is `CodeChip`: white ground and brand ink, which holds 4.5:1 on the
+ *  answer bubble (the card ground) and on its accent hover in all three themes. */
 
 const CODE = String.raw`[A-Z]{2,4}-\d{3,}`
 const UNIT = 'tỷ|triệu|đồng' // i18n-ignore: units a Vietnamese answer writes, matched, never shown
@@ -78,19 +78,17 @@ export function AssistantAnswerText({
       const ref = g.code ? byCode.get(g.code) : undefined
       if (ref) {
         out.push(
-          <Chip
+          <CodeChip
             key={key}
-            variant="source"
-            aria-label={openLabel(ref.code, lang)}
-            className="bg-primary/16 hover:bg-primary/24 pointer-coarse:h-auto! px-2 py-0 align-baseline text-[12px] font-semibold"
+            code={ref.code}
+            label={openLabel(ref.code, lang)}
             onOpen={() => openPath(refPath(ref))}
-          >
-            {ref.code}
-          </Chip>,
+            className="pointer-coarse:after:-inset-y-2"
+          />,
         )
       } else if (g.code) {
         out.push(
-          <span key={key} className="text-foreground font-mono text-[12px] font-semibold">
+          <span key={key} className="text-foreground font-mono text-[12.5px] font-semibold">
             {g.code}
           </span>,
         )
@@ -98,7 +96,7 @@ export function AssistantAnswerText({
         out.push(
           <strong
             key={key}
-            className={g.figure ? 'tnum text-on-tint-primary font-semibold' : 'font-semibold'}
+            className={g.figure ? 'tnum text-accent-foreground font-semibold' : 'font-semibold'}
           >
             {g.strong ?? g.name ?? g.figure}
           </strong>,
@@ -111,11 +109,11 @@ export function AssistantAnswerText({
   }
 
   return (
-    <div className="text-foreground flex flex-col gap-3 text-[13.5px] leading-[1.6]">
+    <div className="text-foreground flex flex-col gap-3 text-[14px] leading-[1.65]">
       {blocksOf(text).map((block, b) => {
         if (block.kind === 'p') {
           return (
-            <p key={b} className="m-0 whitespace-pre-line">
+            <p key={b} className="pointer-coarse:leading-10 m-0 whitespace-pre-line">
               {block.lines.flatMap((line, i) => [
                 ...(i ? ['\n'] : []),
                 ...inline(line, `${b}-${i}`),
@@ -128,7 +126,7 @@ export function AssistantAnswerText({
         return (
           <List
             key={b}
-            className={`marker:text-on-tint-primary-muted pointer-coarse:gap-6 m-0 flex flex-col gap-2 pl-5 ${List === 'ul' ? 'list-disc' : 'list-decimal'}`}
+            className={`marker:text-muted-foreground pointer-coarse:gap-6 m-0 flex flex-col gap-2 pl-5 ${List === 'ul' ? 'list-disc' : 'list-decimal'}`}
           >
             {block.lines.map((line, i) => (
               <li key={i} className="pl-1">

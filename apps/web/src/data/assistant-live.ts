@@ -36,6 +36,8 @@ export type LiveTurn = {
   context: TurnContext
   phase: 'running' | 'done' | 'failed'
   step: { round: number; tool?: string } | null
+  /** Tools of the rounds before `step`, oldest first; a round that calls none is left out. */
+  past: string[]
   text: string
   refs: AssistantRef[]
   suggestions: AssistantSuggestion[]
@@ -85,6 +87,14 @@ export function openAssistant(pathname: string) {
 
 export const closeAssistant = () => setPanel({ open: false })
 
+/** Shows a past session in the panel; a turn still waiting for its own session stays behind. */
+export function openPanelSession(id: string) {
+  useAssistantLive.setState((s) => ({
+    turns: s.turns.map((t) => (t.origin === 'panel' ? { ...t, adopted: true } : t)),
+    panel: { ...s.panel, sessionId: id },
+  }))
+}
+
 /** Leaves the current session; a turn still running keeps running. */
 export function newConversation(origin: Origin) {
   useAssistantLive.setState((s) => ({
@@ -124,7 +134,10 @@ function onEvent(key: number, event: AssistantEvent) {
       return
     }
     case 'step':
-      return patchTurn(key, () => ({ step: { round: event.round, tool: event.tool } }))
+      return patchTurn(key, (t) => ({
+        step: { round: event.round, tool: event.tool },
+        past: t.step?.tool ? [...t.past, t.step.tool] : t.past,
+      }))
     case 'text':
       return patchTurn(key, (t) => ({ text: t.text + event.delta }))
     case 'refs':
@@ -183,6 +196,7 @@ export function sendTurn(
     context,
     phase: 'running',
     step: null,
+    past: [],
     text: '',
     refs: [],
     suggestions: [],

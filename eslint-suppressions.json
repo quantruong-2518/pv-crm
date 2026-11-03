@@ -2153,11 +2153,6 @@
       "count": 10
     }
   },
-  "packages/ui/src/layout/assistant-fab.tsx": {
-    "aurora/comments-in-english": {
-      "count": 1
-    }
-  },
   "packages/ui/src/layout/drawer.tsx": {
     "aurora/comment-budget": {
       "count": 5
