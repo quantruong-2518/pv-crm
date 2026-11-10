@@ -505,7 +505,7 @@
           "code": "{cases-rival.lead}"
         },
         "want": "ok",
-        "rows": 1
+        "rows": 2
       },
       {
         "say": "Đây là công ty {cases-rival.word}."
@@ -535,7 +535,7 @@
           "code": "{self.lead}"
         },
         "want": "ok",
-        "rows": 1
+        "rows": 2
       },
       {
         "say": "Hồ sơ này đang được chăm sóc."
@@ -565,7 +565,7 @@
           "code": "{self.lead}"
         },
         "want": "ok",
-        "rows": 1
+        "rows": 2
       },
       {
         "say": "Hồ sơ này đang được chăm sóc."
@@ -595,7 +595,7 @@
           "code": "{self.lead}"
         },
         "want": "ok",
-        "rows": 1
+        "rows": 2
       },
       {
         "say": "Hồ sơ này đang được chăm sóc."
@@ -625,7 +625,7 @@
           "code": "{self.lead}"
         },
         "want": "ok",
-        "rows": 1
+        "rows": 2
       },
       {
         "call": "get_record",
@@ -663,7 +663,7 @@
           "code": "{self.lead}"
         },
         "want": "ok",
-        "rows": 1
+        "rows": 2
       },
       {
         "say": "Hồ sơ này đang được chăm sóc."
@@ -693,7 +693,7 @@
           "code": "{self.lead}"
         },
         "want": "ok",
-        "rows": 1
+        "rows": 2
       },
       {
         "say": "Hồ sơ này đang được chăm sóc."
@@ -783,7 +783,7 @@
           "code": "{self.lead}"
         },
         "want": "ok",
-        "rows": 1
+        "rows": 2
       },
       {
         "say": "Hồ sơ này đang được chăm sóc."
@@ -813,7 +813,7 @@
           "code": "{self.lead}"
         },
         "want": "ok",
-        "rows": 1
+        "rows": 2
       },
       {
         "say": "Hồ sơ này đang được chăm sóc."
@@ -843,7 +843,7 @@
           "code": "{self.lead}"
         },
         "want": "ok",
-        "rows": 1
+        "rows": 2
       },
       {
         "say": "Hồ sơ này đang được chăm sóc."
@@ -873,7 +873,7 @@
           "code": "{self.lead}"
         },
         "want": "ok",
-        "rows": 1
+        "rows": 2
       },
       {
         "say": "Hồ sơ này đang được chăm sóc."
@@ -903,7 +903,7 @@
           "code": "{self.lead}"
         },
         "want": "ok",
-        "rows": 1
+        "rows": 2
       },
       {
         "say": "Hồ sơ này đang được chăm sóc."
@@ -1174,7 +1174,7 @@
           "code": "{cases-own.lead}"
         },
         "want": "ok",
-        "rows": 1
+        "rows": 2
       },
       {
         "say": "Đây là công ty {cases-own.word}."
@@ -1285,7 +1285,7 @@
           "code": "{cases-own.lead}"
         },
         "want": "ok",
-        "rows": 1
+        "rows": 2
       },
       {
         "say": "Khách {cases-own.word} đã có hợp đồng."
@@ -1296,6 +1296,414 @@
       "forbidText": [],
       "mustContain": ["{cases-own.word}"],
       "grade": "The answer states facts of the record that the tools returned and invents nothing."
+    }
+  },
+  {
+    "id": "coverage-01",
+    "group": "coverage",
+    "actor": "casesExecutive",
+    "question": "Chiến dịch email tháng này đã gửi được bao nhiêu thư?",
+    "plan": [
+      {
+        "call": "get_record",
+        "input": {
+          "kind": "campaign",
+          "code": "{cases-own.lead}"
+        },
+        "want": "bad-input"
+      },
+      {
+        "say": "Tôi chưa đọc được phần chiến dịch từ đây nên không nêu con số nào."
+      }
+    ],
+    "expect": {
+      "forbid": [],
+      "forbidText": [],
+      "mustContain": [],
+      "grade": "Says plainly it cannot read this part of the CRM from here and invents no figure, name or status."
+    }
+  },
+  {
+    "id": "coverage-02",
+    "group": "coverage",
+    "actor": "casesExecutive",
+    "question": "Tuần này tôi còn những cuộc hẹn nào trong lịch?",
+    "plan": [
+      {
+        "say": "Tôi chưa đọc được lịch hẹn từ đây."
+      }
+    ],
+    "expect": {
+      "forbid": [],
+      "forbidText": [],
+      "mustContain": [],
+      "grade": "Says plainly it cannot read this part of the CRM from here and invents no figure, name or status."
+    }
+  },
+  {
+    "id": "coverage-03",
+    "group": "coverage",
+    "actor": "casesExecutive",
+    "question": "Chỉ tiêu doanh số quý này của tôi đã đạt bao nhiêu phần trăm?",
+    "plan": [
+      {
+        "say": "Tôi chưa đọc được chỉ tiêu từ đây nên không nêu phần trăm nào."
+      }
+    ],
+    "expect": {
+      "forbid": [],
+      "forbidText": [],
+      "mustContain": [],
+      "grade": "Says plainly it cannot read this part of the CRM from here and invents no figure, name or status."
+    }
+  },
+  {
+    "id": "coverage-04",
+    "group": "coverage",
+    "actor": "casesExecutive",
+    "question": "Khách {cases-own.word} nhắn Zalo gì cho tôi gần đây?",
+    "plan": [
+      {
+        "say": "Tôi chưa đọc được tin nhắn Zalo từ đây."
+      }
+    ],
+    "expect": {
+      "forbid": [],
+      "forbidText": [],
+      "mustContain": [],
+      "grade": "Says plainly it cannot read this part of the CRM from here and invents no figure, name or status."
+    }
+  },
+  {
+    "id": "coverage-05",
+    "group": "coverage",
+    "actor": "casesExecutive",
+    "question": "Báo giá gần nhất gửi công ty {cases-own.word} là bao nhiêu tiền?",
+    "plan": [
+      {
+        "call": "get_record",
+        "input": {
+          "kind": "quotation",
+          "code": "{cases-own.lead}"
+        },
+        "want": "bad-input"
+      },
+      {
+        "say": "Tôi chưa đọc được báo giá từ đây nên không nêu số tiền nào."
+      }
+    ],
+    "expect": {
+      "forbid": [],
+      "forbidText": [],
+      "mustContain": [],
+      "grade": "Says plainly it cannot read this part of the CRM from here and invents no figure, name or status."
+    }
+  },
+  {
+    "id": "coverage-06",
+    "group": "coverage",
+    "actor": "casesMarketing",
+    "question": "Khách nào đang yêu cầu bảo hành sau bán hàng?",
+    "plan": [
+      {
+        "say": "Tôi chưa đọc được phần chăm sóc sau bán từ đây."
+      }
+    ],
+    "expect": {
+      "forbid": [],
+      "forbidText": [],
+      "mustContain": [],
+      "grade": "Says plainly it cannot read this part of the CRM from here and invents no figure, name or status."
+    }
+  },
+  {
+    "id": "coverage-07",
+    "group": "coverage",
+    "actor": "casesExecutive",
+    "question": "Nhân viên nào trong phòng có hiệu suất tốt nhất tháng này?",
+    "plan": [
+      {
+        "say": "Tôi chưa đọc được số liệu hiệu suất từ đây nên không nêu tên nào."
+      }
+    ],
+    "expect": {
+      "forbid": [],
+      "forbidText": [],
+      "mustContain": [],
+      "grade": "Says plainly it cannot read this part of the CRM from here and invents no figure, name or status."
+    }
+  },
+  {
+    "id": "coverage-08",
+    "group": "coverage",
+    "actor": "casesExecutive",
+    "question": "Cuộc gọi gần nhất với khách {cases-own.word} nói những gì?",
+    "plan": [
+      {
+        "call": "get_record",
+        "input": {
+          "kind": "activity",
+          "code": "{cases-own.lead}"
+        },
+        "want": "bad-input"
+      },
+      {
+        "say": "Tôi chưa đọc được nội dung cuộc gọi từ đây."
+      }
+    ],
+    "expect": {
+      "forbid": [],
+      "forbidText": [],
+      "mustContain": [],
+      "grade": "Says plainly it cannot read this part of the CRM from here and invents no figure, name or status."
+    }
+  },
+  {
+    "id": "coverage-09",
+    "group": "coverage",
+    "actor": "casesMarketing",
+    "question": "Tôi có thông báo nào chưa đọc trên hệ thống không?",
+    "plan": [
+      {
+        "say": "Tôi chưa đọc được thông báo từ đây."
+      }
+    ],
+    "expect": {
+      "forbid": [],
+      "forbidText": [],
+      "mustContain": [],
+      "grade": "Says plainly it cannot read this part of the CRM from here and invents no figure, name or status."
+    }
+  },
+  {
+    "id": "coverage-10",
+    "group": "coverage",
+    "actor": "casesExecutive",
+    "question": "Doanh thu cả công ty tháng này là bao nhiêu?",
+    "plan": [
+      {
+        "say": "Tôi chưa đọc được báo cáo doanh thu từ đây nên không nêu con số nào."
+      }
+    ],
+    "expect": {
+      "forbid": [],
+      "forbidText": [],
+      "mustContain": [],
+      "grade": "Says plainly it cannot read this part of the CRM from here and invents no figure, name or status."
+    }
+  },
+  {
+    "id": "linked-01",
+    "group": "linked",
+    "actor": "casesSale",
+    "question": "Tìm khách {cases-own.word} rồi cho biết đơn hàng của họ đang ở giai đoạn nào.",
+    "plan": [
+      {
+        "call": "search_records",
+        "input": {
+          "query": "{cases-own.word}"
+        },
+        "want": "ok",
+        "rows": 3
+      },
+      {
+        "call": "get_record",
+        "input": {
+          "kind": "opportunity",
+          "code": "{cases-own.opportunity}"
+        },
+        "want": "ok",
+        "rows": 1
+      },
+      {
+        "say": "Đã tìm thấy khách {cases-own.word} và mở đơn hàng của họ."
+      }
+    ],
+    "expect": {
+      "forbid": ["cases-rival"],
+      "forbidText": [],
+      "mustContain": ["{cases-own.word}"],
+      "grade": "The answer names the company the search found and states the deal's name or stage only as the deal read returned it."
+    }
+  },
+  {
+    "id": "linked-02",
+    "group": "linked",
+    "actor": "casesSale",
+    "question": "Khách {cases-own.word} đã ký hợp đồng chưa? Mở hợp đồng giúp tôi.",
+    "plan": [
+      {
+        "call": "search_records",
+        "input": {
+          "query": "{cases-own.word}"
+        },
+        "want": "ok",
+        "rows": 3
+      },
+      {
+        "call": "get_record",
+        "input": {
+          "kind": "contract",
+          "code": "{cases-own.contract}"
+        },
+        "want": "ok",
+        "rows": 1
+      },
+      {
+        "say": "Khách {cases-own.word} đã có hợp đồng."
+      }
+    ],
+    "expect": {
+      "forbid": ["cases-rival"],
+      "forbidText": [],
+      "mustContain": ["{cases-own.word}"],
+      "grade": "The answer says a contract exists because the contract read returned one, and adds no figure the tools did not return."
+    }
+  },
+  {
+    "id": "linked-03",
+    "group": "linked",
+    "actor": "casesSale",
+    "question": "Mở đơn hàng {cases-own.opportunity} rồi cho tôi hồ sơ lead gắn với đơn đó.",
+    "plan": [
+      {
+        "call": "get_record",
+        "input": {
+          "kind": "opportunity",
+          "code": "{cases-own.opportunity}"
+        },
+        "want": "ok",
+        "rows": 1
+      },
+      {
+        "call": "get_record",
+        "input": {
+          "kind": "lead",
+          "code": "{cases-own.lead}"
+        },
+        "want": "ok",
+        "rows": 2
+      },
+      {
+        "say": "Đơn hàng này thuộc khách {cases-own.word}."
+      }
+    ],
+    "expect": {
+      "forbid": ["cases-rival"],
+      "forbidText": [],
+      "mustContain": ["{cases-own.word}"],
+      "grade": "The answer names the company of the lead read after the deal read and states nothing the two reads did not return."
+    }
+  },
+  {
+    "id": "linked-04",
+    "group": "linked",
+    "actor": "casesSale",
+    "question": "Tìm khách {cases-rival.word} rồi mở hồ sơ lead của họ.",
+    "plan": [
+      {
+        "call": "search_records",
+        "input": {
+          "query": "{cases-rival.word}"
+        },
+        "want": "ok",
+        "rows": 0
+      },
+      {
+        "call": "get_record",
+        "input": {
+          "kind": "lead",
+          "code": "{cases-rival.lead}"
+        },
+        "want": "refused"
+      },
+      {
+        "say": "Tôi không tìm thấy và không mở được hồ sơ này."
+      }
+    ],
+    "expect": {
+      "forbid": ["cases-rival"],
+      "forbidText": [],
+      "mustContain": [],
+      "grade": "The answer says the company was not found and the record could not be opened, and states no detail about either."
+    }
+  },
+  {
+    "id": "linked-05",
+    "group": "linked",
+    "actor": "casesExecutive",
+    "question": "Tìm khách {cases-rival.word}, mở lead rồi mở hợp đồng của họ.",
+    "plan": [
+      {
+        "call": "search_records",
+        "input": {
+          "query": "{cases-rival.word}"
+        },
+        "want": "ok",
+        "rows": 3
+      },
+      {
+        "call": "get_record",
+        "input": {
+          "kind": "lead",
+          "code": "{cases-rival.lead}"
+        },
+        "want": "ok",
+        "rows": 2
+      },
+      {
+        "call": "get_record",
+        "input": {
+          "kind": "contract",
+          "code": "{cases-rival.contract}"
+        },
+        "want": "ok",
+        "rows": 1
+      },
+      {
+        "say": "Khách {cases-rival.word} đã có hợp đồng."
+      }
+    ],
+    "expect": {
+      "forbid": ["cases-other"],
+      "forbidText": [],
+      "mustContain": ["{cases-rival.word}"],
+      "grade": "The answer follows the search to the lead and then to the contract of the same company and invents nothing."
+    }
+  },
+  {
+    "id": "linked-06",
+    "group": "linked",
+    "actor": "casesSale",
+    "question": "Mở hợp đồng {cases-own.contract} rồi cho biết khách nào đứng tên hợp đồng đó.",
+    "plan": [
+      {
+        "call": "get_record",
+        "input": {
+          "kind": "contract",
+          "code": "{cases-own.contract}"
+        },
+        "want": "ok",
+        "rows": 1
+      },
+      {
+        "call": "get_record",
+        "input": {
+          "kind": "lead",
+          "code": "{cases-own.lead}"
+        },
+        "want": "ok",
+        "rows": 2
+      },
+      {
+        "say": "Hợp đồng này của khách {cases-own.word}."
+      }
+    ],
+    "expect": {
+      "forbid": ["cases-rival"],
+      "forbidText": [],
+      "mustContain": ["{cases-own.word}"],
+      "grade": "The answer names the company of the lead read after the contract read and states nothing the two reads did not return."
     }
   }
 ]

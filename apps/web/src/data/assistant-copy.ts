@@ -184,6 +184,7 @@ const KIND_COPY: Record<ReadKind, Message> = {
   lead: m('lead', 'leads', '리드'),
   opportunity: m('cơ hội', 'opportunities', '영업 기회'),
   contract: m('hợp đồng', 'contracts', '계약'),
+  account: m('công ty', 'companies', '회사'),
   'next-step': m('việc tiếp theo', 'next steps', '다음 할 일'),
 }
 

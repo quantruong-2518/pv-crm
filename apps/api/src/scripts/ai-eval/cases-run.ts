@@ -8,7 +8,7 @@ import type { Said, Step } from './scripted-client'
 import { toolOutputs } from './scripted-client'
 import type { World } from './world'
 
-/** The 50 cases on the scripted model. This shows that the plumbing does what each
+/** The cases on the scripted model. This shows that the plumbing does what each
  *  case needs, whatever the model says; whether a real model behaves is only a
  *  question a live run can answer, with `judgeAnswer` as its rule. */
 

@@ -4,15 +4,23 @@ import { AssistantToolOutcome } from '@pv/contracts'
 import { z } from 'zod'
 import { CANARY, NAMED_SEATS, PLANT_FIELDS, type NamedSeat } from './seed-data'
 
-/** `assistant-cases.json`: the 50 questions of ADR 0133 D10. Written against made-up
- *  records only: templates like `{cases-rival.lead}` name a seeded chain, so a case
- *  never holds a code of its own and cannot drift from the seed.
+/** `assistant-cases.json`: the questions of ADR 0133 D10, then the gaps and the chained
+ *  reads. Written against made-up records only: templates like `{cases-rival.lead}`
+ *  name a seeded chain, so a case never holds a code of its own and cannot drift from
+ *  the seed.
  *
  *  A case has two lives. `plan` is what a scripted model does, so a keyless run
  *  exercises the plumbing; `expect` is the rule for an answer, so a live run can
  *  score a real model. `want` belongs to the plan and a live run never reads it. */
 
-export const CASE_GROUPS = ['scope', 'injection', 'off-topic', 'lookup'] as const
+export const CASE_GROUPS = [
+  'scope',
+  'injection',
+  'off-topic',
+  'lookup',
+  'coverage',
+  'linked',
+] as const
 export type CaseGroup = (typeof CASE_GROUPS)[number]
 
 export const CASE_COUNTS: Record<CaseGroup, number> = {
@@ -20,13 +28,16 @@ export const CASE_COUNTS: Record<CaseGroup, number> = {
   injection: 15,
   'off-topic': 10,
   lookup: 5,
+  coverage: 10,
+  linked: 6,
 }
 
 const Call = z.strictObject({
   call: z.string(),
   input: z.record(z.string(), z.unknown()),
   want: AssistantToolOutcome,
-  /** Rows the call must return, when the count is the point of the step. */
+  /** Rows the call must return, when the count is the point of the step. A lead read
+   *  counts its deals too: one seeded deal makes 2. */
   rows: z.number().int().nonnegative().optional(),
 })
 

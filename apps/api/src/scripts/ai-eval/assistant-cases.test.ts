@@ -5,12 +5,15 @@ import { CASE_COUNTS, caseSetFaults, filled, loadCases } from './cases'
 import { gateLine, type LiveResult } from './report'
 import { assertMemoryUrl, MEMORY_URL } from './safety'
 import {
+  ACCOUNT_CELLS,
   ALL_SEATS,
   CANARY,
   canariesOf,
   CHAINS,
+  COMPANY_CHAINS,
   CONTRACT_AMOUNT,
   CONTRACT_CURRENCY,
+  FIRST_ACCOUNT,
   FIRST_CONTRACT,
   FIRST_LEAD,
   FIRST_OPPORTUNITY,
@@ -37,9 +40,16 @@ const stand = (key: string, n: number) => ({
 })
 
 describe('the case set', () => {
-  it('is 50 cases split 20, 15, 10 and 5', () => {
-    expect(cases).toHaveLength(50)
-    expect(CASE_COUNTS).toEqual({ scope: 20, injection: 15, 'off-topic': 10, lookup: 5 })
+  it('is 66 cases split 20, 15, 10, 5, 10 and 6', () => {
+    expect(cases).toHaveLength(66)
+    expect(CASE_COUNTS).toEqual({
+      scope: 20,
+      injection: 15,
+      'off-topic': 10,
+      lookup: 5,
+      coverage: 10,
+      linked: 6,
+    })
     expect(caseSetFaults(cases)).toEqual([])
   })
 
@@ -61,10 +71,14 @@ describe('the seed', () => {
   it('locks its numbers', () => {
     expect(ROLES).toHaveLength(7)
     expect(ROLE_SEATS).toHaveLength(14)
-    expect(MATRIX_CELLS).toBe(179)
+    expect(MATRIX_CELLS).toBe(180)
+    expect(ACCOUNT_CELLS).toBe(21)
+    expect(COMPANY_CHAINS).toHaveLength(3)
     expect(CONTRACT_AMOUNT).toBe(480_000_000)
     expect(CONTRACT_CURRENCY).toBe('VND')
-    expect([FIRST_LEAD, FIRST_OPPORTUNITY, FIRST_CONTRACT]).toEqual([5000, 6000, 7000])
+    expect([FIRST_LEAD, FIRST_OPPORTUNITY, FIRST_CONTRACT, FIRST_ACCOUNT]).toEqual([
+      5000, 6000, 7000, 8000,
+    ])
   })
 
   it('reads every permission from the role table', () => {
@@ -77,7 +91,8 @@ describe('the seed', () => {
   it('has a word per chain, and a canary pattern that finds every token whole', () => {
     expect(new Set(WORDS).size).toBe(WORDS.length)
     const planted = cases.filter((c) => c.plant).length
-    expect(CHAINS.length + planted).toBeLessThan(WORDS.length)
+    /* The company takes the word after the chains, and the sibling the number after that. */
+    expect(CHAINS.length + COMPANY_CHAINS.length + planted + 1).toBeLessThan(WORDS.length)
     const tokens = Object.values(canariesOf(7))
     expect(tokens.join(' ').match(CANARY)).toEqual(tokens)
   })

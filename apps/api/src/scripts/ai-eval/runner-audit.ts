@@ -52,8 +52,10 @@ async function order(world: World, tally: Tally): Promise<void> {
     })
     const [first, second] = trail.witness.seen as [Seen, Seen]
     const at = (s: Seen) => s.landed as { audits: number; rows: number }
-    c.eq(at(second).audits, at(first).audits + 1, 'one ai-read line landed between requests')
+    /* A lead read opens its one seeded deal too, and each record has its own line. */
+    c.eq(at(second).audits, at(first).audits + 2, 'one ai-read line per record landed')
     c.eq(at(second).rows, at(first).rows + 1, 'one tool row landed between requests')
+    c.eq(readsOf(trail), [`get_record ${a.lead}`, `get_record ${a.opportunity}`].sort(), 'records')
     const [line] = trail.audits
     c.eq(line?.action, 'ai-read', 'action')
     c.eq(line?.code, a.lead, 'the record read')

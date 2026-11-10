@@ -17,7 +17,8 @@ import { PvError } from '../http/problem'
  *  So every tool names the door it stands for, the registry reads that door's
  *  `@Need` as it is built, and `call` asks E2 that question before any service.
  *
- *  `run` takes the `Actor` first and calls a door method that does too, and input
+ *  `run` takes the `Actor` first and calls a door method that does too (the company
+ *  profile door does not: debt in `docs/status.md`), and input
  *  schemas are `.strict()` with no id of a person, so identity comes from the
  *  sign-in and never from the model. Platform cannot import a branch: tools come
  *  through `ASSISTANT_TOOLS`, as `COMM_DEBRIEF_HOOK` does. */

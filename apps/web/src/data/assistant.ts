@@ -11,6 +11,7 @@ import {
   AssistantSessionDetail,
   AssistantSessionList,
   type AssistantRecordKind,
+  type AssistantRef,
   type AssistantReportBody,
   type AssistantSessionPatchBody,
   type AssistantSubject,
@@ -116,7 +117,7 @@ export function useStopTurn() {
 }
 
 /** A record's profile route, from the same table the header search opens hits with. */
-export const refPath = (ref: AssistantSubject) =>
+export const refPath = (ref: Pick<AssistantRef, 'kind' | 'code'>) =>
   `${SEARCH_KIND_FACTS[ref.kind].detail}/${encodeURIComponent(ref.code)}`
 
 /** The browser keeps the path percent-encoded; a contract code is not ASCII. */

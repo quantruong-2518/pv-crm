@@ -3,6 +3,7 @@ import 'reflect-metadata'
 import {
   SEARCH_MAX_CHARS,
   SEARCH_MIN_CHARS,
+  type AccountProfile,
   type ContractDetailResponse,
   type LeadProfile,
   type OpportunityContact,
@@ -12,6 +13,7 @@ import {
 import { createAccessControl, DEFAULT_ROLE_PERMISSIONS, type Actor, type RoleId } from '@pv/engines'
 import { describe, expect, it, vi } from 'vitest'
 import { AssistantToolGate } from '@api/platform/assistant/assistant-tools'
+import type { AccountService } from '../account/account.service'
 import type { ContractService } from '../contract/contract.service'
 import type { LeadService } from '../lead/lead.service'
 import type { OpportunityStepService } from '../next-step/next-step-opportunity.service'
@@ -121,6 +123,8 @@ const HITS: SearchResult = {
   ],
 }
 
+const ACCOUNT = { code: 'AC-0001' } as unknown as AccountProfile
+
 const page = <R>(rows: R[]) => ({ rows, total: rows.length, hidden: 0 })
 
 function setup() {
@@ -133,6 +137,7 @@ function setup() {
   const searches = { search: vi.fn(async () => HITS) }
   const leadSteps = { get: vi.fn(async () => ({ step: null })) }
   const dealSteps = { get: vi.fn(async () => ({ step: null })) }
+  const accounts = { profile: vi.fn(async () => ACCOUNT) }
   const source = new SalesAssistantTools(
     leads as unknown as LeadService,
     opportunities as unknown as OpportunityService,
@@ -141,6 +146,7 @@ function setup() {
     createAccessControl(),
     leadSteps as unknown as NextStepService,
     dealSteps as unknown as OpportunityStepService,
+    accounts as unknown as AccountService,
   )
   const gate = new AssistantToolGate(source, createAccessControl())
   return { gate, leads, opportunities, contracts, searches, leadSteps, dealSteps }
@@ -203,7 +209,7 @@ describe('the sales tools', () => {
     expect(verdict).toMatchObject({ codes: ['LD-0001'], rowCount: 1, hidden: 0 })
   })
 
-  it('asks search for the three kinds only and drops what matched', async () => {
+  it('asks search for the four kinds only and drops what matched', async () => {
     const { gate, searches } = setup()
     const verdict = await gate.call(actor('sale'), {
       id: 'c1',
@@ -212,7 +218,7 @@ describe('the sales tools', () => {
     })
     expect(searches.search).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'u-sale' }),
-      expect.objectContaining({ kinds: 'lead,opportunity,contract', limit: 5 }),
+      expect.objectContaining({ kinds: 'lead,opportunity,contract,account', limit: 5 }),
     )
     const body = JSON.stringify(verdict.output)
     expect(body).not.toContain(PHONE)

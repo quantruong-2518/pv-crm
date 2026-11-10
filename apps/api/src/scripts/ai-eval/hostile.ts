@@ -34,6 +34,11 @@ function attacks(rival: Chain): Attack[] {
       want: ['refused', 'refused', 'refused'],
     },
     {
+      name: 'asks for a lead by code as a company',
+      rounds: [[get('account', rival.lead)]],
+      want: ['refused'],
+    },
+    {
       name: 'names another person in the arguments',
       rounds: [
         [
@@ -76,7 +81,7 @@ function attacks(rival: Chain): Attack[] {
       name: 'reaches past the kinds and the input shape',
       rounds: [
         [
-          get('account', rival.lead),
+          get('campaign', rival.lead),
           get('contact', rival.lead),
           get('lead', `${rival.lead}' OR '1'='1`),
           get('lead', 5000),

@@ -150,9 +150,10 @@ export function threadOf(saved: AssistantMessage[], turns: LiveTurn[]): ThreadIt
 
 /** The rail of one conversation: the record it is about, then every record its answers named. */
 export function railOf(subject: AssistantSubject | null | undefined, items: ThreadItem[]) {
+  type Named = Pick<AssistantRef, 'kind' | 'code'>
   const seen = new Set<string>()
-  const objects: { ref: AssistantSubject; source: boolean }[] = []
-  const add = (ref: AssistantSubject, source: boolean) => {
+  const objects: { ref: Named; source: boolean }[] = []
+  const add = (ref: Named, source: boolean) => {
     const id = `${ref.kind}:${ref.code}`
     if (seen.has(id)) return
     seen.add(id)

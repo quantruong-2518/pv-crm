@@ -45,6 +45,11 @@ export type AssistantToolOutcome = z.infer<typeof AssistantToolOutcome>
 export const AssistantRecordKind = SearchKind.extract(['lead', 'opportunity', 'contract'])
 export type AssistantRecordKind = z.infer<typeof AssistantRecordKind>
 
+/** Kinds the tools can read. Wider than `AssistantRecordKind` on purpose: that one is the session subject,
+ *  bound by the `assistant_session.subject_kind` CHECK, and widening it needs a migration and a company-screen entry. */
+export const AssistantReadKind = SearchKind.extract(['lead', 'opportunity', 'contract', 'account'])
+export type AssistantReadKind = z.infer<typeof AssistantReadKind>
+
 const RecordCode = z.string().trim().min(1).max(64)
 /** Same shape as the `assistant_tool_call.name` CHECK. */
 const ToolName = z.string().regex(/^[a-z_]+$/)
@@ -68,14 +73,17 @@ export type AssistantSession = z.infer<typeof AssistantSession>
 export const AssistantQuestion = z.string().trim().min(1).max(2000)
 
 /** A record an answer names. `label` is the chip text on screen and never enters a model request (D5). */
-export const AssistantRef = AssistantSubject.extend({ label: z.string().min(1) })
+export const AssistantRef = AssistantSubject.extend({
+  kind: AssistantReadKind,
+  label: z.string().min(1),
+})
 export type AssistantRef = z.infer<typeof AssistantRef>
 
 /** What the turn read, per kind, and when: the line under an answer ("read 12 leads, 3 contracts · as of 09:42"). */
 export const AssistantFooter = z.object({
   read: z.array(
     z.object({
-      kind: z.union([AssistantRecordKind, z.literal('next-step')]),
+      kind: z.union([AssistantReadKind, z.literal('next-step')]),
       count: z.number().int().positive(),
     }),
   ),
@@ -185,12 +193,12 @@ export type AssistantEvent = z.infer<typeof AssistantEvent>
 export const SearchRecordsInput = z
   .object({
     query: z.string().trim().min(SEARCH_MIN_CHARS).max(SEARCH_MAX_CHARS),
-    kinds: z.array(AssistantRecordKind).min(1).max(3).optional(),
+    kinds: z.array(AssistantReadKind).min(1).max(4).optional(),
   })
   .strict()
 export type SearchRecordsInput = z.infer<typeof SearchRecordsInput>
 
-export const GetRecordInput = z.object({ kind: AssistantRecordKind, code: RecordCode }).strict()
+export const GetRecordInput = z.object({ kind: AssistantReadKind, code: RecordCode }).strict()
 export type GetRecordInput = z.infer<typeof GetRecordInput>
 
 /** Absent `kind` lists all three. Always the asker's own work: there is no field to name anyone else. */

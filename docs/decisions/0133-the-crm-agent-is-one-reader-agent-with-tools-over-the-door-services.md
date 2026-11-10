@@ -1,6 +1,6 @@
 # 0133 · The CRM Agent is one agent with tools over the door services, it reads until a card is pressed, and wave 0 builds the base
 
-Status: accepted (amends 0130: `PromptSpec.fields` for chat has no returned fields; amended by 0134: owner's answers to questions 141 to 153; amended by 0136: D3 built, the chat opens to the director alone)
+Status: accepted (amends 0130: `PromptSpec.fields` for chat has no returned fields; amended by 0134: owner's answers to questions 141 to 153; amended by 0136: D3 built, the chat opens to the director alone; amended by 0142 (company read))
 Date: 2026-11-01
 Source: project owner's decisions in session, 01/11/2026; the full plan is the Claude doc https://claude.ai/artifact/1r7zdgWt8CBWWCK52DCvCR (not copied here; when it and the 28/10 design differ, the doc is right)
 

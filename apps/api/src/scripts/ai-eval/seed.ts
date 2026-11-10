@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm'
+import { account } from '@api/branches/sales/account/account.schema'
 import { contact } from '@api/branches/sales/contact/contact.schema'
 import { contract, contractInstallment } from '@api/branches/sales/contract/contract.schema'
 import { lead } from '@api/branches/sales/lead/lead.schema'
@@ -14,11 +15,14 @@ import {
   ALL_SEATS,
   canariesOf,
   CHAINS,
+  COMPANY_CHAINS,
   CONTRACT_AMOUNT,
   CONTRACT_CURRENCY,
+  FIRST_ACCOUNT,
   FIRST_CONTRACT,
   FIRST_LEAD,
   FIRST_OPPORTUNITY,
+  STRANGER_DEAL_BASE,
   TYPED_TAX_CODE,
   TYPED_WEBSITE,
   WORDS,
@@ -31,15 +35,30 @@ import {
 
 export type Chain = {
   key: string
+  /** Its place in the seed, which is what `canariesOf` is keyed by. */
+  n: number
   word: string
   lead: string
   opportunity: string
   contract: string | null
+  /** The extra deal on this lead that another seller holds, when the chain has one. */
+  strangerDeal: { code: string; canary: string } | null
   canaries: readonly string[]
+}
+
+/** The one company whose children split across owners. */
+export type Company = {
+  code: string
+  name: string
+  n: number
+  /** Chain keys the company's profile lists, and the one it never does (switched off). */
+  live: readonly string[]
+  off: readonly string[]
 }
 
 export type Seeded = {
   chains: ReadonlyMap<string, Chain>
+  company: Company
   /** A contact on a sibling lead that a deal links to. */
   sibling: { canary: string; opportunity: string }
   /** Every canary in the world, so a cell can subtract what its door showed. */
@@ -49,7 +68,12 @@ export type Seeded = {
 const DUE = new Date('2026-12-15T00:00:00.000Z')
 const SIGNED_AT = new Date('2026-09-20T00:00:00.000Z')
 
-const mirror = (code: string, kind: 'LD' | 'OP' | 'HĐ', label: string, ownerId: string | null) => ({
+const mirror = (
+  code: string,
+  kind: 'LD' | 'OP' | 'HĐ' | 'AC',
+  label: string,
+  ownerId: string | null,
+) => ({
   code,
   kind,
   branch: 'Sales' as const,
@@ -62,7 +86,13 @@ const typedText = (spec: ChainSpec, n: number): string => {
   return spec.typed ? ` gọi ${typedPhone}, mail ${typedMail}` : ''
 }
 
-function leadValues(spec: ChainSpec, code: string, word: string, n: number) {
+function leadValues(
+  spec: ChainSpec,
+  code: string,
+  word: string,
+  n: number,
+  accountCode: string | null,
+) {
   const c = canariesOf(n)
   const state = spec.leadState ?? (spec.contract ? 'converted' : 'working')
   return {
@@ -78,6 +108,7 @@ function leadValues(spec: ChainSpec, code: string, word: string, n: number) {
     phone: c.phone,
     ownerId: spec.leadOwner,
     state,
+    ...(spec.account && accountCode ? { accountCode } : {}),
     ...(spec.typed ? { taxCode: TYPED_TAX_CODE, website: TYPED_WEBSITE } : {}),
     ...(state === 'nurturing' ? { exitReason: 'no-budget', exitedAt: DUE } : {}),
     ...(spec.disabled ? { disabledAt: DUE, disabledBy: 'rival' } : {}),
@@ -86,7 +117,13 @@ function leadValues(spec: ChainSpec, code: string, word: string, n: number) {
 
 /** Carries the chain's word, so the door's `contact` kind would hit it: a tool that
  *  stopped narrowing its kinds has to show up as a contact hit with a phone on it. */
-async function seedContact(db: Db, leadCode: string, n: number, word: string): Promise<void> {
+async function seedContact(
+  db: Db,
+  leadCode: string,
+  n: number,
+  word: string,
+  withMail: boolean,
+): Promise<void> {
   const c = canariesOf(n)
   const code = `CT-${FIRST_LEAD + n}`
   await db.insert(objectRef).values(mirror(code, 'CT' as never, word, null))
@@ -95,12 +132,33 @@ async function seedContact(db: Db, leadCode: string, n: number, word: string): P
     leadCode,
     name: `Anh ${word} ${c.extraContact}`,
     phone: c.extraPhone,
+    ...(withMail ? { email: c.extraMail } : {}),
     isPrimary: false,
     by: 'manual',
   } as never)
 }
 
-async function seedChain(db: Db, spec: ChainSpec, n: number): Promise<Chain> {
+async function seedStrangerDeal(db: Db, leadCode: string, owner: string, word: string, n: number) {
+  const c = canariesOf(STRANGER_DEAL_BASE + n)
+  const code = `OP-${FIRST_OPPORTUNITY + STRANGER_DEAL_BASE + n}`
+  await db.insert(objectRef).values(mirror(code, 'OP', word, owner))
+  await db.insert(opportunity).values({
+    code,
+    leadCode,
+    state: 'open',
+    name: `Đơn ${word} ${c.opportunityName}`,
+    description: `Mô tả ${c.description}`,
+    amount: CONTRACT_AMOUNT,
+    currency: CONTRACT_CURRENCY,
+    probability: 40,
+  })
+  await db
+    .insert(opportunityOwner)
+    .values({ opportunityCode: code, actorId: owner, role: 'SALE', isPrimary: true })
+  return { code, canary: c.opportunityName, also: c.description }
+}
+
+async function seedChain(db: Db, spec: ChainSpec, n: number, accountCode: string): Promise<Chain> {
   const word = WORDS[n]
   if (!word) throw new Error(`seed: no search word for chain ${n}`)
   const c = canariesOf(n)
@@ -115,7 +173,7 @@ async function seedChain(db: Db, spec: ChainSpec, n: number): Promise<Chain> {
       mirror(dealCode, 'OP', word, spec.dealOwners[0]?.id ?? null),
       ...(paperCode ? [mirror(paperCode, 'HĐ', word, spec.contract?.owner ?? null)] : []),
     ])
-  await db.insert(lead).values(leadValues(spec, leadCode, word, n) as never)
+  await db.insert(lead).values(leadValues(spec, leadCode, word, n, accountCode) as never)
   await db.insert(opportunity).values({
     code: dealCode,
     leadCode,
@@ -126,7 +184,10 @@ async function seedChain(db: Db, spec: ChainSpec, n: number): Promise<Chain> {
     currency: CONTRACT_CURRENCY,
     probability: 40,
   })
-  await seedContact(db, leadCode, n, word)
+  await seedContact(db, leadCode, n, word, !!spec.account)
+  const stranger = spec.strangerDealOwner
+    ? await seedStrangerDeal(db, leadCode, spec.strangerDealOwner, word, n)
+    : null
   if (spec.dealOwners.length > 0) {
     await db.insert(opportunityOwner).values(
       spec.dealOwners.map((o, i) => ({
@@ -159,11 +220,13 @@ async function seedChain(db: Db, spec: ChainSpec, n: number): Promise<Chain> {
   }
   return {
     key: spec.key,
+    n,
     word,
     lead: leadCode,
     opportunity: dealCode,
     contract: paperCode,
-    canaries: Object.values(c),
+    strangerDeal: stranger && { code: stranger.code, canary: stranger.canary },
+    canaries: [...Object.values(c), ...(stranger ? [stranger.canary, stranger.also] : [])],
   }
 }
 
@@ -186,6 +249,33 @@ async function seedSibling(db: Db, chains: ReadonlyMap<string, Chain>, n: number
   } as never)
   await db.insert(opportunityContact).values({ opportunityCode: deal, contactCode: code })
   return { canary, opportunity: deal }
+}
+
+/** Before its chains: a lead's `account_code` is a foreign key into it. */
+async function seedCompany(db: Db, n: number): Promise<Company> {
+  const word = WORDS[n]
+  if (!word) throw new Error(`seed: no search word for the company ${n}`)
+  const c = canariesOf(n)
+  const code = `AC-${FIRST_ACCOUNT}`
+  const name = `Tập đoàn ${word} ${c.company}`
+  await db.insert(objectRef).values(mirror(code, 'AC', name, null))
+  await db.insert(account).values({
+    code,
+    name,
+    legalName: `Công ty TNHH ${word} ${c.legalName}`,
+    address: `Khu công nghiệp ${word} ${c.address}`,
+    note: `Khách lâu năm ${c.pain}`,
+    sizeBand: '50-200',
+    plants: 2,
+  })
+  const keyed = (list: readonly ChainSpec[]) => list.map((s) => s.key)
+  return {
+    code,
+    name,
+    n,
+    live: keyed(COMPANY_CHAINS.filter((s) => !s.disabled)),
+    off: keyed(COMPANY_CHAINS.filter((s) => s.disabled)),
+  }
 }
 
 export async function seedWorld(db: Db): Promise<Seeded> {
@@ -213,19 +303,23 @@ export async function seedWorld(db: Db): Promise<Seeded> {
         ]
       : [],
   )
-  const specs = [...CHAINS, ...injected]
+  const specs = [...CHAINS, ...injected, ...COMPANY_CHAINS]
+  /* Two numbers past the chains: the sibling takes the first. */
+  const company = await seedCompany(db, specs.length + 1)
   const chains = new Map<string, Chain>()
   for (const [n, spec] of specs.entries()) {
     /* In order: a planted sentence may name a chain seeded before it. */
     const plants = Object.entries(spec.plants ?? {}).map(([k, text]) => [k, fill(text, chains)])
     const planted = { ...spec, plants: Object.fromEntries(plants) as ChainSpec['plants'] }
-    chains.set(spec.key, await seedChain(db, planted, n))
+    chains.set(spec.key, await seedChain(db, planted, n, company.code))
   }
   const sibling = await seedSibling(db, chains, specs.length)
   await db.execute(sql`UPDATE platform.ai_route SET enabled = true WHERE task = 'assistant'`)
+  const own = Object.values(canariesOf(company.n))
   return {
     chains,
+    company,
     sibling,
-    canaries: new Set([...chains.values()].flatMap((c) => c.canaries).concat(sibling.canary)),
+    canaries: new Set([...chains.values()].flatMap((c) => c.canaries).concat(sibling.canary, own)),
   }
 }

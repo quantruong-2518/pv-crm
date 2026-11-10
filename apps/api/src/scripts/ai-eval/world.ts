@@ -6,6 +6,7 @@ import { sql } from 'drizzle-orm'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { SalesAssistantModule } from '@api/branches/sales/assistant/sales-assistant.module'
 import { SalesAssistantTools } from '@api/branches/sales/assistant/sales-assistant-tools'
+import { AccountService } from '@api/branches/sales/account/account.service'
 import { ContractService } from '@api/branches/sales/contract/contract.service'
 import { LeadService } from '@api/branches/sales/lead/lead.service'
 import { OpportunityService } from '@api/branches/sales/opportunity/opportunity.service'
@@ -70,6 +71,7 @@ export type World = {
   doorAccess: AccessControl
   tools: readonly AssistantTool[]
   audits: AuditRepository
+  accounts: AccountService
   leads: LeadService
   opportunities: OpportunityService
   contracts: ContractService
@@ -97,6 +99,7 @@ export async function openWorld(): Promise<World> {
     doorAccess: createAccessControl(),
     tools: source.tools(),
     audits: new AuditRepository(handle.db),
+    accounts: app.get(AccountService, { strict: false }),
     leads: app.get(LeadService, { strict: false }),
     opportunities: app.get(OpportunityService, { strict: false }),
     contracts: app.get(ContractService, { strict: false }),

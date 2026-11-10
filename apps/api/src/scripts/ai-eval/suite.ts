@@ -53,7 +53,7 @@ async function scripted(
 export async function runAll(options: Options): Promise<void> {
   const cases = loadCases()
   const tally = new Tally()
-  await tally.run('cases', 'the set is 20, 15, 10 and 5', async (c) => {
+  await tally.run('cases', 'the set is 20, 15, 10, 5, 10 and 6', async (c) => {
     c.eq(caseSetFaults(cases), [], 'faults of the set')
   })
   const world = await openWorld()

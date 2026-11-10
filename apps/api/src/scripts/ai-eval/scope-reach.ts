@@ -1,7 +1,8 @@
 import { DEFAULT_ROLE_PERMISSIONS, type RoleId } from '@pv/engines'
+import { LeadController } from '@api/branches/sales/lead/lead.controller'
 import { trailText, type Trail } from './bench'
 import type { Check, Tally } from './report'
-import type { DoorAnswer, Probe } from './scope-door'
+import { doorId, type DoorAnswer, type Probe } from './scope-door'
 import { ALL_SEATS, NAMED_SEATS, ROLE_SEATS, ROLES, wideSeatId, type Seat } from './seed-data'
 import type { Chain } from './seed'
 import { toolOutputs } from './scripted-client'
@@ -73,8 +74,7 @@ export function agreeOnReach(
   const output = JSON.parse(body) as ToolBody
   const flag = output.contactInfoWithheld
   if (probe === 'search') return c.eq(flag, undefined, 'a list has no flag, mask or not')
-  const shown = JSON.parse(door.json) as Record<string, unknown>
-  const keyed = doorContacts(shown)
+  const keyed = doorContacts(door.bodies)
   const typed = contactsIn(door.json).filter((v) => !keyed.includes(v) && !STAFF_MAILS.has(v))
   const atDoor = [...keyed, ...typed]
   const holder = holdsExport(who)
@@ -82,7 +82,9 @@ export function agreeOnReach(
   log.add(line(who.roleIds[0], probe, verdict))
   c.eq(flag, verdict === 'withheld' ? true : undefined, 'contactInfoWithheld')
   if (probe === 'lead') {
-    for (const key of NOT_MASKED) c.eq(output.untrusted?.[key], shown[key] ?? undefined, key)
+    const profile = door.bodies[doorId([LeadController, 'profile'])] as
+      Record<string, unknown> | undefined
+    for (const key of NOT_MASKED) c.eq(output.untrusted?.[key], profile?.[key] ?? undefined, key)
   }
   if (holder) {
     c.eq(

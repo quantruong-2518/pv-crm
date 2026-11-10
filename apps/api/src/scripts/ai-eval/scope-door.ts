@@ -1,21 +1,30 @@
-import { ContractCode, ObjectCode, SearchQuery } from '@pv/contracts'
+import {
+  ContractCode,
+  LeadBookQuery,
+  ObjectCode,
+  OpportunityBookQuery,
+  SearchQuery,
+} from '@pv/contracts'
 import type { Actor } from '@pv/engines'
 import { ContractController } from '@api/branches/sales/contract/contract.controller'
 import { LeadController } from '@api/branches/sales/lead/lead.controller'
 import { OpportunityController } from '@api/branches/sales/opportunity/opportunity.controller'
 import { SearchController } from '@api/branches/sales/search/search.controller'
+import { ACCOUNT_LIST } from '@api/branches/sales/assistant/sales-assistant-tools'
 import { NEED_KEY, type RouteNeed } from '@api/platform/access/need.decorator'
 import { UNSURE } from '@api/platform/assistant/assistant-bind'
+import type { ToolDoor } from '@api/platform/assistant/assistant-tools'
 import { PvError } from '@api/platform/http/problem'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CANARY } from './seed-data'
-import type { Chain } from './seed'
+import type { Chain, Company } from './seed'
 import type { World } from './world'
 
 /** The oracle: what a person would get at the HTTP door, asked the way the door
- *  asks it. The need is read off the controller here, not through the tool's own
- *  registration, and the E2 instance is not the gate's: if the tool or its gate go
- *  wrong, this side does not go wrong with them.
+ *  asks it. A tool call is compared with the UNION of the doors it opened: which
+ *  doors come from the tool's registration, the need of each is read off its
+ *  controller here, and the E2 instance is not the gate's. If the tool or its gate
+ *  go wrong, this side does not go wrong with them.
  *
  *  It decides nothing itself, and a bug shared by a door and its tool passes here.
  *  That is what `scope-facts.ts` is for. */
@@ -23,20 +32,131 @@ import type { World } from './world'
 export const PROBES = ['search', 'lead', 'opportunity', 'contract'] as const
 export type Probe = (typeof PROBES)[number]
 
-const HANDLERS = {
-  search: [SearchController, 'find'],
-  lead: [LeadController, 'profile'],
-  opportunity: [OpportunityController, 'profile'],
-  contract: [ContractController, 'profile'],
-} as const
+/** A door as a tool names it: the key is the tool's own, the pair is what it stands for. */
+export type Opened = { key: string; door: ToolDoor }
 
+/** The one door each probe's FACT is about, whatever else its tool call also reads. */
+const HANDLERS: Record<Probe, Opened> = {
+  search: { key: 'find', door: [SearchController, 'find'] },
+  lead: { key: 'lead', door: [LeadController, 'profile'] },
+  opportunity: { key: 'opportunity', door: [OpportunityController, 'profile'] },
+  contract: { key: 'contract', door: [ContractController, 'profile'] },
+}
+
+/** `bodies` holds each opened door's answer under its `doorId`, in the order opened. */
 export type DoorAnswer =
-  | { ok: true; json: string; codes: string[]; rows: number }
+  | {
+      ok: true
+      json: string
+      codes: string[]
+      rows: number
+      bodies: Readonly<Record<string, unknown>>
+    }
   | { ok: false; reason: string; json: '' }
 
+export const doorId = ([controller, handler]: ToolDoor): string => `${controller.name}.${handler}`
+
+type Asked = { body: unknown; codes: string[] }
+
+/** What a cell stands on: a chain of one lead, or the company over several. */
+export type Subject = Chain | Company
+type Ask = (world: World, who: Actor, on: Subject) => Promise<Asked>
+
+const chainOf = (on: Subject): Chain => {
+  if (!('lead' in on)) throw new Error('oracle: this door is asked on a chain, not a company')
+  return on
+}
+
+const companyOf = (on: Subject): Company => {
+  if ('lead' in on) throw new Error('oracle: this door is asked on a company, not a chain')
+  return on
+}
+
+/* The size the tool asks the deals of a lead with; the constant is private to the tool. */
+const LEAD_DEALS = 20
+
+/** The chains a company lists, as the seed knows them and not as its profile says. */
+const liveChains = (world: World, company: Company): Chain[] =>
+  company.live.map((key) => {
+    const found = world.seeded.chains.get(key)
+    if (!found) throw new Error(`oracle: no chain ${key}`)
+    return found
+  })
+
+/** How each door is asked as a seat, for the records of a chain or a company. Keyed
+ *  by the tool's own door key, because one controller method stands for two doors:
+ *  the deals of a lead and the deals of a company are the same book asked two ways.
+ *  A key missing from this table stops the run: a guess would pass a door nobody
+ *  compared.
+ *
+ *  A company's profile door fences nothing, so what it shows is cut down to the
+ *  company's own fields, and its leads and deals are asked at the book doors as the
+ *  seat, with the codes the SEED says hang under it. */
+const ASK: Record<string, Ask> = {
+  find: async (world, who, on) => {
+    /* The same query the HTTP layer parses from `?q=&kinds=`, spelled out here. */
+    const q = zod(SearchQuery).transform({
+      q: chainOf(on).word,
+      kinds: 'lead,opportunity,contract,account',
+    })
+    const body = await world.searches.search(who, q)
+    return { body, codes: body.groups.flatMap((g) => g.hits).map((h) => h.code) }
+  },
+  lead: async (world, who, on) => {
+    const body = await world.leads.profile(who, zod(ObjectCode).transform(chainOf(on).lead))
+    return { body, codes: [body.code] }
+  },
+  opportunity: async (world, who, on) => {
+    const body = await world.opportunities.profile(
+      who,
+      zod(ObjectCode).transform(chainOf(on).opportunity),
+    )
+    return { body, codes: [body.code] }
+  },
+  contract: async (world, who, on) => {
+    const body = await world.contracts.profile(
+      who,
+      zod(ContractCode).transform(chainOf(on).contract ?? ''),
+    )
+    return { body, codes: [body.code] }
+  },
+  /* The book is asked for the deals of the chain's lead, as the lead read asks it. */
+  leadDeals: async (world, who, on) => {
+    const q = zod(OpportunityBookQuery).transform({ leadCode: chainOf(on).lead, size: LEAD_DEALS })
+    const body = await world.opportunities.book(who, q)
+    return { body, codes: body.rows.map((r) => r.code) }
+  },
+  account: async (world, _who, on) => {
+    const { code } = companyOf(on)
+    const profile = await world.accounts.profile(zod(ObjectCode).transform(code))
+    const body = { ...profile, leadRows: [], dealRows: [], contactRows: [] }
+    return { body, codes: [profile.code] }
+  },
+  /* Every state: the seed's signed leads are converted, and the default book hides them. */
+  accountLeads: async (world, who, on) => {
+    const codes = liveChains(world, companyOf(on)).map((c) => c.lead)
+    const q = zod(LeadBookQuery).transform({
+      codes: codes.join(','),
+      state: 'all',
+      size: ACCOUNT_LIST,
+    })
+    const body = await world.leads.book(who, q)
+    return { body, codes: body.rows.map((r) => r.code) }
+  },
+  accountDeals: async (world, who, on) => {
+    const chains = liveChains(world, companyOf(on))
+    const codes = chains.flatMap((c) => [
+      c.opportunity,
+      ...(c.strangerDeal ? [c.strangerDeal.code] : []),
+    ])
+    const q = zod(OpportunityBookQuery).transform({ codes: codes.join(','), size: ACCOUNT_LIST })
+    const body = await world.opportunities.book(who, q)
+    return { body, codes: body.rows.map((r) => r.code) }
+  },
+}
+
 /** `AccessGuard`'s lookup: the handler first, then its class. */
-function needOf(probe: Probe): RouteNeed {
-  const [controller, handler] = HANDLERS[probe]
+export function needOf([controller, handler]: ToolDoor): RouteNeed {
   const method = (controller.prototype as unknown as Record<string, object>)[handler] as object
   const need = (Reflect.getMetadata(NEED_KEY, method) ??
     Reflect.getMetadata(NEED_KEY, controller)) as RouteNeed | undefined
@@ -44,50 +164,71 @@ function needOf(probe: Probe): RouteNeed {
   return need
 }
 
-/** The same query the HTTP layer parses from `?q=&kinds=`, spelled out here. */
-const searchOf = (word: string) =>
-  zod(SearchQuery).transform({ q: word, kinds: 'lead,opportunity,contract' })
-
-async function serviceAnswer(world: World, who: Actor, probe: Probe, chain: Chain) {
-  switch (probe) {
-    case 'search': {
-      const result = await world.searches.search(who, searchOf(chain.word))
-      const hits = result.groups.flatMap((g) => g.hits)
-      return { body: result, codes: hits.map((h) => h.code) }
-    }
-    case 'lead': {
-      const body = await world.leads.profile(who, zod(ObjectCode).transform(chain.lead))
-      return { body, codes: [body.code] }
-    }
-    case 'opportunity': {
-      const code = zod(ObjectCode).transform(chain.opportunity)
-      const body = await world.opportunities.profile(who, code)
-      return { body, codes: [body.code] }
-    }
-    case 'contract': {
-      const code = zod(ContractCode).transform(chain.contract ?? '')
-      const body = await world.contracts.profile(who, code)
-      return { body, codes: [body.code] }
-    }
+/** What the service says to a seat E2 let through: an answer, or the status of a refusal. */
+async function askOne(world: World, who: Actor, { key, door }: Opened, on: Subject) {
+  const ask = ASK[key]
+  if (!ask) throw new Error(`oracle: no way to ask ${key} (${doorId(door)}) as a seat (see ASK)`)
+  try {
+    return { ok: true as const, ...(await ask(world, who, on)) }
+  } catch (error) {
+    const status = error instanceof PvError ? error.getStatus() : null
+    if (status === 403 || status === 404) return { ok: false as const, reason: String(status) }
+    throw error
   }
 }
 
-export async function askDoor(
+/** The union of what `doors` hand this seat. Refused when E2 shuts every door, or
+ *  when any door E2 opened refuses at the service: the gate fails a whole call on
+ *  one thrown refusal and runs on over the doors E2 skipped. A door that merely
+ *  returns fewer rows is no refusal, and what it hides stays out of the union. */
+async function askDoors(world: World, who: Actor, doors: readonly Opened[], on: Subject) {
+  const checks = doors.map((named) => ({
+    named,
+    verdict: world.doorAccess.check(who, needOf(named.door)),
+  }))
+  const shut = checks.flatMap((c) => (c.verdict.ok ? [] : [c.verdict.reason]))
+  if (shut.length === checks.length) {
+    return { ok: false as const, reason: shut[0] ?? '', json: '' as const }
+  }
+  const bodies: Record<string, unknown> = {}
+  const codes: string[] = []
+  for (const { named, verdict } of checks) {
+    if (!verdict.ok) continue
+    const got = await askOne(world, who, named, on)
+    if (!got.ok) return { ok: false as const, reason: got.reason, json: '' as const }
+    bodies[doorId(named.door)] = got.body
+    codes.push(...got.codes)
+  }
+  const json = JSON.stringify(Object.values(bodies))
+  return { ok: true as const, json, codes, rows: codes.length, bodies }
+}
+
+/** One door, the one `probe` stands for: what a fact is about. */
+export const askDoor = (
   world: World,
   who: Actor,
   probe: Probe,
   chain: Chain,
+): Promise<DoorAnswer> => askDoors(world, who, [HANDLERS[probe]], chain)
+
+/** What a tool call's doors hand this seat: the doors are the ones the tool's own
+ *  registration names for this input, so a tool added later is compared with no new
+ *  code here. */
+export function askCall(
+  world: World,
+  who: Actor,
+  call: { name: string; input: unknown },
+  on: Subject,
 ): Promise<DoorAnswer> {
-  const verdict = world.doorAccess.check(who, needOf(probe))
-  if (!verdict.ok) return { ok: false, reason: verdict.reason, json: '' }
-  try {
-    const { body, codes } = await serviceAnswer(world, who, probe, chain)
-    return { ok: true, json: JSON.stringify(body), codes, rows: codes.length }
-  } catch (error) {
-    const status = error instanceof PvError ? error.getStatus() : null
-    if (status === 403 || status === 404) return { ok: false, reason: String(status), json: '' }
-    throw error
-  }
+  const tool = world.tools.find((t) => t.name === call.name)
+  const prepared = tool?.prepare(call.input)
+  if (!tool || !prepared?.ok) throw new Error(`oracle: ${call.name} does not take this input`)
+  const doors = prepared.doorKeys.map((key): Opened => {
+    const door = tool.doors[key]
+    if (!door) throw new Error(`oracle: ${call.name} names no door for ${key}`)
+    return { key, door }
+  })
+  return askDoors(world, who, doors, on)
 }
 
 export const canariesIn = (text: string): string[] => [...text.matchAll(CANARY)].map((m) => m[0])

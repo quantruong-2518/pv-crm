@@ -1,6 +1,9 @@
+import { ObjectCode } from '@pv/contracts'
+import { zod } from '@api/platform/http/zod.pipe'
 import { runTurn, trailText, type Trail } from './bench'
 import type { Check, Tally } from './report'
 import {
+  askCall,
   askDoor,
   canariesIn,
   leaves,
@@ -9,6 +12,7 @@ import {
   unbound,
   type DoorAnswer,
 } from './scope-door'
+import { accountMatrix } from './scope-account'
 import { FACTS } from './scope-facts'
 import {
   agreeOnReach,
@@ -71,7 +75,8 @@ function cellsOf(world: World): Cell[] {
   return [...roleCells, ...named, ...pool, ...edgeCells(chain)]
 }
 
-/** A wide reader on a dead lead, and a scoped one on a lead nobody holds. */
+/** A wide reader on a dead lead, a scoped one on a lead nobody holds, and an owner
+ *  on a lead whose book hides a deal of someone else's. */
 function edgeCells(chain: (key: string) => Chain): Cell[] {
   const wide = ROLE_SEATS.find((s) => s.id === 'seat-director-wide')
   const scoped = ROLE_SEATS.find((s) => s.id === scopedSeatId('sale'))
@@ -83,6 +88,7 @@ function edgeCells(chain: (key: string) => Chain): Cell[] {
       probe,
       chain: chain('unowned'),
     })),
+    { who: NAMED_SEATS.saleA, probe: 'lead', chain: chain('shared-lead') },
   ]
 }
 
@@ -147,11 +153,9 @@ function noContactInList(c: Check, cell: Cell, trail: Trail): void {
 }
 
 async function runCell(world: World, c: Check, cell: Cell, log: ReachLog): Promise<DoorAnswer> {
-  const door = await askDoor(world, cell.who, cell.probe, cell.chain)
-  const trail = await runTurn(world, {
-    who: cell.who,
-    script: [{ calls: [callOf(cell)] }, parrot],
-  })
+  const call = callOf(cell)
+  const door = await askCall(world, cell.who, call, cell.chain)
+  const trail = await runTurn(world, { who: cell.who, script: [{ calls: [call] }, parrot] })
   c.eq(trail.turn?.endedBy, 'answer', 'the turn ends normally')
   if (door.ok) {
     agreeOnAnswer(c, door, trail, cell.who)
@@ -171,6 +175,29 @@ async function runCell(world: World, c: Check, cell: Cell, log: ReachLog): Promi
     c.ok(shownCanariesIn(trail.turn?.body ?? '').length > 0, 'an allowed read reaches the answer')
   }
   return door
+}
+
+/** The control for the 'shared-lead' cell: the door must really hide the other deal,
+ *  or that cell would pass with nothing to leak. */
+async function hiddenDealIsHidden(world: World, tally: Tally): Promise<void> {
+  const shared = world.seeded.chains.get('shared-lead')
+  if (!shared?.strangerDeal) throw new Error('no chain shared-lead')
+  const { code, canary } = shared.strangerDeal
+  await tally.run('scope-matrix', 'a lead opens and its book hides a deal', async (c) => {
+    const call = { name: 'get_record', input: { kind: 'lead', code: shared.lead } }
+    const door = await askCall(world, NAMED_SEATS.saleA, call, shared)
+    c.ok(door.ok && door.codes.includes(shared.lead), 'the lead opens')
+    c.ok(door.ok && door.codes.includes(shared.opportunity), 'the seat sees its own deal')
+    c.ok(door.ok && !door.codes.includes(code), 'the book hides the other deal')
+    c.ok(!canariesIn(door.json).includes(canary), 'no canary of the hidden deal at the door')
+    /* Without this half the cell passes on a deal nobody could read at all. */
+    const theirs = await world.opportunities.profile(
+      NAMED_SEATS.rival,
+      zod(ObjectCode).transform(code),
+    )
+    c.eq(theirs.code, code, 'the deal is there for the seat that holds it')
+    c.ok(canariesIn(JSON.stringify(theirs)).includes(canary), 'its canary shows to that seat')
+  })
 }
 
 /** The search fence hides a contact of a lead the reader may not see; the deal
@@ -209,6 +236,8 @@ export async function scopeMatrix(world: World, tally: Tally): Promise<void> {
   })
   await reachCoverage(tally, reach)
   await grantCases(world, tally, (c, cell, log) => runCell(world, c, cell, log))
+  await hiddenDealIsHidden(world, tally)
+  await accountMatrix(world, tally)
   await noteSiblingContact(world, tally)
   for (const fact of FACTS) {
     const name = `fact: ${fact.who.id} ${fact.probe} ${fact.chain}`

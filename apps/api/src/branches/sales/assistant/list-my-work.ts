@@ -54,7 +54,8 @@ const DOORS: Record<Kind | 'all', readonly Door[]> = {
   all: ['lead', 'opportunity', 'lead-step', 'opportunity-step'],
 }
 
-const LeadTrusted = LeadRow.pick({
+/** Exported for the company read, which keeps the same fields of the same books. */
+export const LeadTrusted = LeadRow.pick({
   code: true,
   state: true,
   tier: true,
@@ -67,7 +68,7 @@ const LeadTrusted = LeadRow.pick({
   createdAt: true,
 })
 
-const DealTrusted = OpportunityRow.pick({
+export const DealTrusted = OpportunityRow.pick({
   code: true,
   leadCode: true,
   stage: true,

@@ -1,8 +1,9 @@
-import type {
-  AssistantFooter,
-  AssistantRef,
-  AssistantSuggestion,
-  AssistantSuggestionKey,
+import {
+  AssistantReadKind,
+  type AssistantFooter,
+  type AssistantRef,
+  type AssistantSuggestion,
+  type AssistantSuggestionKey,
 } from '@pv/contracts'
 import type { ToolVerdict } from './assistant-tools'
 
@@ -39,8 +40,11 @@ export function noteReads(
   for (const c of calls) {
     if (c.outcome !== 'ok') continue
     const tool = c.call.name
+    /* A company read lists its leads and deals as refs; only the company is the record read. */
+    const only = tool === 'get_record' && c.refs[0]?.kind === 'account' ? c.refs[0] : null
     for (const ref of c.refs) {
       if (!reads.refs.has(ref.code)) reads.refs.set(ref.code, ref)
+      if (only && ref !== only) continue
       see(reads, tool, ref.code)
       see(reads, `${tool} ${ref.kind}`, ref.code)
     }
@@ -49,7 +53,7 @@ export function noteReads(
   }
 }
 
-const KINDS: readonly FooterKind[] = ['lead', 'opportunity', 'contract']
+const KINDS: readonly FooterKind[] = AssistantReadKind.options
 
 /** Kinds with nothing read are left out: the contract counts are positive. */
 export function footerOf(reads: Pick<TurnReads, 'refs' | 'steps'>, at: Date): AssistantFooter {

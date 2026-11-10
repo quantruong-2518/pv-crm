@@ -36,6 +36,18 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
   0137 are on master; the 01/11 handover said migration 0162 had to reach Neon
   before the API deploy — whether it did is **not recorded here**. Full plan:
   https://claude.ai/artifact/1r7zdgWt8CBWWCK52DCvCR
+- Company profile door is unfenced (debt, found 10/11 by reading code; owner:
+  fix in its own turn, not now). `GET /accounts/:code` (`profile` in
+  `apps/api/src/branches/sales/account/account.controller.ts`) calls
+  `AccountService.profile(code)` with no `Actor`, so anyone holding
+  `account.view` — an own-only salesperson included — gets every lead
+  (`leadRows`), every deal with its amount (`dealRows`), every contact with
+  phone and email (`contactRows`) and `signedAmountVnd` / deal counts
+  (`AccountProfile`, `packages/contracts/src/sales/account.ts`). The lead and
+  deal profile doors do fence by scope, so the company screen shows what they
+  refuse. The CRM assistant's company read does not wrap this door as-is: it
+  takes company fields from it and re-reads child leads and deals through the
+  lead and opportunity book doors as the asker.
 - A-3, finding several contacts for a lead: approved 01/11, not built (10/11: a
   grep of `apps/api/src` for a legal representative or a leadership page finds
   nothing). Sources: legal representative from the business register, "Ban lãnh
