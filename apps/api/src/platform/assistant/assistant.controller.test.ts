@@ -117,6 +117,29 @@ const readLead = defineTool({
   },
 })
 
+/** The comms door's reach for a revealing call; every code by default. */
+const reach = vi.fn(async (_who: Actor, codes: readonly string[]): Promise<ReadonlySet<string>> => {
+  return new Set(codes)
+})
+
+/* Named `get_history`, a tool that reveals gated text and re-asks its door's reach. */
+const readNote = defineTool({
+  name: 'get_history',
+  description: 'Fake.',
+  input: z.object({ kind: z.literal('lead'), code: z.string() }).strict(),
+  doors: { lead: door(FakeDoors, 'lead') },
+  doorFor: () => 'lead',
+  reveals: 'comm.view-content',
+  revealReach: { door: 'lead', read: reach },
+  run: async (_who, { code }) => ({
+    data: { trusted: { code }, untrusted: { summary: 'Hẹn gọi lại' } },
+    codes: [code],
+    rowCount: 1,
+    hidden: null,
+    refs: [{ kind: 'lead', code, label: COMPANY }],
+  }),
+})
+
 type Limits = AiLimits & { signal: AbortSignal }
 type Step =
   | Partial<AiRound>
@@ -169,13 +192,22 @@ const readRound = (code = 'LD-0001'): Partial<AiRound> => ({
   stop: 'tools',
 })
 
+const noteRound = (...codes: string[]): Partial<AiRound> => ({
+  calls: codes.map((code, i) => ({
+    id: `vendor-${i}`,
+    name: 'get_history',
+    input: { kind: 'lead', code },
+  })),
+  stop: 'tools',
+})
+
 let db: Db
 let close: () => Promise<void>
 
 function doors(client: Scripted) {
   const routes = new AiRouteRepository(db)
   const gateway = new AiGateway(routes, new AiLedger(), { gemini: client, anthropic: client }, db)
-  const gate = new AssistantToolGate({ tools: () => [readLead] }, createAccessControl())
+  const gate = new AssistantToolGate({ tools: () => [readLead, readNote] }, createAccessControl())
   const repo = new AssistantRepository(db)
   const audits = new AuditRepository(db)
   const runner = new AssistantRunner(gateway, repo, audits, gate)
@@ -230,6 +262,8 @@ afterAll(async () => close?.())
 beforeEach(async () => {
   await route(true)
   reread.mockClear()
+  reach.mockClear()
+  reach.mockImplementation(async (_who, codes) => new Set(codes))
 })
 
 afterEach(() => vi.restoreAllMocks())
@@ -614,6 +648,114 @@ describe('a record the person can no longer read', () => {
     await running
     await service.detail(director, sessionId)
     expect(reread).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('a stored answer that read comm summaries', () => {
+  /** The `view` lines a serve left for this session, by subject code. */
+  const linesOf = async (where: string) =>
+    (await db.select().from(audit).where(eq(audit.action, 'view')))
+      .filter((l) => l.note?.startsWith(where))
+      .map((l) => l.code)
+      .sort()
+
+  async function chatOf(...codes: string[][]) {
+    let sessionId: string | undefined
+    for (const [i, calls] of codes.entries()) {
+      const turn = await ask(new Scripted([noteRound(...calls), { text: 'Đã xem.' }]), director, {
+        question: `Lần ${i}`,
+        sessionId,
+      })
+      sessionId = turn.sessionId
+    }
+    return sessionId!
+  }
+
+  it('withholds a holder out of the comms reach, with the later answers, and audits nothing', async () => {
+    const sessionId = await chatOf(['LD-0701'], [])
+    reach.mockResolvedValue(new Set())
+
+    const shut = await doors(new Scripted([])).service.detail(director, sessionId)
+    expect(shut.messages.filter((m) => m.role === 'assistant').map((m) => m.withheld)).toEqual([
+      true,
+      true,
+    ])
+    expect(await linesOf(`assistant · session ${sessionId}`)).toEqual([])
+  })
+
+  it('marks the answer unchecked when the reach read throws', async () => {
+    const sessionId = await chatOf(['LD-0702'])
+    reach.mockRejectedValue(new Error('the mirror is down'))
+
+    const shut = await doors(new Scripted([])).service.detail(director, sessionId)
+    expect(shut.messages[1]).toMatchObject({ unchecked: true, withheld: false, body: '' })
+  })
+
+  it('writes one view line per subject code on every serve, and none while a turn runs', async () => {
+    const sessionId = await chatOf(['LD-0703', 'LD-0704'], ['LD-0703'])
+    const { service } = doors(new Scripted([]))
+    const where = `assistant · session ${sessionId}`
+    reach.mockClear()
+
+    const shown = await service.detail(director, sessionId)
+    expect(shown.messages[3]).toMatchObject({ withheld: false, body: 'Đã xem.' })
+    expect(await linesOf(where)).toEqual(['LD-0703', 'LD-0704'])
+    expect(reach).toHaveBeenCalledTimes(1)
+    await service.detail(director, sessionId)
+    expect(await linesOf(where)).toEqual(['LD-0703', 'LD-0703', 'LD-0704', 'LD-0704'])
+
+    let release: () => void = () => {}
+    let asking = false
+    const held = new Promise<void>((done) => (release = done))
+    const slow = doors(
+      new Scripted([
+        async () => {
+          asking = true
+          await held
+          return { text: 'Lâu.' }
+        },
+      ]),
+    ).turns
+    const body = { question: 'Chờ', sessionId }
+    const running = slow.run(director, body, await slow.sessionOf(director, body), () => {})
+    await vi.waitFor(() => expect(asking).toBe(true))
+    await service.detail(director, sessionId)
+    expect(await linesOf(where)).toHaveLength(4)
+    release()
+    await running
+    await service.detail(director, sessionId)
+    expect(await linesOf(where)).toHaveLength(6)
+  })
+
+  it('writes no code line for a plain answer', async () => {
+    const first = await ask(new Scripted([readRound('LD-0705'), { text: 'Rồi.' }]))
+    await doors(new Scripted([])).service.detail(director, first.sessionId!)
+
+    expect(await linesOf(`assistant · session ${first.sessionId}`)).toEqual([])
+  })
+
+  it('adds the code lines to the report page line, and only for a row it serves', async () => {
+    const sessionId = await chatOf(['LD-0706'], ['LD-0707'])
+    const { service } = doors(new Scripted([]))
+    const [, second] = (
+      await db.select().from(assistantMessage).where(eq(assistantMessage.sessionId, sessionId))
+    )
+      .filter((r) => r.role === 'assistant')
+      .sort((a, b) => a.seq - b.seq)
+    await service.report(director, second!.id, { reason: 'missing' })
+    const query = zod(AssistantReportQuery).transform({ size: '1' })
+
+    const page = await service.reports(director, query)
+    expect(page.rows[0]).toMatchObject({ withheld: false })
+    expect(await linesOf('assistant · page 1 ·')).toEqual(['LD-0706', 'LD-0707'])
+    const pageLine = `assistant.reports · page 1 · 1 answer(s) read: ${second!.id}`
+    expect(await linesOf(pageLine)).toEqual([null])
+
+    const before = (await linesOf('assistant · page 1 ·')).length
+    reach.mockResolvedValue(new Set())
+    const shut = await service.reports(director, query)
+    expect(shut.rows[0]).toMatchObject({ withheld: true, answer: '' })
+    expect(await linesOf('assistant · page 1 ·')).toHaveLength(before)
   })
 })
 

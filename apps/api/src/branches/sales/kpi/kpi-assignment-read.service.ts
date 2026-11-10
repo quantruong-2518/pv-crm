@@ -236,9 +236,9 @@ export class KpiAssignmentReader {
   ): Promise<LastMonth> {
     const defs = catalog[role]
     const company = isCompany(book.tree, unitId)
-    /* Whole-book results stay behind `GET :period/company`'s own permission, so a
-       company seat without `performance.view` keeps the holders' sums alone. */
-    const wholeBook = company && this.access.allows(who, 'performance.view')
+    /* Whole-book results stay behind `GET :period/company`'s own permission
+       (`kpi.view-all`), so a company seat without it keeps the holders' sums alone. */
+    const wholeBook = company && this.access.allows(who, 'kpi.view-all')
     const shares = defs.map(kpiMetricShare)
     if (!shares.includes('additive') && !(wholeBook && shares.includes('total')))
       return NO_LAST_MONTH

@@ -182,6 +182,8 @@ export const NAMED_SEATS = {
   casesSale: seat('cases-sale', 'sale', true),
   casesMarketing: seat('cases-marketing', 'marketing', true),
   casesExecutive: seat('cases-executive', 'account-executive', false),
+  /* Owns `hist-reach` alone, so a lead moved away from it hits no other seat's cells. */
+  reach: seat('reach-sale', 'sale', true),
 } as const
 
 export type NamedSeat = keyof typeof NAMED_SEATS
@@ -301,4 +303,5 @@ export const COMPANY_CHAINS: readonly ChainSpec[] = [
 export const HISTORY_CHAINS: readonly ChainSpec[] = [
   { key: 'hist-rich', ...signed('sale-a'), history: 'rich' },
   { key: 'hist-wide', ...signed('sale-a'), history: 'wide' },
+  { key: 'hist-reach', ...signed('reach-sale') },
 ]

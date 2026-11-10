@@ -7,8 +7,8 @@ import { CurrentActor } from '@api/platform/session/current-actor.decorator'
 import { KpiHistoryService } from './kpi-history.service'
 
 /** `GET /sales/kpi/:period/history` — read-only (ADR 0099 §5). One door on
- *  `kpi.view`; reading another person's line also needs `kpi.view-all`,
- *  decided by E2 in the service as the allocation read does. */
+ *  `kpi.view`; the role target, and another person's line outside one's own
+ *  team, also need `kpi.view-all`, decided by E2 in the service. */
 @Controller('sales/kpi')
 export class KpiHistoryController {
   constructor(private readonly history: KpiHistoryService) {}

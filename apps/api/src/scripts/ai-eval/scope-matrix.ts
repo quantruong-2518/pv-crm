@@ -201,18 +201,26 @@ async function hiddenDealIsHidden(world: World, tally: Tally): Promise<void> {
   })
 }
 
-/** The search fence hides a contact of a lead the reader may not see; the deal
- *  door's read does not. Printed for a person to rule on, whichever way it falls. */
-async function noteSiblingContact(world: World, tally: Tally): Promise<void> {
+/** Owner ruling 10/11/2026 (ADR 0147): a deal shows its linked contact even when it
+ *  sits on another seller's lead, as the deal screen does; the tool repeats it. */
+async function siblingContact(world: World, tally: Tally): Promise<void> {
   const { sibling, chains } = world.seeded
   const a = chains.get('a')
   if (!a) throw new Error('no chain a')
-  const door = await askDoor(world, NAMED_SEATS.saleA, 'opportunity', a)
-  if (door.ok && door.json.includes(sibling.canary)) {
-    tally.findings.push(
-      `the deal door shows ${NAMED_SEATS.saleA.id} a contact of another seller's lead (${sibling.opportunity}); the tool repeats it`,
-    )
-  }
+  await tally.run(
+    'scope-matrix',
+    "the deal holder is shown the contact of another seller's lead",
+    async (c) => {
+      const who = NAMED_SEATS.saleA
+      const call = { name: 'get_record', input: { kind: 'opportunity', code: a.opportunity } }
+      const door = await askDoor(world, who, 'opportunity', a)
+      c.ok(door.ok && door.json.includes(sibling.canary), 'the deal door shows the contact')
+      const trail = await runTurn(world, { who, script: [{ calls: [call] }, parrot] })
+      const sent = toolOutputs(trail.witness.seen[1]?.request.messages ?? []).join('')
+      c.eq(trail.toolRows[0]?.outcome, 'ok', 'the tool answers')
+      c.ok(canariesIn(sent).includes(sibling.canary), 'and the tool repeats it')
+    },
+  )
 }
 
 export async function scopeMatrix(world: World, tally: Tally): Promise<void> {
@@ -240,7 +248,7 @@ export async function scopeMatrix(world: World, tally: Tally): Promise<void> {
   await hiddenDealIsHidden(world, tally)
   await accountMatrix(world, tally)
   await historyMatrix(world, tally)
-  await noteSiblingContact(world, tally)
+  await siblingContact(world, tally)
   for (const fact of FACTS) {
     const name = `fact: ${fact.who.id} ${fact.probe} ${fact.chain}`
     await tally.run('scope-facts', name, async (c) => {

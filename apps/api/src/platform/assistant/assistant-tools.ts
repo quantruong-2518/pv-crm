@@ -68,7 +68,14 @@ type ToolSpec<I, K extends string> = {
   /** The permission the text behind `revealsContent` is gated by: the tool names it,
    *  because platform knows no branch permission. */
   reveals?: Permission
+  /** Which of `codes` the door that revealed the text still reaches for this reader:
+   *  the permission alone is wider than the door's fence. `door` is the key whose
+   *  `@Need` must hold too, since an edited role matrix can split the two. `read`
+   *  reads no text and writes no audit line, since nothing here reaches a model. */
+  revealReach?: { door: K; read: RevealReach }
 }
+
+export type RevealReach = (who: Actor, codes: readonly string[]) => Promise<ReadonlySet<string>>
 
 /** How a tool that opens records reads stored codes again as the person is now:
  *  one call per kind and batch, through a door named here and gated like a tool's.
@@ -103,6 +110,7 @@ export type AssistantTool = {
   recheck?: ToolRecheck
   stepsOf?: (raw: unknown, stored: Stored) => number
   reveals?: Permission
+  revealReach?: { door: string; read: RevealReach }
 }
 
 /** Closes over `I` so the registry holds tools of different inputs in one map. */
@@ -117,6 +125,7 @@ export function defineTool<I, K extends string>(spec: ToolSpec<I, K>): Assistant
     optional: spec.optional ?? [],
     recheck: spec.recheck,
     reveals: spec.reveals,
+    revealReach: spec.revealReach,
     stepsOf: (raw, stored) => {
       const parsed = spec.input.safeParse(raw)
       return parsed.success && spec.stepsOf ? spec.stepsOf(parsed.data, stored) : 0
@@ -246,6 +255,9 @@ function register(tool: AssistantTool): Registered {
   if (doors.length === 0) throw new Error(`assistant tool ${tool.name}: names no door`)
   const stray = tool.optional.find((key) => !(key in tool.doors))
   if (stray) throw new Error(`assistant tool ${tool.name}: optional door ${stray} is no door`)
+  if (tool.revealReach && !(tool.revealReach.door in tool.doors)) {
+    throw new Error(`assistant tool ${tool.name}: reach door ${tool.revealReach.door} is no door`)
+  }
   const needsOf = (named: Readonly<Record<string, ToolDoor>>): Needs =>
     Object.fromEntries(Object.entries(named).map(([key, d]) => [key, needOf(tool.name, d)]))
   return { tool, needs: needsOf(tool.doors), recheckNeeds: needsOf(tool.recheck?.doors ?? {}) }
@@ -285,6 +297,38 @@ export class AssistantToolGate {
     return calls
       .filter((c) => c.revealsContent)
       .map((c) => this.registered.get(c.name)?.tool.reveals ?? null)
+  }
+
+  /** Per tool that declares a reveal reach, the codes of `calls` it still reaches for
+   *  `who`, in one read. A null is a read that failed. A reader lacking the reach
+   *  door's need reaches none. A tool with no reach check is left out of the map. */
+  async reachOf(
+    who: Actor,
+    calls: readonly { tool: string; codes: readonly string[] }[],
+  ): Promise<Map<string, ReadonlySet<string> | null>> {
+    const asked = new Map<string, Set<string>>()
+    for (const { tool, codes } of calls) {
+      if (!this.registered.get(tool)?.tool.revealReach) continue
+      asked.set(tool, new Set([...(asked.get(tool) ?? []), ...codes]))
+    }
+    const reached = new Map<string, ReadonlySet<string> | null>()
+    for (const [tool, codes] of asked) {
+      const entry = this.registered.get(tool)
+      const reach = entry?.tool.revealReach
+      const need = reach && entry?.needs[reach.door]
+      /* The door's own need is a second key beside `reveals`: lacking it, nothing is reached. */
+      if (!reach || !need || !this.access.check(who, need).ok) {
+        reached.set(tool, new Set())
+        continue
+      }
+      try {
+        reached.set(tool, await reach.read(who, [...codes]))
+      } catch (error) {
+        this.log.error(`reveal reach ${tool} failed: ${errorName(error)}`)
+        reached.set(tool, null)
+      }
+    }
+    return reached
   }
 
   declarations(): AiToolDecl[] {

@@ -43,9 +43,8 @@ import { NOTHING_WAITING } from './kpi-targets-queue'
  *  or hit, the roles, who is behind target, every person as a heat map heaviest
  *  first, then the door to the targets desk. The people lists leave the director's
  *  card out (`roomPeople`): it is the room's own card, already on the strip.
- *  The route asks for `performance.view` only, so each block that needs more is
- *  gated on its own permission and a block the reader may not open is dropped
- *  and named, never drawn as a failure. The month lives in the address.
+ *  The route asks for `kpi.view-all`, and every ungated read here needs no more
+ *  than that. The month lives in the address.
  *
  *  No ContextRail (law 10 debt, as on the overview): a scorecard is a sum over
  *  many records and opens no single object a chain could be anchored on. */
@@ -66,11 +65,6 @@ const COPY = {
   people: message('Chi tiết từng người', 'Details by person', '개인별 상세'),
   peopleWhat: message('KPI từng người', 'KPIs by person', '개인별 KPI'),
   assignStatus: message('Mở Tình trạng giao', 'Open assignment status', '배정 현황 열기'),
-  hiddenLead: message(
-    'Bạn không có quyền xem',
-    'You do not have access to',
-    '열람 권한이 없는 항목',
-  ),
 }
 
 /** The door to the targets desk. Its count is `waitingOf` over the desk's own
@@ -147,8 +141,6 @@ function PeopleSection({
 export function KpiCompanyPage() {
   const { t } = useI18n()
   const chrome = useAppChrome()
-  const canTargets = useCan('kpi.view')
-  const canAll = useCan('kpi.view-all')
   const canSet = useCan('kpi.set-target')
   const canApprove = useCan('contract.approve-overdue-reason')
   const me = useSession((s) => s.actor?.id)
@@ -159,16 +151,16 @@ export function KpiCompanyPage() {
 
   const catalog = useQuery(kpiCatalogQuery)
   const company = useQuery(kpiCompanyQuery(period))
-  const targets = useQuery({ ...kpiTargetsQuery(period), enabled: canAll && canTargets })
-  const people = useQuery({ ...kpiPeopleQuery(period), enabled: canAll })
-  const forecast = useQuery({ ...kpiForecastQuery(period), enabled: canAll })
-  const allocations = useQuery({ ...kpiAllocationsQuery(period), enabled: canAll })
-  const counters = useQuery({ ...kpiCountersQuery(period), enabled: canAll })
+  const targets = useQuery(kpiTargetsQuery(period))
+  const people = useQuery(kpiPeopleQuery(period))
+  const forecast = useQuery(kpiForecastQuery(period))
+  const allocations = useQuery(kpiAllocationsQuery(period))
+  const counters = useQuery(kpiCountersQuery(period))
   /* Optional: without the roster the tables still read, only the team line goes. */
-  const roster = useQuery({ ...kpiTeamRosterQuery(period), enabled: canAll })
+  const roster = useQuery(kpiTeamRosterQuery(period))
   const closing = closingOf(period)
-  const reasons = useQuery(waitingReasonsQuery(monthPick().month, canAll && canApprove))
-  const toClose = useQuery({ ...kpiAllocationsQuery(closing), enabled: canAll && canSet })
+  const reasons = useQuery(waitingReasonsQuery(monthPick().month, canApprove))
+  const toClose = useQuery({ ...kpiAllocationsQuery(closing), enabled: canSet })
   const teams = roster.data?.teams ?? []
   const teamByActor = new Map(teams.flatMap((t) => t.members.map((m) => [m.actorId, t] as const)))
   const teamOf: TeamOf = (actorId) => teamByActor.get(actorId)
@@ -201,15 +193,6 @@ export function KpiCompanyPage() {
         )
       : undefined
 
-  const hidden = canAll
-    ? []
-    : [
-        t(COPY.forecastWhat),
-        t(COPY.rolesWhat),
-        t(message('người đang hụt chỉ tiêu', 'people behind target', '목표 미달 인원')),
-        t(message('chi tiết từng người', 'details by person', '개인별 상세')),
-      ]
-
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
@@ -240,60 +223,46 @@ export function KpiCompanyPage() {
           </QueryBlock>
         </section>
 
-        {canAll && (
-          <>
-            <section className="flex flex-col gap-3">
-              <SectionTitle size="lg">{t(COPY.forecast)}</SectionTitle>
-              <QueryBlock
-                query={withCatalog(forecast, catalog)}
-                what={COPY.forecastWhat}
-                variant="b"
-              >
-                {([data, defs]) => <KpiForecastBlock catalog={defs} data={data} />}
-              </QueryBlock>
-            </section>
+        <section className="flex flex-col gap-3">
+          <SectionTitle size="lg">{t(COPY.forecast)}</SectionTitle>
+          <QueryBlock query={withCatalog(forecast, catalog)} what={COPY.forecastWhat} variant="b">
+            {([data, defs]) => <KpiForecastBlock catalog={defs} data={data} />}
+          </QueryBlock>
+        </section>
 
-            <section className="flex flex-col gap-3">
-              <SectionTitle size="lg">{t(COPY.roles)}</SectionTitle>
-              <QueryBlock query={withCatalog(people, catalog)} what={COPY.rolesWhat} variant="b">
-                {([data, defs]) => (
-                  <RolesBlock catalog={defs} people={data.people} room={company.data?.scorecard} />
-                )}
-              </QueryBlock>
-            </section>
-
-            {!nobody && (
-              <PeopleSection
-                title={COPY.behind}
-                what={COPY.behindWhat}
-                query={withCatalog(people, catalog)}
-                teamOf={teamOf}
-                View={AttentionBlock}
-              />
+        <section className="flex flex-col gap-3">
+          <SectionTitle size="lg">{t(COPY.roles)}</SectionTitle>
+          <QueryBlock query={withCatalog(people, catalog)} what={COPY.rolesWhat} variant="b">
+            {([data, defs]) => (
+              <RolesBlock catalog={defs} people={data.people} room={company.data?.scorecard} />
             )}
+          </QueryBlock>
+        </section>
 
-            {!nobody && (
-              <PeopleSection
-                title={COPY.people}
-                what={COPY.peopleWhat}
-                query={withCatalog(people, catalog)}
-                teamOf={teamOf}
-                View={RankedHeatmap}
-              />
-            )}
-
-            {isTieredPeriod(period) && (
-              <TieredNote to={statusHref(period)} label={t(COPY.assignStatus)} />
-            )}
-            <TargetsDoor period={period} waiting={waiting} />
-          </>
+        {!nobody && (
+          <PeopleSection
+            title={COPY.behind}
+            what={COPY.behindWhat}
+            query={withCatalog(people, catalog)}
+            teamOf={teamOf}
+            View={AttentionBlock}
+          />
         )}
 
-        {hidden.length > 0 && (
-          <p className={NOTE}>
-            {t(COPY.hiddenLead)}: {hidden.join(' · ')}.
-          </p>
+        {!nobody && (
+          <PeopleSection
+            title={COPY.people}
+            what={COPY.peopleWhat}
+            query={withCatalog(people, catalog)}
+            teamOf={teamOf}
+            View={RankedHeatmap}
+          />
         )}
+
+        {isTieredPeriod(period) && (
+          <TieredNote to={statusHref(period)} label={t(COPY.assignStatus)} />
+        )}
+        <TargetsDoor period={period} waiting={waiting} />
       </ScreenLayout>
     </AppShell>
   )

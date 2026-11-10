@@ -21,6 +21,7 @@ import { KpiAllocationRepository } from './kpi-allocation.repository'
 import { KpiAssignmentTargets } from './kpi-assignment-targets'
 import { KpiCloseRepository } from './kpi-close.repository'
 import { KpiConfigService } from './kpi-config.service'
+import { pipelineSight, type Sees } from './kpi-forecast-sight'
 import { assertReadsPerson } from './kpi-person-access'
 import { KpiReadingsRepository, type KpiSeat } from './kpi-readings.repository'
 import { monthClock, vietnamToday } from './kpi-rules'
@@ -42,8 +43,6 @@ import { agreedIn, toReadings } from './kpi.mapper'
 
 type Holder = { id: string; name: string; roleIds: readonly RoleId[] }
 type Thresholds = { slipRatio: number; hitRatio: number }
-/** Whose pipeline the reader may see; `null` computes none (the alert sweep). */
-type Sees = ((actorId: string) => boolean) | null
 
 const DAY_MS = 86_400_000
 
@@ -116,12 +115,17 @@ export class KpiForecastService {
       ...p,
       roleIds: p.roleIds.map(toContractRole),
     }))
-    return this.forecast(period, people, undefined, reader ? this.seesFor(reader) : null)
+    return this.forecast(
+      period,
+      people,
+      undefined,
+      reader ? pipelineSight(this.access, reader) : null,
+    )
   }
 
   async mine(who: Actor, period: KpiPeriodKey): Promise<KpiForecastResponse> {
     const holder = { id: who.id, name: who.name, roleIds: who.roleIds.map(toContractRole) }
-    return this.forecast(period, [holder], who.id, () => true)
+    return this.forecast(period, [holder], who.id, pipelineSight(this.access, who))
   }
 
   /** `mine` for someone else, behind `assertReadsPerson`. */
@@ -133,7 +137,7 @@ export class KpiForecastService {
       period,
       [{ ...person, roleIds: person.roleIds.map(toContractRole) }],
       actorId,
-      this.seesFor(who),
+      pipelineSight(this.access, who),
     )
   }
 
@@ -227,7 +231,7 @@ export class KpiForecastService {
       this.readings.adjustments(seats, period, only),
       sees && running
         ? this.openPipeline(
-            holders.filter((h) => sees(h.id)),
+            holders.filter((h) => sees(h.id, 'own')),
             seats,
             { key: period, from, to },
           )
@@ -277,7 +281,7 @@ export class KpiForecastService {
               projected,
               projectedRatio: projected !== null && target ? projected / target : null,
               pipeline:
-                pipe && sees?.(h.id) && r.key === 'signed-value'
+                pipe && sees?.(h.id, def.scope) && r.key === 'signed-value'
                   ? pipelineOf(pipe, def, h.id)
                   : null,
               flag: flagOf(r.value, projected, target, def, thresholds, running),
@@ -287,16 +291,6 @@ export class KpiForecastService {
       }),
     )
     return KpiForecastResponse.parse({ period, monthClose, thresholds, items })
-  }
-
-  /** Open-deal value is the deal book's, so beyond one's own figure the reader
-   *  needs the whole book: `kpi.view-all` is editable and says nothing of it (ADR 0143 §5). */
-  private seesFor(who: Actor): (actorId: string) => boolean {
-    const book =
-      this.access.allows(who, 'kpi.view-all') &&
-      this.access.allows(who, 'opportunity.view') &&
-      !who.ownOnly
-    return (actorId) => actorId === who.id || book
   }
 
   /** The `signed-value` seats' open pipeline, in the one query that serves

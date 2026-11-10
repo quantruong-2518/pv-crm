@@ -40,7 +40,7 @@ export class KpiHistoryService {
 
   /** Someone else's line needs `kpi.view-all` — the allocation read's cut — or
    *  to read that person's team in the roster of the month (`readsPerson`). The
-   *  role target is not: `GET targets` shows it, names included, on `kpi.view`.
+   *  role target is every role's, names included, so it needs `kpi.view-all`.
    *  A switched-off metric keeps its history readable, so membership is the code catalog's. */
   async history(
     caller: Actor,
@@ -57,6 +57,9 @@ export class KpiHistoryService {
         'permission-denied',
         'Bạn chỉ xem được lịch sử chỉ tiêu của mình và của thành viên nhóm bạn phụ trách.',
       )
+    }
+    if (!actorId && !this.access.allows(caller, 'kpi.view-all')) {
+      throw denied('permission-denied', 'Bạn không có quyền xem lịch sử chỉ tiêu của vai.')
     }
     if (!catalogDef(role, metricKey)) {
       throw invalid({ metricKey: ['Vai này không có chỉ số này.'] })

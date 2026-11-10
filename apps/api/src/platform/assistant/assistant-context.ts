@@ -24,6 +24,12 @@ export const ASSISTANT_PROMPT_VERSION = PROMPT.prompt
  *  neither counts nor reads a row that holds only this. */
 export const CUT_SHORT = 'Trợ lý chưa trả lời được câu này. Thử lại sau ít phút.'
 
+/** One marker per session for the summary and for every replayed answer: the binder
+ *  masks digits the model types, so an answer cannot hold a session id. A replayed
+ *  answer is fenced too, since text the model repeated from a record would read as
+ *  its own words on a bare `assistant` line. */
+const chatFence = (sessionId: string): string => `SUMMARY-${sessionId}`
+
 /** A whole exchange of its own: the next line is a `user` one, and the fixed reply
  *  keeps the roles alternating.
  *
@@ -35,7 +41,7 @@ export const CUT_SHORT = 'Trợ lý chưa trả lời được câu này. Thử 
 const summaryLines = (sessionId: string, summary: string): AiMessage[] => [
   {
     role: 'user',
-    text: `Summary of the earlier turns of this chat:\n${fenced(`SUMMARY-${sessionId}`, { summary })}`,
+    text: `Summary of the earlier turns of this chat:\n${fenced(chatFence(sessionId), { summary })}`,
   },
   { role: 'assistant', text: 'OK.' },
 ]
@@ -52,7 +58,10 @@ export function openingMessages(
   })
   return [
     ...(begun.summary ? summaryLines(turn.sessionId, begun.summary) : []),
-    ...begun.history.map(({ role, body }) => ({ role, text: body })),
+    ...begun.history.map(({ role, body }) => ({
+      role,
+      text: role === 'assistant' ? fenced(chatFence(turn.sessionId), { answer: body }) : body,
+    })),
     { role: 'user', text: `${context}\n\n${turn.question}` },
   ]
 }

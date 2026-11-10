@@ -10,6 +10,7 @@ import {
   AssistantToolGate,
   defineTool,
   door,
+  type RevealReach,
   type ToolDoor,
   type ToolRead,
 } from './assistant-tools'
@@ -246,5 +247,90 @@ describe('content a tool reveals', () => {
         stored('gone', true),
       ]),
     ).toEqual(['comm.view-content', null, null])
+  })
+
+  it('asks each tool with a reach check once for the codes of all its calls, and fails to null', async () => {
+    const reach = vi.fn(async (_who: Actor, codes: readonly string[]) => new Set(codes.slice(0, 1)))
+    const tool = defineTool({
+      name: 'read_x',
+      description: 'Fake.',
+      input: Input,
+      doors,
+      doorFor: (input) => input.kind,
+      reveals: 'comm.view-content',
+      revealReach: { door: 'lead', read: reach },
+      run: async () => ({ ...READ, revealsContent: true }),
+    })
+    const gate = gateOf(tool, toolOf(doors, undefined, 'read_y'))
+    const calls = [
+      { tool: 'read_x', codes: ['LD-0001', 'LD-0002'] },
+      { tool: 'read_x', codes: ['LD-0002', 'LD-0003'] },
+      { tool: 'read_y', codes: ['LD-0001'] },
+    ]
+
+    const reached = await gate.reachOf(sale, calls)
+    expect(reach).toHaveBeenCalledTimes(1)
+    expect(reach).toHaveBeenCalledWith(sale, ['LD-0001', 'LD-0002', 'LD-0003'])
+    expect([...reached.keys()]).toEqual(['read_x'])
+    expect(reached.get('read_x')).toEqual(new Set(['LD-0001']))
+
+    reach.mockRejectedValue(new Error('select … where phone = 0912345678'))
+    expect((await gate.reachOf(sale, calls)).get('read_x')).toBeNull()
+  })
+
+  describe('a tool with a reach check', () => {
+    const reachTool = (read: RevealReach) =>
+      defineTool({
+        name: 'read_x',
+        description: 'Fake.',
+        input: Input,
+        doors: { lead: door(FakeDoors, 'lead'), contract: door(FakeDoors, 'contract') },
+        doorFor: (input) => input.kind,
+        reveals: 'comm.view-content',
+        revealReach: { door: 'contract', read },
+        run: async () => ({ ...READ, revealsContent: true }),
+      })
+    const calls = [{ tool: 'read_x', codes: ['LD-0001'] }]
+
+    it("reaches nothing for a reader who lacks the reach door's own need", async () => {
+      const read = vi.fn(async (_who: Actor, codes: readonly string[]) => new Set(codes))
+      const gate = gateOf(reachTool(read))
+      const noContract = {
+        ...sale,
+        permissions: ['lead.view', 'comm.view-content'],
+      } as Actor
+      const withContract = { ...sale, permissions: [...sale.permissions, 'contract.view'] } as Actor
+
+      expect((await gate.reachOf(noContract, calls)).get('read_x')).toEqual(new Set())
+      expect(read).not.toHaveBeenCalled()
+      expect((await gate.reachOf(withContract, calls)).get('read_x')).toEqual(new Set(['LD-0001']))
+    })
+
+    it('turns a reach read that throws before it returns a promise into null', async () => {
+      const gate = gateOf(
+        reachTool(() => {
+          throw new Error('module not resolved')
+        }),
+      )
+      const withContract = { ...sale, permissions: [...sale.permissions, 'contract.view'] } as Actor
+
+      expect((await gate.reachOf(withContract, calls)).get('read_x')).toBeNull()
+    })
+
+    it('refuses to boot when the reach door is not one of the tool doors', () => {
+      const tool = defineTool({
+        name: 'read_x',
+        description: 'Fake.',
+        input: Input,
+        doors: { lead: door(FakeDoors, 'lead') },
+        doorFor: (input) => input.kind,
+        reveals: 'comm.view-content',
+        revealReach: { door: 'lead', read: async () => new Set() },
+        run: async () => READ,
+      })
+      expect(() =>
+        gateOf({ ...tool, revealReach: { door: 'nope', read: async () => new Set() } }),
+      ).toThrow(/reach door nope is no door/)
+    })
   })
 })

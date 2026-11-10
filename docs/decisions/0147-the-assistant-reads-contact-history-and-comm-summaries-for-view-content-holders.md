@@ -8,7 +8,8 @@ Source: project owner's decision in session, 10/11/2026: the assistant may read 
 
 Slice 2 of the series opened by 0142. It answers when a lead or deal was last
 contacted, what was agreed, and the next step. Tool `get_history`
-(`apps/api/src/branches/sales/assistant/get-history.ts`), prompt v8
+(`apps/api/src/branches/sales/assistant/get-history.ts`), prompt v9 (v8 until the 10/11/2026
+replay-fence amendment)
 (`apps/api/src/platform/ai/prompts/assistant.prompts.ts`), contract
 `GetHistoryInput` and `AssistantHistoryKind` (`packages/contracts/src/assistant.ts`).
 Gate 0 is still OPEN.
@@ -87,6 +88,44 @@ quoting summary text".
 
 Code: `apps/api/src/platform/assistant/`, `apps/api/src/branches/sales/assistant/`.
 Remaining debt: `docs/status.md`.
+
+## Amendment 10/11/2026 (second) · replay fence, reach re-check, audit on re-serve
+
+Owner decisions of 10/11/2026. Supersedes the known limit "History replays past
+answers as plain text outside the delimiter" of 0133 §7.
+
+1. **Replay fence.** Replayed past assistant answers go to the model inside a
+   per-session fence: `SUMMARY-<sessionId>` marker lines around a JSON
+   `{answer}` (`chatFence` in `apps/api/src/platform/assistant/assistant-context.ts`).
+   The prompt is v9 (`apps/api/src/platform/ai/prompts/assistant.prompts.ts`).
+2. **Reach re-check.** Re-serving a stored answer whose chat revealed summary
+   text needs all of: the tool's `reveals` permission; the comms door's own need
+   (`comm.view`), via `revealReach.door`; the record still in reach
+   (`DebriefService.reachable` in `apps/api/src/platform/comms/debrief.service.ts`:
+   E2 view per mirror row, no summary loaded, no audit). Out of reach, or a
+   revealing call with empty codes: `withheld` (forward taint). The reach read
+   fails or throws: `unchecked`. Verdicts in
+   `apps/api/src/platform/assistant/assistant-refs.ts`; registration in
+   `apps/api/src/branches/sales/assistant/get-history.ts`.
+3. **Audit on re-serve.** Re-serving such an answer writes one `view` line per
+   revealing code. `detail` writes notes `assistant · session <id> · …`;
+   `reports` writes a page line `assistant.reports · page N` plus code lines
+   `assistant · page N`. No lines are written for shut answers, or while a turn
+   runs. Over-count is known and safe: the web refetches sessions after each
+   turn, and failed answers that made a revealing call are audited too.
+4. **Sibling contact (OP-6008).** The tool may show the other seller's contact on
+   a deal, as the deal screen does. Eval check `siblingContact`
+   (`apps/api/src/scripts/ai-eval/scope-matrix.ts`) now asserts this, where it
+   used to print a FINDING.
+5. **Backfill consequence (owner to acknowledge).** Migration 0165 marked every
+   ok `get_history` call as revealing, including calls where comms was skipped.
+   With (2), a co-owner or carer outside the comms single-owner reach now loses
+   every older answer from their first `get_history` on, even when nothing was
+   revealed. This is the safe direction and is kept.
+
+Eval: `scope-history-reach.ts`, `scope-history-audit.ts`, `runner-audit.ts` and
+`scope-matrix.ts` in `apps/api/src/scripts/ai-eval/`. Remaining debt:
+`docs/status.md`.
 
 ## Known limits
 

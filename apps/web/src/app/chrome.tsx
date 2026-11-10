@@ -446,7 +446,7 @@ export const SALES_MODULES: SalesModule[] = [
     icon: ChartColumn,
     label: 'KPI công ty', // i18n-ignore
     path: '/sales/kpi/company',
-    permission: 'performance.view',
+    permission: 'kpi.view-all',
     question: 'Phòng đang đạt bao nhiêu, ai đang chậm', // i18n-ignore
     group: 'manage',
   },

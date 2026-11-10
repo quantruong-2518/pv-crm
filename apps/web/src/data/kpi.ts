@@ -49,7 +49,7 @@ export const kpiCompanyQuery = (period: string) =>
     ...cacheTier.aggregate,
     queryFn: ({ signal }) =>
       api.read<KpiCompanyResponse>(`/sales/kpi/${period}/company`, {
-        need: need('performance.view'),
+        need: need('kpi.view-all'),
         schema: KpiCompanyResponse,
         signal,
       }),
@@ -88,7 +88,7 @@ export const kpiTargetsQuery = (period: string) =>
     queryKey: [...monthKey(period), 'targets'] as const,
     queryFn: ({ signal }) =>
       api.read<KpiTargetsResponse>(`/sales/kpi/${period}/targets`, {
-        need: need('kpi.view'),
+        need: need('kpi.view-all'),
         schema: KpiTargetsResponse,
         signal,
       }),

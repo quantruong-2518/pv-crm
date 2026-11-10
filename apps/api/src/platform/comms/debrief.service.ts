@@ -125,6 +125,17 @@ export class DebriefService {
     })
   }
 
+  /** Which of `codes` `list` would serve this caller: E2 `view` on the subject's row,
+   *  asked in one query. It loads no summary and writes no audit line, so a caller may
+   *  re-ask reach for text it already read without reading it again. */
+  async reachable(who: Actor, codes: readonly string[]): Promise<Set<string>> {
+    const rows = await this.threads.objectsByCodes(codes)
+    const viewable = rows.filter(
+      (row) => this.access.check(who, { ref: toObjectRef(row), action: 'view' }).ok,
+    )
+    return new Set(viewable.map((row) => row.code))
+  }
+
   async one(who: Actor, id: string): Promise<DebriefView> {
     const [view] = await this.views(who, [await this.readable(who, id)])
     if (!view) throw new Error(`comms.debrief ${id}: view lost`)

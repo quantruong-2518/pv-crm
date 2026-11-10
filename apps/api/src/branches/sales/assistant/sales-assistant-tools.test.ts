@@ -152,7 +152,10 @@ function setup() {
     meetingList: vi.fn(async () => ({ rows: [] })),
     meetingTimeline: vi.fn(async () => ({ rows: [] })),
   }
-  const debriefs = { list: vi.fn(async () => ({ rows: [] })) }
+  const debriefs = {
+    list: vi.fn(async () => ({ rows: [] })),
+    reachable: vi.fn(async () => new Set<string>()),
+  }
   const contracts = { profile: vi.fn(async () => CONTRACT), book: vi.fn(async () => page([])) }
   const searches = { search: vi.fn(async () => HITS) }
   const leadSteps = { get: vi.fn(async () => ({ step: null })) }
@@ -943,6 +946,29 @@ describe('get_history', () => {
 
     expect((verdict.output as History).comms.rows).toHaveLength(HISTORY_LIST)
     expect(verdict.revealsContent).toBe(false)
+  })
+
+  it("re-asks reach through the comms door's reach read, which lists no row", async () => {
+    const s = history()
+    s.debriefs.reachable.mockResolvedValue(new Set(['LD-0001']))
+    const reached = await s.gate.reachOf(sale, [
+      { tool: 'get_history', codes: ['LD-0001'] },
+      { tool: 'get_history', codes: ['LD-0002'] },
+    ])
+
+    expect(reached.get('get_history')).toEqual(new Set(['LD-0001']))
+    expect(s.debriefs.reachable).toHaveBeenCalledTimes(1)
+    expect(s.debriefs.reachable).toHaveBeenCalledWith(sale, ['LD-0001', 'LD-0002'])
+    expect(s.debriefs.list).not.toHaveBeenCalled()
+  })
+
+  it('reaches no code for a reader whose comms door is shut, though the permission holds', async () => {
+    const s = history()
+    const noComm = { ...sale, permissions: sale.permissions.filter((p) => p !== 'comm.view') }
+    const reached = await s.gate.reachOf(noComm, [{ tool: 'get_history', codes: ['LD-0001'] }])
+
+    expect(reached.get('get_history')).toEqual(new Set())
+    expect(s.debriefs.reachable).not.toHaveBeenCalled()
   })
 
   it('masks a phone for a non-holder and flags it, once, for the whole result', async () => {

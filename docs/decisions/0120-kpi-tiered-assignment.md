@@ -74,7 +74,8 @@ sent | superseded`, `by_default`, sent by/at) holds what the head of a unit hand
     judged on the tree of the month being assigned, even when no tree covers the month read: December's heads read
     October, where `GET :period/people/:actorId` still answers 403. A number cannot be split sensibly without it, and
     the page shows that one month only. A new head named in a later version reads the same once that version is open.
-    Whole-book company figures stay behind `performance.view`.
+    Whole-book company figures stay behind `kpi.view-all` since 10/11/2026 (was
+    `performance.view`; see the amendment in ADR 0143).
 
 ## Defaults that are not the owner's
 

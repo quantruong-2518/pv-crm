@@ -80,7 +80,7 @@ export function flagsOf(
   return forecast.items.filter((f) => f.role === role && f.flag !== null && keys.has(f.metricKey))
 }
 
-/** A role's lines with open-deal value to show (ADR 0143); the server sends 0 for a seat with none. */
+/** A role's lines with open-deal value to show (ADR 0143); null (not allowed to see it) and 0 (none) both draw nothing. */
 export function pipelinesOf(
   catalog: KpiCatalog,
   role: RoleId,

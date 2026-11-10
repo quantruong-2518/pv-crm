@@ -14,10 +14,10 @@ import {
 } from '@pv/contracts'
 import type { AccessControl, Actor } from '@pv/engines'
 import { AiRouteRepository } from '../ai/ai-route.repository'
-import { AuditRepository } from '../audit/audit.repository'
+import { AuditRepository, type AuditEntry } from '../audit/audit.repository'
 import { ACCESS } from '../engines/tokens'
 import { invalid, notFound } from '../http/problem'
-import { chatOf, recheck, recheckChats, type Recheck } from './assistant-refs'
+import { chatOf, recheck, recheckChats, revealedCodes, type Recheck } from './assistant-refs'
 import { footerOf } from './assistant-turn-read'
 import { AssistantSessionRepository, type SessionCursor } from './assistant-session.repository'
 import { AssistantToolGate } from './assistant-tools'
@@ -45,6 +45,16 @@ const sessionOf = (row: AssistantSessionRowDb): AssistantSession => ({
   lastOpenedAt: row.lastOpenedAt.toISOString(),
   createdAt: row.createdAt.toISOString(),
 })
+
+/** The comms door's `view` line per subject when it serves a summary, written again
+ *  where a stored answer that read one is served: the text leaves a second time. */
+const revealLines = (who: Actor, codes: readonly string[], where: string): AuditEntry[] =>
+  codes.map((code) => ({
+    actorId: who.id,
+    action: 'view',
+    code,
+    note: `assistant · ${where} · stored answers that read comm summaries of ${code}`,
+  }))
 
 const CURSOR = /^([01])~(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)~([0-9a-f-]{36})$/
 
@@ -106,6 +116,11 @@ export class AssistantService {
     const check = await this.checkOnce(who, running?.id ?? null, () =>
       recheck(this.gate, who, chat),
     )
+    if (!running) {
+      /* The answers served are the chat's unshut prefix: a shut one shuts all after it. */
+      const served = chat.filter((m) => !check.shut.has(m.id))
+      await this.audit.writeMany(revealLines(who, revealedCodes(served), `session ${id}`))
+    }
     const messageOf = (row: AssistantMessageRowDb): AssistantMessage => {
       const shut = check.shut.get(row.id)
       const read = shut ? [] : [...(check.refs.get(row.id) ?? [])]
@@ -206,7 +221,13 @@ export class AssistantService {
     const read = rows.filter((r) => !check.shut.has(r.messageId)).map((r) => r.messageId)
     if (rows.length > 0) {
       const note = `assistant.reports · page ${q.page} · ${read.length} answer(s) read: ${read.join(', ') || 'none'}`
-      await this.audit.write({ actorId: who.id, action: 'view', note })
+      /* A served row serves its whole chat up to it, so that chat's revealing calls count. */
+      const served = chatCodes.filter((_, i) => !check.shut.has(rows[i]?.messageId ?? ''))
+      const codes = revealedCodes(served.flat())
+      await this.audit.writeMany([
+        { actorId: who.id, action: 'view', note },
+        ...revealLines(who, codes, `page ${q.page}`),
+      ])
     }
     return { rows: shown, total, hidden: 0 }
   }

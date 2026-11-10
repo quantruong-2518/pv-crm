@@ -38,7 +38,8 @@ import type { OpportunityService } from '../opportunity/opportunity.service'
  *  co-owner or carer opens the touches and is refused there. That refusal is
  *  `skipped`, never "no history": the model says it cannot see that part. A
  *  summary arrives only when the comms door itself reveals it (`comm.view-content`,
- *  audited there). Meetings come through the no-transcript read, so no transcript,
+ *  audited there; a stored answer is re-checked against the same reach, without
+ *  reading a summary). Meetings come through the no-transcript read, so no transcript,
  *  message body or attachment is loaded, and none is audited as read. */
 
 /** Rows per list, newest first. Typical summaries fit the loop's `TOOL_TOKEN_CAP`; twenty
@@ -231,6 +232,7 @@ export const getHistory = (d: HistoryDoors): AssistantTool =>
     },
     optional: ['comms', 'leadMeetings', 'dealMeetings'],
     reveals: 'comm.view-content',
+    revealReach: { door: 'comms', read: (who, codes) => d.debriefs().reachable(who, codes) },
     doorFor: ({ kind }) => [KEYS[kind].touches, 'comms', KEYS[kind].meetings],
     run: (who, input, open) => run(d, who, input, open),
   })

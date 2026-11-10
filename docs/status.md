@@ -59,14 +59,17 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
     over-cap: over-counts, the safe direction. The comment in
     `assistant-loop.ts` near line 164 ("an over-cap result reaches neither the
     model nor the audit") is now untrue for door-side audits.
-  - The re-check of a stored answer asks only whether the reader holds
-    `comm.view-content`, not the comms door's own reach (`DebriefService` E2
-    view on the subject's row, narrower than the lead/deal book): an asker who
-    stays on a live deal after the lead moves still reads old quoted summaries.
-    Owner decision pending.
-  - Re-serving a stored answer that quoted a summary writes no content `view`
-    audit line (the comms door and the meeting transcript list do on every
-    serve). Owner decision pending.
+  - Built 10/11/2026 (second amendment of ADR 0147): reach re-check of a
+    stored answer and the audit line on re-serve.
+  - Replay and fold resend revealing answers to the vendor with no content
+    `view` audit line. Owner to decide.
+  - A `running` turn has no age limit in `detail`, so a stuck row skips the
+    audit until the sweep.
+  - `reveals` and `revealing` are two lists from one fact.
+  - `DebriefService.reachable` duplicates `runInReach`'s predicate and has no
+    direct test.
+  - Gate 0 needs a live multi-turn case checking that the model never copies
+    the fence into its answer.
   - Deploy window: migration 0165 backfills at migrate time and the old API
     keeps writing `false` until the new release is live; the UPDATE in 0165
     must be run once more after the deploy (mark this line done once it has
@@ -116,6 +119,12 @@ Built through wave 2b (ADR 0112 to 0120).
 - Not yet shipped: the Monday-to-Friday digest amendment (ADR 0145, amended)
   and the quarter view (ADR 0146, accepted; read-only, `GET
 /sales/kpi/quarters/:quarter/me` and "KPI của tôi" only, no migration).
+- KPI read holes (ADR 0143 amendment): built 10/11/2026, ships with the
+  assistant reach fix. Release note: a holder of `performance.view` without
+  `kpi.view-all` loses the company KPI screen and its nav entry. Open
+  questions 179 to 182.
+- Debt: `openPipeline` runs uselessly when a team lead reads a member's
+  forecast.
 - Owed on the above: the first digest run has not been seen in the Fly logs;
   probability coverage on Neon is not measured.
 

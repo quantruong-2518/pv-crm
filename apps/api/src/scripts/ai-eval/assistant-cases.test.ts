@@ -81,7 +81,7 @@ describe('the seed', () => {
     expect(MATRIX_CELLS).toBe(180)
     expect(ACCOUNT_CELLS).toBe(21)
     expect(HISTORY_CELLS).toBe(63)
-    expect(HISTORY_CHAINS.map((c) => c.key)).toEqual(['hist-rich', 'hist-wide'])
+    expect(HISTORY_CHAINS.map((c) => c.key)).toEqual(['hist-rich', 'hist-wide', 'hist-reach'])
     expect(COMPANY_CHAINS).toHaveLength(3)
     expect(CONTRACT_AMOUNT).toBe(480_000_000)
     expect(CONTRACT_CURRENCY).toBe('VND')

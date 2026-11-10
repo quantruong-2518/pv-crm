@@ -202,7 +202,7 @@ prompt there are no returned fields, so that part is empty.
 - Wave 0 has `hidden` null on all four doors.
 - More limits from the owner's answers: 0134 Known limits.
 - History replays past answers as plain text outside the delimiter, with one
-  prompt rule only.
+  prompt rule only. _Superseded 10/11/2026: see the second amendment of ADR 0147._
 - The model-facing findings for wave 1 live in the Claude doc.
 - On ship, between migrate and API deploy, the old API's `GET /ai/routes`
   returns 500 because it cannot parse the four new task rows. Migrate-first is

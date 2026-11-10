@@ -210,7 +210,8 @@ permissions are a union, and so are mutes.
 - Known gaps: scan batches still re-enter leads one line each; a payment
   schedule saved unchanged still rings; `kpi-target` lines open the company
   KPI screen (`performance.view`), so a role given `kpi.set-target` without it
-  hears nothing.
+  hears nothing. _Already superseded by 0112; the company route has been on
+  `kpi.view-all` since 10/11/2026 (ADR 0143 amendment)._
 
 - The §5 defaults (first touch, the hidden 5.9 fields) were the assistant's;
   the owner accepted them on 14/10/2026.

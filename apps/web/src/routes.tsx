@@ -497,7 +497,7 @@ export const SCREENS: ScreenDef[] = [
     path: '/sales/kpi/company',
     name: 'KPI công ty', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
-    permission: 'performance.view',
+    permission: 'kpi.view-all',
     load: () => import('@/pages/kpi-company'),
   },
   {

@@ -194,6 +194,9 @@ export function TargetHistoryButton({
   const [open, setOpen] = useState(false)
   const [first, ...rest] = defs
   if (!first) return null
+  /* No holders and no role target would fall back to the role target's read, which needs view-all. */
+  if ('holders' in subject && subject.roleTarget === false && subject.holders.length === 0)
+    return null
   return (
     <>
       <Button

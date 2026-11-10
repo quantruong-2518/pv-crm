@@ -2,6 +2,7 @@ import { runTurn, trailText, type Trail } from './bench'
 import type { Check, Tally } from './report'
 import { askCall, canariesIn, needOf, optionalDrift, unbound, type DoorAnswer } from './scope-door'
 import { contentLines, SUMMARY_LINE, TRANSCRIPT_LINE } from './scope-history-audit'
+import { reachRecheck } from './scope-history-reach'
 import { contactsIn, holdsExport } from './scope-reach'
 import { parrot, toolOutputs } from './scripted-client'
 import {
@@ -25,7 +26,8 @@ import type { World } from './world'
  *  Three things hold for every seat: a transcript never appears (the tool reads none,
  *  and the doors it opens write no transcript audit line), a rule the doors enforce
  *  stays enforced (no summary without `comm.view-content`, no phone without
- *  `data.export`), and a row cut by the 20 shows nowhere. */
+ *  `data.export`), and a row cut by the 20 shows nowhere. A stored answer that read a
+ *  summary is shut again when the reader loses the comms door's reach (`scope-history-reach`). */
 
 const GROUP = 'scope-history'
 const CALL = 'get_history'
@@ -412,4 +414,5 @@ export async function historyMatrix(world: World, tally: Tally): Promise<void> {
   await transcript(world, tally)
   await richCut(world, tally)
   await ceiling(world, tally)
+  await reachRecheck(world, tally)
 }

@@ -777,7 +777,7 @@ Raised by recording the retired handover's flows as ADRs 0139 to 0141.
 
 ## KPI review of 10/11/2026
 
-Raised by ADRs 0143 to 0146.
+Raised by ADRs 0143 to 0146. Questions 179 to 182 come from the read-hole amendment of ADR 0143.
 
 173. **On the KPI forecast of one person, should the weighted pipeline show only
      to that person and to `kpi.view-all` (default), or also to their team lead
@@ -805,3 +805,21 @@ Raised by ADRs 0143 to 0146.
 178. **Quarter view, alerts and month verdicts stay on the month
      (recommended)?** _(see ADR 0146)_
      **Answered 10/11/2026: monthly alerts and verdicts stay; the quarter verdict is display-only — ADR 0146.**
+
+179. **`/me`, `forecast/me`, `weekly` and `quarters/me` show room-scope actuals
+     (whole-book signed value, overdue receivables) to every room-role holder,
+     ignoring `kpi.view-all` and own-only. Keep by design (recommended), or
+     apply the same `book && (all || self)` rule?** _(see ADR 0143 amendment)_
+
+180. **`PUT targets/:role`, `agree` and `close-gate` return every role's targets
+     to a `kpi.set-target` holder. Enforce "set-target implies view-all" at
+     matrix save (recommended), or return only the written role?**
+     _(see ADR 0143 amendment)_
+
+181. **Allocation `roleValue` (the reader's own role target): intended for
+     readers without `kpi.view-all`? Recommended: yes, it is their own target.**
+     _(see ADR 0143 amendment)_
+
+182. **The person-forecast screen draws pipeline 0 while `/me` hides 0. Pick
+     one; recommended: hide (null and 0 both draw nothing).**
+     _(see ADR 0143 amendment)_

@@ -16,8 +16,9 @@ import { KpiService } from './kpi.service'
 
 /** `/sales/kpi/:period/…` — scorecards per role and the agreed monthly targets.
  *
- *  Ten doors, one permission each (ADR 0004): your own card, the company card
- *  and everyone's cards are three permissions, so three routes. One person's
+ *  Ten doors, one permission each (ADR 0004): your own card and everyone's
+ *  cards are two permissions, so two routes; the company card and the targets
+ *  sit on the second. One person's
  *  card sits on `kpi.view`; whose card it may be is the service's check (ADR 0101).
  *
  *  None is `scoped`: `own` and `room` are properties of each METRIC
@@ -37,9 +38,9 @@ export class KpiController {
     return this.kpi.me(who, params.period)
   }
 
-  /** The performance permission, like the overview it sits beside. */
+  /** The room's figures are every seat's sum, so they sit with everyone's cards. */
   @Get(':period/company')
-  @Need({ branch: 'Sales', permission: 'performance.view' })
+  @Need({ branch: 'Sales', permission: 'kpi.view-all' })
   company(@Param(zod(KpiPeriodParams)) params: KpiPeriodParams) {
     return this.kpi.company(params.period)
   }
@@ -59,9 +60,10 @@ export class KpiController {
     return this.kpi.person(who, params.period, params.actorId)
   }
 
-  /** Everyone who has a card reads the targets it is judged against. */
+  /** Every role's targets, room seats and proposer names included. A holder's
+   *  own targets reach them on `me`, so this stays with everyone's cards. */
   @Get(':period/targets')
-  @Need({ branch: 'Sales', permission: 'kpi.view' })
+  @Need({ branch: 'Sales', permission: 'kpi.view-all' })
   targets(@Param(zod(KpiPeriodParams)) params: KpiPeriodParams) {
     return this.kpi.targetsOf(params.period)
   }
