@@ -783,19 +783,25 @@ Raised by ADRs 0143 to 0146.
      to that person and to `kpi.view-all` (default), or also to their team lead
      and org head?** The opportunity book hides open-deal value from an
      own-only Sale. _(see ADR 0143 default 5)_
+     **Answered 10/11/2026: default kept — only that person and `kpi.view-all` with `opportunity.view` without own-only scope; team leads and org heads do not see it — ADR 0143 default 5.**
 
 174. **Does the 08:00 digest become the morning brief of ADR 0133, and does it
      run on weekdays only?** Today it runs every day. _(see ADR 0145, ADR 0133)_
+     **Answered 10/11/2026: weekdays only (Vietnam days), Monday covers everything since Friday's 08:00 cut; it stays a separate line, not the morning brief of ADR 0133 — ADR 0145 (amended).**
 
 175. **Quarter view, a month without a target: show the quarter target as
      "Chưa đặt" (recommended) or sum only the months that have one?**
      _(see ADR 0146)_
+     **Answered 10/11/2026: "Chưa đặt", no partial sum — ADR 0146.**
 
 176. **Quarter view, ratio and duration metrics: not shown in v1
      (recommended) or recomputed over the quarter?** _(see ADR 0146)_
+     **Answered 10/11/2026: not shown in v1 — ADR 0146.**
 
 177. **Quarter view, who sees it: whoever sees the month view
      (recommended)?** _(see ADR 0146)_
+     **Answered 10/11/2026: whoever sees the month view (same `kpi.view` door) — ADR 0146.**
 
 178. **Quarter view, alerts and month verdicts stay on the month
      (recommended)?** _(see ADR 0146)_
+     **Answered 10/11/2026: monthly alerts and verdicts stay; the quarter verdict is display-only — ADR 0146.**

@@ -108,12 +108,16 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
 
 Built through wave 2b (ADR 0112 to 0120).
 
-- Being built on branch `kpi-optimize` (10/11), **not on production**: ADR 0143
-  (weighted pipeline beside the linear forecast), ADR 0144 (quotes-sent and
-  sales-cycle metrics, off by default), ADR 0145 (morning digest of four
-  low-weight bells). Migration 0164 must run before the API deploy; ship the
-  API before the web. ADR 0146 (quarter view) is proposed and waits for the
-  owner. Open questions 173 to 178.
+- In production (verified 10/11/2026: commit b1469b50 is on origin/master,
+  Neon has migration 0164 applied, Fly runs it as v214): ADR 0143 (weighted
+  pipeline beside the linear forecast), ADR 0144 (quotes-sent and sales-cycle
+  metrics, off by default), ADR 0145 (morning digest of four low-weight bells).
+  Open questions 173 to 178 are answered (10/11).
+- Not yet shipped: the Monday-to-Friday digest amendment (ADR 0145, amended)
+  and the quarter view (ADR 0146, accepted; read-only, `GET
+/sales/kpi/quarters/:quarter/me` and "KPI của tôi" only, no migration).
+- Owed on the above: the first digest run has not been seen in the Fly logs;
+  probability coverage on Neon is not measured.
 
 - 2c: start date, ramp factor and exceptions for joining, leaving, changing
   group or role (needs a start date and a leave date on the account). Not

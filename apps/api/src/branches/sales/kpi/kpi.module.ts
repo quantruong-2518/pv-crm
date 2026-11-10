@@ -35,6 +35,8 @@ import { KpiForecastController } from './kpi-forecast.controller'
 import { KpiForecastService } from './kpi-forecast.service'
 import { KpiHistoryController } from './kpi-history.controller'
 import { KpiHistoryService } from './kpi-history.service'
+import { KpiQuarterController } from './kpi-quarter.controller'
+import { KpiQuarterService } from './kpi-quarter.service'
 import { KpiReadingsRepository } from './kpi-readings.repository'
 import { KpiReconcileRepository } from './kpi-reconcile.repository'
 import { KpiReconcileService } from './kpi-reconcile.service'
@@ -73,6 +75,7 @@ import { KpiTeamViewService } from './kpi-team-view.service'
   ],
   controllers: [
     KpiController,
+    KpiQuarterController,
     KpiAllocationController,
     KpiForecastController,
     KpiConfigController,
@@ -94,6 +97,7 @@ import { KpiTeamViewService } from './kpi-team-view.service'
     KpiAllocationService,
     KpiAllocationCounterService,
     KpiForecastService,
+    KpiQuarterService,
     KpiConfigService,
     KpiConfigRepository,
     KpiHistoryService,

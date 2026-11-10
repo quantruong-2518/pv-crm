@@ -1,4 +1,4 @@
-import type { KpiMetricDef, KpiVerdict } from '@pv/contracts'
+import type { KpiMetricDef, KpiMonthPhase, KpiVerdict } from '@pv/contracts'
 
 /** Pace and verdict of one reading — pure, so it can move to `@pv/engines`
  *  unchanged: no clock, no database, no Nest.
@@ -19,7 +19,7 @@ export function elapsedOf(from: string, to: string, today: string): number {
 
 /** Where a month stands against today. `elapsedOf` cannot say it alone: the
  *  first day of the running month and any future month both read 0. */
-export function phaseOf(from: string, to: string, today: string): 'closed' | 'running' | 'future' {
+export function phaseOf(from: string, to: string, today: string): KpiMonthPhase {
   if (today >= to) return 'closed'
   return today < from ? 'future' : 'running'
 }

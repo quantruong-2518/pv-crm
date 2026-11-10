@@ -2,6 +2,7 @@ import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query
 import {
   KpiAllocationResponse,
   KpiForecastResponse,
+  KpiQuarterMeResponse,
   KpiWeeklyResponse,
   type Day,
   type KpiAcknowledgeBody,
@@ -10,6 +11,7 @@ import {
   type KpiCounterBody,
   type KpiMetricDef,
   type KpiMetricKey,
+  type KpiQuarterKey,
   type RoleId,
   isCumulative,
 } from '@pv/contracts'
@@ -40,6 +42,20 @@ export const kpiForecastMeQuery = (period: string) =>
       api.read<KpiForecastResponse>(`/sales/kpi/${period}/forecast/me`, {
         need,
         schema: KpiForecastResponse,
+        signal,
+      }),
+  })
+
+/** The quarter read (ADR 0146): the three months of one quarter summed, read-only.
+ *  Keyed under `['sales', 'kpi']` so any month write refetches it too. */
+export const kpiQuarterMeQuery = (quarter: KpiQuarterKey) =>
+  queryOptions({
+    queryKey: ['sales', 'kpi', quarter, 'me'] as const,
+    ...cacheTier.aggregate,
+    queryFn: ({ signal }) =>
+      api.read<KpiQuarterMeResponse>(`/sales/kpi/quarters/${quarter}/me`, {
+        need,
+        schema: KpiQuarterMeResponse,
         signal,
       }),
   })

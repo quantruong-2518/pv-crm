@@ -23,7 +23,7 @@ Important KPI bells stay instant. Those four are summed into one line per person
    one digested line.
 3. Counts per kind go in `detail`. The link reuses the subject of the newest digested line by priority
    counter-proposed > counter-resolved > forecast.
-4. Runs every day including weekends.
+4. Runs every day including weekends. Amended 10/11/2026: see "Amended 10/11/2026" below.
 5. A sweeper on the worker tick that fires once the Vietnam hour is 8 or later and does not advance its clock on
    failure (avoids the boot-miss of the 24 h throttles). The forecast alert sweep's hour still depends on boot time,
    so a flag can wait until the next morning's digest.
@@ -34,8 +34,16 @@ Important KPI bells stay instant. Those four are summed into one line per person
    instant again.
 8. Slip/hit counts are metrics, not lines: each line carries its metric count.
 9. The digest never depends on its copied link being openable: it rings without a dropped link, with a neutral label.
-10. Overlaps the decided-not-built 08:00 morning brief of 0133. Owner question: does this become it, and weekdays
-    only (see open questions).
+10. Overlaps the decided-not-built 08:00 morning brief of 0133. Settled 10/11/2026 (open question 174): it stays a
+    separate line; see "Amended 10/11/2026".
+
+## Amended 10/11/2026
+
+Owner's answer to open question 174. Default 4 no longer holds: the digest runs Monday to Friday only (Vietnam days).
+Monday's digest covers everything since Friday's 08:00 cut. It stays a separate line and is not merged into the morning
+brief of 0133 (default 10 settled).
+The fallback window (default 2) is now the previous working day's 08:00 cut (Monday looks back to Friday), and both
+scans are bounded at 4 days so a missed weekday next to a weekend is still caught up.
 
 ## Consequences
 

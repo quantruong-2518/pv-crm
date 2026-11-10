@@ -26,7 +26,7 @@ Display only, on the KPI forecast. The slip/hit flag, the bells and the linear p
 5. Visibility: the person themself, or a reader holding `kpi.view-all` AND `opportunity.view` without own-only
    scope. This applies to the per-person read (`GET :period/forecast/people/:actorId`) and to the company forecast;
    otherwise the figure is null. A team lead or org head reading a member would otherwise see open-deal value that
-   the opportunity book hides from an own-only Sale. Owner question (see open questions).
+   the opportunity book hides from an own-only Sale. Confirmed by the owner 10/11/2026 (open question 173): team leads and org heads do not get it.
 6. Not computed in the daily alert sweep.
 7. Credit differs from `signed-value` (ADR 0113): `signed-value` credits the contract's creator (`owner_id`), the
    pipeline credits the deal's primary SALE lane. When someone else creates the contract, the money moves from one

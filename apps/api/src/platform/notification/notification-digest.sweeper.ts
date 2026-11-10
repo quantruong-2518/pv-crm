@@ -18,8 +18,10 @@ import { NotificationRepository, type DigestibleRow } from './notification.repos
 const RETRY_MS = 5 * 60_000
 const FROM_HOUR = 8
 const DAY_MS = 24 * 60 * 60_000
-/** Neither scan looks further back, so a stale recipient cannot pull months of rows. */
-const LOOKBACK_MS = 2 * DAY_MS
+/** Neither scan looks further back, so a stale recipient cannot pull months of rows;
+ *  4 days is the Friday-to-Monday gap plus one working day, so a missed
+ *  Monday or Friday pass still sees the digest before it. */
+const LOOKBACK_MS = 4 * DAY_MS
 const VIETNAM_MS = 7 * 60 * 60_000
 
 /** Which `detail` key counts each digested kind (the contract's four keys). */
@@ -45,6 +47,12 @@ const vietnamClock = (at: number): { day: string; hour: number } => {
 /** The 08:00 Vietnam cut of a Vietnam day. */
 const cutOf = (day: string): number => Date.parse(`${day}T08:00:00+07:00`)
 
+/** Saturday or Sunday of a Vietnam day (`YYYY-MM-DD`). */
+const isWeekend = (day: string): boolean => {
+  const weekday = new Date(`${day}T00:00:00Z`).getUTCDay()
+  return weekday === 0 || weekday === 6
+}
+
 /** A forecast line covers several metrics and says how many; a line written
  *  before that key existed counts as one. */
 const weightOf = (line: DigestibleRow): number => {
@@ -54,13 +62,15 @@ const weightOf = (line: DigestibleRow): number => {
 
 /** Sums the digested lines (`NOTIFICATION_KINDS_DIGESTED`) into one `kpi-digest`
  *  line per person a day (ADR 0145). Rides the worker tick (`worker.ts`) and
- *  fires from Vietnam 08:00 on.
+ *  fires from Vietnam 08:00 on, Monday to Friday only (the owner's answer to
+ *  open question 174); Monday's window reaches back to Friday's cut.
  *
  *  No claim table: the ledger is the state. The window is the lines created in
- *  `[the 08:00 cut of the last digest's day, today's 08:00)`, else the 24 h
- *  before today's cut; later lines wait for tomorrow. The event key
+ *  `[the 08:00 cut of the last digest's day, today's 08:00)`, else back to the
+ *  previous working day's cut; later lines wait for tomorrow. The event key
  *  `kpi-digest/<person>/<day>` makes a rerun a no-op, and a bell write the hub
- *  swallowed is picked up tomorrow, the window reaching back to the last digest.
+ *  swallowed is picked up on the next pass: a missed day is caught up as long
+ *  as the person's last digest is within 4 days.
  *  Goes through the hub, so mute applies to the digest too. A pass that
  *  succeeded sleeps until tomorrow's cut; one that threw retries in 5 minutes. */
 @Injectable()
@@ -82,6 +92,10 @@ export class NotificationDigestSweeper {
     this.running = true
     try {
       const cut = cutOf(vietnamClock(now).day)
+      if (isWeekend(vietnamClock(now).day)) {
+        this.notBefore = cut + DAY_MS
+        return null
+      }
       const told = await this.pass(cut)
       this.notBefore = cut + DAY_MS
       return told
@@ -95,6 +109,7 @@ export class NotificationDigestSweeper {
 
   private pass(cut: number): Promise<number> {
     const day = vietnamClock(cut).day
+    const isMonday = new Date(`${day}T00:00:00Z`).getUTCDay() === 1
     return this.db.transaction(async (tx) => {
       const lastDigest = await this.repo.lastCreated(tx, 'kpi-digest', new Date(cut - LOOKBACK_MS))
       const kinds = await this.counted(tx)
@@ -102,7 +117,9 @@ export class NotificationDigestSweeper {
       const byPerson = new Map<string, DigestibleRow[]>()
       for (const row of rows) {
         const last = lastDigest.get(row.recipientId)
-        const from = last ? cutOf(vietnamClock(last.getTime()).day) : cut - DAY_MS
+        const from = last
+          ? cutOf(vietnamClock(last.getTime()).day)
+          : cut - (isMonday ? 3 : 1) * DAY_MS
         if (row.createdAt.getTime() < from) continue
         byPerson.set(row.recipientId, [...(byPerson.get(row.recipientId) ?? []), row])
       }

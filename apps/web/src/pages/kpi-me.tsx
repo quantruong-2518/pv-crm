@@ -1,8 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { AppShell, Button, GlassCard, ScreenHeader, ScreenLayout, SectionTitle, cn } from '@pv/ui'
 import {
   RoleId,
   isTieredPeriod,
+  quarterMonths,
+  quarterOf,
   type KpiAllocation,
   type KpiForecastResponse,
   type KpiScorecard,
@@ -19,7 +22,7 @@ import { kpiCatalogQuery, withCatalog, type KpiCatalog } from '@/data/kpi-catalo
 import { flagsOf } from '@/data/kpi-forecast'
 import { kpiTeamRosterQuery } from '@/data/kpi-team-roster'
 import { answerable, kpiForecastMeQuery, myPackages, type MyPackage } from '@/data/kpi-personal'
-import { keyOf } from './home-model'
+import { currentPick, keyOf, type PeriodPick } from './home-model'
 import { NOTE, TILE } from './home-tiles'
 import { AbsenceBlock } from './kpi-absence'
 import { AssignLink, ConfirmCard } from './kpi-assign-confirm'
@@ -33,23 +36,30 @@ import {
   ThresholdNote,
 } from './kpi-me-parts'
 import { MonthPicker, QueryBlock } from './kpi-parts'
+import { QuarterPicker, QuarterView, ViewSwitch } from './kpi-me-quarter'
 import { ReceivePackage } from './kpi-receive-parts'
 import { teamsActedFor } from './kpi-team-model'
 
-/** The personal KPI screen — what the reader is short of, per role they hold,
- *  read live from `GET /sales/kpi/:period/me`, with the ADR 0098 reads beside
- *  it: the allocation lines to confirm or counter, slip / hit flags, the weekly
- *  chart. No fixture and no scenario; every figure and every verdict is the server's.
+/** The personal KPI screen: what the reader is short of per role, read live from
+ *  `GET /sales/kpi/:period/me`, with the ADR 0098 reads beside it (allocation
+ *  lines, slip / hit flags, weekly chart). No fixture; every figure and verdict is the server's.
  *
  *  The month lives in the address, so a bell line opens the month it counted.
- *  Lines still to confirm put the assigned-targets section first.
- *  The side reads never block the board: their failure is one line. A role with
- *  a package is answered in the assigned-targets section, which records both books; the
- *  role-target button is for a role without one, and shows only while an agreed
- *  target is unreceived or changed, never on a closed month.
+ *  Lines still to confirm put the assigned-targets section first. The side reads
+ *  never block the board: their failure is one line. A role with a package is
+ *  answered in the assigned-targets section; the role-target button is for a role
+ *  without one, only while an agreed target is unreceived, never on a closed month.
+ *  The Month / Quarter switch opens the read-only quarter view (ADR 0146); the
+ *  month reads sit in `MonthBody` so that view never fires them.
  *
  *  No ContextRail (law 10 debt, as on the overview): a scorecard is a sum over
  *  many records and opens no single object a chain could be anchored on. */
+
+const QUARTER_DESCRIPTION = message(
+  'Tổng ba tháng của quý. Trạng thái so với mức cần đạt đến hôm nay.',
+  'The three months of the quarter added up, against the pace needed by today.',
+  '분기 3개월의 합계입니다. 상태는 오늘까지 필요한 수준 기준입니다.',
+)
 
 function RoleBoard({
   catalog,
@@ -146,10 +156,9 @@ function AssignedTargets({
   )
 }
 
-export function KpiMePage() {
+/** The month view: every read below is for one month, so the quarter view never fires them. */
+function MonthBody({ pick }: { pick: PeriodPick }) {
   const { t } = useI18n()
-  const chrome = useAppChrome()
-  const [pick, setPick] = useMonthParam()
   const period = keyOf(pick)
   const me = useQuery(kpiMeQuery(period))
   const catalog = useQuery(kpiCatalogQuery)
@@ -170,114 +179,162 @@ export function KpiMePage() {
   const ledTeams = teamsActedFor(roster.data?.teams ?? [], actorId)
 
   return (
+    <>
+      {ledTeams.map((team) => (
+        <TeamLeadLink key={team.id} team={team} period={period} />
+      ))}
+      {/* Any role's page read finds the unit the reader heads. */}
+      {isTieredPeriod(period) && <AssignLink period={period} role={RoleId.enum.sale} />}
+      {actorId && <AbsenceBlock me={actorId} />}
+
+      <QueryBlock
+        query={withCatalog(me, catalog)}
+        what={message('KPI của bạn', 'your KPIs', '내 KPI')}
+      >
+        {([data, defs]) => {
+          /* Flags are not drawn on a closed month, so neither is their legend. */
+          const legend =
+            !data.closed &&
+            seen &&
+            data.scorecards.some((c) => flagsOf(defs, c.role, seen).length > 0)
+          /* Old packages answer 409 on a tiered month; its lines are in the confirm cards. */
+          const assigned = allocations.data && packs.length > 0 && !isTieredPeriod(data.period) && (
+            <AssignedTargets
+              period={data.period}
+              closed={data.closed}
+              packs={packs}
+              packages={allocations.data.allocations}
+              me={actorId}
+            />
+          )
+          const first = !data.closed && pending > 0
+          return (
+            <>
+              {data.closed && (
+                <p className={NOTE}>
+                  {t(
+                    message(
+                      'Tháng đã kết thúc, chỉ tiêu không đổi được nữa.',
+                      'This month is closed. Targets can no longer be changed.',
+                      '월이 마감되어 목표를 더 이상 변경할 수 없습니다.',
+                    ),
+                  )}
+                </p>
+              )}
+              {actorId && data.scorecards.length > 0 && (
+                <FrozenNote period={data.period} actorId={actorId} />
+              )}
+              {allocations.error && (
+                <SideFailure
+                  what={t(message('chỉ tiêu được giao', 'assigned targets', '배정된 목표'))}
+                  retry={() => void allocations.refetch()}
+                />
+              )}
+              {forecast.error && (
+                <SideFailure
+                  what={t(message('cảnh báo sắp trượt, sắp đạt', 'forecast alerts', '예측 알림'))}
+                  retry={() => void forecast.refetch()}
+                />
+              )}
+              {first && assigned}
+              {isTieredPeriod(data.period) &&
+                data.scorecards.map((card) => (
+                  <ConfirmCard
+                    key={`confirm/${card.role}`}
+                    catalog={defs}
+                    period={data.period}
+                    role={card.role}
+                    closed={data.closed}
+                  />
+                ))}
+              {legend && seen && <ThresholdNote thresholds={seen.thresholds} />}
+              {data.scorecards.length === 0 && packs.length === 0 && (
+                <GlassCard className={cn(TILE, 'text-[12.5px]')}>
+                  {t(
+                    message(
+                      'Bạn chưa được giao chỉ tiêu KPI nào.',
+                      'You have no KPI targets assigned yet.',
+                      '아직 배정된 KPI 목표가 없습니다.',
+                    ),
+                  )}
+                </GlassCard>
+              )}
+              {data.scorecards.map((card) => (
+                <RoleBoard
+                  key={card.role}
+                  catalog={defs}
+                  period={data.period}
+                  closed={data.closed}
+                  card={card}
+                  allocated={allocatedRoles.has(card.role)}
+                  forecast={forecast.data}
+                />
+              ))}
+              {!first && assigned}
+              {actorId && data.scorecards.length > 0 && (
+                <ContributionsPanel catalog={defs} period={data.period} actorId={actorId} />
+              )}
+            </>
+          )
+        }}
+      </QueryBlock>
+    </>
+  )
+}
+
+/** `?view=quarter` selects the quarter view; the quarter is the one holding the
+ *  address' month, so the switch and the month picker never disagree. */
+const VIEW_PARAM = 'view'
+
+export function KpiMePage() {
+  const { t } = useI18n()
+  const chrome = useAppChrome()
+  const [pick, setPick] = useMonthParam()
+  const [params, setParams] = useSearchParams()
+  const isQuarter = params.get(VIEW_PARAM) === 'quarter'
+  const quarter = quarterOf(pick.month)
+  /* Landing on the running quarter keeps the running month, so the month view reopens on it. */
+  const monthOfQuarter = (q: string) => {
+    const months = quarterMonths(q)
+    const now = currentPick().month
+    return months.find((m) => m === now) ?? months[0]
+  }
+  const setView = (view: 'month' | 'quarter') =>
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (view === 'quarter') next.set(VIEW_PARAM, view)
+        else next.delete(VIEW_PARAM)
+        return next
+      },
+      { replace: true },
+    )
+
+  return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <ScreenHeader
           title={t(message('KPI của tôi', 'My KPIs', '내 KPI'))}
-          description={t(DESCRIPTION)}
-          actions={<MonthPicker pick={pick} onPick={setPick} />}
-        />
-
-        {ledTeams.map((team) => (
-          <TeamLeadLink key={team.id} team={team} period={period} />
-        ))}
-        {/* Any role's page read finds the unit the reader heads. */}
-        {isTieredPeriod(period) && <AssignLink period={period} role={RoleId.enum.sale} />}
-        {actorId && <AbsenceBlock me={actorId} />}
-
-        <QueryBlock
-          query={withCatalog(me, catalog)}
-          what={message('KPI của bạn', 'your KPIs', '내 KPI')}
-        >
-          {([data, defs]) => {
-            /* Flags are not drawn on a closed month, so neither is their legend. */
-            const legend =
-              !data.closed &&
-              seen &&
-              data.scorecards.some((c) => flagsOf(defs, c.role, seen).length > 0)
-            /* Old packages answer 409 on a tiered month; its lines are in the confirm cards. */
-            const assigned = allocations.data &&
-              packs.length > 0 &&
-              !isTieredPeriod(data.period) && (
-                <AssignedTargets
-                  period={data.period}
-                  closed={data.closed}
-                  packs={packs}
-                  packages={allocations.data.allocations}
-                  me={actorId}
+          description={t(isQuarter ? QUARTER_DESCRIPTION : DESCRIPTION)}
+          actions={
+            <div className="flex flex-wrap items-center gap-3">
+              <ViewSwitch value={isQuarter ? 'quarter' : 'month'} onChange={setView} />
+              {isQuarter ? (
+                <QuarterPicker
+                  quarter={quarter}
+                  onPick={(q) => setPick({ ...pick, month: monthOfQuarter(q) })}
                 />
-              )
-            const first = !data.closed && pending > 0
-            return (
-              <>
-                {data.closed && (
-                  <p className={NOTE}>
-                    {t(
-                      message(
-                        'Tháng đã kết thúc, chỉ tiêu không đổi được nữa.',
-                        'This month is closed. Targets can no longer be changed.',
-                        '월이 마감되어 목표를 더 이상 변경할 수 없습니다.',
-                      ),
-                    )}
-                  </p>
-                )}
-                {actorId && data.scorecards.length > 0 && (
-                  <FrozenNote period={data.period} actorId={actorId} />
-                )}
-                {allocations.error && (
-                  <SideFailure
-                    what={t(message('chỉ tiêu được giao', 'assigned targets', '배정된 목표'))}
-                    retry={() => void allocations.refetch()}
-                  />
-                )}
-                {forecast.error && (
-                  <SideFailure
-                    what={t(message('cảnh báo sắp trượt, sắp đạt', 'forecast alerts', '예측 알림'))}
-                    retry={() => void forecast.refetch()}
-                  />
-                )}
-                {first && assigned}
-                {isTieredPeriod(data.period) &&
-                  data.scorecards.map((card) => (
-                    <ConfirmCard
-                      key={`confirm/${card.role}`}
-                      catalog={defs}
-                      period={data.period}
-                      role={card.role}
-                      closed={data.closed}
-                    />
-                  ))}
-                {legend && seen && <ThresholdNote thresholds={seen.thresholds} />}
-                {data.scorecards.length === 0 && packs.length === 0 && (
-                  <GlassCard className={cn(TILE, 'text-[12.5px]')}>
-                    {t(
-                      message(
-                        'Bạn chưa được giao chỉ tiêu KPI nào.',
-                        'You have no KPI targets assigned yet.',
-                        '아직 배정된 KPI 목표가 없습니다.',
-                      ),
-                    )}
-                  </GlassCard>
-                )}
-                {data.scorecards.map((card) => (
-                  <RoleBoard
-                    key={card.role}
-                    catalog={defs}
-                    period={data.period}
-                    closed={data.closed}
-                    card={card}
-                    allocated={allocatedRoles.has(card.role)}
-                    forecast={forecast.data}
-                  />
-                ))}
-                {!first && assigned}
-                {actorId && data.scorecards.length > 0 && (
-                  <ContributionsPanel catalog={defs} period={data.period} actorId={actorId} />
-                )}
-              </>
-            )
-          }}
-        </QueryBlock>
+              ) : (
+                <MonthPicker pick={pick} onPick={setPick} />
+              )}
+            </div>
+          }
+        />
+        {isQuarter ? (
+          <QuarterView quarter={quarter} onMonthView={() => setView('month')} />
+        ) : (
+          <MonthBody pick={pick} />
+        )}
       </ScreenLayout>
     </AppShell>
   )
