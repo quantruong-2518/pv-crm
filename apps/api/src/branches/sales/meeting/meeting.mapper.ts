@@ -23,6 +23,8 @@ export function toContract(
   isFirst: boolean,
   /* 'off' on a plain read: `calendar` reports a sync attempt, and a read makes none. */
   calendar: MeetingCalendarState = 'off',
+  /* Closed unless the caller asks: the legacy transcript is customer content (ADR 0074 §11). */
+  withTranscript = false,
 ): MeetingRow {
   const of = (side: 'host' | 'guest'): MeetingAttendee[] =>
     attendees
@@ -52,7 +54,7 @@ export function toContract(
     at: row.at.toISOString(),
     title: row.title,
     ...(row.link ? { link: row.link } : {}),
-    ...(row.transcript ? { transcript: row.transcript } : {}),
+    ...(withTranscript && row.transcript ? { transcript: row.transcript } : {}),
     /* All three are conditional because every row written before `0050` is
        NULL — the "NULL column becomes an ABSENT field" rule above.
        `durationMinutes` is matched against the picker, not cast. */

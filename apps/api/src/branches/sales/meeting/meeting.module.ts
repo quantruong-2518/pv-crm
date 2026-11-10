@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common'
+import { AuditModule } from '@api/platform/audit/audit.module'
 import { CommRecordModule } from '@api/platform/comms/comm-record.module'
+import { EnginesModule } from '@api/platform/engines/engines.module'
 import { GoogleModule } from '@api/platform/google/google.module'
 import { NotificationModule } from '@api/platform/notification/notification.module'
 import { SessionModule } from '@api/platform/session/session.module'
@@ -26,6 +28,8 @@ import { MeetingService } from './meeting.service'
  *  their meetings (`MeetingCancel`, exported to the lead and deal doors). */
 @Module({
   imports: [
+    AuditModule,
+    EnginesModule,
     TouchModule,
     LeadStateModule,
     CommRecordModule,

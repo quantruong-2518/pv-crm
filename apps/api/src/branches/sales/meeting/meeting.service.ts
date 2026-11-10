@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { Injectable, Logger } from '@nestjs/common'
+import { Inject, Injectable, Logger } from '@nestjs/common'
 import { ModuleRef } from '@nestjs/core'
-import { highestRank, roleRank, type Actor } from '@pv/engines'
+import { highestRank, roleRank, type AccessControl, type Actor } from '@pv/engines'
 import {
   MeetingListResponse,
   MeetingRow,
@@ -20,8 +20,10 @@ import {
   type MeetingHeld,
   type MeetingSlot,
 } from '@api/platform/comms/comm-debrief.hook'
+import { AuditRepository } from '@api/platform/audit/audit.repository'
 import { CommRecordService } from '@api/platform/comms/comm-record.service'
 import type { Db } from '@api/platform/db/db.module'
+import { ACCESS } from '@api/platform/engines/tokens'
 import { PvError, conflict, denied, invalid, notFound } from '@api/platform/http/problem'
 import { ActorRepository } from '@api/platform/session/actor.repository'
 import { LeadStateWriter } from '../lead/lead-state'
@@ -62,22 +64,54 @@ export class MeetingService {
     /* The debrief hook is reached by token at call time: its module imports
        this one (and `LeadModule`), so a constructor injection is a cycle. */
     private readonly modules: ModuleRef,
+    private readonly audit: AuditRepository,
+    @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
-  /** Every meeting of one subject, newest first, with the first-meeting flag. */
+  /** Every meeting of one subject, newest first, with the first-meeting flag.
+   *  No transcript: for server-side callers that never show it to anyone. */
   async timeline(code: string): Promise<MeetingListResponse> {
+    return MeetingListResponse.parse({ rows: await this.read(code, false) })
+  }
+
+  /** The same list for a reader at a door. A legacy transcript rides along only
+   *  for a `comm.view-content` holder, and serving one leaves an audit line. */
+  async timelineFor(who: Actor, code: string): Promise<MeetingListResponse> {
+    const rows = await this.read(code, this.mayReadContent(who))
+    await this.trailTranscripts(who, code, rows)
+    return MeetingListResponse.parse({ rows })
+  }
+
+  /* The live grant, not the role matrix: an admin's edit of the role must bite. */
+  private mayReadContent(who: Actor): boolean {
+    return this.access.allows(who, 'comm.view-content')
+  }
+
+  private async read(code: string, withTranscript: boolean): Promise<MeetingRow[]> {
     const rows = await this.repo.bySubject(code)
     const attendees = await this.repo.attendeesOf(rows.map((r) => r.id))
     const firstId = firstMeetingId(rows)
 
-    return MeetingListResponse.parse({
-      rows: rows.map((row) =>
-        toContract(
-          row,
-          attendees.filter((a) => a.meetingId === row.id),
-          row.id === firstId,
-        ),
+    return rows.map((row) =>
+      toContract(
+        row,
+        attendees.filter((a) => a.meetingId === row.id),
+        row.id === firstId,
+        'off',
+        withTranscript,
       ),
+    )
+  }
+
+  /** One `view` line per subject, ids only: the debrief summary's shape (ADR 0074 §11). */
+  private async trailTranscripts(who: Actor, code: string, rows: readonly MeetingRow[]) {
+    const shown = rows.filter((r) => r.transcript !== undefined)
+    if (shown.length === 0) return
+    await this.audit.write({
+      actorId: who.id,
+      action: 'view',
+      code,
+      note: `sales.meeting · read transcript of ${shown.length} meeting(s): ${shown.map((r) => r.id).join(', ')}`,
     })
   }
 
@@ -119,7 +153,7 @@ export class MeetingService {
     })
     /* After the commit, never inside it: Google cannot fail or hold the booking.
        A failed try stays dirty and the worker retries it. */
-    return this.one(code, id, await this.calendar.push(id))
+    return this.one(who, code, id, await this.calendar.push(id))
   }
 
   /** Edit a booking. No touch row: fixing a title is not something that
@@ -178,7 +212,7 @@ export class MeetingService {
       await this.records.reschedule(tx, id, at)
     })
     /* Every patchable field shows on the event (`link` as its location). */
-    return this.one(code, id, await this.calendar.push(id))
+    return this.one(who, code, id, await this.calendar.push(id))
   }
 
   /** Only a meeting still ahead and not held may go, and only while its comm
@@ -467,10 +501,16 @@ export class MeetingService {
     )
   }
 
-  private async one(code: string, id: string, calendar: MeetingCalendarState): Promise<MeetingRow> {
-    const list = await this.timeline(code)
-    const row = list.rows.find((r) => r.id === id)
+  private async one(
+    who: Actor,
+    code: string,
+    id: string,
+    calendar: MeetingCalendarState,
+  ): Promise<MeetingRow> {
+    const row = (await this.read(code, this.mayReadContent(who))).find((r) => r.id === id)
     if (!row) throw notFound('cuộc họp', id)
+    /* The echo serves the one row, so only that row is audited. */
+    await this.trailTranscripts(who, code, [row])
     return MeetingRow.parse({ ...row, calendar })
   }
 }

@@ -6,9 +6,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
-import type { Actor } from '@pv/engines'
+import { createAccessControl, type Actor } from '@pv/engines'
 import type { Db } from '@api/platform/db/db.module'
 import type { CalendarOutcome, GoogleCalendar } from '@api/platform/google/google-calendar.client'
+import { AuditRepository } from '../../../platform/audit/audit.repository'
 import { NotificationHub } from '../../../platform/notification/notification.hub'
 import { NotificationPolicyRepository } from '../../../platform/notification/notification-policy.repository'
 import { NotificationRepository } from '../../../platform/notification/notification.repository'
@@ -32,6 +33,11 @@ vi.mock(
   () => import('../../../platform/notification/notification.hub'),
 )
 vi.mock('@api/platform/google/google-calendar.client', () => ({ GoogleCalendar: class {} }))
+vi.mock(
+  '@api/platform/audit/audit.repository',
+  () => import('../../../platform/audit/audit.repository'),
+)
+vi.mock('@api/platform/engines/tokens', () => ({ ACCESS: 'ACCESS' }))
 vi.mock('@api/platform/comms/comm-record.service', () => ({ CommRecordService: class {} }))
 vi.mock('@api/platform/comms/comm-debrief.hook', () => ({ COMM_DEBRIEF_HOOK: 'HOOK' }))
 vi.mock('@api/platform/session/actor.repository', () => ({ ActorRepository: class {} }))
@@ -236,6 +242,8 @@ describe('MeetingService drop', () => {
       calendar,
       new MeetingCalendarRepository(db),
       {} as never,
+      new AuditRepository(db),
+      createAccessControl(),
     )
 
   it('writes a tombstone with the row, and the sweep removes the event', async () => {
@@ -281,6 +289,50 @@ describe('MeetingService drop', () => {
       SET created_at = now() - interval '2 days', attempts = 9`)
     await calendar.retryDropped()
     expect(await tombstones()).toEqual([])
+  })
+})
+
+describe('MeetingService timeline transcript', () => {
+  const asker = (permissions: string[]) =>
+    ({ id: BOOKER, name: 'Người đặt', roleIds: ['sale'], permissions }) as unknown as Actor
+  const service = () =>
+    new MeetingService(
+      new MeetingRepository(db),
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      calendar,
+      new MeetingCalendarRepository(db),
+      {} as never,
+      new AuditRepository(db),
+      createAccessControl(),
+    )
+  const lines = async () =>
+    (await client.query<{ note: string }>(`SELECT note FROM platform.audit WHERE action = 'view'`))
+      .rows
+
+  beforeEach(async () => {
+    await client.exec(`DELETE FROM platform.audit;`)
+    await client.query(`UPDATE sales.meeting SET transcript = 'Nội dung ghi âm cũ' WHERE id = $1`, [
+      ID,
+    ])
+  })
+
+  it('leaves the transcript out for a reader without comm.view-content, with no audit line', async () => {
+    const { rows } = await service().timelineFor(asker(['lead.view']), LEAD)
+    expect(rows).toHaveLength(1)
+    expect('transcript' in rows[0]!).toBe(false)
+    expect(await lines()).toEqual([])
+  })
+
+  it('serves the transcript to a holder and writes one view line without the text', async () => {
+    const { rows } = await service().timelineFor(asker(['lead.view', 'comm.view-content']), LEAD)
+    expect(rows[0]?.transcript).toBe('Nội dung ghi âm cũ')
+    const written = await lines()
+    expect(written).toHaveLength(1)
+    expect(written[0]?.note).toContain(ID)
+    expect(written[0]?.note).not.toContain('Nội dung ghi âm cũ')
   })
 })
 

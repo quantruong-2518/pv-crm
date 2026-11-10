@@ -649,7 +649,7 @@ export class OpportunityService {
 
   async meetingList(who: Actor, code: ObjectCode): Promise<MeetingListResponse> {
     await this.inScope(who, code)
-    return this.meetings.timeline(code)
+    return this.meetings.timelineFor(who, code)
   }
 
   async meetingAdd(who: Actor, code: ObjectCode, body: MeetingCreate): Promise<MeetingRow> {

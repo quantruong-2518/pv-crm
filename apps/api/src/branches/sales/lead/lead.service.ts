@@ -284,7 +284,7 @@ export class LeadService {
 
   async meetingList(who: Actor, code: ObjectCode): Promise<MeetingListResponse> {
     await this.guard(who, code)
-    return this.meetings.timeline(code)
+    return this.meetings.timelineFor(who, code)
   }
 
   async meetingAdd(who: Actor, code: ObjectCode, body: MeetingCreate): Promise<MeetingRow> {
