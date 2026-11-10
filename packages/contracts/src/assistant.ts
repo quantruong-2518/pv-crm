@@ -201,6 +201,13 @@ export type SearchRecordsInput = z.infer<typeof SearchRecordsInput>
 export const GetRecordInput = z.object({ kind: AssistantReadKind, code: RecordCode }).strict()
 export type GetRecordInput = z.infer<typeof GetRecordInput>
 
+/** History is read per lead or per deal: only their doors serve a timeline (touches, meetings, debriefs); a contract has none yet. */
+export const AssistantHistoryKind = AssistantRecordKind.extract(['lead', 'opportunity'])
+export type AssistantHistoryKind = z.infer<typeof AssistantHistoryKind>
+
+export const GetHistoryInput = z.object({ kind: AssistantHistoryKind, code: RecordCode }).strict()
+export type GetHistoryInput = z.infer<typeof GetHistoryInput>
+
 /** Absent `kind` lists all three. Always the asker's own work: there is no field to name anyone else. */
 export const ListMyWorkInput = z
   .object({ kind: z.enum(['lead', 'opportunity', 'next-step']).optional() })

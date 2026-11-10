@@ -13,6 +13,7 @@ import {
   type DoorAnswer,
 } from './scope-door'
 import { accountMatrix } from './scope-account'
+import { historyMatrix } from './scope-history'
 import { FACTS } from './scope-facts'
 import {
   agreeOnReach,
@@ -238,6 +239,7 @@ export async function scopeMatrix(world: World, tally: Tally): Promise<void> {
   await grantCases(world, tally, (c, cell, log) => runCell(world, c, cell, log))
   await hiddenDealIsHidden(world, tally)
   await accountMatrix(world, tally)
+  await historyMatrix(world, tally)
   await noteSiblingContact(world, tally)
   for (const fact of FACTS) {
     const name = `fact: ${fact.who.id} ${fact.probe} ${fact.chain}`

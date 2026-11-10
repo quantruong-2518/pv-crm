@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { DEFAULT_ROLE_PERMISSIONS } from '@pv/engines'
+import { HISTORY_LIST } from '@api/branches/sales/assistant/get-history'
 import { describe, expect, it } from 'vitest'
 import { CASE_COUNTS, caseSetFaults, filled, loadCases } from './cases'
 import { gateLine, type LiveResult } from './report'
@@ -17,10 +18,15 @@ import {
   FIRST_CONTRACT,
   FIRST_LEAD,
   FIRST_OPPORTUNITY,
+  HISTORY_CELLS,
+  HISTORY_CHAINS,
   MATRIX_CELLS,
   PLANTED_PHONE,
+  RICH_COMMS,
+  RICH_TOUCHES,
   ROLE_SEATS,
   ROLES,
+  SUMMARY_MAX,
   TYPED_TAX_CODE,
   TYPED_WEBSITE,
   WORDS,
@@ -40,8 +46,8 @@ const stand = (key: string, n: number) => ({
 })
 
 describe('the case set', () => {
-  it('is 66 cases split 20, 15, 10, 5, 10 and 6', () => {
-    expect(cases).toHaveLength(66)
+  it('is 71 cases split 20, 15, 10, 5, 10, 6 and 5', () => {
+    expect(cases).toHaveLength(71)
     expect(CASE_COUNTS).toEqual({
       scope: 20,
       injection: 15,
@@ -49,6 +55,7 @@ describe('the case set', () => {
       lookup: 5,
       coverage: 10,
       linked: 6,
+      history: 5,
     })
     expect(caseSetFaults(cases)).toEqual([])
   })
@@ -58,7 +65,7 @@ describe('the case set', () => {
   })
 
   it('names only chains the seed makes', () => {
-    const chains = new Map(CHAINS.map((c, i) => [c.key, stand(c.key, i)]))
+    const chains = new Map([...CHAINS, ...HISTORY_CHAINS].map((c, i) => [c.key, stand(c.key, i)]))
     for (const c of cases) {
       const own = new Map(chains).set(c.id, stand(c.id, 99))
       expect(() => filled(c, own, c.id)).not.toThrow()
@@ -73,6 +80,8 @@ describe('the seed', () => {
     expect(ROLE_SEATS).toHaveLength(14)
     expect(MATRIX_CELLS).toBe(180)
     expect(ACCOUNT_CELLS).toBe(21)
+    expect(HISTORY_CELLS).toBe(63)
+    expect(HISTORY_CHAINS.map((c) => c.key)).toEqual(['hist-rich', 'hist-wide'])
     expect(COMPANY_CHAINS).toHaveLength(3)
     expect(CONTRACT_AMOUNT).toBe(480_000_000)
     expect(CONTRACT_CURRENCY).toBe('VND')
@@ -92,9 +101,18 @@ describe('the seed', () => {
     expect(new Set(WORDS).size).toBe(WORDS.length)
     const planted = cases.filter((c) => c.plant).length
     /* The company takes the word after the chains, and the sibling the number after that. */
-    expect(CHAINS.length + COMPANY_CHAINS.length + planted + 1).toBeLessThan(WORDS.length)
+    expect(
+      CHAINS.length + COMPANY_CHAINS.length + HISTORY_CHAINS.length + planted + 1,
+    ).toBeLessThan(WORDS.length)
     const tokens = Object.values(canariesOf(7))
     expect(tokens.join(' ').match(CANARY)).toEqual(tokens)
+  })
+
+  it("locks the history seed against the tool's own list size", () => {
+    expect(HISTORY_LIST).toBe(20)
+    expect(RICH_TOUCHES).toBeGreaterThan(HISTORY_LIST)
+    expect(RICH_COMMS).toBeGreaterThan(HISTORY_LIST)
+    expect([RICH_TOUCHES, RICH_COMMS, SUMMARY_MAX]).toEqual([24, 22, 2000])
   })
 
   it('plants a phone the canary pattern does not claim', () => {

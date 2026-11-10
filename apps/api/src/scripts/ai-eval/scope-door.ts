@@ -1,5 +1,7 @@
 import {
   ContractCode,
+  DebriefListQuery,
+  GetHistoryInput,
   LeadBookQuery,
   ObjectCode,
   OpportunityBookQuery,
@@ -23,8 +25,9 @@ import type { World } from './world'
 /** The oracle: what a person would get at the HTTP door, asked the way the door
  *  asks it. A tool call is compared with the UNION of the doors it opened: which
  *  doors come from the tool's registration, the need of each is read off its
- *  controller here, and the E2 instance is not the gate's. If the tool or its gate
- *  go wrong, this side does not go wrong with them.
+ *  controller here, which of them may be refused without ending the call is pinned
+ *  here too (`OPTIONAL_DOORS`), and the E2 instance is not the gate's. If the tool or
+ *  its gate go wrong, this side does not go wrong with them.
  *
  *  It decides nothing itself, and a bug shared by a door and its tool passes here.
  *  That is what `scope-facts.ts` is for. */
@@ -51,6 +54,8 @@ export type DoorAnswer =
       codes: string[]
       rows: number
       bodies: Readonly<Record<string, unknown>>
+      /** Doors of the call that gave nothing: shut by E2, or an optional one refused at the service. */
+      skipped: string[]
     }
   | { ok: false; reason: string; json: '' }
 
@@ -60,7 +65,7 @@ type Asked = { body: unknown; codes: string[] }
 
 /** What a cell stands on: a chain of one lead, or the company over several. */
 export type Subject = Chain | Company
-type Ask = (world: World, who: Actor, on: Subject) => Promise<Asked>
+type Ask = (world: World, who: Actor, on: Subject, input?: unknown) => Promise<Asked>
 
 const chainOf = (on: Subject): Chain => {
   if (!('lead' in on)) throw new Error('oracle: this door is asked on a chain, not a company')
@@ -126,6 +131,28 @@ const ASK: Record<string, Ask> = {
     const body = await world.opportunities.book(who, q)
     return { body, codes: body.rows.map((r) => r.code) }
   },
+  /* The history doors take the record from the call itself: one tool, two kinds of record. */
+  leadTouches: async (world, who, _on, input) => {
+    const code = zod(ObjectCode).transform(GetHistoryInput.parse(input).code)
+    return { body: await world.leads.touches(who, code), codes: [code] }
+  },
+  dealTouches: async (world, who, _on, input) => {
+    const code = zod(ObjectCode).transform(GetHistoryInput.parse(input).code)
+    return { body: await world.opportunities.touches(who, code), codes: [code] }
+  },
+  comms: async (world, who, _on, input) => {
+    const subjectCode = zod(ObjectCode).transform(GetHistoryInput.parse(input).code)
+    const q = zod(DebriefListQuery).transform({ subjectCode })
+    return { body: await world.debriefs.list(who, q), codes: [] }
+  },
+  leadMeetings: async (world, who, _on, input) => {
+    const code = zod(ObjectCode).transform(GetHistoryInput.parse(input).code)
+    return { body: await world.leads.meetingList(who, code), codes: [] }
+  },
+  dealMeetings: async (world, who, _on, input) => {
+    const code = zod(ObjectCode).transform(GetHistoryInput.parse(input).code)
+    return { body: await world.opportunities.meetingList(who, code), codes: [] }
+  },
   account: async (world, _who, on) => {
     const { code } = companyOf(on)
     const profile = await world.accounts.profile(zod(ObjectCode).transform(code))
@@ -165,11 +192,17 @@ export function needOf([controller, handler]: ToolDoor): RouteNeed {
 }
 
 /** What the service says to a seat E2 let through: an answer, or the status of a refusal. */
-async function askOne(world: World, who: Actor, { key, door }: Opened, on: Subject) {
+async function askOne(
+  world: World,
+  who: Actor,
+  { key, door }: Opened,
+  on: Subject,
+  input?: unknown,
+) {
   const ask = ASK[key]
   if (!ask) throw new Error(`oracle: no way to ask ${key} (${doorId(door)}) as a seat (see ASK)`)
   try {
-    return { ok: true as const, ...(await ask(world, who, on)) }
+    return { ok: true as const, ...(await ask(world, who, on, input)) }
   } catch (error) {
     const status = error instanceof PvError ? error.getStatus() : null
     if (status === 403 || status === 404) return { ok: false as const, reason: String(status) }
@@ -177,11 +210,48 @@ async function askOne(world: World, who: Actor, { key, door }: Opened, on: Subje
   }
 }
 
+/** The doors each tool may lose without failing the call, as the oracle holds them.
+ *  Not read off the registration: a door slipped into `optional` would turn a refusal
+ *  into a quiet gap in every cell. `optionalDrift` names where the two differ. */
+export const OPTIONAL_DOORS: Readonly<Record<string, readonly string[]>> = {
+  get_history: ['comms', 'leadMeetings', 'dealMeetings'],
+}
+
+export function optionalDrift(tools: readonly { name: string; optional: readonly string[] }[]) {
+  const key = (list: readonly string[]) => [...list].sort().join(',')
+  const known = Object.entries(OPTIONAL_DOORS).flatMap(([name, want]) => {
+    const tool = tools.find((t) => t.name === name)
+    if (!tool) return [`${name} is pinned and not registered`]
+    return key(tool.optional) === key(want)
+      ? []
+      : [`${name}: optional [${key(tool.optional)}], pinned [${key(want)}]`]
+  })
+  const unpinned = tools
+    .filter((t) => t.optional.length > 0 && !(t.name in OPTIONAL_DOORS))
+    .map((t) => `${t.name}: optional [${key(t.optional)}] and no pin`)
+  return [...known, ...unpinned]
+}
+
+/** What a tool registers beside its doors: the ones whose refusal it reports itself,
+ *  and the input its call carried. */
+type Asking = { optional?: readonly string[]; input?: unknown }
+
 /** The union of what `doors` hand this seat. Refused when E2 shuts every door, or
  *  when any door E2 opened refuses at the service: the gate fails a whole call on
  *  one thrown refusal and runs on over the doors E2 skipped. A door that merely
- *  returns fewer rows is no refusal, and what it hides stays out of the union. */
-async function askDoors(world: World, who: Actor, doors: readonly Opened[], on: Subject) {
+ *  returns fewer rows is no refusal, and what it hides stays out of the union.
+ *
+ *  A tool with `optional` doors is read as that tool reads itself: a door it does not
+ *  list is primary, and shut or refused it ends the call; a listed one that is shut
+ *  or refused is left out and shows in `skipped`, with the call still `ok`. */
+async function askDoors(
+  world: World,
+  who: Actor,
+  doors: readonly Opened[],
+  on: Subject,
+  { optional = [], input }: Asking = {},
+) {
+  const soft = new Set(optional)
   const checks = doors.map((named) => ({
     named,
     verdict: world.doorAccess.check(who, needOf(named.door)),
@@ -190,17 +260,29 @@ async function askDoors(world: World, who: Actor, doors: readonly Opened[], on: 
   if (shut.length === checks.length) {
     return { ok: false as const, reason: shut[0] ?? '', json: '' as const }
   }
+  const primary = checks.find((c) => !c.verdict.ok && soft.size > 0 && !soft.has(c.named.key))
+  if (primary && !primary.verdict.ok) {
+    return { ok: false as const, reason: primary.verdict.reason, json: '' as const }
+  }
   const bodies: Record<string, unknown> = {}
   const codes: string[] = []
+  const skipped: string[] = []
   for (const { named, verdict } of checks) {
-    if (!verdict.ok) continue
-    const got = await askOne(world, who, named, on)
+    if (!verdict.ok) {
+      skipped.push(named.key)
+      continue
+    }
+    const got = await askOne(world, who, named, on, input)
+    if (!got.ok && soft.has(named.key)) {
+      skipped.push(named.key)
+      continue
+    }
     if (!got.ok) return { ok: false as const, reason: got.reason, json: '' as const }
     bodies[doorId(named.door)] = got.body
     codes.push(...got.codes)
   }
   const json = JSON.stringify(Object.values(bodies))
-  return { ok: true as const, json, codes, rows: codes.length, bodies }
+  return { ok: true as const, json, codes, rows: codes.length, bodies, skipped }
 }
 
 /** One door, the one `probe` stands for: what a fact is about. */
@@ -228,7 +310,7 @@ export function askCall(
     if (!door) throw new Error(`oracle: ${call.name} names no door for ${key}`)
     return { key, door }
   })
-  return askDoors(world, who, doors, on)
+  return askDoors(world, who, doors, on, { optional: OPTIONAL_DOORS[call.name], input: call.input })
 }
 
 export const canariesIn = (text: string): string[] => [...text.matchAll(CANARY)].map((m) => m[0])

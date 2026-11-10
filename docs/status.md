@@ -48,6 +48,24 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
   refuse. The CRM assistant's company read does not wrap this door as-is: it
   takes company fields from it and re-reads child leads and deals through the
   lead and opportunity book doors as the asker.
+- CRM assistant history read (ADR 0147), debt:
+  - A turn's tool-token cap (`TOOL_TOKEN_CAP`,
+    `apps/api/src/platform/assistant/assistant-loop.ts`) counts the whole turn
+    and drops an over-cap result whole: a history read after other calls, or
+    twenty max-length summaries in 3-byte script, returns nothing (fails
+    closed). Candidate: the tool trims summaries to a budget and flags it.
+  - The comms door audits a `view` line for every summary on the subject,
+    including rows past the 20 shown and results the loop then drops as
+    over-cap: over-counts, the safe direction. The comment in
+    `assistant-loop.ts` near line 164 ("an over-cap result reaches neither the
+    model nor the audit") is now untrue for door-side audits.
+  - A stored assistant answer may quote summary text; re-reading it
+    (`assistant.service.ts` detail and reports) re-checks codes and
+    `data.export`, not `comm.view-content`. Only the director holds
+    `assistant.review` today, so no seat is exposed under the default matrix,
+    but roles are editable. Owner decision pending.
+  - The ref chip label falls back to the bare code when the comms door is
+    skipped or empty.
 - A-3, finding several contacts for a lead: approved 01/11, not built (10/11: a
   grep of `apps/api/src` for a legal representative or a leadership page finds
   nothing). Sources: legal representative from the business register, "Ban lãnh

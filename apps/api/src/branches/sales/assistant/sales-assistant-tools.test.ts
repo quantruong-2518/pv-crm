@@ -10,9 +10,18 @@ import {
   type OpportunityProfileResponse,
   type SearchResult,
 } from '@pv/contracts'
+import type { ModuleRef } from '@nestjs/core'
 import { createAccessControl, DEFAULT_ROLE_PERMISSIONS, type Actor, type RoleId } from '@pv/engines'
 import { describe, expect, it, vi } from 'vitest'
+import {
+  footerOf,
+  newReads,
+  noteReads,
+  suggestionsOf,
+} from '@api/platform/assistant/assistant-turn-read'
 import { AssistantToolGate } from '@api/platform/assistant/assistant-tools'
+import type { DebriefService } from '@api/platform/comms/debrief.service'
+import { notFound } from '@api/platform/http/problem'
 import type { AccountService } from '../account/account.service'
 import type { ContractService } from '../contract/contract.service'
 import type { LeadService } from '../lead/lead.service'
@@ -20,6 +29,7 @@ import type { OpportunityStepService } from '../next-step/next-step-opportunity.
 import type { NextStepService } from '../next-step/next-step.service'
 import type { OpportunityService } from '../opportunity/opportunity.service'
 import type { SearchService } from '../search/search.service'
+import { HISTORY_LIST } from './get-history'
 import { SalesAssistantTools } from './sales-assistant-tools'
 
 /** The real doors' needs against the real tools, with the services stubbed. The
@@ -128,11 +138,21 @@ const ACCOUNT = { code: 'AC-0001' } as unknown as AccountProfile
 const page = <R>(rows: R[]) => ({ rows, total: rows.length, hidden: 0 })
 
 function setup() {
-  const leads = { profile: vi.fn(async () => LEAD), book: vi.fn(async () => page([])) }
+  const leads = {
+    profile: vi.fn(async () => LEAD),
+    book: vi.fn(async () => page([])),
+    touches: vi.fn(async () => ({ rows: [] })),
+    meetingList: vi.fn(async () => ({ rows: [] })),
+    meetingTimeline: vi.fn(async () => ({ rows: [] })),
+  }
   const opportunities = {
     profile: vi.fn(async () => OPPORTUNITY),
     book: vi.fn(async () => page([])),
+    touches: vi.fn(async () => ({ rows: [] })),
+    meetingList: vi.fn(async () => ({ rows: [] })),
+    meetingTimeline: vi.fn(async () => ({ rows: [] })),
   }
+  const debriefs = { list: vi.fn(async () => ({ rows: [] })) }
   const contracts = { profile: vi.fn(async () => CONTRACT), book: vi.fn(async () => page([])) }
   const searches = { search: vi.fn(async () => HITS) }
   const leadSteps = { get: vi.fn(async () => ({ step: null })) }
@@ -147,9 +167,10 @@ function setup() {
     leadSteps as unknown as NextStepService,
     dealSteps as unknown as OpportunityStepService,
     accounts as unknown as AccountService,
+    { get: () => debriefs as unknown as DebriefService } as unknown as ModuleRef,
   )
   const gate = new AssistantToolGate(source, createAccessControl())
-  return { gate, leads, opportunities, contracts, searches, leadSteps, dealSteps }
+  return { gate, leads, opportunities, contracts, searches, leadSteps, dealSteps, debriefs }
 }
 
 const getRecord = (kind: string, code: string) => ({
@@ -180,7 +201,12 @@ async function outputOf(who: Actor, call: ReturnType<typeof getRecord>) {
 describe('the sales tools', () => {
   it('boots on the real doors and declares every tool as strict', () => {
     const declared = setup().gate.declarations()
-    expect(declared.map((t) => t.name)).toEqual(['search_records', 'get_record', 'list_my_work'])
+    expect(declared.map((t) => t.name)).toEqual([
+      'search_records',
+      'get_record',
+      'list_my_work',
+      'get_history',
+    ])
     for (const tool of declared) {
       expect(tool.parameters).toMatchObject({ additionalProperties: false })
     }
@@ -789,5 +815,205 @@ describe('get_record re-reads a stored code', () => {
 
     expect(refs.has('OP-0301')).toBe(false)
     expect(refs.get('LD-0001')).not.toBeNull()
+  })
+})
+
+type Listed = {
+  trusted: { count: number; more: boolean }
+  rows: { trusted: Record<string, string>; untrusted: Record<string, string> }[]
+}
+type History = {
+  trusted: { kind: string; code: string; skipped: string[] }
+  touches: Listed
+  comms: Listed
+  meetings: Listed
+}
+
+describe('get_history', () => {
+  const sale = actor('sale')
+  const director = actor('director')
+  const call = (input: object = { kind: 'lead', code: 'LD-0001' }) => ({
+    id: 'c1',
+    name: 'get_history',
+    input,
+  })
+  const touch = (n: number, over: object = {}) => ({
+    id: `t${n}`,
+    at: `2026-10-${String(n).padStart(2, '0')}T08:00:00.000Z`,
+    subjectCode: 'LD-0001',
+    subjectKind: 'lead',
+    kind: 'contacted',
+    by: `Anh Nam ${HOSTILE}`,
+    note: `Gọi ${PHONE}`,
+    ...over,
+  })
+  const comm = (n: number, summary: object = { state: 'none' }) => ({
+    id: `00000000-0000-4000-8000-00000000000${n}`,
+    channel: 'phone',
+    state: 'done',
+    late: false,
+    createdAt: `2026-10-0${n}T08:00:00.000Z`,
+    closedAt: `2026-10-0${n}T09:00:00.000Z`,
+    subject: { code: 'LD-0001', label: 'Sao Đỏ' },
+    title: `Gọi ${PHONE}`,
+    owner: { id: 'u-sale', name: 'Chị Lan' },
+    answers: [{ criterionName: 'Quan tâm', answerName: 'Cao' }],
+    step: { kind: { id: 'ST-01', name: 'Gọi lại' }, text: HOSTILE, due: '2026-11-20' },
+    meeting: null,
+    summary,
+  })
+  const meeting = (n: number) => ({
+    id: `m${n}`,
+    at: `2026-09-0${n}T08:00:00.000Z`,
+    heldAt: null,
+    cancelledAt: null,
+    cancelCause: null,
+    mode: 'online',
+    durationMinutes: 60,
+    isFirst: n === 1,
+    title: `Họp ${n}`,
+    goal: HOSTILE,
+    transcript: 'SECRET TRANSCRIPT',
+    hosts: [{ side: 'host', name: 'Chị Lan' }],
+    guests: [{ side: 'guest', name: 'Anh Nam' }],
+  })
+  function history() {
+    const s = setup()
+    s.leads.touches.mockResolvedValue({ rows: [touch(1), touch(3), touch(2)] })
+    s.debriefs.list.mockResolvedValue({
+      rows: [comm(1), comm(2, { state: 'visible', text: `Hẹn gọi ${PHONE}` })],
+    } as never)
+    s.leads.meetingTimeline.mockResolvedValue({ rows: [meeting(1)] } as never)
+    return s
+  }
+  const body = (output: object) => JSON.stringify(output)
+
+  it('lists the three parts newest first, with no transcript, and keeps text out of trusted', async () => {
+    const s = history()
+    const verdict = await s.gate.call(director, call())
+    const out = verdict.output as History
+
+    expect(verdict.outcome).toBe('ok')
+    expect(out.trusted).toEqual({ kind: 'lead', code: 'LD-0001', skipped: [] })
+    expect(s.leads.meetingTimeline).toHaveBeenCalledWith(director, 'LD-0001')
+    expect(s.leads.meetingList).not.toHaveBeenCalled()
+    expect(out.touches.trusted).toEqual({ count: 3, more: false })
+    expect(out.touches.rows.map((r: Listed['rows'][number]) => r.trusted.at.slice(8, 10))).toEqual([
+      '03',
+      '02',
+      '01',
+    ])
+    expect(out.comms.rows[0].trusted).toMatchObject({ summaryShown: true, step: { kind: 'ST-01' } })
+    expect(out.comms.rows[1].trusted.summaryShown).toBe(false)
+    expect(out.comms.rows[0].untrusted.summary).toContain(PHONE)
+    expect(out.meetings.rows[0].trusted).toMatchObject({ isFirst: true, durationMinutes: 60 })
+    expect(body(out)).not.toContain('SECRET TRANSCRIPT')
+    expect(
+      JSON.stringify(out.touches.rows.map((r: Listed['rows'][number]) => r.trusted)),
+    ).not.toContain('Anh Nam')
+    expect(verdict).toMatchObject({ codes: ['LD-0001'], rowCount: 6, hidden: null })
+    expect(verdict.refs).toEqual([{ kind: 'lead', code: 'LD-0001', label: 'Sao Đỏ' }])
+  })
+
+  it('masks a phone for a non-holder and flags it, once, for the whole result', async () => {
+    const out = (await history().gate.call(sale, call())).output
+    expect(body(out)).not.toContain(PHONE)
+    expect(out).toMatchObject({ contactInfoWithheld: true })
+  })
+
+  it('caps each list and says there are more', async () => {
+    const s = history()
+    s.leads.touches.mockResolvedValue({ rows: Array.from({ length: 25 }, (_, i) => touch(i + 1)) })
+    const out = (await s.gate.call(director, call())).output as History
+
+    expect(out.touches.rows).toHaveLength(HISTORY_LIST)
+    expect(out.touches.trusted).toEqual({ count: 25, more: true })
+    expect(out.touches.rows[0].trusted.at).toContain('2026-10-25')
+  })
+
+  it('reports a comms door that refuses as skipped, with the touches still read', async () => {
+    const s = history()
+    s.debriefs.list.mockRejectedValue(notFound('hồ sơ', 'LD-0001'))
+    const verdict = await s.gate.call(sale, call())
+    const out = verdict.output as History
+
+    expect(verdict.outcome).toBe('ok')
+    expect(out.trusted.skipped).toEqual(['comms'])
+    expect(out).not.toHaveProperty('comms')
+    expect(out.touches.rows).toHaveLength(3)
+  })
+
+  it('reports a meetings door that refuses as skipped', async () => {
+    const s = history()
+    s.leads.meetingTimeline.mockRejectedValue(notFound('lead', 'LD-0001'))
+    const out = (await s.gate.call(sale, call())).output as History
+    expect(out.trusted.skipped).toEqual(['meetings'])
+    expect(out.comms.rows).toHaveLength(2)
+  })
+
+  it('reports a part E2 shuts as skipped, and reads nothing behind it', async () => {
+    const s = history()
+    const noComm = { ...sale, permissions: sale.permissions.filter((p) => p !== 'comm.view') }
+    const verdict = await s.gate.call(noComm, call())
+
+    expect((verdict.output as History).trusted.skipped).toEqual(['comms'])
+    expect(verdict.skipped).toEqual([{ door: 'comms', reason: 'permission-denied' }])
+    expect(s.debriefs.list).not.toHaveBeenCalled()
+  })
+
+  it('refuses the whole call when the touches door refuses, and reads no summary', async () => {
+    const s = history()
+    s.leads.touches.mockRejectedValue(notFound('lead', 'LD-0001'))
+    const verdict = await s.gate.call(sale, call())
+
+    expect(verdict).toMatchObject({
+      outcome: 'refused',
+      output: { error: 'not-found-or-not-allowed' },
+    })
+    expect(s.debriefs.list).not.toHaveBeenCalled()
+  })
+
+  it('refuses when only an optional door would pass', async () => {
+    const s = history()
+    const noLead = { ...sale, permissions: sale.permissions.filter((p) => p !== 'lead.view') }
+    const verdict = await s.gate.call(noLead, call())
+
+    expect(verdict.outcome).toBe('refused')
+    expect(s.debriefs.list).not.toHaveBeenCalled()
+  })
+
+  it('lets any other failure of an optional door through as a tool failure', async () => {
+    const s = history()
+    s.debriefs.list.mockRejectedValue(new Error('the pool is gone'))
+    expect((await s.gate.call(sale, call())).outcome).toBe('error')
+  })
+
+  it('reads a deal through the deal doors, with the deal code to comms', async () => {
+    const s = history()
+    s.opportunities.touches.mockResolvedValue({ rows: [touch(1, { subjectKind: 'opportunity' })] })
+    const verdict = await s.gate.call(sale, call({ kind: 'opportunity', code: 'OP-0301' }))
+
+    expect(verdict.outcome).toBe('ok')
+    expect(s.leads.touches).not.toHaveBeenCalled()
+    expect(s.opportunities.meetingTimeline).toHaveBeenCalledWith(sale, 'OP-0301')
+    expect(s.opportunities.meetingList).not.toHaveBeenCalled()
+    expect(s.debriefs.list).toHaveBeenCalledWith(sale, { subjectCode: 'OP-0301' })
+  })
+
+  it('takes a malformed code as bad input before any door', async () => {
+    const s = history()
+    const verdict = await s.gate.call(sale, call({ kind: 'lead', code: 'not a code' }))
+    expect(verdict.outcome).toBe('bad-input')
+    expect(s.leads.touches).not.toHaveBeenCalled()
+  })
+
+  it('shows the footer the record it read, and no suggestion', async () => {
+    const s = history()
+    const verdict = await s.gate.call(director, call())
+    const reads = newReads()
+    noteReads(reads, [{ ...verdict, call: { name: 'get_history' } }])
+
+    expect(footerOf(reads, new Date(0)).read).toEqual([{ kind: 'lead', count: 1 }])
+    expect(suggestionsOf(reads)).toEqual([])
   })
 })

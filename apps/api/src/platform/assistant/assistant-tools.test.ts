@@ -89,6 +89,19 @@ describe('the boot check', () => {
     expect(() => boots(FakeDoors, 'plain')).toThrow(/no route handler/)
   })
 
+  it('refuses an optional door the tool does not name', () => {
+    const tool = defineTool({
+      name: 'read_y',
+      description: 'Fake.',
+      input: Input,
+      doors: { lead: door(FakeDoors, 'lead') },
+      optional: ['gone' as 'lead'],
+      doorFor: () => 'lead',
+      run: async () => READ,
+    })
+    expect(() => gateOf(tool)).toThrow(/optional door gone is no door/)
+  })
+
   it('reads the class need when the handler has none, as the guard does', async () => {
     const run = vi.fn(async () => READ)
     const gate = gateOf(toolOf({ lead: door(ClassNeedDoors, 'read') }, run))

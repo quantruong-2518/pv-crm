@@ -10,9 +10,16 @@ import { AccountService } from '@api/branches/sales/account/account.service'
 import { ContractService } from '@api/branches/sales/contract/contract.service'
 import { LeadService } from '@api/branches/sales/lead/lead.service'
 import { OpportunityService } from '@api/branches/sales/opportunity/opportunity.service'
+import { NextStepDebriefHook } from '@api/branches/sales/next-step/comm-debrief.hook'
+import { NextStepModule } from '@api/branches/sales/next-step/next-step.module'
+import { LeadModule } from '@api/branches/sales/lead/lead.module'
+import { OpportunityModule } from '@api/branches/sales/opportunity/opportunity.module'
+import { SalesCommsHook } from '@api/branches/sales/opportunity/opportunity-comms.hook'
 import { SearchService } from '@api/branches/sales/search/search.service'
 import type { AssistantTool } from '@api/platform/assistant/assistant-tools'
 import { AuditRepository } from '@api/platform/audit/audit.repository'
+import { CommsModule } from '@api/platform/comms/comms.module'
+import { DebriefService } from '@api/platform/comms/debrief.service'
 import { ENV, loadEnv, type Env } from '@api/platform/config/env'
 import { createDb, type DbHandle } from '@api/platform/db/create-db'
 import { DB, DB_HANDLE, type Db } from '@api/platform/db/db.module'
@@ -58,7 +65,17 @@ class EvalRootModule {
   static over(handle: DbHandle, env: Env): DynamicModule {
     return {
       module: EvalRootModule,
-      imports: [MemoryPlatformModule.over(handle, env), SalesAssistantModule],
+      imports: [
+        MemoryPlatformModule.over(handle, env),
+        SalesAssistantModule,
+        /* The same wiring `app.module.ts` gives comms: the history tool asks ModuleRef for
+           this service, and a world without it would pass on a lookup that fails in production. */
+        CommsModule.withHook({
+          imports: [LeadModule, OpportunityModule, NextStepModule],
+          hook: SalesCommsHook,
+          debriefHook: NextStepDebriefHook,
+        }),
+      ],
     }
   }
 }
@@ -76,6 +93,7 @@ export type World = {
   opportunities: OpportunityService
   contracts: ContractService
   searches: SearchService
+  debriefs: DebriefService
   close: () => Promise<void>
 }
 
@@ -104,6 +122,7 @@ export async function openWorld(): Promise<World> {
     opportunities: app.get(OpportunityService, { strict: false }),
     contracts: app.get(ContractService, { strict: false }),
     searches: app.get(SearchService, { strict: false }),
+    debriefs: app.get(DebriefService, { strict: false }),
     close: async () => {
       await app.close()
       await handle.close()

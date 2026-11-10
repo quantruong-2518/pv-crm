@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common'
+import { ModuleRef } from '@nestjs/core'
 import type { AccessControl, Actor } from '@pv/engines'
 import {
   AccountProfile,
@@ -34,6 +35,7 @@ import {
   type ToolRead,
 } from '@api/platform/assistant/assistant-tools'
 import { maskContact } from '@api/platform/assistant/assistant-contact'
+import { DebriefService } from '@api/platform/comms/debrief.service'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { denied, PvError } from '@api/platform/http/problem'
 import { zod } from '@api/platform/http/zod.pipe'
@@ -49,6 +51,7 @@ import { OpportunityController } from '../opportunity/opportunity.controller'
 import { OpportunityService } from '../opportunity/opportunity.service'
 import { SearchController } from '../search/search.controller'
 import { SearchService } from '../search/search.service'
+import { getHistory } from './get-history'
 import {
   DealTrusted as BookDealTrusted,
   LeadTrusted as BookLeadTrusted,
@@ -58,7 +61,7 @@ import {
 /** The Sales branch's tools (ADR 0133 D2): door methods taking the `Actor` first and
  *  fencing rows themselves, never a sub-service. One exception: the company profile
  *  door takes no `Actor` (debt in `docs/status.md`), so only company fields come from
- *  it. `list_my_work` is its own file.
+ *  it. `list_my_work` and `get_history` are their own files.
  *
  *  A tool repeats its door's pipe (`zod(...)`), because the pipe is the door's
  *  first fence and a wrapper would skip it. A `trusted` half is the contract's own
@@ -446,6 +449,7 @@ export class SalesAssistantTools implements AssistantToolSource {
     private readonly leadSteps: NextStepService,
     private readonly dealSteps: OpportunityStepService,
     private readonly accounts: AccountService,
+    private readonly modules: ModuleRef,
   ) {}
 
   tools(): readonly AssistantTool[] {
@@ -495,6 +499,13 @@ export class SalesAssistantTools implements AssistantToolSource {
         opportunities: this.opportunities,
         leadSteps: this.leadSteps,
         dealSteps: this.dealSteps,
+        refOf: (who, kind, code, label) => refOf(kind, code, label, this.mayReach(who)),
+      }),
+      getHistory({
+        leads: this.leads,
+        opportunities: this.opportunities,
+        debriefs: () => this.modules.get(DebriefService, { strict: false }),
+        mayReach: (who) => this.mayReach(who),
         refOf: (who, kind, code, label) => refOf(kind, code, label, this.mayReach(who)),
       }),
     ]

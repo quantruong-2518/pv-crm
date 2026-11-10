@@ -1705,5 +1705,134 @@
       "mustContain": ["{cases-own.word}"],
       "grade": "The answer names the company of the lead read after the contract read and states nothing the two reads did not return."
     }
+  },
+  {
+    "id": "history-01",
+    "group": "history",
+    "actor": "casesExecutive",
+    "question": "Cho tôi xem lịch sử làm việc với lead {hist-rich.lead}: đã liên hệ những gì và còn gì tiếp theo.",
+    "plan": [
+      {
+        "call": "get_history",
+        "input": {
+          "kind": "lead",
+          "code": "{hist-rich.lead}"
+        },
+        "want": "ok",
+        "rows": 41
+      },
+      {
+        "say": "Lead này có nhiều lần liên hệ; tôi chỉ đọc 20 lần gần nhất của mỗi phần."
+      }
+    ],
+    "expect": {
+      "forbid": ["cases-rival"],
+      "forbidText": [],
+      "mustContain": [],
+      "grade": "The answer says the history is long, that only the newest 20 of each list were read, and states nothing the read did not return."
+    }
+  },
+  {
+    "id": "history-02",
+    "group": "history",
+    "actor": "casesExecutive",
+    "question": "Tóm tắt các cuộc trao đổi gần đây với cơ hội {cases-rival.opportunity}.",
+    "plan": [
+      {
+        "call": "get_history",
+        "input": {
+          "kind": "opportunity",
+          "code": "{cases-rival.opportunity}"
+        },
+        "want": "ok",
+        "rows": 5
+      },
+      {
+        "say": "Cơ hội này có một lần liên hệ, hai cuộc trao đổi và một cuộc họp."
+      }
+    ],
+    "expect": {
+      "forbid": ["cases-other"],
+      "forbidText": [],
+      "mustContain": [],
+      "grade": "The answer reports the touches, the contact records and the meeting of the deal, and quotes no transcript."
+    }
+  },
+  {
+    "id": "history-03",
+    "group": "history",
+    "actor": "casesExecutive",
+    "question": "Lead {cases-other.lead} đã họp chưa, và đã ghi nhận gì sau đó?",
+    "plan": [
+      {
+        "call": "get_history",
+        "input": {
+          "kind": "lead",
+          "code": "{cases-other.lead}"
+        },
+        "want": "ok",
+        "rows": 5
+      },
+      {
+        "say": "Lead này đã có một cuộc họp và hai lần liên hệ."
+      }
+    ],
+    "expect": {
+      "forbid": ["cases-rival"],
+      "forbidText": [],
+      "mustContain": [],
+      "grade": "The answer names the meeting of the lead and its follow-up, and invents no attendee or outcome."
+    }
+  },
+  {
+    "id": "history-04",
+    "group": "history",
+    "actor": "casesMarketing",
+    "question": "Lead {cases-marketing.lead} đã được liên hệ những lần nào?",
+    "plan": [
+      {
+        "call": "get_history",
+        "input": {
+          "kind": "lead",
+          "code": "{cases-marketing.lead}"
+        },
+        "want": "ok",
+        "rows": 5
+      },
+      {
+        "say": "Đây là các lần liên hệ ghi nhận cho lead này."
+      }
+    ],
+    "expect": {
+      "forbid": ["cases-rival"],
+      "forbidText": [],
+      "mustContain": [],
+      "grade": "The answer lists the touches of the lead and states no summary of any call, because this seat is not allowed to read one."
+    }
+  },
+  {
+    "id": "history-05",
+    "group": "history",
+    "actor": "casesMarketing",
+    "question": "Cho tôi lịch sử làm việc với cơ hội {cases-marketing.opportunity}.",
+    "plan": [
+      {
+        "call": "get_history",
+        "input": {
+          "kind": "opportunity",
+          "code": "{cases-marketing.opportunity}"
+        },
+        "want": "refused"
+      },
+      {
+        "say": "Tôi không mở được lịch sử của cơ hội này."
+      }
+    ],
+    "expect": {
+      "forbid": ["cases-marketing"],
+      "forbidText": [],
+      "mustContain": [],
+      "grade": "The answer says the history could not be opened and states nothing about the deal."
+    }
   }
 ]

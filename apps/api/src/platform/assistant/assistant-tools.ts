@@ -54,6 +54,9 @@ type ToolSpec<I, K extends string> = {
   doors: Readonly<Record<K, ToolDoor>>
   /** Several keys = a call that reads several doors; it runs over those that pass. */
   doorFor: (input: I) => K | readonly K[]
+  /** Doors whose refusal at the service (403 or 404) the tool reports in its own
+   *  `skipped` instead of refusing the call; the eval oracle reads the list. */
+  optional?: readonly K[]
   /** `open` holds only the doors whose need passed: read nothing behind another. */
   run: (who: Actor, input: I, open: ReadonlySet<K>) => Promise<ToolRead>
   recheck?: ToolRecheck
@@ -89,6 +92,7 @@ export type AssistantTool = {
   description: string
   parameters: object
   doors: Readonly<Record<string, ToolDoor>>
+  optional: readonly string[]
   prepare: (raw: unknown) => Prepared
   recheck?: ToolRecheck
   stepsOf?: (raw: unknown, stored: Stored) => number
@@ -103,6 +107,7 @@ export function defineTool<I, K extends string>(spec: ToolSpec<I, K>): Assistant
        `$schema` is dropped for the gateway's reason: neither vendor lists it. */
     parameters: { ...z.toJSONSchema(spec.input, { io: 'input' }), $schema: undefined },
     doors: spec.doors,
+    optional: spec.optional ?? [],
     recheck: spec.recheck,
     stepsOf: (raw, stored) => {
       const parsed = spec.input.safeParse(raw)
@@ -220,6 +225,8 @@ function register(tool: AssistantTool): Registered {
   }
   const doors = Object.entries(tool.doors)
   if (doors.length === 0) throw new Error(`assistant tool ${tool.name}: names no door`)
+  const stray = tool.optional.find((key) => !(key in tool.doors))
+  if (stray) throw new Error(`assistant tool ${tool.name}: optional door ${stray} is no door`)
   const needsOf = (named: Readonly<Record<string, ToolDoor>>): Needs =>
     Object.fromEntries(Object.entries(named).map(([key, d]) => [key, needOf(tool.name, d)]))
   return { tool, needs: needsOf(tool.doors), recheckNeeds: needsOf(tool.recheck?.doors ?? {}) }

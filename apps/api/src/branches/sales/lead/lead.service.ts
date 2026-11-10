@@ -287,6 +287,12 @@ export class LeadService {
     return this.meetings.timelineFor(who, code)
   }
 
+  /** `meetingList`'s fence without the transcript: the assistant must neither read nor audit one. */
+  async meetingTimeline(who: Actor, code: ObjectCode): Promise<MeetingListResponse> {
+    await this.guard(who, code)
+    return this.meetings.timeline(code)
+  }
+
   async meetingAdd(who: Actor, code: ObjectCode, body: MeetingCreate): Promise<MeetingRow> {
     await this.guardEdit(who, code)
     return this.meetings.record(who, code, body)

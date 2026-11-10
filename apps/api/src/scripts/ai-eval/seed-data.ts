@@ -32,6 +32,16 @@ export const ACCOUNT_CELLS = 21
  *  a deal. Typed by hand so a loop that quietly ran nothing fails the run. */
 export const MATRIX_CELLS = 180
 
+/** The history read: 14 role seats × 3 records, 13 named-person cells, 3 seats whose
+ *  grant was cut or added, 4 on the rich chain, 1 on the widest. Typed by hand. */
+export const HISTORY_CELLS = 63
+
+/** The rich chain's lists: past the tool's 20 rows, so `more` and the cut are real. */
+export const RICH_TOUCHES = 24
+export const RICH_COMMS = 22
+/** A summary's ceiling in the database (`debrief_closed_has_summary`). */
+export const SUMMARY_MAX = 2000
+
 /** Past the chains, so the canary of an extra deal never shares a token with a chain. */
 export const STRANGER_DEAL_BASE = 500
 
@@ -62,6 +72,11 @@ export const canariesOf = (n: number) => {
     extraMail: `cnryxm${id}@eval.invalid`,
     typedPhone: `0977${id}002`,
     typedMail: `cnrytm${id}@eval.invalid`,
+    touchNote: `CNRYTN${id}`,
+    summary: `CNRYSU${id}`,
+    meetingTitle: `CNRYMT${id}`,
+    transcript: `CNRYTR${id}`,
+    cut: `CNRYCU${id}`,
   }
 }
 
@@ -116,6 +131,9 @@ export const WORDS = [
   'Hồng Sâm',
   'Trúc Đào',
   'Mai Vàng',
+  'Thạch Thảo',
+  'Đỗ Quyên',
+  'Lục Bình',
 ] as const
 
 export type Seat = Actor & { ownOnly: boolean }
@@ -186,6 +204,9 @@ export type ChainSpec = {
   typed?: boolean
   /** Hangs the lead under the eval's one company, and gives its contact a mail. */
   account?: boolean
+  /** `rich` passes the tool's 20-row cut on touches and comms; `wide` fills 20 comms with
+   *  the widest text a summary can hold. Every other chain carries a small base history. */
+  history?: 'rich' | 'wide'
   /** Text that replaces a field; the injection cases hide their payload here. */
   plants?: Readonly<Partial<Record<PlantField, string>>>
 }
@@ -274,4 +295,10 @@ export const COMPANY_CHAINS: readonly ChainSpec[] = [
   { key: 'co-mine', ...signed('sale-a'), strangerDealOwner: 'rival', account: true },
   { key: 'co-rival', ...signed('rival'), account: true },
   { key: 'co-off', ...signed('rival'), disabled: true, account: true },
+]
+
+/** Seeded after the company, so no earlier chain changes its number. */
+export const HISTORY_CHAINS: readonly ChainSpec[] = [
+  { key: 'hist-rich', ...signed('sale-a'), history: 'rich' },
+  { key: 'hist-wide', ...signed('sale-a'), history: 'wide' },
 ]

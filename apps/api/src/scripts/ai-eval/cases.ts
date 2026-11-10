@@ -20,6 +20,7 @@ export const CASE_GROUPS = [
   'lookup',
   'coverage',
   'linked',
+  'history',
 ] as const
 export type CaseGroup = (typeof CASE_GROUPS)[number]
 
@@ -30,6 +31,7 @@ export const CASE_COUNTS: Record<CaseGroup, number> = {
   lookup: 5,
   coverage: 10,
   linked: 6,
+  history: 5,
 }
 
 const Call = z.strictObject({
