@@ -83,6 +83,26 @@ const skim = defineTool({
   run: async () => ({ data: {}, codes: ['LD-0001'], rowCount: 1, hidden: null }),
 })
 
+/* Reveals gated text; `huge` also breaks the turn's token cap, so the model never sees it. */
+const reveal = (name: string, pad: string) =>
+  defineTool({
+    name,
+    description: 'Fake.',
+    input: Input,
+    doors: { lead: door(FakeDoors, 'lead'), contract: door(FakeDoors, 'contract') },
+    doorFor: (input) => input.kind,
+    reveals: 'comm.view-content',
+    run: async () => ({
+      data: { untrusted: { pad } },
+      codes: ['LD-0001'],
+      rowCount: 1,
+      hidden: null,
+      revealsContent: true,
+    }),
+  })
+const shows = reveal('shows_x', 'summary')
+const huge = reveal('huge_x', 'x'.repeat(200_000))
+
 /* Two doors in one call: marketing passes the lead one and not the contract one. */
 const both = defineTool({
   name: 'both_x',
@@ -158,7 +178,10 @@ const auditRepo = () => new AuditRepository(db)
 function runnerWith(client: Scripted, audits = auditRepo()) {
   const routes = new AiRouteRepository(db)
   const gateway = new AiGateway(routes, new AiLedger(), { gemini: client, anthropic: client }, db)
-  const gate = new AssistantToolGate({ tools: () => [tool, skim, both] }, createAccessControl())
+  const gate = new AssistantToolGate(
+    { tools: () => [tool, skim, both, shows, huge] },
+    createAccessControl(),
+  )
   return new AssistantRunner(gateway, new AssistantRepository(db), audits, gate)
 }
 
@@ -253,6 +276,30 @@ describe('a round', () => {
     expect(line).toMatchObject({ action: 'ai-read', code: 'LD-0001' })
     expect(line!.note).toBe(`assistant.read_x · turn ${turn.id} · call ${row!.id}`)
     expect(row).toMatchObject({ outcome: 'ok', codes: ['LD-0001'], rowCount: 1, position: 0 })
+  })
+
+  it('stores whether a call revealed gated text, and false for one the token cap dropped', async () => {
+    const client = new Scripted([
+      {
+        calls: [
+          { id: 'v1', name: 'read_x', input: { kind: 'lead' } },
+          { id: 'v2', name: 'shows_x', input: { kind: 'lead' } },
+          { id: 'v3', name: 'huge_x', input: { kind: 'lead' } },
+        ],
+        stop: 'tools' as const,
+      },
+      { text: 'Xong.' },
+    ])
+    const { turn } = await ask(client)
+
+    const rows = await db
+      .select()
+      .from(assistantToolCall)
+      .where(eq(assistantToolCall.messageId, turn.id))
+    const flag = (name: string) => rows.find((r) => r.name === name)
+    expect(flag('read_x')).toMatchObject({ outcome: 'ok', revealsContent: false })
+    expect(flag('shows_x')).toMatchObject({ outcome: 'ok', revealsContent: true })
+    expect(flag('huge_x')).toMatchObject({ outcome: 'over-cap', revealsContent: false })
   })
 
   it('ends the turn with nothing sent when the audit write fails', async () => {

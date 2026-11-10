@@ -22,7 +22,7 @@ import {
   tokensOf,
 } from './assistant-context'
 import { TurnBinding } from './assistant-bind'
-import { recheck } from './assistant-refs'
+import { checkChat } from './assistant-refs'
 import { AssistantSummarizer } from './assistant-summary'
 import { AssistantToolGate, inPool, notRun, type ToolVerdict } from './assistant-tools'
 import { footerOf, newReads, noteReads, suggestionsOf, type TurnReads } from './assistant-turn-read'
@@ -30,7 +30,6 @@ import {
   AssistantRepository,
   type TurnBegun,
   type TurnFinish,
-  type TurnLine,
   type TurnRefused,
 } from './assistant.repository'
 import type { AssistantToolCallValues } from './assistant.schema'
@@ -180,7 +179,15 @@ function capped(
     }
     turn.cap ??= 'cap-tokens'
     const output = { truncated: true }
-    return { ...base, outcome: 'over-cap', output, codes: [], tokens: 0, truncated: true }
+    return {
+      ...base,
+      outcome: 'over-cap',
+      output,
+      codes: [],
+      revealsContent: false,
+      tokens: 0,
+      truncated: true,
+    }
   })
 }
 
@@ -228,6 +235,7 @@ const toolCallRow = (turn: Turn, c: RoundCall, position: number): AssistantToolC
   toolTokens: c.tokens,
   outcome: c.outcome,
   latencyMs: c.latencyMs,
+  revealsContent: c.revealsContent,
 })
 
 /** The vendor's turn first, then one result per call: both vendors refuse a
@@ -300,14 +308,14 @@ export class AssistantRunner {
     if (!begun.ok) return emit({ type: 'error', ...REFUSED[begun.reason] })
     ctx.onBegun?.(begun.turnId)
 
-    const history = await this.replayable(ctx.who, ctx.sessionId, begun.history)
-    const turn = this.open(ctx, { ...begun, history }, emit, signal)
+    const kept = await this.replayable(ctx.who, ctx.sessionId, begun)
+    const turn = this.open(ctx, { ...begun, ...kept }, emit, signal)
     const endedBy = await this.drive(turn, ctx, begun).catch((error: unknown) =>
       this.endOfError(turn, error),
     )
     await this.close(turn, endedBy)
     /* Not awaited: `done` is out, and a fold holds neither the caller nor the next turn. */
-    void this.summarizer?.afterTurn(ctx.who.id, ctx.sessionId)
+    void this.summarizer?.afterTurn(ctx.who, ctx.sessionId)
   }
 
   private open(ctx: TurnContext, begun: TurnBegun, emit: Turn['emit'], signal: AbortSignal): Turn {
@@ -335,28 +343,29 @@ export class AssistantRunner {
   }
 
   /** Outside `beginTurn`'s transaction, which holds PGlite's one connection. The
-   *  whole chat is checked, since a shut answer shuts every later one. A failed
-   *  check replays nothing rather than everything. */
+   *  whole chat is checked, since a shut answer shuts every later one. The summary
+   *  goes too when an answer it covers is shut. A failed check replays nothing. */
   private async replayable(
     who: Actor,
     sessionId: string,
-    history: readonly TurnLine[],
-  ): Promise<TurnLine[]> {
+    begun: TurnBegun,
+  ): Promise<Pick<TurnBegun, 'history' | 'summary'>> {
     try {
-      const ids = await this.repo.answersOf(sessionId)
-      const calls = await this.repo.callsOf(ids)
-      const chat = ids.map((id) => ({ id, codes: (calls.get(id) ?? []).flatMap((c) => c.codes) }))
-      const { shut } = await recheck(this.tools, who, chat)
-      return history
-        .filter((line) => !shut.has(line.turnId))
-        .map((line) =>
-          line.role === 'assistant'
-            ? { ...line, body: this.tools.contactText(who, line.body) }
-            : line,
-        )
+      const { answers, shut } = await checkChat(this.tools, this.repo, who, sessionId)
+      const covered = answers.some((a) => a.seq <= (begun.summaryThrough ?? 0) && shut.has(a.id))
+      return {
+        summary: covered ? null : begun.summary,
+        history: begun.history
+          .filter((line) => !shut.has(line.turnId))
+          .map((line) =>
+            line.role === 'assistant'
+              ? { ...line, body: this.tools.contactText(who, line.body) }
+              : line,
+          ),
+      }
     } catch (error) {
       this.log.error(`replay check failed: ${error instanceof Error ? error.name : 'unknown'}`)
-      return []
+      return { summary: null, history: [] }
     }
   }
 

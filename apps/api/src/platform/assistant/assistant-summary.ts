@@ -5,7 +5,10 @@ import { AiRouteRepository } from '../ai/ai-route.repository'
 import { ASSISTANT_SUMMARY, AssistantSummaryOutput } from '../ai/prompts/assistant.prompts'
 import { renderPrompt } from '../ai/prompts/prompt-spec'
 import { AuditRepository } from '../audit/audit.repository'
+import type { Actor } from '@pv/engines'
 import { fenced, newFence, tokensOf } from './assistant-context'
+import { checkChat } from './assistant-refs'
+import { AssistantToolGate } from './assistant-tools'
 import { AssistantRepository, type WholeTurn } from './assistant.repository'
 
 /** Folds a chat's oldest turns into its summary (ADR 0133, question 149).
@@ -17,12 +20,12 @@ import { AssistantRepository, type WholeTurn } from './assistant.repository'
  *  lands first and a failed write stops it (question 143).
  *
  *  A summary is meant to hold what was asked, what was decided and record codes: a
- *  permission lost later must not leave stale data behind, and a summary must not copy
- *  the tool results that are deliberately not stored. `storable` catches digits, `@`
- *  and codes nobody wrote. It cannot see a figure in words or a name: those rest on
- *  the prompt.
- *
- *  Logs carry error classes and reasons, never text. */
+ *  permission lost later must not leave stale data behind, and it must not copy the
+ *  tool results that are deliberately not stored. `storable` catches digits, `@` and
+ *  codes nobody wrote; a figure in words or a name rests on the prompt. A fold
+ *  re-checks the chat as its owner is now: it stops before a shut answer and does
+ *  not run when one the summary covers is shut (ADR 0147). Logs carry error classes
+ *  and reasons, never text. */
 
 const MARK_TURNS = 10
 const MARK_TOKENS = 6_000
@@ -105,14 +108,15 @@ export class AssistantSummarizer {
     private readonly routes: AiRouteRepository,
     private readonly repo: AssistantRepository,
     private readonly audit: AuditRepository,
+    private readonly gate: AssistantToolGate,
   ) {}
 
   /** Never rejects, and a call during a fold joins it. The loop drops the promise;
    *  it is returned so a caller that must see the fold land can wait for it. */
-  afterTurn(actorId: string, sessionId: string): Promise<void> {
+  afterTurn(who: Actor, sessionId: string): Promise<void> {
     const running = this.folding.get(sessionId)
     if (running) return running
-    const fold = this.fold(actorId, sessionId)
+    const fold = this.fold(who, sessionId)
       .catch((error: unknown) => {
         const kind = error instanceof Error ? error.name : 'unknown'
         this.log.warn(`session ${sessionId}: fold failed: ${kind}`)
@@ -122,23 +126,30 @@ export class AssistantSummarizer {
     return fold
   }
 
-  private async fold(actorId: string, sessionId: string): Promise<void> {
+  private async fold(who: Actor, sessionId: string): Promise<void> {
     const route = await this.routes.get('assistant-summary')
     if (!route?.enabled) return
     const open = await this.repo.unsummarised(sessionId, MARK_TURNS)
-    const folded = open?.turns.slice(0, foldCount(open.turns)) ?? []
+    const due = open?.turns.slice(0, foldCount(open.turns)) ?? []
+    if (!open || due.length === 0) return
+
+    const { answers, shut } = await checkChat(this.gate, this.repo, who, sessionId)
+    const shutAt = new Set(answers.filter((a) => shut.has(a.id)).map((a) => a.seq))
+    if (answers.some((a) => a.seq <= (open.through ?? 0) && shutAt.has(a.seq))) return
+    const stop = due.findIndex((turn) => shutAt.has(turn.seq))
+    const folded = stop < 0 ? due : due.slice(0, stop)
     const last = folded.at(-1)
-    if (!open || !last) return
+    if (!last) return
 
     const turns = folded.map(({ question, answer }) => ({ question, answer }))
     const text = fenced(newFence(), { previousSummary: open.summary, turns })
     const note = `assistant.summary · session ${sessionId} · ${turns.length} turn(s)`
-    await this.audit.write({ actorId, action: 'ai-read', note })
+    await this.audit.write({ actorId: who.id, action: 'ai-read', note })
     const { value } = await this.gateway.run(
       'assistant-summary',
       { ...PROMPT, parts: [{ text }], effort: 'low' },
       AssistantSummaryOutput,
-      { actorId, subjectCode: null },
+      { actorId: who.id, subjectCode: null },
     )
 
     const summary = storable(value, open.summary, folded)

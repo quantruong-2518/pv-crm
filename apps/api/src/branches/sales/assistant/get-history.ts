@@ -108,6 +108,7 @@ function historyList<R>(found: { rows: readonly R[] } | null, shape: Shape<R>, m
   const shown = mayReach ? raw : (maskContact(raw) as typeof raw)
   return {
     withheld: JSON.stringify(shown) !== JSON.stringify(raw),
+    cut: rows,
     list: {
       /* The door's own fenced count: it pages nothing, so it is also the total. */
       trusted: { count: found.rows.length, more: found.rows.length > rows.length },
@@ -122,13 +123,16 @@ const touchShape: Shape<TouchTimelineResponse['rows'][number]> = {
   untrusted: (r) => ({ by: r.by, from: r.from?.name, to: r.to?.name, note: r.note }),
 }
 
+const summaryShown = (r: DebriefListResponse['rows'][number]): boolean =>
+  r.summary.state === 'visible'
+
 const commShape: Shape<DebriefListResponse['rows'][number]> = {
   at: (r) => r.createdAt,
   trusted: (r) =>
     CommTrusted.parse({
       ...r,
       step: r.step && { kind: r.step.kind.id, due: r.step.due },
-      summaryShown: r.summary.state === 'visible',
+      summaryShown: summaryShown(r),
     }),
   untrusted: (r) => ({
     title: r.title,
@@ -193,6 +197,8 @@ async function run(
   const contactInfoWithheld = Object.values(lists).some((l) => l?.withheld)
   const label = comms?.rows[0]?.subject.label ?? code
   const ref = d.refOf(who, kind, record, label)
+  /* Rows past the 20-row cut never reach the model, so they reveal nothing stored. */
+  const revealsContent = lists.comms?.cut.some(summaryShown) ?? false
   const shown = Object.values(lists).reduce((sum, l) => sum + (l?.list.rows.length ?? 0), 0)
   return {
     data: {
@@ -206,6 +212,7 @@ async function run(
     rowCount: shown,
     hidden: null,
     refs: [ref],
+    revealsContent,
   }
 }
 
@@ -223,6 +230,7 @@ export const getHistory = (d: HistoryDoors): AssistantTool =>
       dealMeetings: door(OpportunityController, 'meetings'),
     },
     optional: ['comms', 'leadMeetings', 'dealMeetings'],
+    reveals: 'comm.view-content',
     doorFor: ({ kind }) => [KEYS[kind].touches, 'comms', KEYS[kind].meetings],
     run: (who, input, open) => run(d, who, input, open),
   })

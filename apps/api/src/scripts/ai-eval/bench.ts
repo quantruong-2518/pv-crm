@@ -82,31 +82,48 @@ export function gatewayOf(world: World, clients: { gemini: AiClient; anthropic: 
 class HeldSummarizer extends AssistantSummarizer {
   landed: Promise<void> = Promise.resolve()
 
-  override afterTurn(actorId: string, sessionId: string): Promise<void> {
-    this.landed = super.afterTurn(actorId, sessionId)
+  override afterTurn(who: Actor, sessionId: string): Promise<void> {
+    this.landed = super.afterTurn(who, sessionId)
     return this.landed
   }
 }
 
-const summarizerOf = (world: World, gateway: AiGateway, audits?: AuditRepository) =>
+const gateOf = (world: World, bench: Bench) => {
+  const tools = [...world.tools, ...(bench.extraTools ?? [])]
+  return new AssistantToolGate({ tools: () => tools }, world.gateAccess)
+}
+
+const summarizerOf = (
+  world: World,
+  gateway: AiGateway,
+  gate: AssistantToolGate,
+  audits?: AuditRepository,
+) =>
   new HeldSummarizer(
     gateway,
     new AiRouteRepository(world.db),
     new AssistantRepository(world.db),
     audits ?? world.audits,
+    gate,
   )
 
 export function runnerOf(
   world: World,
   bench: Bench,
   gateway: AiGateway,
-  summarizer: AssistantSummarizer = summarizerOf(world, gateway),
+  summarizer?: AssistantSummarizer,
 ): AssistantRunner {
-  const tools = [...world.tools, ...(bench.extraTools ?? [])]
-  const gate = new AssistantToolGate({ tools: () => tools }, world.gateAccess)
+  const gate = gateOf(world, bench)
   const repo = new AssistantRepository(world.db)
   const audits = bench.audits ?? world.audits
-  return new AssistantRunner(gateway, repo, audits, gate, bench.clock, summarizer)
+  return new AssistantRunner(
+    gateway,
+    repo,
+    audits,
+    gate,
+    bench.clock,
+    summarizer ?? summarizerOf(world, gateway, gate),
+  )
 }
 
 export async function trailOf(
@@ -170,7 +187,7 @@ export async function runTurn(world: World, bench: Bench): Promise<Trail> {
     events.push(event)
     bench.onEvent?.(event)
   }
-  const summarizer = summarizerOf(world, gateway, bench.audits)
+  const summarizer = summarizerOf(world, gateway, gateOf(world, bench), bench.audits)
   await runnerOf(world, bench, gateway, summarizer).runTurn(
     {
       who: bench.who,

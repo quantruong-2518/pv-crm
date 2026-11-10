@@ -59,11 +59,23 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
     over-cap: over-counts, the safe direction. The comment in
     `assistant-loop.ts` near line 164 ("an over-cap result reaches neither the
     model nor the audit") is now untrue for door-side audits.
-  - A stored assistant answer may quote summary text; re-reading it
-    (`assistant.service.ts` detail and reports) re-checks codes and
-    `data.export`, not `comm.view-content`. Only the director holds
-    `assistant.review` today, so no seat is exposed under the default matrix,
-    but roles are editable. Owner decision pending.
+  - The re-check of a stored answer asks only whether the reader holds
+    `comm.view-content`, not the comms door's own reach (`DebriefService` E2
+    view on the subject's row, narrower than the lead/deal book): an asker who
+    stays on a live deal after the lead moves still reads old quoted summaries.
+    Owner decision pending.
+  - Re-serving a stored answer that quoted a summary writes no content `view`
+    audit line (the comms door and the meeting transcript list do on every
+    serve). Owner decision pending.
+  - Deploy window: migration 0165 backfills at migrate time and the old API
+    keeps writing `false` until the new release is live; the UPDATE in 0165
+    must be run once more after the deploy (mark this line done once it has
+    run).
+  - While an answer covered by a chat's folded summary stays shut for its
+    owner, that chat no longer folds; past `REF_CHECKS` codes an answer counts
+    as unchecked, so folding stops there too.
+  - `revealsOf` reads the permission from the tool's current code; the row
+    stores only a boolean.
   - The ref chip label falls back to the bare code when the comms door is
     skipped or empty.
 - A-3, finding several contacts for a lead: approved 01/11, not built (10/11: a

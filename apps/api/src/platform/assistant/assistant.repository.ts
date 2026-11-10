@@ -56,6 +56,8 @@ export type TurnBegun = {
   ok: true
   turnId: string
   summary: string | null
+  /** The last seq the summary covers: an answer at or below it may be quoted there. */
+  summaryThrough: number | null
   subject: { kind: AssistantRecordKind; code: string } | null
   history: readonly TurnLine[]
 }
@@ -63,7 +65,7 @@ export type TurnRefused = { ok: false; reason: 'no-session' | 'hourly-limit' | '
 
 export type StoredCall = Pick<
   AssistantToolCallRowDb,
-  'name' | 'input' | 'outcome' | 'rowCount' | 'codes'
+  'name' | 'input' | 'outcome' | 'rowCount' | 'codes' | 'revealsContent'
 >
 
 export type TurnFinish = {
@@ -137,6 +139,7 @@ export class AssistantRepository {
         ok: true,
         turnId: turn.id,
         summary,
+        summaryThrough,
         subject: subjectKind && subjectCode ? { kind: subjectKind, code: subjectCode } : null,
         history: replayable(rows.filter((r) => r.seq > (summaryThrough ?? 0)))
           .slice(-REPLAY_TURNS)
@@ -169,6 +172,7 @@ export class AssistantRepository {
         outcome: assistantToolCall.outcome,
         rowCount: assistantToolCall.rowCount,
         codes: assistantToolCall.codes,
+        revealsContent: assistantToolCall.revealsContent,
       })
       .from(assistantToolCall)
       .where(inArray(assistantToolCall.messageId, [...messageIds]))
@@ -178,9 +182,9 @@ export class AssistantRepository {
 
   /** A chat's answers, oldest first, up to `throughSeq` when given: the re-check
    *  walks forward from the first one. */
-  async answersOf(sessionId: string, throughSeq?: number): Promise<string[]> {
-    const rows = await this.db
-      .select({ id: assistantMessage.id })
+  async answersOf(sessionId: string, throughSeq?: number): Promise<{ id: string; seq: number }[]> {
+    return this.db
+      .select({ id: assistantMessage.id, seq: assistantMessage.seq })
       .from(assistantMessage)
       .where(
         and(
@@ -190,7 +194,6 @@ export class AssistantRepository {
         ),
       )
       .orderBy(asc(assistantMessage.seq))
-    return rows.map((r) => r.id)
   }
 
   /** How a turn's row stands, to tell a finish that landed from one that did not. */

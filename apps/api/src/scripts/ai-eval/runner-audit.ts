@@ -212,6 +212,7 @@ async function storage(world: World, tally: Tally): Promise<void> {
         'name',
         'outcome',
         'position',
+        'reveals_content',
         'round',
         'row_count',
         'tool_tokens',

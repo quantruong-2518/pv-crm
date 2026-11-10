@@ -28,7 +28,7 @@ import { AssistantRunner } from './assistant-loop'
 import { AssistantSummarizer, foldCount } from './assistant-summary'
 import { AssistantToolGate } from './assistant-tools'
 import { AssistantRepository, type WholeTurn } from './assistant.repository'
-import { assistantMessage, assistantSession } from './assistant.schema'
+import { assistantMessage, assistantSession, assistantToolCall } from './assistant.schema'
 
 /** Marks, fold counts, what a summary keeps, its trail and the compare-and-set on the
  *  real migrations and gateway with a scripted vendor; the loop's own rounds are
@@ -95,7 +95,8 @@ const repo = () => new AssistantRepository(db)
 function bench(client: Scripted, audits = new AuditRepository(db)) {
   const routes = new AiRouteRepository(db)
   const gateway = new AiGateway(routes, new AiLedger(), { gemini: client, anthropic: client }, db)
-  return { gateway, summarizer: new AssistantSummarizer(gateway, routes, repo(), audits) }
+  const gate = new AssistantToolGate({ tools: () => [] }, createAccessControl())
+  return { gateway, summarizer: new AssistantSummarizer(gateway, routes, repo(), audits, gate) }
 }
 
 function runnerOf(client: Scripted) {
@@ -143,6 +144,24 @@ const seedTurns = (sessionId: string, count: number, first = 1, answer?: string)
       answer ?? `đáp ${first + i}`,
     ]),
   )
+
+/** A call that revealed gated text, on the answer at `seq`. The test gate has no tool, so
+ *  the stored flag has no permission behind it and shuts the answer for every reader. */
+async function reveal(sessionId: string, seq: number): Promise<void> {
+  const [answer] = await db
+    .select({ id: assistantMessage.id })
+    .from(assistantMessage)
+    .where(and(eq(assistantMessage.sessionId, sessionId), eq(assistantMessage.seq, seq)))
+  await db.insert(assistantToolCall).values({
+    messageId: answer!.id,
+    round: 1,
+    position: 0,
+    name: 'get_history',
+    input: {},
+    outcome: 'ok',
+    revealsContent: true,
+  })
+}
 
 const sessionOf = async (id: string) => {
   const [row] = await db.select().from(assistantSession).where(eq(assistantSession.id, id))
@@ -214,7 +233,7 @@ describe('a fold', () => {
     }))
     const before = (await db.select().from(assistantMessage)).length
 
-    await bench(client).summarizer.afterTurn(who.id, id)
+    await bench(client).summarizer.afterTurn(who, id)
 
     expect(await sessionOf(id)).toMatchObject({
       summary: `Asking: ${GOOD.asking}\nDecided: ${GOOD.decided}`,
@@ -229,6 +248,32 @@ describe('a fold', () => {
     expect(begun.history.at(-1)).toMatchObject({ role: 'assistant', body: 'đáp 10' })
   })
 
+  it('stops before a shut answer: the turns after it stay out of the fold', async () => {
+    const id = await newSession()
+    await seedTurns(id, 10)
+    await reveal(id, 6)
+    const client = new Scripted(async () => ({ ...GOOD, records: [] }))
+
+    await bench(client).summarizer.afterTurn(who, id)
+
+    expect(await sessionOf(id)).toMatchObject({ summaryThrough: 4 })
+    const sent = JSON.stringify(client.requests)
+    expect(sent).toContain('hỏi 2')
+    expect(sent).not.toContain('hỏi 3')
+  })
+
+  it('does not fold at all when an answer the summary already covers is shut', async () => {
+    const id = await newSession({ summary: 'Asking: chuyện cũ', summaryThrough: 2 })
+    await seedTurns(id, 11)
+    await reveal(id, 2)
+    const client = new Scripted()
+
+    await bench(client).summarizer.afterTurn(who, id)
+
+    expect(client.requests).toHaveLength(0)
+    expect(await sessionOf(id)).toMatchObject({ summary: 'Asking: chuyện cũ', summaryThrough: 2 })
+  })
+
   it('writes one ledger row under its own task, on the person', async () => {
     const id = await newSession()
     await seedTurns(id, 10)
@@ -241,10 +286,7 @@ describe('a fold', () => {
       ).length
     const before = await count()
 
-    await bench(new Scripted(async () => ({ ...GOOD, records: [] }))).summarizer.afterTurn(
-      who.id,
-      id,
-    )
+    await bench(new Scripted(async () => ({ ...GOOD, records: [] }))).summarizer.afterTurn(who, id)
 
     expect(await count()).toBe(before + 1)
     const [row] = await db
@@ -259,10 +301,7 @@ describe('a fold', () => {
   it('folds on tokens below 10 turns, keeping the two newest', async () => {
     const id = await newSession()
     await seedTurns(id, 3, 1, LONG)
-    await bench(new Scripted(async () => ({ ...GOOD, records: [] }))).summarizer.afterTurn(
-      who.id,
-      id,
-    )
+    await bench(new Scripted(async () => ({ ...GOOD, records: [] }))).summarizer.afterTurn(who, id)
 
     expect(await sessionOf(id)).toMatchObject({ summaryThrough: 2 })
   })
@@ -271,7 +310,7 @@ describe('a fold', () => {
     const id = await newSession()
     await seedTurns(id, 30)
     const client = new Scripted(async () => ({ ...GOOD, records: [] }))
-    await bench(client).summarizer.afterTurn(who.id, id)
+    await bench(client).summarizer.afterTurn(who, id)
 
     const [part] = client.requests[0]!.parts
     expect(part && 'text' in part && part.text).toContain('"question":"hỏi 1"')
@@ -282,7 +321,7 @@ describe('a fold', () => {
     const id = await newSession()
     await seedTurns(id, 9)
     const client = new Scripted()
-    await bench(client).summarizer.afterTurn(who.id, id)
+    await bench(client).summarizer.afterTurn(who, id)
 
     expect(client.requests).toHaveLength(0)
     expect((await sessionOf(id)).summary).toBeNull()
@@ -292,7 +331,7 @@ describe('a fold', () => {
     const id = await newSession()
     await seedTurns(id, 2, 1, LONG)
     const client = new Scripted()
-    await bench(client).summarizer.afterTurn(who.id, id)
+    await bench(client).summarizer.afterTurn(who, id)
 
     expect(client.requests).toHaveLength(0)
   })
@@ -304,7 +343,7 @@ describe('a fold', () => {
     const client = new Scripted()
     const { gateway, summarizer } = bench(client)
     const run = vi.spyOn(gateway, 'run')
-    await summarizer.afterTurn(who.id, id)
+    await summarizer.afterTurn(who, id)
 
     expect(run).not.toHaveBeenCalled()
     expect((await sessionOf(id)).summary).toBeNull()
@@ -315,7 +354,7 @@ describe('a fold', () => {
     await seedTurns(id, 9)
     await seed(id, 19, ['hỏi', ''])
     const client = new Scripted()
-    await bench(client).summarizer.afterTurn(who.id, id)
+    await bench(client).summarizer.afterTurn(who, id)
 
     expect(client.requests).toHaveLength(0)
   })
@@ -324,7 +363,7 @@ describe('a fold', () => {
     const id = await newSession({ summary: 'Asking: chuyện cũ', summaryThrough: 2 })
     await seedTurns(id, 10, 2)
     const client = new Scripted(async () => ({ ...GOOD, records: [] }))
-    await bench(client).summarizer.afterTurn(who.id, id)
+    await bench(client).summarizer.afterTurn(who, id)
 
     const [request] = client.requests
     const [part] = request!.parts
@@ -347,7 +386,7 @@ describe('a fold', () => {
         const id = await newSession()
         await seedTurns(id, 10)
         const client = new Scripted(async () => ({ ...GOOD, records: [] }))
-        await bench(client).summarizer.afterTurn(who.id, id)
+        await bench(client).summarizer.afterTurn(who, id)
         const [part] = client.requests[0]!.parts
         return part && 'text' in part ? part.text.split('\n')[0] : null
       }),
@@ -369,7 +408,7 @@ describe('turns with nothing to fold', () => {
     await seed(id, 11, dead(11))
     await seedTurns(id, 30, 17)
     const client = new Scripted(async () => ({ ...GOOD, records: [] }))
-    await bench(client).summarizer.afterTurn(who.id, id)
+    await bench(client).summarizer.afterTurn(who, id)
 
     expect(client.requests).toHaveLength(1)
     expect(await sessionOf(id)).toMatchObject({ summaryThrough: 8 })
@@ -381,7 +420,7 @@ describe('turns with nothing to fold', () => {
     await seed(id, 7, dead(25))
     await seedTurns(id, 7, 29)
     const client = new Scripted(async () => ({ ...GOOD, records: [] }))
-    await bench(client).summarizer.afterTurn(who.id, id)
+    await bench(client).summarizer.afterTurn(who, id)
 
     expect(folded(client)).toContain('hỏi 29')
     expect(folded(client)).not.toContain('chết')
@@ -392,10 +431,7 @@ describe('turns with nothing to fold', () => {
     const id = await newSession()
     await seed(id, 1, dead(25))
     await seedTurns(id, 10, 26)
-    await bench(new Scripted(async () => ({ ...GOOD, records: [] }))).summarizer.afterTurn(
-      who.id,
-      id,
-    )
+    await bench(new Scripted(async () => ({ ...GOOD, records: [] }))).summarizer.afterTurn(who, id)
 
     expect(await sessionOf(id)).toMatchObject({ summaryThrough: 58 })
   })
@@ -404,7 +440,7 @@ describe('turns with nothing to fold', () => {
     const id = await newSession({ summary: 'Asking: cũ', summaryThrough: 2 })
     await seed(id, 3, dead(30))
     const client = new Scripted()
-    await bench(client).summarizer.afterTurn(who.id, id)
+    await bench(client).summarizer.afterTurn(who, id)
 
     expect(client.requests).toHaveLength(0)
     expect(await sessionOf(id)).toMatchObject({ summaryThrough: 2 })
@@ -415,7 +451,7 @@ describe('turns with nothing to fold', () => {
     await seedTurns(id, 9)
     await seed(id, 19, [' \n ', 'đáp'])
     const client = new Scripted()
-    await bench(client).summarizer.afterTurn(who.id, id)
+    await bench(client).summarizer.afterTurn(who, id)
 
     expect(client.requests).toHaveLength(0)
   })
@@ -425,7 +461,7 @@ describe('turns with nothing to fold', () => {
     await seedTurns(id, 9)
     await seed(id, 19, ['hỏi', CUT_SHORT])
     const client = new Scripted()
-    await bench(client).summarizer.afterTurn(who.id, id)
+    await bench(client).summarizer.afterTurn(who, id)
 
     expect(client.requests).toHaveLength(0)
   })
@@ -436,7 +472,7 @@ describe('turns with nothing to fold', () => {
     await seed(id, 3, ['hỏi hỏng', CUT_SHORT])
     await seedTurns(id, 9, 3)
     const client = new Scripted(async () => ({ ...GOOD, records: [] }))
-    await bench(client).summarizer.afterTurn(who.id, id)
+    await bench(client).summarizer.afterTurn(who, id)
 
     expect(folded(client)).not.toContain(CUT_SHORT)
     expect(folded(client)).not.toContain('hỏi hỏng')
@@ -448,7 +484,7 @@ describe('turns with nothing to fold', () => {
     await seedTurns(id, 9)
     await seed(id, 19, ['hỏi', `Lead này\n\n${CUT_SHORT}`])
     const client = new Scripted(async () => ({ ...GOOD, records: [] }))
-    await bench(client).summarizer.afterTurn(who.id, id)
+    await bench(client).summarizer.afterTurn(who, id)
 
     expect(client.requests).toHaveLength(1)
   })
@@ -468,7 +504,7 @@ describe('what a summary keeps', () => {
         .set({ body: question })
         .where(and(eq(assistantMessage.sessionId, id), eq(assistantMessage.seq, 3)))
     }
-    await bench(new Scripted(async () => output)).summarizer.afterTurn(who.id, id)
+    await bench(new Scripted(async () => output)).summarizer.afterTurn(who, id)
     return sessionOf(id)
   }
 
@@ -500,8 +536,8 @@ describe('what a summary keeps', () => {
       records: [],
     }))
     const { summarizer } = bench(client)
-    await summarizer.afterTurn(who.id, id)
-    await summarizer.afterTurn(who.id, id)
+    await summarizer.afterTurn(who, id)
+    await summarizer.afterTurn(who, id)
 
     const sent = client.requests.map((r) => JSON.stringify(r.parts))
     expect(sent[0]).toContain('hỏi 1')
@@ -595,7 +631,7 @@ describe('what a summary keeps', () => {
         .set({ body: question })
         .where(and(eq(assistantMessage.sessionId, id), eq(assistantMessage.seq, 1)))
     }
-    await bench(new Scripted(async () => output)).summarizer.afterTurn(who.id, id)
+    await bench(new Scripted(async () => output)).summarizer.afterTurn(who, id)
     return sessionOf(id)
   }
 
@@ -623,8 +659,8 @@ describe('what a summary keeps', () => {
     const output = { asking: 'Doanh thu quý 3', decided: GOOD.decided, records: [] }
     const client = new Scripted(async () => output)
     const { summarizer } = bench(client)
-    await summarizer.afterTurn(who.id, id)
-    await summarizer.afterTurn(who.id, id)
+    await summarizer.afterTurn(who, id)
+    await summarizer.afterTurn(who, id)
 
     expect(client.requests).toHaveLength(2)
     expect(await sessionOf(id)).toMatchObject({
@@ -637,7 +673,7 @@ describe('what a summary keeps', () => {
     const id = await newSession({ summary: 'Decided: cũ', summaryThrough: 2 })
     await seedTurns(id, 10, 2)
     const output = { asking: 'Quý 3', decided: 'Hẹn ngày 12', records: ['LD-9999'] }
-    await bench(new Scripted(async () => output)).summarizer.afterTurn(who.id, id)
+    await bench(new Scripted(async () => output)).summarizer.afterTurn(who, id)
 
     expect(await sessionOf(id)).toMatchObject({ summary: 'Decided: cũ', summaryThrough: 10 })
   })
@@ -657,7 +693,7 @@ describe('what a summary keeps', () => {
     await seedTurns(id, 10)
     const marker = `SUMMARY-${id}`
     const output = { asking: `${GOOD.asking}\n${marker}`, decided: marker, records: [marker] }
-    await bench(new Scripted(async () => output)).summarizer.afterTurn(who.id, id)
+    await bench(new Scripted(async () => output)).summarizer.afterTurn(who, id)
 
     expect(await sessionOf(id)).toMatchObject({ summary: HEAD, summaryThrough: 8 })
   })
@@ -678,7 +714,7 @@ describe('the trail', () => {
       seen = (await linesOf(id)).length
       return { ...GOOD, records: [] }
     })
-    await bench(client).summarizer.afterTurn(who.id, id)
+    await bench(client).summarizer.afterTurn(who, id)
 
     expect(seen).toBe(1)
     const lines = await linesOf(id)
@@ -694,10 +730,7 @@ describe('the trail', () => {
   it('names the turns actually sent', async () => {
     const id = await newSession()
     await seedTurns(id, 3, 1, LONG)
-    await bench(new Scripted(async () => ({ ...GOOD, records: [] }))).summarizer.afterTurn(
-      who.id,
-      id,
-    )
+    await bench(new Scripted(async () => ({ ...GOOD, records: [] }))).summarizer.afterTurn(who, id)
 
     expect((await linesOf(id))[0]?.note).toBe(`assistant.summary · session ${id} · 1 turn(s)`)
   })
@@ -709,7 +742,7 @@ describe('the trail', () => {
     vi.spyOn(audits, 'write').mockRejectedValue(new Error('the disk is full'))
     const client = new Scripted()
 
-    await expect(bench(client, audits).summarizer.afterTurn(who.id, id)).resolves.toBeUndefined()
+    await expect(bench(client, audits).summarizer.afterTurn(who, id)).resolves.toBeUndefined()
 
     expect(client.requests).toHaveLength(0)
     expect((await sessionOf(id)).summary).toBeNull()
@@ -719,7 +752,7 @@ describe('the trail', () => {
     await setRoute(false)
     const id = await newSession()
     await seedTurns(id, 10)
-    await bench(new Scripted()).summarizer.afterTurn(who.id, id)
+    await bench(new Scripted()).summarizer.afterTurn(who, id)
 
     expect(await linesOf(id)).toHaveLength(0)
   })
@@ -727,7 +760,7 @@ describe('the trail', () => {
   it('writes none below the marks', async () => {
     const id = await newSession()
     await seedTurns(id, 9)
-    await bench(new Scripted()).summarizer.afterTurn(who.id, id)
+    await bench(new Scripted()).summarizer.afterTurn(who, id)
 
     expect(await linesOf(id)).toHaveLength(0)
   })
@@ -737,8 +770,8 @@ describe('the trail', () => {
     await seedTurns(id, 10)
     const nothing = { asking: 'Quý 3', decided: '', records: [] }
     const { summarizer } = bench(new Scripted(async () => nothing))
-    await summarizer.afterTurn(who.id, id)
-    await summarizer.afterTurn(who.id, id)
+    await summarizer.afterTurn(who, id)
+    await summarizer.afterTurn(who, id)
 
     expect(await linesOf(id)).toHaveLength(2)
     expect((await sessionOf(id)).summary).toBeNull()
@@ -758,7 +791,7 @@ describe('the write', () => {
       return { ...GOOD, records: [] }
     })
 
-    await expect(bench(client).summarizer.afterTurn(who.id, id)).resolves.toBeUndefined()
+    await expect(bench(client).summarizer.afterTurn(who, id)).resolves.toBeUndefined()
     expect(await sessionOf(id)).toMatchObject(taken)
   })
 
@@ -768,12 +801,12 @@ describe('the write', () => {
     const client = new Scripted(async () => ({ ...GOOD, records: [] }))
     const { summarizer } = bench(client)
 
-    const first = summarizer.afterTurn(who.id, id)
-    const second = summarizer.afterTurn(who.id, id)
+    const first = summarizer.afterTurn(who, id)
+    const second = summarizer.afterTurn(who, id)
     await Promise.all([first, second])
     expect(client.requests).toHaveLength(1)
 
-    await summarizer.afterTurn(who.id, id)
+    await summarizer.afterTurn(who, id)
     expect(client.requests).toHaveLength(2)
     expect(await sessionOf(id)).toMatchObject({ summaryThrough: 16 })
   })
@@ -814,6 +847,24 @@ describe('the hook in a turn', () => {
     release()
     await landed()
     expect((await sessionOf(id)).summaryThrough).toBe(8)
+  })
+
+  it('replays the summary only while every answer it covers is readable', async () => {
+    const summaryOf = (client: Scripted) => JSON.stringify(client.turns[0]!.messages)
+    const open = await newSession({ summary: 'Asking: chuyện cũ', summaryThrough: 4 })
+    await seedTurns(open, 3)
+    const shut = await newSession({ summary: 'Asking: chuyện cũ', summaryThrough: 4 })
+    await seedTurns(shut, 3)
+    await reveal(shut, 2)
+    const kept = new Scripted()
+    const dropped = new Scripted()
+
+    await turn(kept, open)
+    await turn(dropped, shut)
+
+    expect(summaryOf(kept)).toContain('chuyện cũ')
+    expect(summaryOf(dropped)).not.toContain('chuyện cũ')
+    expect(summaryOf(dropped)).not.toContain('đáp 3')
   })
 
   it('leaves the turn alone when the fold fails, and the next turn end retries', async () => {

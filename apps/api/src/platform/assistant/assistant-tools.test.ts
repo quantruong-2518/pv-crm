@@ -190,3 +190,61 @@ describe('the gate', () => {
     expect(crashed).toMatchObject({ outcome: 'error', output: { error: 'tool-failed' } })
   })
 })
+
+describe('content a tool reveals', () => {
+  const doors = { lead: door(FakeDoors, 'lead') }
+  const revealing = (reveals?: 'comm.view-content') =>
+    defineTool({
+      name: 'read_x',
+      description: 'Fake.',
+      input: Input,
+      doors,
+      doorFor: (input) => input.kind,
+      reveals,
+      run: async () => ({ ...READ, revealsContent: true }),
+    })
+  const sale = { ...marketing, permissions: ['lead.view', 'comm.view-content'] } as Actor
+
+  it('carries the flag to the verdict, false when the tool says nothing', async () => {
+    const plain = await gateOf(toolOf(doors)).call(sale, call({ kind: 'lead' }))
+    const flagged = await gateOf(revealing('comm.view-content')).call(sale, call({ kind: 'lead' }))
+    expect(plain.revealsContent).toBe(false)
+    expect(flagged).toMatchObject({ outcome: 'ok', revealsContent: true })
+  })
+
+  it('takes a tool that names a permission to reveal unless it says it did not', async () => {
+    const tool = (revealsContent?: boolean) =>
+      defineTool({
+        name: 'read_x',
+        description: 'Fake.',
+        input: Input,
+        doors,
+        doorFor: (input) => input.kind,
+        reveals: 'comm.view-content',
+        run: async () => ({ ...READ, revealsContent }),
+      })
+    const flag = async (revealsContent?: boolean) =>
+      (await gateOf(tool(revealsContent)).call(sale, call({ kind: 'lead' }))).revealsContent
+    expect(await flag()).toBe(true)
+    expect(await flag(true)).toBe(true)
+    expect(await flag(false)).toBe(false)
+  })
+
+  it('fails a call that reveals content under no declared permission', async () => {
+    const verdict = await gateOf(revealing()).call(sale, call({ kind: 'lead' }))
+    expect(verdict).toMatchObject({ outcome: 'error', revealsContent: false })
+  })
+
+  it('names the permission of each revealing stored call, null for a tool gone or silent', () => {
+    const gate = gateOf(revealing('comm.view-content'), toolOf(doors, undefined, 'read_y'))
+    const stored = (name: string, revealsContent: boolean) => ({ name, revealsContent })
+    expect(
+      gate.revealsOf([
+        stored('read_x', true),
+        stored('read_x', false),
+        stored('read_y', true),
+        stored('gone', true),
+      ]),
+    ).toEqual(['comm.view-content', null, null])
+  })
+})

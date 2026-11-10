@@ -915,6 +915,36 @@ describe('get_history', () => {
     expect(verdict.refs).toEqual([{ kind: 'lead', code: 'LD-0001', label: 'Sao Đỏ' }])
   })
 
+  it('flags revealed content only when a returned comm row shows its summary', async () => {
+    const s = history()
+    expect((await s.gate.call(director, call())).revealsContent).toBe(true)
+
+    s.debriefs.list.mockResolvedValue({ rows: [comm(1), comm(2)] } as never)
+    expect((await s.gate.call(director, call())).revealsContent).toBe(false)
+
+    s.debriefs.list.mockRejectedValue(notFound('hồ sơ', 'LD-0001'))
+    expect((await s.gate.call(director, call())).revealsContent).toBe(false)
+  })
+
+  it('does not count a shown summary the 20-row cut left out', async () => {
+    const s = history()
+    const quiet = Array.from({ length: HISTORY_LIST }, (_, i) =>
+      comm((i % 9) + 1, { state: 'none' }),
+    ).map((row, i) => ({
+      ...row,
+      createdAt: `2026-10-${String(i + 10).padStart(2, '0')}T08:00:00.000Z`,
+    }))
+    const old = {
+      ...comm(1, { state: 'visible', text: 'cũ' }),
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }
+    s.debriefs.list.mockResolvedValue({ rows: [...quiet, old] } as never)
+    const verdict = await s.gate.call(director, call())
+
+    expect((verdict.output as History).comms.rows).toHaveLength(HISTORY_LIST)
+    expect(verdict.revealsContent).toBe(false)
+  })
+
   it('masks a phone for a non-holder and flags it, once, for the whole result', async () => {
     const out = (await history().gate.call(sale, call())).output
     expect(body(out)).not.toContain(PHONE)

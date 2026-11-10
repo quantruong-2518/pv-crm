@@ -160,6 +160,9 @@ export const assistantToolCall = platform.table(
     rowCount: integer('row_count'),
     hidden: integer('hidden'),
     truncated: boolean('truncated').notNull().default(false),
+    /** The call gave the model gated text. The stored answer may quote it, and the table keeps
+     *  no output, so a re-read checks the tool's reveal permission against this flag. */
+    revealsContent: boolean('reveals_content').notNull().default(false),
     toolTokens: integer('tool_tokens').notNull().default(0),
     outcome: text('outcome').$type<AssistantToolOutcome>().notNull(),
     latencyMs: integer('latency_ms'),

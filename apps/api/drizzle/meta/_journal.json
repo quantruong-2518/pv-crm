@@ -1121,6 +1121,13 @@
       "when": 1795600900000,
       "tag": "0164_kpi_quotes_cycle_digest",
       "breakpoints": true
+    },
+    {
+      "idx": 165,
+      "version": "7",
+      "when": 1795600960000,
+      "tag": "0165_assistant_tool_call_reveals_content",
+      "breakpoints": true
     }
   ]
 }

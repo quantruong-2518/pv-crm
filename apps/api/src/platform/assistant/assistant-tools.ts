@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger, type Type } from '@nestjs/common'
 import { PATH_METADATA } from '@nestjs/common/constants'
 import { Reflector } from '@nestjs/core'
 import type { AssistantRef, AssistantToolOutcome } from '@pv/contracts'
-import type { AccessControl, Actor, DenyReason } from '@pv/engines'
+import type { AccessControl, Actor, DenyReason, Permission } from '@pv/engines'
 import { z, type ZodType } from 'zod'
 import { NEED_KEY, PUBLIC_KEY, type RouteNeed } from '../access/need.decorator'
 import type { AiToolCall, AiToolDecl } from '../ai/ai-client'
@@ -43,6 +43,9 @@ export type ToolRead = {
   hidden: number | null
   refs?: readonly AssistantRef[]
   steps?: number
+  /** Text a reader needs `ToolSpec.reveals` to see went into `data`: the stored
+   *  answer is then withheld from a reader without it. */
+  revealsContent?: boolean
 }
 
 type ToolSpec<I, K extends string> = {
@@ -62,6 +65,9 @@ type ToolSpec<I, K extends string> = {
   recheck?: ToolRecheck
   /** Next steps a stored call read: they have no code, and no column keeps the count. */
   stepsOf?: (input: I, stored: Stored) => number
+  /** The permission the text behind `revealsContent` is gated by: the tool names it,
+   *  because platform knows no branch permission. */
+  reveals?: Permission
 }
 
 /** How a tool that opens records reads stored codes again as the person is now:
@@ -96,6 +102,7 @@ export type AssistantTool = {
   prepare: (raw: unknown) => Prepared
   recheck?: ToolRecheck
   stepsOf?: (raw: unknown, stored: Stored) => number
+  reveals?: Permission
 }
 
 /** Closes over `I` so the registry holds tools of different inputs in one map. */
@@ -109,6 +116,7 @@ export function defineTool<I, K extends string>(spec: ToolSpec<I, K>): Assistant
     doors: spec.doors,
     optional: spec.optional ?? [],
     recheck: spec.recheck,
+    reveals: spec.reveals,
     stepsOf: (raw, stored) => {
       const parsed = spec.input.safeParse(raw)
       return parsed.success && spec.stepsOf ? spec.stepsOf(parsed.data, stored) : 0
@@ -121,7 +129,16 @@ export function defineTool<I, K extends string>(spec: ToolSpec<I, K>): Assistant
       return {
         ok: true,
         doorKeys: [spec.doorFor(parsed.data)].flat() as K[],
-        run: (who, open) => spec.run(who, parsed.data, open as ReadonlySet<K>),
+        run: async (who, open) => {
+          const read = await spec.run(who, parsed.data, open as ReadonlySet<K>)
+          /* A tool that names a permission is taken to reveal unless it says it did not. */
+          const revealsContent = read.revealsContent ?? spec.reveals !== undefined
+          /* A flag with no permission behind it could never be re-checked: fail closed. */
+          if (revealsContent && !spec.reveals) {
+            throw new Error(`assistant tool ${spec.name}: reveals content but names no permission`)
+          }
+          return { ...read, revealsContent }
+        },
       }
     },
   }
@@ -147,6 +164,7 @@ export type ToolVerdict = {
   latencyMs: number | null
   refs: readonly AssistantRef[]
   steps: number
+  revealsContent: boolean
 }
 
 /** A call that read nothing; the loop uses it for the calls its caps turn away. */
@@ -165,6 +183,7 @@ export const notRun = (
   latencyMs: null,
   refs: [],
   steps: 0,
+  revealsContent: false,
 })
 
 type Needs = Readonly<Record<string, RouteNeed>>
@@ -255,6 +274,19 @@ export class AssistantToolGate {
     return this.access.allows(who, 'data.export') ? text : (maskContact(text) as string)
   }
 
+  /** Whether the reader holds a permission a stored answer's revealed text needs. */
+  holds(who: Actor, permission: Permission): boolean {
+    return this.access.allows(who, permission)
+  }
+
+  /** The permission each revealing stored call needs, as its tool declares it now;
+   *  null for a tool gone or naming none, which no reader passes. */
+  revealsOf(calls: readonly { name: string; revealsContent: boolean }[]): (Permission | null)[] {
+    return calls
+      .filter((c) => c.revealsContent)
+      .map((c) => this.registered.get(c.name)?.tool.reveals ?? null)
+  }
+
   declarations(): AiToolDecl[] {
     return [...this.registered.values()].map(({ tool }) => ({
       name: tool.name,
@@ -285,7 +317,13 @@ export class AssistantToolGate {
       const { data, ...counts } = await prepared.run(who, open)
       /* In the result too: the prompt's hidden-items sentence reads only what reaches it. */
       const output = counts.hidden === null ? data : { ...data, hidden: counts.hidden }
-      return { ...notRun('ok', output), ...counts, skipped, latencyMs: Date.now() - started }
+      return {
+        ...notRun('ok', output),
+        ...counts,
+        revealsContent: counts.revealsContent === true,
+        skipped,
+        latencyMs: Date.now() - started,
+      }
     } catch (error) {
       return { ...this.failed(call.name, error), rowCount: 0, latencyMs: Date.now() - started }
     }

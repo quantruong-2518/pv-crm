@@ -17,12 +17,12 @@ import { AiRouteRepository } from '../ai/ai-route.repository'
 import { AuditRepository } from '../audit/audit.repository'
 import { ACCESS } from '../engines/tokens'
 import { invalid, notFound } from '../http/problem'
-import { recheck, recheckChats, type Recheck } from './assistant-refs'
+import { chatOf, recheck, recheckChats, type Recheck } from './assistant-refs'
 import { footerOf } from './assistant-turn-read'
 import { AssistantSessionRepository, type SessionCursor } from './assistant-session.repository'
 import { AssistantToolGate } from './assistant-tools'
 import { ASSISTANT_NEED, AssistantTurns } from './assistant-turns'
-import { AssistantRepository, type StoredCall } from './assistant.repository'
+import { AssistantRepository } from './assistant.repository'
 import type { AssistantMessageRowDb, AssistantSessionRowDb } from './assistant.schema'
 
 /** The session, availability and report doors. Sessions are the owner's alone:
@@ -57,9 +57,6 @@ function cursorOf(before: string | undefined): SessionCursor | null {
   if (!at || !id) throw invalid({ before: ['Trang không hợp lệ.'] })
   return { unpinned: unpinned === '1', at: new Date(at), id }
 }
-
-const codesIn = (calls: ReadonlyMap<string, readonly StoredCall[]>, id: string): string[] =>
-  (calls.get(id) ?? []).flatMap((c) => c.codes)
 
 @Injectable()
 export class AssistantService {
@@ -101,7 +98,11 @@ export class AssistantService {
     const session = running ? found : ((await this.sessions.touch(who.id, id)) ?? found)
     const answers = rows.filter((r) => r.role === 'assistant')
     const calls = await this.turnsRepo.callsOf(answers.map((r) => r.id))
-    const chat = answers.map((r) => ({ id: r.id, codes: codesIn(calls, r.id) }))
+    const chat = chatOf(
+      this.gate,
+      answers.map((r) => r.id),
+      calls,
+    )
     const check = await this.checkOnce(who, running?.id ?? null, () =>
       recheck(this.gate, who, chat),
     )
@@ -182,9 +183,11 @@ export class AssistantService {
    *  `hidden` is 0: a shut row is still listed, marked. */
   async reports(who: Actor, q: AssistantReportQuery): Promise<AssistantReportResponse> {
     const { rows, total } = await this.sessions.reports(q.page, q.size)
-    const chats = await Promise.all(rows.map((r) => this.turnsRepo.answersOf(r.sessionId, r.seq)))
+    const chats = await Promise.all(
+      rows.map(async (r) => (await this.turnsRepo.answersOf(r.sessionId, r.seq)).map((a) => a.id)),
+    )
     const calls = await this.turnsRepo.callsOf([...new Set(chats.flat())])
-    const chatCodes = chats.map((ids) => ids.map((id) => ({ id, codes: codesIn(calls, id) })))
+    const chatCodes = chats.map((ids) => chatOf(this.gate, ids, calls))
     const check = await recheckChats(this.gate, who, chatCodes)
     const shown = rows.map(({ messageId, sessionId: _s, seq: _q, ...row }) => {
       const shut = check.shut.get(messageId)

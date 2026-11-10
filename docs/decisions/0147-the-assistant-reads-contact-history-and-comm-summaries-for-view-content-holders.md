@@ -61,10 +61,37 @@ shown to go red against a deliberately broken tool. Cases sit on
 `casesExecutive` and `casesMarketing`, none on `casesSale`, which is near its
 per-hour turn cap.
 
+## Amendment 10/11/2026 · a stored answer that may quote a summary is hidden from a reader without `comm.view-content`
+
+Owner decision ("flag and hide"): closes the known limit "a stored answer
+quoting summary text".
+
+- A tool declares the permission its revealed text needs (`reveals`;
+  `get_history` declares `comm.view-content`) and flags a call when text behind
+  it reached the model (`get_history`: a comm row inside the cut with a visible
+  summary). The flag is stored on `platform.assistant_tool_call.reveals_content`
+  (migration 0165, additive: migrate before deploy).
+- A tool that declares `reveals` but omits the flag counts as revealing. A
+  flagged call whose tool is gone, or declares nothing, fails closed.
+- Every re-read re-checks: chat reload (`detail`), the report list (`reports`),
+  model replay and the session-summary fold. A reader lacking the permission
+  gets that answer `withheld`, and every later answer of the same chat too
+  (forward taint). The fold never folds past an answer shut for its owner, and
+  the replay drops the folded summary when it covers a shut answer; this also
+  closes the older limit that the summary of folded turns was not re-checked
+  for record codes.
+- Backfill: the table stores no output, so every existing ok `get_history` call
+  is marked revealing. A role without `comm.view-content` (marketing by default)
+  loses, in its own old chats, every answer from its first `get_history` call
+  on, even if no summary reached the model.
+
+Code: `apps/api/src/platform/assistant/`, `apps/api/src/branches/sales/assistant/`.
+Remaining debt: `docs/status.md`.
+
 ## Known limits
 
 Listed as debt in `docs/status.md`: tool-token cap on a history read; door-side
-audit over-count; a stored answer quoting summary text; ref chip label.
+audit over-count; ref chip label; the debt left by the 10/11/2026 amendment.
 
 ## Consequences
 
