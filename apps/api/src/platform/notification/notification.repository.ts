@@ -5,9 +5,11 @@ import {
   count,
   desc,
   eq,
+  gte,
   inArray,
   isNull,
   lt,
+  max,
   notInArray,
   or,
   sql,
@@ -43,6 +45,11 @@ export type NotificationWithActor = {
   actorName: string | null
   important: boolean | null
 }
+
+export type DigestibleRow = Pick<
+  NotificationRowDb,
+  'recipientId' | 'kind' | 'subjectKind' | 'subjectCode' | 'subjectLabel' | 'detail' | 'createdAt'
+>
 
 /** `labelKinds` are the kinds whose printed sentence matches `text`: rows about
  *  a user or a Google link carry no `subject_label`, so the sentence is all
@@ -109,6 +116,46 @@ export class NotificationRepository {
         ),
       )
     return new Set(rows.map((r) => r.code))
+  }
+
+  /** When each person last got a line of this kind, looking back to `since` only;
+   *  people not told since are absent. */
+  async lastCreated(tx: Db, kind: NotificationKind, since: Date): Promise<Map<string, Date>> {
+    const rows = await tx
+      .select({ id: notification.recipientId, at: max(notification.createdAt) })
+      .from(notification)
+      .where(and(eq(notification.kind, kind), gte(notification.createdAt, since)))
+      .groupBy(notification.recipientId)
+    return new Map(rows.flatMap((r) => (r.at ? [[r.id, r.at] as const] : [])))
+  }
+
+  /** Lines of these kinds written in `[from, before)`, newest first. Counted by
+   *  `created_at` and not by unread, because the lines being summed are born read. */
+  digestible(
+    tx: Db,
+    kinds: readonly NotificationKind[],
+    from: Date,
+    before: Date,
+  ): Promise<DigestibleRow[]> {
+    return tx
+      .select({
+        recipientId: notification.recipientId,
+        kind: notification.kind,
+        subjectKind: notification.subjectKind,
+        subjectCode: notification.subjectCode,
+        subjectLabel: notification.subjectLabel,
+        detail: notification.detail,
+        createdAt: notification.createdAt,
+      })
+      .from(notification)
+      .where(
+        and(
+          inArray(notification.kind, [...kinds]),
+          gte(notification.createdAt, from),
+          lt(notification.createdAt, before),
+        ),
+      )
+      .orderBy(desc(notification.createdAt), desc(notification.id))
   }
 
   /** Unlocked actors in one of these roles; with a branch, only those licensed

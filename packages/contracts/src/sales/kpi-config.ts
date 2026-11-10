@@ -4,6 +4,7 @@ import { RoleId } from '../auth'
 import { SETTING_REGISTRY } from '../setting'
 import {
   KPI_CATALOG,
+  KPI_DEFAULT_OFF,
   KpiAdjustmentCause,
   KpiMetricDef,
   KpiMetricKey,
@@ -22,7 +23,8 @@ import {
  *
  *  The metric config is an OVERLAY on `KPI_CATALOG`, not a list of its own:
  *  formulas live in code, so config may only switch a catalog metric on or off
- *  and move the primary. A metric outside the catalog has no formula to run. */
+ *  (a default-off one may be switched on) and move the primary. A metric outside
+ *  the catalog has no formula to run. */
 
 const actorId = z.string().min(1).max(64)
 
@@ -66,8 +68,11 @@ export const KpiRoleMetricsPatch = z
     }
     // An enabled primary also guarantees at least one enabled metric.
     const primary = metrics.filter((m) => m.primary)
-    if (primary.length !== 1) fail('Mỗi vai có đúng một chỉ số chính.')
-    else if (!primary[0]?.enabled) fail('Chỉ số chính phải đang bật.')
+    const hero = primary[0]
+    if (primary.length !== 1 || !hero) fail('Mỗi vai có đúng một chỉ số chính.')
+    else if (!hero.enabled) fail('Chỉ số chính phải đang bật.')
+    else if (KPI_DEFAULT_OFF.has(hero.metricKey))
+      fail('Chỉ số này không chọn làm chỉ số chính được.')
   })
 
 /** The catalog with the overlay applied — what every reading screen groups by.

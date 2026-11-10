@@ -10,7 +10,7 @@ import {
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { toVndSql } from '../money'
-import { contractTerminated, dealLost, dealTerminated, dealWon } from '../open-deal'
+import { contractTerminated, dealLost, dealOpen, dealTerminated, dealWon } from '../open-deal'
 import type { PeriodSpan } from '../performance/performance-period'
 import { collectedMoves } from '../performance/collected-moves'
 import { realExchanges } from '../performance/real-exchange'
@@ -242,6 +242,32 @@ const OWN: Partial<Record<KpiMetricKey, KpiMetricSql>> = {
       FROM sales.opportunity k ${LIVE}
       WHERE k.accepted_by_id IS NOT NULL AND NOT ${BORN_ACCEPTED}
         AND ${within(sql`k.accepted_at`)}${only(sql`k.accepted_by_id`)}`,
+    total: MEDIAN,
+  },
+  /* Every sent quote counts, so two on one deal are two rows; a backfilled
+     quote with no author credits no one (ADR 0144 §2). */
+  'quotes-sent': {
+    basis: (only) => sql`
+      SELECT q.created_by AS actor_id, 'opportunity' AS kind, k.code, q.sent_at AS at,
+             ${tally('quote-sent')}
+      FROM sales.quotation q
+      JOIN sales.opportunity k ON k.code = q.opportunity_code ${LIVE}
+      WHERE q.created_by IS NOT NULL AND ${within(sql`q.sent_at`)}${only(sql`q.created_by`)}`,
+    total: COUNT,
+  },
+  /* Only the deal's FIRST contract counts; a later one or a terminated first
+     one leaves the deal out, so the cycle is not restarted (ADR 0144 §3). */
+  'sales-cycle-days': {
+    basis: (only) => sql`
+      SELECT f.owner_id AS actor_id, 'opportunity' AS kind, k.code, f.signed_at AS at,
+             ${worth(seconds(sql`(f.signed_at - k.created_at)`, 86400), 'cycle')}
+      FROM (
+        SELECT DISTINCT ON (c.opportunity_code) c.opportunity_code, c.code, c.signed_at, c.owner_id
+          FROM sales.contract c ORDER BY c.opportunity_code, c.signed_at, c.code
+      ) f
+      JOIN sales.opportunity k ON k.code = f.opportunity_code ${LIVE}
+      WHERE f.owner_id IS NOT NULL AND NOT ${contractTerminated(sql`f.code`)}
+        AND ${within(sql`f.signed_at`)}${only(sql`f.owner_id`)}`,
     total: MEDIAN,
   },
 }
@@ -651,6 +677,42 @@ export class KpiReadingsRepository {
       .from(actor)
       .where(salesPeople)
       .orderBy(asc(actor.name))
+  }
+
+  /** Weighted open pipeline (ADR 0143): amount x probability of deals due from
+   *  today to the month's end, per primary SALE lane and for the whole room,
+   *  each deal once. A lane with no deal is absent; `own` filters, `room` is
+   *  always summed. One statement for every requested actor. */
+  async pipeline(
+    span: PeriodSpan,
+    own: readonly string[],
+  ): Promise<{ own: ReadonlyMap<string, number>; room: number }> {
+    const weighted = sql`${toVndSql(sql`k.amount::numeric`, sql`k.currency`)} * k.probability / 100`
+    const r = (await this.db.execute(
+      spanned(
+        span,
+        sql`SELECT GROUPING(p.owner_id) AS room, p.owner_id::text AS actor_id,
+                   COALESCE(sum(p.v), 0)::float8 AS value
+            FROM (
+              SELECT ${weighted} AS v,
+                     (SELECT w.actor_id FROM sales.opportunity_owner w
+                       WHERE w.opportunity_code = k.code AND w.role = 'SALE' AND w.is_primary) AS owner_id
+                FROM sales.opportunity k ${LIVE}
+               WHERE ${dealOpen(sql`k.code`, sql`k.state`)} AND k.probability IS NOT NULL
+                 AND k.expected_close >= (SELECT as_of FROM span) AND k.expected_close < ${span.to}::date
+            ) p
+            WHERE p.v IS NOT NULL
+            GROUP BY GROUPING SETS ((p.owner_id), ())
+            HAVING GROUPING(p.owner_id) = 1 OR true${onlyFor(own)(sql`p.owner_id`)}`,
+      ),
+    )) as { rows: { room: number; actor_id: string | null; value: number }[] }
+    const byActor = new Map<string, number>()
+    let room = 0
+    for (const row of r.rows) {
+      if (Number(row.room) === 1) room = row.value
+      else if (row.actor_id) byActor.set(row.actor_id, row.value)
+    }
+    return { own: byActor, room }
   }
 
   /** One of `people()`, by id. */

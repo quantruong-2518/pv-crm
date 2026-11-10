@@ -57,6 +57,8 @@ const LABEL: Readonly<Record<string, string>> = {
   overdue: 'Quá hạn chưa thu',
   collected: 'Đã thu',
   took: 'Đã nhận cơ hội',
+  'quote-sent': 'Đã gửi báo giá',
+  cycle: 'Đã ký hợp đồng đầu tiên',
 }
 
 const at = (r: { at: Date | string | null }): string | null =>

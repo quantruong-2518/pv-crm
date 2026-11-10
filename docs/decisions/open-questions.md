@@ -774,3 +774,28 @@ Raised by recording the retired handover's flows as ADRs 0139 to 0141.
 172. **Does a leaver's work go to the head of sales without asking (27/09
      rule), or to a receiver named at the lock screen (ADR 0097 §7)?**
      _(see ADR 0141, ADR 0097 §7)_
+
+## KPI review of 10/11/2026
+
+Raised by ADRs 0143 to 0146.
+
+173. **On the KPI forecast of one person, should the weighted pipeline show only
+     to that person and to `kpi.view-all` (default), or also to their team lead
+     and org head?** The opportunity book hides open-deal value from an
+     own-only Sale. _(see ADR 0143 default 5)_
+
+174. **Does the 08:00 digest become the morning brief of ADR 0133, and does it
+     run on weekdays only?** Today it runs every day. _(see ADR 0145, ADR 0133)_
+
+175. **Quarter view, a month without a target: show the quarter target as
+     "Chưa đặt" (recommended) or sum only the months that have one?**
+     _(see ADR 0146)_
+
+176. **Quarter view, ratio and duration metrics: not shown in v1
+     (recommended) or recomputed over the quarter?** _(see ADR 0146)_
+
+177. **Quarter view, who sees it: whoever sees the month view
+     (recommended)?** _(see ADR 0146)_
+
+178. **Quarter view, alerts and month verdicts stay on the month
+     (recommended)?** _(see ADR 0146)_

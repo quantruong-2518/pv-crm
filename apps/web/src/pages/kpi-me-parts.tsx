@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Badge, Button, GlassCard, Icon, TriangleAlert, Users, cn, percent } from '@pv/ui'
@@ -11,7 +12,7 @@ import {
 } from '@pv/contracts'
 import { useSession } from '@/app/auth'
 import type { KpiCatalog } from '@/data/kpi-catalog'
-import { flagsOf } from '@/data/kpi-forecast'
+import { flagsOf, pipelinesOf } from '@/data/kpi-forecast'
 import { weeklyMetricOf } from '@/data/kpi-personal'
 import { kpiTeamViewQuery } from '@/data/kpi-team-view'
 import { num } from './home-model'
@@ -31,7 +32,8 @@ import { kpiMetricText } from '@/data/kpi-i18n'
  *  A flag is a worded badge plus a sentence with both figures, never a colour
  *  alone, and shows wherever the server raised it, as on the company and
  *  person screens. Its thresholds are printed once per screen from the
- *  response, never typed here. */
+ *  response, never typed here. A signed-value seat with open deals adds one
+ *  muted pipeline line (ADR 0143), under its flag when it has one. */
 
 /** What waits on whoever acts for the lead: an open counter they answer
  *  (`counterActors`, never their own), and a shared role whose split is not yet
@@ -143,26 +145,48 @@ export function ForecastFlags({
   const { t, lang } = useI18n()
   const unitOf = new Map(catalog[role].map((d) => [d.key, d.unit]))
   const flagged = flagsOf(catalog, role, forecast)
-  if (flagged.length === 0) return null
+  const pipelines = pipelinesOf(catalog, role, forecast)
+  if (flagged.length === 0 && pipelines.length === 0) return null
+  const flaggedKeys = new Set(flagged.map((f) => f.metricKey))
+  /* The metric is named only when two lines would otherwise read the same. */
+  const pipelineLine = (f: KpiForecast) => {
+    const money = printTile('money', f.pipeline)
+    const lead = pipelines.length > 1 ? `${kpiMetricText(f.metricKey, lang)}: ` : ''
+    return (
+      <li key={`pipeline/${f.metricKey}`} className={cn(NOTE, 'tnum font-num')}>
+        {t(
+          message(
+            `${lead}Dự kiến ký thêm trong tháng: ${money} (theo xác suất)`,
+            `${lead}Expected to sign this month: ${money} (probability-weighted)`,
+            `${lead}이번 달 예상 마감 금액: ${money} (확률 가중)`,
+          ),
+        )}
+      </li>
+    )
+  }
   /* On `.glass-b`, not the bare page: in the stone theme the tinted badge falls under 4.5:1 there (law 13). */
   return (
     <GlassCard variant="b" className="p-4">
       <ul className="flex flex-col gap-2">
-        {flagged.map((f) => (
-          <li
-            key={f.metricKey}
-            className="flex flex-wrap items-center gap-2 text-[12.5px] leading-5"
-          >
-            <Badge tone={f.flag === 'slip' ? 'warning' : 'success'}>
-              {f.flag === 'slip'
-                ? t(message('Sắp trượt', 'At risk', '미달 위험'))
-                : t(message('Sắp đạt', 'On track', '목표 달성 임박'))}
-            </Badge>
-            <span className="tnum font-num">
-              {flagSentence(f, unitOf.get(f.metricKey) ?? 'count', lang)}
-            </span>
-          </li>
-        ))}
+        {flagged.map((f) => {
+          const own = pipelines.find((p) => p.metricKey === f.metricKey)
+          return (
+            <Fragment key={f.metricKey}>
+              <li className="flex flex-wrap items-center gap-2 text-[12.5px] leading-5">
+                <Badge tone={f.flag === 'slip' ? 'warning' : 'success'}>
+                  {f.flag === 'slip'
+                    ? t(message('Sắp trượt', 'At risk', '미달 위험'))
+                    : t(message('Sắp đạt', 'On track', '목표 달성 임박'))}
+                </Badge>
+                <span className="tnum font-num">
+                  {flagSentence(f, unitOf.get(f.metricKey) ?? 'count', lang)}
+                </span>
+              </li>
+              {own && pipelineLine(own)}
+            </Fragment>
+          )
+        })}
+        {pipelines.filter((p) => !flaggedKeys.has(p.metricKey)).map(pipelineLine)}
       </ul>
     </GlassCard>
   )

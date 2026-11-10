@@ -215,6 +215,7 @@ const KIND: Record<NotificationKind, { en: string; ko: string }> = {
     ko: 'KPI 부재 일정이 등록되었습니다',
   },
   'customer-recare-due': { en: 'A customer follow-up is due', ko: '구매 고객 후속 관리일입니다' },
+  'kpi-digest': { en: 'Morning KPI summary', ko: '오늘 아침 KPI 요약' },
 }
 
 export const notificationGroupLabel = (group: NotificationGroup, lang: Lang = getLang()) =>

@@ -39,14 +39,15 @@ export const roleKnown = (): SQL =>
 /** `KpiPeriodKey`'s regex: a month key only. */
 export const periodShape = (): SQL => sql`"period" ~ '^20[0-9]{2}-(0[1-9]|1[0-2])$'`
 
-/** The fourteen `KpiMetricKey` values. The role-to-key pairing is
+/** The sixteen `KpiMetricKey` values. The role-to-key pairing is
  *  `KPI_CATALOG`'s, enforced at the door, as on `kpi_target`. */
 export const metricKnown = (): SQL =>
   sql`"metric_key" IN ('leads-sourced', 'lead-to-opportunity-rate', 'sourced-signed-value',
                        'opportunities-opened', 'first-response-hours',
                        'opportunity-accept-rate', 'demos-joined', 'signed-value', 'win-rate',
                        'debriefs-closed', 'overdue-receivables', 'accept-lag-days',
-                       'collected-value', 'approval-turnaround-hours')`
+                       'collected-value', 'approval-turnaround-hours', 'quotes-sent',
+                       'sales-cycle-days')`
 
 export const kpiAllocation = sales.table(
   'kpi_allocation',

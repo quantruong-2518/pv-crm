@@ -1,5 +1,6 @@
 import {
   KPI_CATALOG,
+  KPI_DEFAULT_OFF,
   RoleId,
   type KpiMetricDef,
   type KpiMetricKey,
@@ -19,10 +20,12 @@ export type KpiCatalog = Readonly<Record<RoleId, readonly KpiMetricDef[]>>
 type Override = Pick<KpiRoleMetricRowDb, 'role' | 'metricKey' | 'enabled' | 'isPrimary'>
 type Resolved = { def: KpiMetricDef; enabled: boolean }
 
+const isDefaultOn = (key: KpiMetricKey): boolean => !KPI_DEFAULT_OFF.has(key)
+
 const perRole = <T>(make: (role: RoleId) => T): Record<RoleId, T> =>
   Object.fromEntries(RoleId.options.map((role) => [role, make(role)])) as Record<RoleId, T>
 
-/** An absent row is the code default: on, and primary only where code says
+/** An absent row is the code default: on (off for `KPI_DEFAULT_OFF`), and primary only where code says
  *  so — unless a stored row already names the primary, which then wins, so a
  *  deploy that moves the code's primary cannot add a second one. */
 function resolve(rows: readonly Override[]): Record<RoleId, Resolved[]> {
@@ -32,7 +35,7 @@ function resolve(rows: readonly Override[]): Record<RoleId, Resolved[]> {
     return KPI_CATALOG[role].map((def) => {
       const row = byKey.get(`${role}|${def.key}`)
       if (row) return { def: { ...def, primary: row.isPrimary }, enabled: row.enabled }
-      return { def: stored ? { ...def, primary: false } : def, enabled: true }
+      return { def: stored ? { ...def, primary: false } : def, enabled: isDefaultOn(def.key) }
     })
   })
 }
@@ -62,7 +65,7 @@ export function catalogOf(rows: readonly Override[]): { catalog: KpiCatalog; fau
     const primaries = live.filter((d) => d.primary).length
     if (primaries === 1) return live
     faults.push(`role ${role} resolves to ${primaries} primary metrics; using the code catalog`)
-    return KPI_CATALOG[role]
+    return KPI_CATALOG[role].filter((d) => isDefaultOn(d.key))
   })
   return { catalog, faults }
 }
@@ -72,13 +75,14 @@ export function catalogOf(rows: readonly Override[]): { catalog: KpiCatalog; fau
 export const catalogDef = (role: RoleId, key: KpiMetricKey): KpiMetricDef | undefined =>
   KPI_CATALOG[role].find((d) => d.key === key)
 
-/** The rows a `PUT` leaves: only metrics that differ from the code default.
+/** The rows a `PUT` leaves: only metrics that differ from the code default
+ *  (a default-off metric switched on is one).
  *  Promoting B over the default primary A therefore always writes A's row too
  *  (`is_primary = false`) — the partial unique index only sees stored rows. */
 export function overlayRows(patch: KpiRoleMetricsPatch, by: string): KpiRoleMetricValues[] {
   return patch.metrics.flatMap((m) => {
     const def = catalogDef(patch.role, m.metricKey)
-    if (!def || (m.enabled && m.primary === def.primary)) return []
+    if (!def || (m.enabled === isDefaultOn(m.metricKey) && m.primary === def.primary)) return []
     const row = { role: patch.role, metricKey: m.metricKey, enabled: m.enabled }
     return [{ ...row, isPrimary: m.primary, updatedBy: by }]
   })

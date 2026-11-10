@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common'
 import {
+  effectiveImportant,
   NOTIFICATION_KIND_POLICY,
+  NOTIFICATION_KINDS_DIGESTED,
   NOTIFICATION_KINDS_RING_WITHOUT_LINK,
   NOTIFICATION_SUBJECT_PERMISSION,
   NotificationKind,
@@ -74,6 +76,11 @@ export class NotificationHub {
       (k) => !NOTIFICATION_KIND_POLICY[k].locked,
     )
     const policy = open.length > 0 ? await this.policies.mutes(tx, open) : []
+    /* A digested kind an admin marked important stays instant: unread, as before (ADR 0145 §7). */
+    const digested = [...new Set(intents.map((i) => i.kind))].filter((k) =>
+      NOTIFICATION_KINDS_DIGESTED.has(k),
+    )
+    const switches = digested.length > 0 ? await this.policies.importance(tx, digested) : new Map()
     const gate = NOTIFICATION_SUBJECT_PERMISSION[subject.kind]
     /* One grants read per announce, shared by the backstop and the mute filter. */
     const grants: Grants =
@@ -103,6 +110,11 @@ export class NotificationHub {
         /* A locked account can still be the cause; only a missing one cannot. */
         actorId: event.actorId && known.has(event.actorId) ? event.actorId : null,
         detail: detail ?? null,
+        /* Digested kinds are history only: the morning digest is what rings (ADR 0145). */
+        readAt:
+          digested.includes(i.kind) && !effectiveImportant(i.kind, switches.get(i.kind))
+            ? new Date()
+            : null,
       }))
     if (rows.length > 0) await this.repo.insert(tx, rows)
   }

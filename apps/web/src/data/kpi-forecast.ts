@@ -79,3 +79,15 @@ export function flagsOf(
   const keys = new Set(catalog[role].map((d) => d.key))
   return forecast.items.filter((f) => f.role === role && f.flag !== null && keys.has(f.metricKey))
 }
+
+/** A role's lines with open-deal value to show (ADR 0143); the server sends 0 for a seat with none. */
+export function pipelinesOf(
+  catalog: KpiCatalog,
+  role: RoleId,
+  forecast: KpiForecastResponse,
+): KpiForecast[] {
+  const keys = new Set(catalog[role].map((d) => d.key))
+  return forecast.items.filter(
+    (f) => f.role === role && f.pipeline !== null && f.pipeline > 0 && keys.has(f.metricKey),
+  )
+}

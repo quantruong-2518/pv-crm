@@ -78,6 +78,13 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
 
 Built through wave 2b (ADR 0112 to 0120).
 
+- Being built on branch `kpi-optimize` (10/11), **not on production**: ADR 0143
+  (weighted pipeline beside the linear forecast), ADR 0144 (quotes-sent and
+  sales-cycle metrics, off by default), ADR 0145 (morning digest of four
+  low-weight bells). Migration 0164 must run before the API deploy; ship the
+  API before the web. ADR 0146 (quarter view) is proposed and waits for the
+  owner. Open questions 173 to 178.
+
 - 2c: start date, ramp factor and exceptions for joining, leaving, changing
   group or role (needs a start date and a leave date on the account). Not
   built; no ADR, no migration (10/11).

@@ -24,8 +24,8 @@ export class KpiForecastController {
 
   @Get(':period/forecast')
   @Need({ branch: 'Sales', permission: 'kpi.view-all' })
-  everyone(@Param(zod(KpiPeriodParams)) params: KpiPeriodParams) {
-    return this.forecast.everyone(params.period)
+  everyone(@CurrentActor() who: Actor, @Param(zod(KpiPeriodParams)) params: KpiPeriodParams) {
+    return this.forecast.everyone(params.period, who)
   }
 
   @Get(':period/forecast/me')

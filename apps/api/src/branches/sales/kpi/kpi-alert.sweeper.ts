@@ -4,6 +4,7 @@ import {
   isTieredPeriod,
   kpiMetricShare,
   KPI_METRIC_LABEL,
+  NOTIFICATION_DETAIL_METRIC_COUNT,
   type KpiForecast,
   type KpiPeriodKey,
 } from '@pv/contracts'
@@ -168,6 +169,9 @@ export class KpiAlertSweeper {
             kind: 'kpi-scorecard',
             code: period,
             label: `${metrics.join(', ')} · ${monthLabel(period)}`,
+          },
+          detail: {
+            [NOTIFICATION_DETAIL_METRIC_COUNT]: new Set(keys.map((k) => k.metricKey)).size,
           },
         })
       }

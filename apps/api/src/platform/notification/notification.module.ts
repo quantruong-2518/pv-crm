@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { AuditModule } from '../audit/audit.module'
 import { RolesModule } from '../roles/roles.module'
+import { NotificationDigestSweeper } from './notification-digest.sweeper'
 import { NotificationPolicyController } from './notification-policy.controller'
 import { NotificationPolicyRepository } from './notification-policy.repository'
 import { NotificationPolicyService } from './notification-policy.service'
@@ -31,6 +32,7 @@ import { NotificationSweeper } from './notification.sweeper'
     NotificationListener,
     NotificationService,
     NotificationSweeper,
+    NotificationDigestSweeper,
   ],
   exports: [NotificationHub],
 })

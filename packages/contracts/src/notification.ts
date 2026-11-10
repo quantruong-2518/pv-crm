@@ -79,6 +79,7 @@ export const NotificationKind = z.enum([
   'kpi-assignment-received',
   'kpi-assignment-late',
   'kpi-away-declared',
+  'kpi-digest',
 ])
 export type NotificationKind = z.infer<typeof NotificationKind>
 
@@ -174,6 +175,7 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'kpi-assignment-received': 'Bạn được giao chỉ tiêu tháng mới',
   'kpi-assignment-late': 'Cấp dưới chưa giao chỉ tiêu đúng hạn, đã lấy mức tháng trước',
   'kpi-away-declared': 'Bạn được khai vắng việc KPI',
+  'kpi-digest': 'Tóm tắt KPI buổi sáng',
 }
 
 /** The filter chips on the bell screen. */
@@ -275,6 +277,7 @@ export const NOTIFICATION_KIND_GROUP: Record<NotificationKind, NotificationGroup
   'kpi-assignment-received': 'kpi',
   'kpi-assignment-late': 'kpi',
   'kpi-away-declared': 'kpi',
+  'kpi-digest': 'kpi',
 }
 
 /** Defaults of ADR 0093 §1 when no `notification_kind_policy` row exists (or
@@ -355,6 +358,7 @@ export const NOTIFICATION_KIND_POLICY: Record<
   'kpi-assignment-late': { important: true, locked: false },
   /* ADR 0120 §7: someone else now holds your seat; you must hear it at once. */
   'kpi-away-declared': { important: true, locked: false },
+  'kpi-digest': { important: false, locked: false },
 }
 
 /** A stored `important` of `null` (or no row) follows the contract default,
@@ -402,7 +406,18 @@ export const NOTIFICATION_KINDS_RING_WITHOUT_LINK = [
   'opportunity-unassigned',
   /* A customer's answer must reach the lead holder even without campaign.view. */
   'mail-run-replied',
+  /* A digest must reach the reader even when a subject link is stale. */
+  'kpi-digest',
 ] as const satisfies readonly NotificationKind[]
+
+/** Written already read and summed into one `kpi-digest` line each morning
+ *  (ADR 0145), so the bell does not ring for each of them. */
+export const NOTIFICATION_KINDS_DIGESTED: ReadonlySet<NotificationKind> = new Set([
+  'kpi-about-to-miss',
+  'kpi-about-to-hit',
+  'kpi-counter-proposed',
+  'kpi-counter-resolved',
+])
 
 /** Every subject each kind is written with, read off the emitters' `announce`
  *  calls. A role cannot use a kind when it may open none of these (ADR 0093
@@ -478,6 +493,8 @@ export const NOTIFICATION_KIND_SUBJECTS: Record<NotificationKind, readonly Notif
     'kpi-assignment-late': ['kpi-assignment'],
     /* The person's own KPI page of the month the absence starts in. */
     'kpi-away-declared': ['kpi-scorecard'],
+    /* Any subject of the four kinds it sums up. */
+    'kpi-digest': ['kpi-scorecard', 'kpi-target', 'kpi-allocation', 'kpi-team'],
   }
 
 /** Key of the failed-letter count in `detail` on a closing `mail-run-sent` or
@@ -502,6 +519,13 @@ export const NOTIFICATION_DETAIL_TITLE = 'title'
 export const NOTIFICATION_DETAIL_OBJECT = 'object'
 /** Name of the person a `kpi-stand-in` line stands in for; `count` is what waits. */
 export const NOTIFICATION_DETAIL_FOR = 'for'
+/** Counts on a `kpi-digest` line, one per digested kind; any may be 0. */
+export const NOTIFICATION_DETAIL_SLIP = 'slip'
+export const NOTIFICATION_DETAIL_HIT = 'hit'
+export const NOTIFICATION_DETAIL_PROPOSED = 'proposed'
+export const NOTIFICATION_DETAIL_RESOLVED = 'resolved'
+/** Distinct metrics a `kpi-about-to-miss` or `kpi-about-to-hit` line covers; the digest sums it. */
+export const NOTIFICATION_DETAIL_METRIC_COUNT = 'metricCount'
 
 /** `detail` holds small display facts only (a count, a reason sentence), so
  *  its values are flat strings or numbers; anything bigger belongs on the
@@ -540,6 +564,16 @@ export function notificationSentence(
     const waiting = n(NOTIFICATION_DETAIL_COUNT)
     const tail = waiting > 0 ? ` · ${num(waiting)} mục đang chờ` : ''
     return `Bạn đang làm thay việc KPI của ${standsFor}${tail}`
+  }
+  if (row.kind === 'kpi-digest') {
+    const parts = [
+      [n(NOTIFICATION_DETAIL_SLIP), 'chỉ số sắp trượt'],
+      [n(NOTIFICATION_DETAIL_HIT), 'chỉ số sắp đạt'],
+      [n(NOTIFICATION_DETAIL_PROPOSED), 'đề xuất đổi chỉ tiêu chờ xử lý'],
+      [n(NOTIFICATION_DETAIL_RESOLVED), 'đề xuất đổi chỉ tiêu đã xử lý'],
+    ] as const
+    const said = parts.filter(([v]) => v > 0).map(([v, unit]) => `${num(v)} ${unit}`)
+    return said.length > 0 ? said.join(' · ') : null
   }
   const name = row.subject.label
   if (!name) return null

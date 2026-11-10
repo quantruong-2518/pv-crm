@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { NotificationKind } from '@pv/contracts'
 import type { RoleId } from '@pv/engines'
@@ -55,6 +55,24 @@ export class NotificationPolicyRepository {
       .returning()
     if (!row) throw new Error('platform.notification_kind_policy: upsert returned no row')
     return row
+  }
+
+  /** Admin importance overrides for these kinds, for `effectiveImportant`; a kind
+   *  with no stored switch follows the contract default and is absent. */
+  async importance(
+    tx: Db,
+    kinds: readonly NotificationKind[],
+  ): Promise<Map<NotificationKind, boolean>> {
+    const rows = await tx
+      .select({ kind: notificationKindPolicy.kind, important: notificationKindPolicy.important })
+      .from(notificationKindPolicy)
+      .where(
+        and(
+          inArray(notificationKindPolicy.kind, [...kinds]),
+          isNotNull(notificationKindPolicy.important),
+        ),
+      )
+    return new Map(rows.flatMap((r) => (r.important === null ? [] : [[r.kind, r.important]])))
   }
 
   /** The hub's read, on the announcing transaction: only rows that mute somebody. */

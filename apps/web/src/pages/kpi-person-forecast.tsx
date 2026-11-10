@@ -16,20 +16,40 @@ import { DASH, printShort } from './kpi-model'
  *  unflagged line still says where the month is heading. The legend prints
  *  both thresholds from the response. */
 
-/* Value and target are on the scoreboard above; this table adds only where the month heads. */
-const columnsOf = (t: (copy: Message) => string): StackColumn[] => [
+/* Value and target are on the scoreboard above; this adds where the month heads, plus the pipeline when a seat has one. */
+const columnsOf = (t: (copy: Message) => string, withPipeline: boolean): StackColumn[] => [
   { header: t(message('Chỉ số', 'Metric', '지표')), width: 'minmax(0,1.6fr)' },
   {
     header: t(message('Dự báo cuối tháng', 'Month-end forecast', '월말 예상')),
     width: 'minmax(0,1.1fr)',
     align: 'right',
   },
+  ...(withPipeline
+    ? [
+        {
+          header: t(
+            message(
+              'Dự kiến ký thêm (theo xác suất)',
+              'Expected to sign (probability-weighted)',
+              '예상 마감 금액 (확률 가중)',
+            ),
+          ),
+          width: 'minmax(0,1.1fr)',
+          align: 'right' as const,
+        },
+      ]
+    : []),
   { header: t(message('Cảnh báo', 'Alert', '경고')), width: 'minmax(0,1fr)' },
 ]
 
 const FIGURE = 'tnum font-num'
 
-function cellsOf({ def, forecast }: ForecastItem, withRole: boolean, lang: 'vi' | 'en' | 'ko') {
+function cellsOf(
+  { def, forecast }: ForecastItem,
+  withRole: boolean,
+  withPipeline: boolean,
+  lang: 'vi' | 'en' | 'ko',
+) {
   return [
     <span key="metric" className="flex min-w-0 flex-col gap-1">
       <span>{kpiMetricText(def.key, lang)}</span>
@@ -38,6 +58,15 @@ function cellsOf({ def, forecast }: ForecastItem, withRole: boolean, lang: 'vi' 
     <span key="projected" className={cn(FIGURE, 'font-semibold')}>
       {printShort(def.unit, forecast.projected)}
     </span>,
+    ...(withPipeline
+      ? [
+          forecast.pipeline === null ? null : (
+            <span key="pipeline" className={FIGURE}>
+              {printShort('money', forecast.pipeline)}
+            </span>
+          ),
+        ]
+      : []),
     forecast.flag ? <FlagBadge key="flag" flag={forecast.flag} /> : DASH,
   ]
 }
@@ -56,6 +85,7 @@ export function PersonForecast({
     catalog,
     data.items.filter((i) => i.actorId === actorId),
   )
+  const withPipeline = items.some((i) => i.forecast.pipeline !== null)
   const withRole = new Set(items.map((i) => i.forecast.role)).size > 1
   return (
     <GlassCard variant="b" className="flex flex-col gap-3 py-4">
@@ -83,10 +113,10 @@ export function PersonForecast({
           flush
           rowHeight="min-h-12 py-2"
           tableClassName="min-w-md"
-          columns={columnsOf(t)}
+          columns={columnsOf(t, withPipeline)}
           rows={items.map((item) => ({
             id: `${item.forecast.role}/${item.def.key}`,
-            cells: cellsOf(item, withRole, lang),
+            cells: cellsOf(item, withRole, withPipeline, lang),
           }))}
         />
       )}

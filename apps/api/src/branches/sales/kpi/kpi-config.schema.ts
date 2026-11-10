@@ -21,14 +21,15 @@ import { sales } from '../sales.schema'
 const roleKnown = (): SQL =>
   sql`"role" IN ('director', 'head-of-sales', 'marketing', 'bd', 'presales', 'sale', 'account-executive')`
 
-/** The fourteen `KpiMetricKey` values. The role-to-key pairing is
+/** The sixteen `KpiMetricKey` values. The role-to-key pairing is
  *  `KPI_CATALOG`'s, enforced at the door, as on `kpi_target`. */
 const metricKnown = (): SQL =>
   sql`"metric_key" IN ('leads-sourced', 'lead-to-opportunity-rate', 'sourced-signed-value',
                        'opportunities-opened', 'first-response-hours',
                        'opportunity-accept-rate', 'demos-joined', 'signed-value', 'win-rate',
                        'debriefs-closed', 'overdue-receivables', 'accept-lag-days',
-                       'collected-value', 'approval-turnaround-hours')`
+                       'collected-value', 'approval-turnaround-hours', 'quotes-sent',
+                       'sales-cycle-days')`
 
 export const kpiRoleMetric = sales.table(
   'kpi_role_metric',

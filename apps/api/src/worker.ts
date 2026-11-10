@@ -26,6 +26,7 @@ import { LeadScanSweeper } from './branches/sales/lead/lead-scan.sweeper'
 import { OpportunityModule } from './branches/sales/opportunity/opportunity.module'
 import { OpportunityMailComposer } from './branches/sales/opportunity/opportunity-mail.composer'
 import { OpportunityMailSentHook } from './branches/sales/opportunity/opportunity-mail-sent.hook'
+import { NotificationDigestSweeper } from './platform/notification/notification-digest.sweeper'
 import { SessionSweeper } from './platform/auth/session.sweeper'
 import { CommAiJobSweeper } from './platform/comms/comm-ai-job.sweeper'
 import { MailModule } from './platform/mail/mail.module'
@@ -323,6 +324,8 @@ async function bootstrap(): Promise<void> {
   const sweepAiJobs = pass('AI fill sweep failed', () => aiJobs.sweep())
   const sweepCommAiJobs = pass('Comm report sweep failed', () => commAiJobs.sweep())
   const sweepSessions = pass('Session sweep failed', () => sessions.sweep())
+  // Same: the morning bell digest, every 5 minutes from Vietnam 08:00 (ADR 0145).
+  const sweepDigest = pass('Digest sweep failed', () => app.get(NotificationDigestSweeper).sweep())
   const sweep = setInterval(() => {
     sweepRelay()
     sweepRuns()
@@ -338,6 +341,7 @@ async function bootstrap(): Promise<void> {
     sweepAiJobs()
     sweepCommAiJobs()
     sweepSessions()
+    sweepDigest()
   }, env.PV_QUEUE_POLL_SECONDS * 1_000)
   /* Đừng giữ tiến trình sống chỉ vì cái đồng hồ này. */
   sweep.unref()

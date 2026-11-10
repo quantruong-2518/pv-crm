@@ -36,6 +36,8 @@ export const KpiMetricKey = z.enum([
   'accept-lag-days',
   'collected-value',
   'approval-turnaround-hours',
+  'quotes-sent',
+  'sales-cycle-days',
 ])
 
 /** `guardrail` sits beside the other three: it stops a result being gamed. */
@@ -132,6 +134,8 @@ export const KPI_CATALOG: Record<RoleId, readonly KpiMetricDef[]> = {
     metric('win-rate', 'conversion', 'ratio', 'own', UNPACED),
     metric('debriefs-closed', 'activity', 'count', 'own'),
     metric('overdue-receivables', 'guardrail', 'money', 'own', LOWER_SNAPSHOT),
+    metric('quotes-sent', 'activity', 'count', 'own'),
+    metric('sales-cycle-days', 'conversion', 'days', 'own', LOWER),
   ],
   'account-executive': [
     metric('opportunities-opened', 'activity', 'count', 'own'),
@@ -139,8 +143,16 @@ export const KPI_CATALOG: Record<RoleId, readonly KpiMetricDef[]> = {
     metric('win-rate', 'conversion', 'ratio', 'own', UNPACED),
     metric('signed-value', 'result', 'money', 'own', PRIMARY),
     metric('overdue-receivables', 'guardrail', 'money', 'own', LOWER_SNAPSHOT),
+    metric('quotes-sent', 'activity', 'count', 'own'),
+    metric('sales-cycle-days', 'conversion', 'days', 'own', LOWER),
   ],
 }
+
+/** In the catalog so close, reconcile and the gate read them; off until config turns them on. */
+export const KPI_DEFAULT_OFF: ReadonlySet<KpiMetricKey> = new Set<KpiMetricKey>([
+  'quotes-sent',
+  'sales-cycle-days',
+])
 
 /** Whether a metric has a weekly running total: a tally (count or money) that
  *  only grows with the month. A snapshot, a lower-is-better figure or an
@@ -166,6 +178,8 @@ export const KPI_METRIC_LABEL: Record<KpiMetricKey, string> = {
   'accept-lag-days': 'Thời gian nhận cơ hội',
   'collected-value': 'Tiền đã thu',
   'approval-turnaround-hours': 'Thời gian duyệt',
+  'quotes-sent': 'Báo giá đã gửi',
+  'sales-cycle-days': 'Thời gian chốt cơ hội',
 }
 
 export const KPI_LAYER_LABEL: Record<KpiLayer, string> = {

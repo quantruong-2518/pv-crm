@@ -62,7 +62,7 @@ export const kpiTarget = sales.table(
 
     check('kpi_target_role_known', roleKnown()),
     check('kpi_target_period_shape', periodShape()),
-    /** The fourteen `KpiMetricKey` values, copied by hand for
+    /** The sixteen `KpiMetricKey` values, copied by hand for
      *  `setting_key_known`'s reason: the key list is the shape of the table.
      *  The role-to-key pairing stays in `KPI_CATALOG`, as per-key bounds do. */
     check(
@@ -71,7 +71,8 @@ export const kpiTarget = sales.table(
                            'opportunities-opened', 'first-response-hours',
                            'opportunity-accept-rate', 'demos-joined', 'signed-value', 'win-rate',
                            'debriefs-closed', 'overdue-receivables', 'accept-lag-days',
-                           'collected-value', 'approval-turnaround-hours')`,
+                           'collected-value', 'approval-turnaround-hours', 'quotes-sent',
+                       'sales-cycle-days')`,
     ),
     check('kpi_target_version_positive', sql`"version" >= 1`),
     /** Zero is a real target ("no overdue receivables"); negative is a typo. */

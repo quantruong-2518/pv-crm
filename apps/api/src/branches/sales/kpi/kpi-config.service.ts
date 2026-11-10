@@ -13,6 +13,7 @@ import type { Db } from '@api/platform/db/db.module'
 import { SettingService } from '@api/platform/setting/setting.service'
 import { SalesConfigService } from '../config/config.service'
 import { KpiConfigRepository } from './kpi-config.repository'
+import type { KpiConfigChange } from './kpi-config.approval'
 import { catalogOf, resolvedMetrics, type KpiCatalog } from './kpi-config.overlay'
 
 /** KPI configuration (ADR 0099 §1–3): the metric overlay per role and the
@@ -49,9 +50,13 @@ export class KpiConfigService {
     })
   }
 
-  /** The contract already holds "every catalog metric, one enabled primary". */
-  proposeMetrics(who: Actor, body: KpiRoleMetricsPatch): Promise<ConfigProposalReceipt> {
-    return this.config.propose(who, { kind: 'kpi-metrics', value: body })
+  /** The contract already holds "every catalog metric, one enabled primary".
+   *  `wasOn` is read here so the approver's sentence names only what flips. */
+  async proposeMetrics(who: Actor, body: KpiRoleMetricsPatch): Promise<ConfigProposalReceipt> {
+    const now = resolvedMetrics(await this.repo.overrides())[body.role]
+    const wasOn = now.filter((m) => m.enabled).map((m) => m.metricKey)
+    const change: KpiConfigChange = { kind: 'kpi-metrics', value: body, wasOn }
+    return this.config.propose(who, change)
   }
 
   /** The pace tolerance as the ratio `verdictOf` takes. Read once per request. */

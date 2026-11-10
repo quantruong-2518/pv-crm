@@ -228,7 +228,11 @@ export const KpiCounterListResponse = z.object({
  *  `null` for an unpaced metric, a missing value, a missing target for the
  *  ratio, or before day one. `flag` is `slip` when `projectedRatio` is under
  *  `slipRatio`, `hit` when the figure already reached `hitRatio` of target
- *  (value, not projection), else `null`. */
+ *  (value, not projection), else `null`.
+ *
+ *  `pipeline`: weighted VND (amount × probability / 100) of open deals due to close
+ *  in the rest of the running month. `signed-value` only; `null` elsewhere, outside
+ *  that month, or when the reader may not see it (ADR 0143). */
 export const KpiForecast = KpiTargetActor.extend({
   role: RoleId,
   metricKey: KpiMetricKey,
@@ -236,6 +240,7 @@ export const KpiForecast = KpiTargetActor.extend({
   target: amount.nullable(),
   projected: z.number().nullable(),
   projectedRatio: z.number().nullable(),
+  pipeline: z.number().nullable(),
   flag: z.enum(['slip', 'hit']).nullable(),
 })
 

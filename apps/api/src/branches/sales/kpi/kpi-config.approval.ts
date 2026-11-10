@@ -1,4 +1,11 @@
-import { KPI_METRIC_LABEL, KpiAlertPatch, KpiRoleMetricsPatch, ROLE_LABEL } from '@pv/contracts'
+import {
+  KPI_DEFAULT_OFF,
+  KPI_METRIC_LABEL,
+  KpiAlertPatch,
+  KpiRoleMetricsPatch,
+  ROLE_LABEL,
+  type KpiMetricKey,
+} from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import { conflict } from '@api/platform/http/problem'
 import type { SettingService } from '@api/platform/setting/setting.service'
@@ -10,7 +17,8 @@ import { overlayRows } from './kpi-config.overlay'
  *  (`SalesConfigService.apply`) hands them back here inside its transaction.
  *  `value` is the very body the contract parsed at the door. */
 export type KpiConfigChange =
-  { kind: 'kpi-metrics'; value: KpiRoleMetricsPatch } | { kind: 'kpi-alert'; value: KpiAlertPatch }
+  | { kind: 'kpi-metrics'; value: KpiRoleMetricsPatch; wasOn?: readonly KpiMetricKey[] }
+  | { kind: 'kpi-alert'; value: KpiAlertPatch }
 
 const KPI_KINDS: readonly string[] = [
   'kpi-metrics',
@@ -21,7 +29,9 @@ export const isKpiConfigChange = <T extends { kind: string }>(
   change: T,
 ): change is Extract<T, KpiConfigChange> => KPI_KINDS.includes(change.kind)
 
-/** The sentence the approver reads instead of the payload. */
+/** The sentence the approver reads instead of the payload. `wasOn` is the
+ *  role's metrics in force when the change was proposed, so the sentence names
+ *  only what flips; without it the code default is the baseline. */
 export function kpiConsequenceOf(change: KpiConfigChange): string {
   if (change.kind === 'kpi-alert') {
     const { slipPercent, hitPercent, tolerancePercent } = change.value
@@ -29,9 +39,17 @@ export function kpiConsequenceOf(change: KpiConfigChange): string {
   }
   const { role, metrics } = change.value
   const primary = metrics.find((m) => m.primary)
-  const off = metrics.filter((m) => !m.enabled).map((m) => KPI_METRIC_LABEL[m.metricKey])
-  const head = primary ? `chỉ số chính là ${KPI_METRIC_LABEL[primary.metricKey]}` : ''
-  const tail = off.length > 0 ? `tắt ${off.join(', ')}` : 'bật mọi chỉ số'
+  const label = (m: { metricKey: KpiMetricKey }) => KPI_METRIC_LABEL[m.metricKey]
+  const was = (key: KpiMetricKey) =>
+    change.wasOn ? change.wasOn.includes(key) : !KPI_DEFAULT_OFF.has(key)
+  const off = metrics.filter((m) => !m.enabled && was(m.metricKey)).map(label)
+  const added = metrics.filter((m) => m.enabled && !was(m.metricKey)).map(label)
+  const head = primary ? `chỉ số chính là ${label(primary)}` : ''
+  const parts = [
+    ...(added.length > 0 ? [`bật thêm ${added.join(', ')}`] : []),
+    ...(off.length > 0 ? [`tắt ${off.join(', ')}`] : []),
+  ]
+  const tail = parts.length > 0 ? parts.join(' · ') : 'giữ các chỉ số đang bật'
   return `Đổi chỉ số KPI của vai ${ROLE_LABEL[role]}: ${head} · ${tail}`
 }
 

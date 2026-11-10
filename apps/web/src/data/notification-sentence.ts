@@ -2,8 +2,12 @@ import {
   NOTIFICATION_DETAIL_COUNT,
   NOTIFICATION_DETAIL_DEALS,
   NOTIFICATION_DETAIL_FOR,
+  NOTIFICATION_DETAIL_HIT,
   NOTIFICATION_DETAIL_NO,
+  NOTIFICATION_DETAIL_PROPOSED,
   NOTIFICATION_DETAIL_REASON,
+  NOTIFICATION_DETAIL_RESOLVED,
+  NOTIFICATION_DETAIL_SLIP,
   NOTIFICATION_DETAIL_STEPS,
   NOTIFICATION_DETAIL_TITLE,
   notificationSentence,
@@ -98,6 +102,33 @@ function teamShareSentence(row: NotificationRow, lang: Lang): string | null {
   )
 }
 
+/** `kpi-digest` (ADR 0145): the non-zero counts joined by a dot, like the vi sentence. */
+function digestSentence(row: NotificationRow, lang: Lang): string | null {
+  const count = (key: string) => {
+    const value = row.detail?.[key]
+    return typeof value === 'number' ? value : 0
+  }
+  const parts = [
+    [
+      count(NOTIFICATION_DETAIL_SLIP),
+      message('', 'metrics that may miss target', '목표 미달 우려 지표'),
+    ],
+    [count(NOTIFICATION_DETAIL_HIT), message('', 'metrics close to target', '목표 달성 임박 지표')],
+    [
+      count(NOTIFICATION_DETAIL_PROPOSED),
+      message('', 'target change requests awaiting review', '검토 대기 중인 목표 변경 요청'),
+    ],
+    [
+      count(NOTIFICATION_DETAIL_RESOLVED),
+      message('', 'target change requests decided', '처리된 목표 변경 요청'),
+    ],
+  ] as const
+  const said = parts
+    .filter(([value]) => value > 0)
+    .map(([value, unit]) => `${formatNumber(value, lang)} ${translate(unit, lang)}`)
+  return said.length > 0 ? said.join(' · ') : null
+}
+
 function otherSentence(row: NotificationRow, lang: Lang): string | null {
   if (lang === 'vi') return notificationSentence(row)
   const name = row.subject.label
@@ -106,6 +137,7 @@ function otherSentence(row: NotificationRow, lang: Lang): string | null {
     return typeof value === 'number' ? value : 0
   }
   const n = (value: number) => formatNumber(value, lang)
+  if (row.kind === 'kpi-digest') return digestSentence(row, lang)
   const standsFor = row.detail?.[NOTIFICATION_DETAIL_FOR]
   if (row.kind === 'kpi-stand-in' && typeof standsFor === 'string') {
     const waiting = count(NOTIFICATION_DETAIL_COUNT)

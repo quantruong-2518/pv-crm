@@ -15,7 +15,7 @@ import { toContractRole } from '@api/platform/auth/auth.mapper'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { denied, invalid, notFound } from '@api/platform/http/problem'
 import { SettingService } from '@api/platform/setting/setting.service'
-import { spansOf } from '../performance/performance-period'
+import { spansOf, type PeriodSpan } from '../performance/performance-period'
 import { targetSources } from './kpi-allocation.mapper'
 import { KpiAllocationRepository } from './kpi-allocation.repository'
 import { KpiAssignmentTargets } from './kpi-assignment-targets'
@@ -42,6 +42,8 @@ import { agreedIn, toReadings } from './kpi.mapper'
 
 type Holder = { id: string; name: string; roleIds: readonly RoleId[] }
 type Thresholds = { slipRatio: number; hitRatio: number }
+/** Whose pipeline the reader may see; `null` computes none (the alert sweep). */
+type Sees = ((actorId: string) => boolean) | null
 
 const DAY_MS = 86_400_000
 
@@ -51,6 +53,13 @@ const addDays = (day: string, n: number): string =>
 /** Monday on or before `day`; a bare date parses as UTC midnight, so no zone. */
 const mondayOf = (day: string): string =>
   addDays(day, -((new Date(Date.parse(day)).getUTCDay() + 6) % 7))
+
+/** An own seat reads its person's primary SALE lane, a room seat the whole book. */
+const pipelineOf = (
+  pipe: { own: ReadonlyMap<string, number>; room: number },
+  def: KpiMetricDef,
+  actorId: string,
+): number => (def.scope === 'room' ? pipe.room : (pipe.own.get(actorId) ?? 0))
 
 /** `elapsed` is 1 once the month closes, so a closed month projects its own
  *  value; 0 before the month and on its first day, where nothing can be
@@ -100,17 +109,19 @@ export class KpiForecastService {
     private readonly assigned: KpiAssignmentTargets,
   ) {}
 
-  async everyone(period: KpiPeriodKey): Promise<KpiForecastResponse> {
+  /** `reader` is opt-in: the daily alert sweep passes none, reads flags only
+   *  and must not pay for the open-deal query (ADR 0143 §6). */
+  async everyone(period: KpiPeriodKey, reader?: Actor): Promise<KpiForecastResponse> {
     const people = (await this.readings.people()).map((p) => ({
       ...p,
       roleIds: p.roleIds.map(toContractRole),
     }))
-    return this.forecast(period, people)
+    return this.forecast(period, people, undefined, reader ? this.seesFor(reader) : null)
   }
 
   async mine(who: Actor, period: KpiPeriodKey): Promise<KpiForecastResponse> {
     const holder = { id: who.id, name: who.name, roleIds: who.roleIds.map(toContractRole) }
-    return this.forecast(period, [holder], who.id)
+    return this.forecast(period, [holder], who.id, () => true)
   }
 
   /** `mine` for someone else, behind `assertReadsPerson`. */
@@ -122,6 +133,7 @@ export class KpiForecastService {
       period,
       [{ ...person, roleIds: person.roleIds.map(toContractRole) }],
       actorId,
+      this.seesFor(who),
     )
   }
 
@@ -200,16 +212,26 @@ export class KpiForecastService {
   private async forecast(
     period: KpiPeriodKey,
     holders: readonly Holder[],
-    only?: string,
+    only: string | undefined,
+    sees: Sees,
   ): Promise<KpiForecastResponse> {
     const catalog = await this.config.effectiveCatalog()
     const seats = holders.flatMap((h) =>
       h.roleIds.flatMap((role) => catalog[role].map((def) => ({ role, def }))),
     )
     const { from, to } = spansOf(period).current
-    const [monthClose, adjustments] = await Promise.all([
+    const { elapsed, phase } = monthClock(period)
+    const running = phase === 'running'
+    const [monthClose, adjustments, pipe] = await Promise.all([
       this.closes.of(period),
       this.readings.adjustments(seats, period, only),
+      sees && running
+        ? this.openPipeline(
+            holders.filter((h) => sees(h.id)),
+            seats,
+            { key: period, from, to },
+          )
+        : null,
     ])
     const [values, rows, lines, thresholds] = await Promise.all([
       this.readings.monthValues(seats, { key: period, from, to }, only, {
@@ -220,8 +242,6 @@ export class KpiForecastService {
       this.allocations.agreedLines(period, only),
       this.thresholds(),
     ])
-    const { elapsed, phase } = monthClock(period)
-    const running = phase === 'running'
     const sources = isTieredPeriod(period)
       ? await this.assigned.sources(period, only)
       : targetSources(rows, lines)
@@ -256,6 +276,10 @@ export class KpiForecastService {
               target,
               projected,
               projectedRatio: projected !== null && target ? projected / target : null,
+              pipeline:
+                pipe && sees?.(h.id) && r.key === 'signed-value'
+                  ? pipelineOf(pipe, def, h.id)
+                  : null,
               flag: flagOf(r.value, projected, target, def, thresholds, running),
             },
           ]
@@ -263,6 +287,35 @@ export class KpiForecastService {
       }),
     )
     return KpiForecastResponse.parse({ period, monthClose, thresholds, items })
+  }
+
+  /** Open-deal value is the deal book's, so beyond one's own figure the reader
+   *  needs the whole book: `kpi.view-all` is editable and says nothing of it (ADR 0143 §5). */
+  private seesFor(who: Actor): (actorId: string) => boolean {
+    const book =
+      this.access.allows(who, 'kpi.view-all') &&
+      this.access.allows(who, 'opportunity.view') &&
+      !who.ownOnly
+    return (actorId) => actorId === who.id || book
+  }
+
+  /** The `signed-value` seats' open pipeline, in the one query that serves
+   *  every holder; null when no holder carries that metric. */
+  private async openPipeline(
+    holders: readonly Holder[],
+    seats: readonly { role: RoleId; def: KpiMetricDef }[],
+    span: PeriodSpan,
+  ) {
+    const signed = seats.filter((s) => s.def.key === 'signed-value')
+    const own = holders.filter((h) =>
+      signed.some((s) => s.def.scope === 'own' && h.roleIds.includes(s.role)),
+    )
+    return signed.length === 0
+      ? null
+      : this.readings.pipeline(
+          span,
+          own.map((h) => h.id),
+        )
   }
 
   /** Read once per request, above the loop (`SettingService.value`'s rule). */

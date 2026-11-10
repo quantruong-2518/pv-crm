@@ -47,6 +47,8 @@ const METRIC: Record<KpiMetricKey, Message> = {
     'Approval turnaround time',
     '승인 소요 시간',
   ),
+  'quotes-sent': message('Báo giá đã gửi', 'Quotes sent', '발송한 견적'),
+  'sales-cycle-days': message('Thời gian chốt cơ hội', 'Median sales cycle', '기회 체결 소요 기간'),
 }
 
 const LAYER: Record<KpiLayer, Message> = {

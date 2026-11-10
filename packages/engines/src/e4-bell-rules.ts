@@ -74,6 +74,8 @@ export const HOLD_DUE_SOON = 'sales.hold.due-soon'
 export const HOLD_DUE = 'sales.hold.due'
 /** A bought customer's care day came (ADR 0121 §4); the hourly sweep is the only emitter. */
 export const CUSTOMER_RECARE_DUE = 'sales.after-sale.recare-due'
+/** The morning sum of the low-weight bells (ADR 0145); the digest sweep is the only emitter. */
+export const NOTIFICATION_DIGEST = 'platform.notification.digest'
 export const APPROVAL_WAITING = 'platform.approval.waiting'
 export const APPROVAL_DECIDED = 'platform.approval.decided'
 export const MAIL_RUN_FINISHED = 'platform.mail-run.finished'
@@ -190,6 +192,7 @@ export const NOTIFICATION_RULES: readonly NotificationRule[] = [
   bell('kpi-assignment-late', KPI_ASSIGNMENT_LATE, 'above'),
   bell('kpi-about-to-miss', KPI_FORECAST_FLAGGED, 'holder', (p) => p.data?.flag === 'slip'),
   bell('kpi-about-to-hit', KPI_FORECAST_FLAGGED, 'holder', (p) => p.data?.flag === 'hit'),
+  bell('kpi-digest', NOTIFICATION_DIGEST, 'recipient'),
   bell('overdue-reason-waiting', OVERDUE_REASON_SENT, 'approvers'),
   bell('overdue-reason-decided', OVERDUE_REASON_DECIDED, 'writer'),
 
