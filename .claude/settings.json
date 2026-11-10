@@ -49,6 +49,7 @@
     "andrej-karpathy-skills@karpathy-skills": true,
     "context7@claude-plugins-official": true,
     "github@claude-plugins-official": false,
-    "vercel@claude-plugins-official": true
+    "vercel@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true
   }
 }
