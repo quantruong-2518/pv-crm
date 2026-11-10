@@ -1,6 +1,6 @@
 # Documentation
 
-Four kinds of document live here.
+Five kinds of document live here.
 
 | Folder           | Holds                                                                                                               | Rots?    |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------- | -------- |
@@ -8,12 +8,13 @@ Four kinds of document live here.
 | `decisions/`     | One ratified decision per file, ADR-numbered. Plus `open-questions.md` for what is still unsettled                  | No       |
 | `runbooks/`      | Manual verification procedures. The mail layer deliberately has no automated tests; its runbook is the substitute   | No       |
 | `reviews/`       | Owner-requested assessments tied to a date and revision, with evidence and recommendations; not accepted decisions  | Snapshot |
+| `status.md`      | The one ledger: what is owed and what is next, by module, dated. Open owner questions stay in `decisions/`          | Yes      |
 
 ## What is deliberately not here
 
-**Status** — what is built, what is next, what is owed. It rots by the day and it
-is already readable from `git log` and from the code. Five documents used to
-answer that question and they disagreed with each other.
+**A second status ledger.** What is built, what is next, what is owed rots by
+the day; it lives in `status.md` and nowhere else. Five documents used to answer
+that question and they disagreed with each other.
 
 **Plans and roadmaps.** A plan that survives in a document outlives the reasoning
 that produced it. The decisions that came out of a plan are in `decisions/`; the

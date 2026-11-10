@@ -79,13 +79,14 @@ người, tên công ty) giữ tiếng Việt — đó là _nội dung_, không 
 (`gui-quotation`). Ranh giới đầy đủ ở `docs/decisions/0012-rename-vietnamese-identifiers-in-six-batches.md` —
 đọc trước khi đổi tên bất cứ thứ gì.
 
+Tài liệu trong `docs/` và ADR viết tiếng Anh (`doc-keeper` giữ). Commit message
+và file bàn giao `.claude/HANDOFF-*.md` viết tiếng Việt.
+
 **3 · Ít code nhất giải được bài.** Không trừu tượng hoá cho thứ dùng một lần,
 không cấu hình không ai xin, không bắt lỗi cho tình huống không xảy ra được. Sửa
 đúng thứ được yêu cầu — đừng "cải thiện" code bên cạnh, đừng đổi format vùng
 không liên quan; mỗi dòng đổi phải truy được về yêu cầu. Một file vượt ngưỡng thì
-tách theo `/split`, không để nó phình tiếp (`max-lines` gác). Skill
-`karpathy-guidelines` là bản đầy đủ — **cần cài marketplace `karpathy-skills`
-trước**, `pnpm ctx` sẽ nhắc nếu chưa.
+tách theo `/split`, không để nó phình tiếp (`max-lines` gác).
 
 **4 · Chữ trên màn phải thực sự Việt, sáng nghĩa, tinh gọn.** Sản phẩm B2B,
 người dùng 18–50 tuổi, không cần biết công nghệ vẫn dùng được. Mỗi chuỗi trả lời

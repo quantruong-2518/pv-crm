@@ -1,7 +1,7 @@
 # 0085 · Notifications ring the in-app bell; the three internal mails are dropped
 
 Status: accepted (partially supersedes 0010 on the internal lead-intake mail and its mailbox, 0069 §13; §5 and the "Push delivery" line superseded by 0089, §7's bell sentence superseded by 0089)
-Source: owner decisions 27/09/2026 (flow H, `.claude/HANDOFF-workstream-loop.md`) and 11/10/2026 (wave 1 scope; session notes)
+Source: owner decisions 27/09/2026 (flow H, the retired workstream-loop handover (in git history)) and 11/10/2026 (wave 1 scope; session notes)
 
 ## Context
 

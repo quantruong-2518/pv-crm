@@ -1,7 +1,7 @@
 # 0131 · AI lead fill runs as a background job with a tray, and Undo lives on the finished job
 
 Status: accepted (amends 0128 §1: the press no longer blocks and Undo is no longer a 10 s toast; amends 0130 §7 and §9)
-Source: project owner's decisions in session, 28/10/2026 (slice A-2 of `.claude/HANDOFF-ai.md`)
+Source: project owner's decisions in session, 28/10/2026 (slice A-2 of the retired AI handover; its open items are in `docs/status.md`)
 
 ## Context
 

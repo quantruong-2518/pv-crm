@@ -1,70 +1,67 @@
 # Bàn giao · tối ưu harness Claude trong pv-crm
 
-**Mục tiêu phiên sau:** tối ưu phần harness **trong repo** (`.claude/`, `CLAUDE.md`,
-memory của pv-crm), sau khi tầng global đã dựng xong ngày 10/11/2026.
+**Mục tiêu phiên sau:** commit lượt dọn harness 10/11, rồi chạy thật `screen-inspector`.
 
 ## Đã xong (10/11)
 
 - **Global `~/.claude`** (không theo git; máy khác cài bằng `~/Downloads/claude-kit.tgz` →
-  `node claude-kit/install.mjs`):
-  - `CLAUDE.md`: luật trả lời và cách làm việc chung cho mọi agent.
-  - Skill `dispatch` (bảng model × effort, brief few-shot, vòng review), `handoff`,
-    5 skill mattpocock; agent `worker`.
-  - Hook gác bậc giao việc, hook `freshness`, `SubagentStop` → `~/.claude/metrics/subagents.jsonl`.
-  - Status line phiên chính và status line từng subagent.
-  - Effort mặc định `high`, auto-compact 300k; plugin nghiệp vụ, MCP github, `swift-lsp` đã tắt.
-  - Script ở `~/.claude/skills/dispatch/scripts/`.
-- **Repo:**
-  - `de1d470f`: Gold examples cho 6 agent dựng; `screen-builder`/`api-builder` chạy Sonnet high;
-    trần `maxTurns` + `autoCompactWindow`; agent `screen-inspector`; bỏ `worker-*` và `dispatch` trong repo.
-  - `f40c9f16`: bật `typescript-lsp` (binary cài bằng brew).
-- `gh` đã đăng nhập; GitHub đi qua `gh`, không dùng MCP.
+  `node claude-kit/install.mjs`): `CLAUDE.md`, skill `dispatch`/`handoff`, agent `worker`,
+  hook gác bậc + `freshness` + `SubagentStop`, status line. Lượt dọn:
+  - `dispatch`: chỉ truyền `model`/`effort` khi khác frontmatter; `worker` luôn truyền.
+    `CLAUDE.md`: một lần `Explore` lẻ không cần gọi `dispatch`.
+  - `senera-ui` thêm `disable-model-invocation` (không tự bật ở repo không phải Senera).
+  - `orchestrator` và `i18n-vi-first-workspace` chuyển vào `~/.claude/backups/2026-11-10-harness/`.
+  - `autoMode.environment`: đã sửa visibility, secrets, deploy target, sensitive target.
+    Bốn dòng còn lại bị auto mode chặn (xem "Việc tiếp theo" 1).
+  - Memory rút từ 10KB xuống ~4.8KB; bản sao trước khi dọn ở scratchpad phiên 10/11 (tạm).
+- **Repo (chưa commit, xem `git status`):**
+  - `/build`: bảng vùng thêm `platform/**` → `api-builder`; engines/mail-templates/tools →
+    `worker`; harness → phiên chính. Bỏ phần chép lại `dispatch`.
+  - `dataflow-tracer`, `contract-drafter` lên opus high. `doc-keeper` chỉ sở hữu `docs/**`.
+  - Bỏ agent chạy kịch bản nghiệm thu cùng thư mục kịch bản KPI; tắt plugin `vercel`, gỡ `karpathy-skills`.
+  - `CLAUDE.md` ghi luật ngôn ngữ docs (tiếng Anh) vs commit/handoff (tiếng Việt).
+    `apps/api/CLAUDE.md` thêm mục bẫy.
+  - 10 handoff cũ + `PLAN-kpi.md` + `ship-preflight-0068.sql` chuyển vào `docs/status.md`
+    (sổ trạng thái mới) và ADR 0138–0141; `RESUME.md` (không theo git) đã xoá.
 
 ## Việc tiếp theo, theo thứ tự
 
-1. **Kiểm ở phiên mới** những gì chưa thấy tận mắt: status line hiện đúng · LSP chạy
-   (`LSP` tool trên một file `.tsx`) · skill `sales:*`/`finance:*` đã biến mất · hook
-   `freshness` im lặng khi phiên còn tươi.
-2. **Chạy thật `screen-inspector`** trên một màn còn nợ "soát luật 13" (xem memory
-   `toi-uu-uiux-co-hoi`). Cần app đang chạy: công thức và ba bẫy ở memory
-   `chay-app-de-nhin-bang-mat`. Sửa agent theo những gì gãy.
-3. **Rút gọn `MEMORY.md`** (~10KB, nạp ở mọi phiên): trạng thái ship ("lên production
-   commit X, API vY") chuyển sang sổ trong `docs/` qua `doc-keeper`; memory chỉ giữ sở
-   thích làm việc và nợ đang mở.
-4. **Dọn `.claude/`**: 10 file `HANDOFF-*.md` (mới nhất từ 09/10), `PLAN-kpi.md`,
-   `RESUME.md`, `ship-preflight-0068.sql`. Phần còn sống chuyển vào sổ, còn lại xoá.
-   Việc của `doc-keeper`.
-5. **`CLAUDE.md` của pv-crm**: mục "Ba cửa vào" nhắc `dispatch` global, `screen-inspector`,
-   và cách đo (`agent-cost.mjs --days 7`, `--quality`). Không chép con số vào.
-6. **Sau khoảng một tuần**: `agent-cost.mjs --days 7` và `--quality` → chỉnh bảng Step 3
-   của `dispatch` (Sonnet hay Opus cho builder) theo số đo.
+1. ~~Sửa `autoMode.environment`~~ — xong 10/11 (người dùng chạy script; sao lưu
+   `~/.claude/settings.json.bak-automode`).
+2. **Người dùng tắt** plugin `sales`/`finance`/`marketing`/`operations`/`product-management`/
+   `cowork-plugin-management` trên claude.ai — `enabledPlugins: false` ở máy không gỡ được.
+3. **Commit** lượt dọn: chỉ stage đường dẫn của lượt này (`.claude/`, `docs/`, `CLAUDE.md`,
+   `apps/api/CLAUDE.md`); cây có việc after-sale dở của phiên khác. ADR 0138–0141 có thể
+   đụng số với phiên song song — soát số trước khi commit.
+4. **Chạy thật `screen-inspector`** trên một màn còn nợ "soát luật 13" (`docs/status.md`).
+   Cần app đang chạy: memory `chay-app-de-nhin-bang-mat`.
+5. **Sau khoảng một tuần**: `agent-cost.mjs --days 7` và `--quality` → chỉnh bảng Step 3
+   của `dispatch`.
 
 ## Quyết định đã chốt
 
-- Trò chuyện tiếng Việt; mọi đầu ra mặc định tiếng Anh. Riêng `docs/`, ADR, commit
-  message và handoff của pv-crm giữ tiếng Việt.
-- Builder mặc định Sonnet high + Gold examples; Opus cho quyền, tiền, schema, logic
-  chưa có mẫu, và mọi reviewer.
-- Cache subagent giữ TTL 5 phút (1 giờ tốn hơn trên số đo); lệnh kiểm của đơn vị dưới
-  5 phút, cổng đầy đủ chỉ chạy ở phiên chính.
+- Trò chuyện tiếng Việt; đầu ra mặc định tiếng Anh. `docs/` và ADR tiếng Anh; commit
+  message và handoff tiếng Việt.
+- Builder mặc định Sonnet high + Gold examples; Opus cho quyền, tiền, schema/contract,
+  lần đường dữ liệu, logic chưa có mẫu, và mọi reviewer.
+- Plugin `vercel` tắt; xem build web bằng `vercel` CLI khi cần.
+- Cache subagent giữ TTL 5 phút; lệnh kiểm của đơn vị dưới 5 phút.
 - Neon MCP **không** xác thực: agent không chạy SQL thẳng vào production.
 
 ## Câu hỏi còn mở (chủ dự án chốt)
 
 - Repo `quantruong-2518/pv-crm` đang **PUBLIC** — có cố ý không?
-- Xác thực Vercel MCP qua `/mcp` để agent tự xem build web sau push.
+- `docs/decisions/open-questions.md` Q167–Q172 (tìm kiếm toàn cục, luồng hành trình 27/09).
 - Máy WSL: chạy gói kit; xoá `delegating-work` ở đó vì trùng việc với `dispatch`.
 
 ## Bẫy đã gặp
 
-- Auto mode chặn chép nội dung tải về vào `~/.claude` và chặn sửa `~/.zshrc`: đưa lệnh
-  `!` cho người dùng, đừng lách.
-- Prettier chạy trên file ngoài repo dùng style mặc định (nháy kép, có `;`). Không
-  sao, nhưng đừng format lại file trong repo theo đó.
+- Auto mode chặn sửa ranh giới tin cậy (`autoMode` trong `~/.claude/settings.json`),
+  chép nội dung tải về vào `~/.claude`, sửa `~/.zshrc`: đưa lệnh `!` cho người dùng.
+- Agent dùng `git rm` sẽ stage xoá vào index chung với phiên khác: dặn không stage, hoặc
+  `git reset -q -- <path>` sau khi nó về.
 - `SubagentStop` bắn mỗi lần agent dừng, nên một agent có thể ghi nhiều dòng.
-  `--quality` đã lọc theo `agent`.
 - Thư mục `~/.claude/projects/-Users-…` bắt đầu bằng `-`: lệnh shell phải viết `./-Users…`.
-- Cây làm việc có việc dở của phiên khác: chỉ stage đúng đường dẫn của mình.
 
 ## Skill nên gọi
 

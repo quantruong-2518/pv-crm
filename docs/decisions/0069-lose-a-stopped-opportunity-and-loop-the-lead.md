@@ -6,7 +6,7 @@ paragraphs under "Superseded"; §7 and §8 partially superseded by 0072; §13 su
 Source: project owner's decisions in chat, 29/09/2026
 
 > Superseded in part by 0109: §3's lead returning with a holder — the lead now parks in the holderless pool.
-> (`.claude/HANDOFF-opp-loop.md`, "Đã chốt 29/09/2026" and "Chốt thêm 29/09");
+> (the retired opportunity-loop handover (in git history), "Đã chốt 29/09/2026" and "Chốt thêm 29/09");
 > canvas https://claude.ai/artifact/GWVAqJSDxm87NwbgT6eGB5 (E-Model, E-Main,
 > E-Deal, E-Fall, row F)
 

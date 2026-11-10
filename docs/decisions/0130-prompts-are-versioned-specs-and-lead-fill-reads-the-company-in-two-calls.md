@@ -1,7 +1,7 @@
 # 0130 · Prompts are versioned specs; lead fill reads the company in two calls; size is a band; provinces use the 2025 names
 
 Status: accepted (amends 0128: headcount becomes `sizeBand`, one search call becomes two; amends 0127: the ledger carries `prompt_version`; amended by 0133: chat prompts have no returned fields)
-Source: project owner's decisions in session, 28/10/2026 (slice A-1 of `.claude/HANDOFF-ai.md`)
+Source: project owner's decisions in session, 28/10/2026 (slice A-1 of the retired AI handover; its open items are in `docs/status.md`)
 
 ## Context
 
@@ -94,7 +94,7 @@ expression.
 
 ### 9 · Not in this slice
 
-Many contacts (A-3) and the background tray (A-2); see `.claude/HANDOFF-ai.md`.
+Many contacts (A-3) and the background tray (A-2); see the retired AI handover; its open items are in `docs/status.md`.
 
 _Amendment 28/10/2026 (see 0131): the background tray (A-2) is decided in 0131. Many contacts (A-3) is still not in this slice._
 

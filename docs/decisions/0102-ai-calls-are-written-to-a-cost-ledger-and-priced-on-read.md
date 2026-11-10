@@ -73,4 +73,4 @@ The owner decided on 19/10 to build the cost view first and set no cap.
 - Infra cost (Fly, Neon, Vercel, Resend, VietMap) is a later slice; this one
   is AI only.
 - Context for the proposals work that this ledger serves:
-  `.claude/HANDOFF-ai-proposals.md`.
+  the retired AI-proposals handover; its unbuilt ideas are in `docs/status.md`.

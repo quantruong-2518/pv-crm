@@ -44,3 +44,15 @@ engine, so recursive CTEs, two schemas, `text[]` and `uuid` all behave. Single
 connection only, so it is a development tool: `env.ts` refuses to boot on it
 when `NODE_ENV=production`. For a production-shaped run, `pnpm db:up` starts
 Postgres in Docker and you point `DATABASE_URL` at it — nothing else changes.
+
+Traps:
+
+- On the owner's machines `apps/api/.env` points at **Neon production**. Every
+  db command passes `DATABASE_URL=pglite://…` explicitly; seeding with the plain
+  `.env` wipes production.
+- PGlite has one connection: finish a pool read before opening a transaction,
+  or the transaction waits on itself.
+- There is no 422 in `problem.ts`; a business refusal is a 400 carrying the
+  field key.
+- Parallel sessions add ADRs and migrations: re-check the next number right
+  before writing one.

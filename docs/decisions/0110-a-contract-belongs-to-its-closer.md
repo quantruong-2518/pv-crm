@@ -73,9 +73,9 @@ is used; reviewers must not restyle it to the standard look.
 
 ## Supersedes in part
 
-- `.claude/HANDOFF-workstream-loop.md` §D1 (children inherit the parent's
+- the retired workstream-loop handover (in git history) §D1 (children inherit the parent's
   holder; the run shows the lead's holder): replaced by §1 and §4.
-- `.claude/HANDOFF-workstream-loop.md` §D2 (contract holder inherited from the
+- the retired workstream-loop handover (in git history) §D2 (contract holder inherited from the
   deal): replaced by §1.
 
 ## Rejected

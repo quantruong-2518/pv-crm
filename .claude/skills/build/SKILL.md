@@ -5,26 +5,30 @@ description: Cửa vào duy nhất cho mọi việc nhiều bước ở pv-crm �
 
 # Điều phối một lượt việc
 
-Routing ở đây là **hành vi được chạy**, không phải bảng để đọc rồi tự nhớ. Bảng
-đọc thì mục — đó là lý do phiên bản trước của file này nói "bốn agent" trong khi
-có mười hai.
+Skill global `dispatch` lo phần chung: chia đơn vị, chọn model/effort, mẫu brief,
+vòng review. File này chỉ giữ thứ riêng của pv-crm: **ai sở hữu vùng nào**, brief
+phải nhắc lại gì, và reviewer nào soát.
 
 ## Bước 1 · Hỏi "việc này GHI vào đâu", không hỏi "việc này thuộc nghề gì"
 
 Mỗi agent sở hữu một vùng file. Không ai được ghi ngoài vùng của mình, nên hai
 agent chạy song song **không thể** giẫm lên nhau.
 
-| Vùng sẽ bị ghi                                                     | Agent              |
-| ------------------------------------------------------------------ | ------------------ |
-| `apps/web/src/pages/**` · `apps/web/src/components/**`             | `screen-builder`   |
-| `apps/web/src/data/**`                                             | `screen-builder`   |
-| `apps/api/src/branches/**` (trừ `*.schema.ts`)                     | `api-builder`      |
-| `**/*.schema.ts` · `apps/api/drizzle/**`                           | `migration-writer` |
-| `apps/api/src/platform/mail/**` · `apps/api/src/platform/queue/**` | `capture-builder`  |
-| `packages/contracts/**`                                            | `contract-drafter` |
-| `packages/engines/src/fixtures/**`                                 | `fixture-keeper`   |
-| `docs/**` · mọi `*.md`                                             | `doc-keeper`       |
-| Fly · Neon                                                         | `deploy-guardian`  |
+| Vùng sẽ bị ghi                                                                                 | Agent              |
+| ---------------------------------------------------------------------------------------------- | ------------------ |
+| `apps/web/src/pages/**` · `apps/web/src/components/**` · `apps/web/src/data/**`                | `screen-builder`   |
+| `apps/api/src/branches/**` · `apps/api/src/platform/**` (trừ `*.schema.ts`, `mail/`, `queue/`) | `api-builder`      |
+| `**/*.schema.ts` · `apps/api/drizzle/**`                                                       | `migration-writer` |
+| `apps/api/src/platform/mail/**` · `apps/api/src/platform/queue/**`                             | `capture-builder`  |
+| `packages/contracts/**`                                                                        | `contract-drafter` |
+| `packages/engines/src/fixtures/**`                                                             | `fixture-keeper`   |
+| `packages/engines/src/**` (ngoài fixtures) · `packages/mail-templates/**` · `tools/**`         | `worker`           |
+| `docs/**` · dọn `.claude/HANDOFF-*.md` cũ                                                      | `doc-keeper`       |
+| `.claude/agents/**` · `.claude/skills/**` · mọi `CLAUDE.md` · handoff đang sống                | phiên chính        |
+| Fly · Neon                                                                                     | `deploy-guardian`  |
+
+`worker` không mang luật repo: brief giao cho nó phải nêu biên giới package (mục
+dưới) và luật kiểm của vùng đó.
 
 **Vùng KHÔNG ai sở hữu** — `packages/ui/**`, mọi `index.ts` barrel,
 `apps/web/src/routes.tsx`, `apps/web/src/kit/**`, `packages/tokens/**`,
@@ -32,26 +36,17 @@ agent chạy song song **không thể** giẫm lên nhau.
 qua `sharedRequests`, và context chính áp tay sau khi mọi agent đã về.
 
 Đọc-không-ghi, gọi song song thoải mái: `dataflow-tracer` (đường đi của dữ liệu,
-quyền trên từng chặng) · `rules-reviewer` · `aurora-reviewer` · `Explore` (tìm
-file, đếm chỗ dùng — Haiku là đủ).
+quyền trên từng chặng) · `rule-locator` (luật nghiệp vụ nằm sai tầng) · `Explore`.
 
-## Bước 2 · Đừng đẩy đi thứ nên tự làm
+## Bước 2 · Đọc hẹp
 
-Uỷ quyền tốn một vòng nạp context. Không đáng khi: việc gọn trong **một file đã
-biết đường** · việc đúng bằng câu người dùng vừa nói · kết quả còn phải bàn tiếp
-(agent trả lời một lần, hỏi lại là nạp lại từ đầu).
+Đọc chỗ đã biết thì `grep` lấy khung khai báo (`^export`, `queryOptions(`,
+`@Controller`) rồi đọc đúng khoảng dòng. `pnpm ctx` in %comment mỗi zone — ở
+`packages/contracts` phần lớn byte là văn xuôi, mở cả file là trả tiền đọc văn.
 
-Và luật ngược lại, quan trọng hơn: **đọc rộng không bao giờ làm ở context chính.**
-Cần định vị thì `Explore`; cần đọc chỗ đã biết thì `grep` lấy khung khai báo
-(`^export`, `queryOptions(`, `@Controller`) rồi đọc đúng khoảng dòng. Không mở cả
-file "cho chắc" — `pnpm ctx` in ra %comment mỗi zone, và ở `packages/contracts`
-đọc bốn byte thì ba byte là văn xuôi.
+## Bước 3 · Bốn thứ brief phải nhắc lại
 
-## Bước 3 · Gói brief đứng một mình
-
-Subagent **không thấy** cuộc trò chuyện này. Brief phải tự đủ: việc là gì · mở
-file nào trước · trả về **hình dạng** gì (bảng · danh sách · đường dẫn) · thế nào
-là xong. Bốn thứ luôn phải nhắc lại vì nó không thể tự biết:
+Subagent không tự biết được:
 
 1. **Vùng nó sở hữu**, và câu "ngoài vùng thì ghi vào `sharedRequests`, không tự sửa".
 2. **Kịch bản dữ liệu** — `sao-do` (đã mua) hoặc `das-vina` (chưa mua). Một màn
@@ -61,28 +56,16 @@ là xong. Bốn thứ luôn phải nhắc lại vì nó không thể tự biết
 4. **Trần comment và trần độ dài** (luật 1 và 3) — lint sẽ đỏ, và sửa sau đắt hơn
    viết đúng ngay.
 
-Model, effort và mẫu brief few-shot: theo skill global `dispatch` (Step 3–4) — bảng
-ở đây chọn AI làm, `dispatch` chọn chạy bằng model nào, effort nào. File mẫu cho
-dòng "Gold example" lấy từ mục **Gold examples** của agent được giao.
+File mẫu cho dòng "Gold example" lấy từ mục **Gold examples** của agent được giao.
 
-Gửi mọi agent độc lập **trong cùng một lượt** để chúng chạy song song.
+## Bước 4 · Reviewer, gọi song song
 
-## Bước 4 · Soát trước khi tin
-
-Build agent báo xong **không phải** là xong. Gọi reviewer, và gọi song song:
-
-- `rules-reviewer` — tám lượt soát thứ CI mù: một sự thật một sổ, lỗ quyền, trộn
-  kịch bản, định danh tiếng Việt, ngưỡng bịa ra.
-- `aurora-reviewer` — chỉ khi lượt này đụng màn. Luật 12 · 13 và mặt kính, đọc từ code.
+- `rules-reviewer` — mọi lượt. Thứ CI mù: một sự thật một sổ, lỗ quyền, trộn kịch
+  bản, định danh tiếng Việt, ngưỡng bịa ra.
+- `aurora-reviewer` — khi lượt này đụng màn. Luật 12 · 13 và mặt kính, đọc từ code.
 - `screen-inspector` — cùng lúc với `aurora-reviewer`, khi có app đang chạy: mở màn
   thật, đo tương phản, cỡ nút tablet, số lớp nền ở cả ba theme.
 
-Không gộp reviewer vào build agent. Người viết không soát được chính mình, và
-gộp vào là mất cả hai.
-
 ## Bước 5 · Đóng lượt
 
-`/check`. Dừng ở tầng đủ dùng, nhưng **nói rõ đã dừng ở tầng nào** — "đã kiểm"
-mà chỉ chạy `check:fast` là báo cáo sai.
-
-Còn `openDecisions` chưa ai trả lời thì đưa lên, đừng tự quyết thay chủ dự án.
+`/check`, và nói rõ đã dừng ở tầng nào.

@@ -1,7 +1,7 @@
 ---
 name: dataflow-tracer
 description: Trace the path of data in pv-crm — from a screen, through its query and the interceptor chain, into the controller, service and repository on apps/api, down to the table; list every endpoint, the permission each one demands on all three axes, and every hole. Use when designing an API, auditing permissions, or before cutting a screen off its fixture.
-model: sonnet
+model: opus
 effort: high
 tools: Read, Grep, Glob
 maxTurns: 120

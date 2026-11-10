@@ -84,6 +84,10 @@ checked against `git show` if the original is ever needed.
     customer journey but explicitly does not reverse ADR 0030's exclusion of
     invoicing and receivables — the owner has not ruled on it either way.
     _(see ADR 0054)_
+    **Note 10/11/2026:** ADR 0140 §1 records a 27/09/2026 rule that invoices
+    are only recorded (number, date; date and amount collected), never issued,
+    which the handover said answers this in practice. It is not ruled here
+    whether that closes this question or conflicts with ADR 0030 §4.
 22. **Should `account.view`/`account.edit` gain an `ownOnly` scope axis** now
     that `sales.account.owner_id` exists (ADR 0056). Adding the column does not
     by itself answer whether account visibility should be scoped to its
@@ -105,7 +109,7 @@ checked against `git show` if the original is ever needed.
 ## Shared flows (added 28/09/2026)
 
 Raised while drawing row F of the workstream canvas. The decisions they hang on
-are in `.claude/HANDOFF-workstream-loop.md`; the presale ones are ADR 0067.
+are in the retired workstream-loop handover (in git history); the presale ones are ADR 0067.
 
 24. **The "done" label of the shared due ladder.** `DueLevel` now covers next
     steps, installments, rollout milestones and time spent at a rung, but the
@@ -741,3 +745,32 @@ Raised while building wave 1 of the chat (ADR 0136).
 
 166.  **Should a co-owner on a signed deal see records their own books hide?**
       The profile door shows them; the book does not. _(see ADR 0136 §3)_
+
+## Global search (added 10/11/2026)
+
+Recorded from the plan's own "Còn mở" list (ADR 0138), 08/10/2026.
+
+167. **May a test lock `sales.fold` (SQL) to `fold` (TS)?** The repo rule is no
+     self-generated tests; the plan proposed one permitted exception, because a
+     drift between the two is a silent wrong search. _(see ADR 0138 §2)_
+
+168. **Field conditions (`email:`, `sđt:`, `mst:`, `phụ trách:`)** — left to
+     round 2. _(see ADR 0138 §1)_
+
+169. **Search inside content (notes, comms, meeting minutes)** — left to round
+     2; it needs `tsvector`, which is a separate job. _(see ADR 0138 §2)_
+
+170. **How long is the search log kept, and who may see the "searched, not
+     found" statistics?** _(see ADR 0138 §7)_
+
+## Journey flows from 27/09/2026 (added 10/11/2026)
+
+Raised by recording the retired handover's flows as ADRs 0139 to 0141.
+
+171. **Does "máy sinh PDF báo giá từ dòng hàng" (flow J, item 1) stand against
+     ADR 0029's exclusion of server-side PDF generation?** Both are written
+     down; neither was reconciled. _(see ADR 0139, ADR 0029)_
+
+172. **Does a leaver's work go to the head of sales without asking (27/09
+     rule), or to a receiver named at the lock screen (ADR 0097 §7)?**
+     _(see ADR 0141, ADR 0097 §7)_

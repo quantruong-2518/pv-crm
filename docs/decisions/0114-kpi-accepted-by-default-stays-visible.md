@@ -1,7 +1,7 @@
 # 0114 · A target accepted by default stays visible as such, on every screen and across a reissue
 
 Status: accepted (amends 0100 §B and its default "A reissued package keeps a missed deadline")
-Source: KPI plan, wave 1d (`.claude/PLAN-kpi.md`), from the owner's target design of 22/10/2026 ("Nhân viên không
+Source: KPI plan, wave 1d (the retired KPI plan (in git history)), from the owner's target design of 22/10/2026 ("Nhân viên không
 trả lời: coi như nhận như hiện nay, nhưng ghi 'mặc định nhận' thay vì 'đã xác nhận'"). Migration 0135.
 
 ## Context

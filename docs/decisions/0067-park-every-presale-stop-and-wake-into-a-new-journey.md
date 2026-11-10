@@ -10,7 +10,7 @@ catalogue covers `nurturing`) settled and §9/D4 carried out as described,
 both by 0070; §4's "never put into a campaign and never mailed" superseded by
 0088 (warn only)
 Source: project owner's answers to D1–D11 in session, 28/09/2026; the shared
-flows C, A2, D, G and H agreed 27/09 (`.claude/HANDOFF-workstream-loop.md`,
+flows C, A2, D, G and H agreed 27/09 (the retired workstream-loop handover (in git history),
 "Luồng chung"); the presale plan page
 https://claude.ai/artifact/Ho7qfF1zV5M93Tv5x5LSXV, §1 "Luồng đích" and §3
 "Chênh lệch"

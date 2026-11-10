@@ -3,7 +3,6 @@
   "permissions": {
     "allow": [
       "Bash(pnpm check:*)",
-      "Bash(pnpm check:fast:*)",
       "Bash(pnpm typecheck:*)",
       "Bash(pnpm lint:*)",
       "Bash(pnpm format:check:*)",
@@ -46,10 +45,9 @@
     ]
   },
   "enabledPlugins": {
-    "andrej-karpathy-skills@karpathy-skills": true,
     "context7@claude-plugins-official": true,
     "github@claude-plugins-official": false,
-    "vercel@claude-plugins-official": true,
+    "vercel@claude-plugins-official": false,
     "typescript-lsp@claude-plugins-official": true
   }
 }

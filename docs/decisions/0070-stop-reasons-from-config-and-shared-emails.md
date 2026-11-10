@@ -4,7 +4,7 @@ Status: accepted (§B partly superseded by 0084 on file-import duplicates; narro
 admin-editable catalogue; settles 0067 §4's open question of whether the
 catalogue also covers `nurturing` entries — yes; resolves 0068's Open item on
 the stop record/reason catalogue; implements 0067 §9 (D4) as described; pays
-the debt flagged in `.claude/HANDOFF-workstream-loop.md`, "Còn nợ nhỏ: E2 so
+the debt flagged in the retired workstream-loop handover (in git history), "Còn nợ nhỏ: E2 so
 người giữ bằng tên")
 Source: project owner's decisions in chat, 29/09/2026
 
@@ -73,7 +73,7 @@ actor's id. `owner` (the display name) stays on the ref for rendering only —
 it is never compared. A ref that names a holder without an id fails closed:
 it reads as belonging to someone else, the same as before the fix, rather
 than being treated as unowned. This closes the debt flagged in
-`.claude/HANDOFF-workstream-loop.md` ("Còn nợ nhỏ: E2 so người giữ bằng tên")
+the retired workstream-loop handover (in git history) ("Còn nợ nhỏ: E2 so người giữ bằng tên")
 and in the code comments marked "debt #2" (`packages/contracts/src/sales/lead.ts`,
 `packages/contracts/src/sales/lead-import.ts`, `apps/api/src/branches/sales/lead/lead.service.ts`,
 `apps/api/src/branches/sales/lead/lead.repository.ts`): two staff sharing one
