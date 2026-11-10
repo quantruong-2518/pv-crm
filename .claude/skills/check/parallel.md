@@ -7,6 +7,12 @@ chủ dự án đã dặn để yên.
 
 Chỉ commit việc của mình, để nguyên việc của họ trong cây.
 
+Cây mang việc của phiên song song thì file này thắng luồng chung của skill `commit`.
+
+Phiên chính không tự chạy chuỗi dưới đây: giao `worker` (haiku) kèm danh sách file
+của mình, thông điệp commit và đường dẫn scratchpad; worker chạy đủ các bước 1–5 và
+kiểm trên commit đã dựng, phiên chính chỉ đọc kết quả báo về (hash commit, `git status`).
+
 **Cố ý KHÔNG dùng `git commit`**: hook `pre-commit` chạy `lint-staged`, thứ này
 **stash mọi thứ chưa stage** — tức là ôm luôn việc đang dở của phiên kia và có
 thể làm mất.

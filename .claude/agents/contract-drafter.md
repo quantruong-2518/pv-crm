@@ -1,7 +1,7 @@
 ---
 name: contract-drafter
 description: Draft data contracts in zod, shared by frontend and backend — the schema is the single source of types and TS is inferred from it. Use when adding a new endpoint or changing the shape of data.
-model: opus
+model: sonnet
 effort: high
 tools: Read, Grep, Glob, Write, Edit
 maxTurns: 100

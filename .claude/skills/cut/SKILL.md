@@ -60,7 +60,7 @@ alongside.
 
 ## Step 4 · The route on `apps/api`
 
-One domain is one directory under `apps/api/src/branches/sales/<domain>/`,
+Delegate to `api-builder`; the main session writes none of it. One domain is one directory under `apps/api/src/branches/sales/<domain>/`,
 following the existing shape: `*.module.ts` · `*.service.ts` · `*.repository.ts` ·
 `*.mapper.ts` · `*.schema.ts` (Drizzle) · `*.constraints.ts`.
 
@@ -70,12 +70,13 @@ owning controller and this module only `exports` its service. A separate control
 would have to read the data before knowing whose scope to cut it by — **deciding
 permission after reading is the wrong order**.
 
-New tables mean a migration SQL file under `apps/api/drizzle/`, then `db:migrate`.
-**Read the SQL and confirm there is no `DROP` before running it.**
+New tables mean a migration SQL file under `apps/api/drizzle/`, written by
+`migration-writer`, which also runs `db:migrate`. **The main session reads the SQL
+and confirms there is no `DROP` before that run.**
 
 ## Step 5 · Drop `load:`
 
-Delete exactly that `load:` line from the `queryOptions` — leave `queryKey` and
+`screen-builder` deletes exactly that `load:` line from the `queryOptions` — leave `queryKey` and
 `need` alone. If the file's docblock claims it still has `load:`, update it to
 match; the existing shape is in `data/mas.ts` and `data/meetings.ts`, a short block
 stating that the query is cut over and why.
@@ -90,12 +91,12 @@ pnpm dev        # run_in_background, never nohup
 ```
 
 The screen must show numbers. A browser error `does not provide an export named X`
-while `typecheck` is green is **the Vite cache**, not a bug — xoá `node_modules/.vite` rồi chạy lại. It shows
+while `typecheck` is green is **the Vite cache**, not a bug — `worker` (haiku) xoá `node_modules/.vite`, rồi chạy lại. It shows
 up especially on this pass, because step 3 just touched the `packages/contracts`
 barrel file.
 
 ## Step 7 · Close the books
 
 - Nothing to update anywhere: dropping the `load:` line is itself the record.
-- Chạy `/check`. This pass touched `packages/contracts`, a **shared layer**, so
+- Chạy `/check`; commit goes through the `commit` skill, not by hand. This pass touched `packages/contracts`, a **shared layer**, so
   it must reach tier 2; stopping at `check:fast` is not enough.

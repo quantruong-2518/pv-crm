@@ -1,7 +1,7 @@
 ---
 name: capture-builder
 description: Build inbound capture adapters and outbound channel plugins for pv-crm — mailbox sync, chat and telephony webhooks, pg-boss consumers — where idempotency, signature checking and dropping what must not be stored are the whole job. Use for the comms capture layer and content channel plugins.
-model: opus
+model: sonnet
 effort: high
 tools: Read, Grep, Glob, Write, Edit, Bash
 maxTurns: 150

@@ -1,7 +1,7 @@
 ---
 name: migration-writer
 description: Write drizzle table definitions and the matching SQL migration for pv-crm — columns, CHECK constraints, indexes, foreign keys — and prove each constraint by making it refuse a deliberately wrong row. Use when a turn adds or changes tables.
-model: opus
+model: sonnet
 effort: high
 tools: Read, Grep, Glob, Write, Edit, Bash
 maxTurns: 100

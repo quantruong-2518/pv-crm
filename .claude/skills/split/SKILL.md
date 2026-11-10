@@ -28,6 +28,10 @@ Còn dài vì một hàm làm bốn việc, hoặc một màn ôm cả tính to�
 
 ## Đường cắt, theo zone
 
+Phiên chính chọn đường cắt rồi giao người sở hữu vùng (bảng ở `/build`): màn web →
+`screen-builder` · service backend → `api-builder` · contract → `contract-drafter` ·
+ngoại lệ trong `eslint.config.js` → `worker`. Nó không tự di chuyển code.
+
 **Màn web** — ví dụ thật đang quá trần: `apps/web/src/pages/leads.tsx`
 
 - `<màn>-parts.tsx` — các khối render tách thành component, vẫn thuộc màn đó.
@@ -65,5 +69,6 @@ Nếu sau đó vẫn quá trần thì cắt theo **object**, không cắt theo `
 
 ## Chứng minh
 
-`pnpm check:fast` xanh, và `pnpm lint:prune` — file đã sửa xong phải **rụng khỏi**
+`pnpm check:fast` xanh, và `pnpm lint:prune` (ghi vào `eslint-suppressions.json`, nên
+agent vừa tách chạy, phiên chính đọc kết quả) — file đã sửa xong phải **rụng khỏi**
 `eslint-suppressions.json`. Suppressions không giảm nghĩa là chưa thật sự xong.

@@ -28,22 +28,28 @@
 
 1. ~~Sửa `autoMode.environment`~~ — xong 10/11 (người dùng chạy script; sao lưu
    `~/.claude/settings.json.bak-automode`).
-2. **Người dùng tắt** plugin `sales`/`finance`/`marketing`/`operations`/`product-management`/
+2. **Người dùng chạy** `! node <scratchpad>/patch-settings.mjs` (bật
+   `CLAUDE_CODE_SUBAGENT_MODEL=sonnet` + hook `guard-main-writes`; sao lưu
+   `settings.json.bak-opus-guard`). Sau đó mở phiên mới, thử: phiên chính Edit một file repo
+   phải bị chặn; một `worker` Edit thì qua. Đóng gói lại `claude-kit.tgz` cho máy WSL.
+3. **Người dùng tắt** plugin `sales`/`finance`/`marketing`/`operations`/`product-management`/
    `cowork-plugin-management` trên claude.ai — `enabledPlugins: false` ở máy không gỡ được.
-3. **Commit** lượt dọn: chỉ stage đường dẫn của lượt này (`.claude/`, `docs/`, `CLAUDE.md`,
+4. **Commit** lượt dọn: chỉ stage đường dẫn của lượt này (`.claude/`, `docs/`, `CLAUDE.md`,
    `apps/api/CLAUDE.md`); cây có việc after-sale dở của phiên khác. ADR 0138–0141 có thể
    đụng số với phiên song song — soát số trước khi commit.
-4. **Chạy thật `screen-inspector`** trên một màn còn nợ "soát luật 13" (`docs/status.md`).
+5. **Chạy thật `screen-inspector`** trên một màn còn nợ "soát luật 13" (`docs/status.md`).
    Cần app đang chạy: memory `chay-app-de-nhin-bang-mat`.
-5. **Sau khoảng một tuần**: `agent-cost.mjs --days 7` và `--quality` → chỉnh bảng Step 3
+6. **Sau khoảng một tuần**: `agent-cost.mjs --days 7` và `--quality` → chỉnh bảng Step 3
    của `dispatch`.
 
 ## Quyết định đã chốt
 
 - Trò chuyện tiếng Việt; đầu ra mặc định tiếng Anh. `docs/` và ADR tiếng Anh; commit
   message và handoff tiếng Việt.
-- Builder mặc định Sonnet high + Gold examples; Opus cho quyền, tiền, schema/contract,
-  lần đường dữ liệu, logic chưa có mẫu, và mọi reviewer.
+- **Opus chỉ cho việc khó, lập luận, kế hoạch, review** (chốt 10/11). Mọi agent dựng chạy
+  sonnet (haiku cho lệnh cố định, commit, push); một đơn vị dựng chạy opus chỉ khi brief có
+  dòng `Why opus:`. Phiên chính (opus) không tự ghi: hook `guard-main-writes.mjs` chặn,
+  trừ memory, handoff, scratchpad. Skill `commit` chạy fork trên haiku.
 - Plugin `vercel` tắt; xem build web bằng `vercel` CLI khi cần.
 - Cache subagent giữ TTL 5 phút; lệnh kiểm của đơn vị dưới 5 phút.
 - Neon MCP **không** xác thực: agent không chạy SQL thẳng vào production.

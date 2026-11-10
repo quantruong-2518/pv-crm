@@ -28,10 +28,11 @@ git diff HEAD --stat
 - **`--stat` nhiều dòng hơn mình nhớ đã sửa** là tín hiệu rẻ nhất rằng có phiên
   thứ hai đang chạy.
 - **Không bao giờ `rm` hay ghi đè file mình không tạo ra trong lượt này.** Nghi
-  thì `mv x x.bak` — đảo lại được; `rm` thì không.
+  thì giao `worker` (haiku) `mv x x.bak` — đảo lại được; `rm` thì không.
 
 Rời tầng 0 với hai danh sách trong tay: **file của mình** và **file của phiên kia**.
-Nếu cây bẩn vì phiên song song, đọc `parallel.md` cạnh file này trước khi commit.
+Nếu cây bẩn vì phiên song song, đọc `parallel.md` cạnh file này trước khi commit,
+và đưa nó vào brief cho worker haiku chạy commit.
 
 ## Tầng 1 · Kiểm nhanh — mặc định
 
@@ -45,6 +46,10 @@ Bỏ `test` và `build` — hai bước chậm nhất, và repo cố ý không c
 `lint` đỏ vì `aurora/comments-in-english`, `aurora/comment-budget` hay
 `max-lines`: xem file đã nằm trong `eslint-suppressions.json` chưa. **Vi phạm mới
 mới làm CI đỏ**, nợ cũ đã khoá. `pnpm lint:debt` cho biết còn nợ ở đâu.
+
+`format:check` đỏ: phiên chính chỉ đọc danh sách file, rồi giao `worker` (haiku)
+chạy `prettier --write` đúng những file đó. Lint sửa được bằng `--fix` cũng đi
+đường này.
 
 Dừng ở đây là hợp lệ — **miễn là nói rõ đã dừng ở tầng nào**. Không bao giờ báo
 "đã kiểm xong" chỉ dựa trên `check:fast`.
@@ -69,7 +74,9 @@ dựng**: xem `parallel.md`.
 
 ## Đóng sổ
 
-- Commit message: tiếng Việt, giữ giọng đã có trong `git log`.
+- Phiên chính không tự `git add`/`commit`/`push`: gọi skill `commit` (worker haiku)
+  kèm đúng đường dẫn của mình. Commit message tiếng Việt, giữ giọng đã có trong
+  `git log`.
 - **Việc xong mà chưa commit là việc nằm trên băng chuyền** — phiên kia có thể
   quét cả cây vào commit của họ. Xong là commit, đừng để dồn.
 - Thứ cố ý không đưa vào repo (migration chưa duyệt, bản nháp) **không được nằm

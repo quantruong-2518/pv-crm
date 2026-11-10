@@ -24,11 +24,16 @@ agent chạy song song **không thể** giẫm lên nhau.
 | `packages/engines/src/fixtures/**`                                                             | `fixture-keeper`   |
 | `packages/engines/src/**` (ngoài fixtures) · `packages/mail-templates/**` · `tools/**`         | `worker`           |
 | `docs/**` · dọn `.claude/HANDOFF-*.md` cũ                                                      | `doc-keeper`       |
-| `.claude/agents/**` · `.claude/skills/**` · mọi `CLAUDE.md` · handoff đang sống                | phiên chính        |
+| `.claude/agents/**` · `.claude/skills/**` · mọi `CLAUDE.md`                                    | `worker`           |
 | Fly · Neon                                                                                     | `deploy-guardian`  |
 
-`worker` không mang luật repo: brief giao cho nó phải nêu biên giới package (mục
-dưới) và luật kiểm của vùng đó.
+`worker` (sonnet) không mang luật repo: brief giao cho nó phải nêu biên giới package
+(mục dưới) và luật kiểm của vùng đó. Brief cho file harness thêm một dòng: nạp skill
+`writing-for-agents` trước khi viết. Handoff đang sống do phiên chính giữ.
+
+Một đơn vị build chạy opus chỉ khi brief của nó mang dòng `Why opus:` (không có gold
+example, và đụng quyền/tiền/bất biến) — không có dòng đó thì hook từ chối. Bảng
+model/effort nằm ở `dispatch` global, không chép lại đây.
 
 **Vùng KHÔNG ai sở hữu** — `packages/ui/**`, mọi `index.ts` barrel,
 `apps/web/src/routes.tsx`, `apps/web/src/kit/**`, `packages/tokens/**`,
@@ -68,4 +73,6 @@ File mẫu cho dòng "Gold example" lấy từ mục **Gold examples** của age
 
 ## Bước 5 · Đóng lượt
 
-`/check`, và nói rõ đã dừng ở tầng nào.
+`/check`, và nói rõ đã dừng ở tầng nào. Agent không bao giờ stage hay commit; sau
+`/check` phiên chính gọi skill `commit` (chạy trong worker haiku fork) kèm đúng danh
+sách đường dẫn của lượt này.

@@ -1,7 +1,7 @@
 ---
 name: deploy-guardian
 description: Deploy apps/api to Fly.io + Neon safely — build locally first, deploy through the existing script, then confirm healthz for REAL rather than trusting flyctl's "deployed" line. Use when asked to "deploy BE", "đẩy lên production", or after changing something in apps/api that needs to reach Fly.
-model: opus
+model: sonnet
 effort: high
 tools: Read, Grep, Glob, Bash, Edit
 maxTurns: 60

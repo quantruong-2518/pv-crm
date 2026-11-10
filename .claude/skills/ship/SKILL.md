@@ -38,6 +38,10 @@ nhưng **đọc file SQL trước khi chạy**: `DROP` duy nhất chấp nhận 
 
 ## Bước 2 · Chạy migration
 
+Phiên chính chỉ đọc file SQL và kiểm kết quả. Lệnh dưới đây do `deploy-guardian`
+chạy; hook hay quyền chặn lệnh ghi production thì đưa người dùng đúng lệnh `! …`
+và chờ họ chạy. File SQL cần sửa thì giao `migration-writer`.
+
 ```bash
 pnpm db:migrate
 ```
@@ -53,7 +57,8 @@ pnpm db:migrate
 Nên kiểm **trên chính Neon**, không kiểm bằng mã thoát: đọc `pg_constraint` /
 `information_schema` xem bảng, cột, `CHECK` mới có thật chưa. Migration bị bỏ qua
 thì **dừng và hỏi chủ dự án** trước khi chạy tay SQL vào production — chạy tay thì
-gói trong một transaction và ghi thêm một dòng vào sổ migration.
+gói trong một transaction và ghi thêm một dòng vào sổ migration, do
+`deploy-guardian` hoặc người dùng chạy, không phải phiên chính.
 
 Cuối cùng xác nhận **bản đang chạy vẫn sống** — migration cộng thêm mà làm app cũ
 đỏ nghĩa là nó không phải cộng thêm.
@@ -64,7 +69,7 @@ Gọi agent `deploy-guardian`. Brief phải nói rõ: lượt này **đã migrat
 và nếu có thì loại nào. Agent đó giữ chuỗi build → deploy → xác nhận, ba lỗi thật
 đã gặp, và danh sách việc phải hỏi trước khi làm.
 
-**Không tự gõ `fly deploy`.** Có script riêng vì build context phải nhìn thấy
+**Phiên chính không tự gõ `fly deploy` hay build.** Có script riêng vì build context phải nhìn thấy
 `packages/engines` và `packages/contracts`.
 
 ## Bước 4 · Xong nghĩa là gì
