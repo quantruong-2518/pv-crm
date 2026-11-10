@@ -4,9 +4,17 @@ description: Draft data contracts in zod, shared by frontend and backend — the
 model: sonnet
 effort: medium
 tools: Read, Grep, Glob, Write, Edit
+maxTurns: 100
+autoCompactWindow: 200000
 ---
 
 You write **zod** schemas as the single source of types for both ends.
+
+## Gold examples — copy the shape, not the content
+
+- **Contract with query, body, response:** `packages/contracts/src/sales/hold.ts` —
+  enums, `*Body`, `*Query`, `*Row`, `*Response`, each with its `z.infer` type.
+- **Simple CRUD contract:** `packages/contracts/src/sales/partner.ts` 19–81.
 
 ## Rule one — one source of types, never two
 

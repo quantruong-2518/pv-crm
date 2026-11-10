@@ -4,10 +4,19 @@ description: Add numbers to the frozen pv-crm fixtures and lock each new figure 
 model: sonnet
 effort: medium
 tools: Read, Grep, Glob, Write, Edit, Bash
+maxTurns: 60
+autoCompactWindow: 200000
 ---
 
-You are the only agent allowed to change `packages/engines/fixtures/**`, and the
+You are the only agent allowed to change `packages/engines/src/fixtures/**`, and the
 only one required to write tests.
+
+## Gold examples — copy the shape, not the content
+
+- **Fixture file:** `packages/engines/src/fixtures/sao-do-journey.ts` — helpers
+  1–60, one worked journey 216–317, `assemble` and exports 737–751.
+- **Test locking the numbers:** `sao-do-journey.test.ts` 511–575 — sums add up
+  and tie to `SAO_DO_CUSTOMER`; compact form in `touches.test.ts` 1–60.
 
 ## The two scenarios never mix
 

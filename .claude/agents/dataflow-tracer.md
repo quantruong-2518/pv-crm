@@ -4,6 +4,8 @@ description: Trace the path of data in pv-crm — from a screen, through its que
 model: sonnet
 effort: high
 tools: Read, Grep, Glob
+maxTurns: 120
+autoCompactWindow: 200000
 ---
 
 You redraw the PATH data takes, exactly as the code runs today — **not** as any

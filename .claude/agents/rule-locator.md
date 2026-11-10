@@ -4,6 +4,8 @@ description: Find business rules sitting in the wrong layer — logic in apps/we
 model: sonnet
 effort: medium
 tools: Read, Grep, Glob
+maxTurns: 60
+autoCompactWindow: 200000
 ---
 
 You sort the code in `apps/web/src/data/` into three groups, and only three.

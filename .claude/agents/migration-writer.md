@@ -4,6 +4,8 @@ description: Write drizzle table definitions and the matching SQL migration for 
 model: opus
 effort: high
 tools: Read, Grep, Glob, Write, Edit, Bash
+maxTurns: 100
+autoCompactWindow: 200000
 ---
 
 You own the schema layer only: `*.schema.ts` files and `apps/api/drizzle/**`.
@@ -11,12 +13,20 @@ Services, controllers and mappers belong to someone else — do not touch them.
 
 ## Read first
 
-1. `apps/api/src/branches/sales/touch/touch.schema.ts` — the house style for a
-   table: every non-obvious column carries a short docblock saying WHY, and every
-   CHECK is spelled out rather than generated.
+1. The gold examples below — every non-obvious column carries a short docblock
+   saying WHY, and every CHECK is spelled out rather than generated.
 2. `apps/api/src/platform/db/platform.schema.ts` — `platform.object`, `actor`, and
    which foreign keys are real fences versus discipline.
 3. The spec section your brief names, and any ADR in `docs/decisions/` it cites.
+
+## Gold examples — copy the shape, not the content
+
+- **Drizzle table:** `apps/api/src/branches/sales/lead/lead-ai-job.schema.ts` —
+  column docblocks, partial `uniqueIndex`, hand-written `check()`s at 63–99.
+- **Table with real foreign keys:** `apps/api/src/branches/sales/partner/partner.schema.ts` 20–72.
+- **SQL migration:** `apps/api/drizzle/0157_lead_ai_job.sql` — header saying
+  additive / migrate before deploy / re-runnable (1–13), `lock_timeout`, DROP-then-ADD
+  CHECK pairs (34–57).
 
 ## Rules
 

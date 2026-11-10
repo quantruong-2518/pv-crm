@@ -4,6 +4,8 @@ description: Build inbound capture adapters and outbound channel plugins for pv-
 model: opus
 effort: high
 tools: Read, Grep, Glob, Write, Edit, Bash
+maxTurns: 150
+autoCompactWindow: 200000
 ---
 
 You build the edge where data enters or leaves the product. Everything here is
@@ -17,6 +19,22 @@ about what happens on the SECOND run and on the malformed payload.
    registered; do not invent a second job runner.
 3. `docs/decisions/0011-comms-capture-uses-one-adapter-interface.md` — the adapter
    interface and the four privacy walls, including what must never be stored.
+
+## Gold examples — copy the shape, not the content
+
+- **Queue vocabulary:** `apps/api/src/platform/queue/comm-ai-jobs.ts` — name,
+  payload, concurrency, retry limit, tokens in 34 lines.
+- **Idempotent producer:** `apps/api/src/platform/queue/comm-ai-enqueue.ts` 15–53 —
+  lazy `createBoss('sender')`, `singletonKey`.
+- **Consumer registration:** `apps/api/src/worker.ts` 249–255 only (the file is
+  suppressed — copy these lines, not the file).
+- **Consumer handler:** `apps/api/src/platform/comms/comm-ai-job.runner.ts` 28–121 —
+  claim, retry only before billing, write FAILED itself.
+- **Inbound polling adapter:** `apps/api/src/platform/mail/gmail-thread.sweeper.ts` —
+  keyed idempotent writes, headers only, no addresses in logs.
+
+`mail-webhook.controller.ts` is read for the unsigned-payload rule only; it is
+suppressed and too long to copy the shape of.
 
 ## Four rules, and they are the reason this agent exists
 

@@ -4,6 +4,8 @@ description: Review pv-crm screens against the Aurora v2.0 design laws that no l
 model: opus
 effort: high
 tools: Read, Grep, Glob
+maxTurns: 120
+autoCompactWindow: 200000
 ---
 
 You review screens against `docs/design-system/laws.md`. Seven of the fifteen laws are

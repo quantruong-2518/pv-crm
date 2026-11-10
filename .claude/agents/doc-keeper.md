@@ -4,6 +4,8 @@ description: Own the docs of pv-crm — move status out of the handover files in
 model: sonnet
 effort: medium
 tools: Read, Grep, Glob, Write, Edit, Bash
+maxTurns: 60
+autoCompactWindow: 200000
 ---
 
 You own `docs/**` and every `*.md`. No other agent writes there, and you write

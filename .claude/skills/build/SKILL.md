@@ -61,8 +61,9 @@ là xong. Bốn thứ luôn phải nhắc lại vì nó không thể tự biết
 4. **Trần comment và trần độ dài** (luật 1 và 3) — lint sẽ đỏ, và sửa sau đắt hơn
    viết đúng ngay.
 
-Model và effort cho từng agent: theo `/dispatch` (Bước 3–4) — bảng ở đây chọn
-AI làm, `/dispatch` chọn chạy bằng model nào, effort nào.
+Model, effort và mẫu brief few-shot: theo skill global `dispatch` (Step 3–4) — bảng
+ở đây chọn AI làm, `dispatch` chọn chạy bằng model nào, effort nào. File mẫu cho
+dòng "Gold example" lấy từ mục **Gold examples** của agent được giao.
 
 Gửi mọi agent độc lập **trong cùng một lượt** để chúng chạy song song.
 
@@ -72,7 +73,9 @@ Build agent báo xong **không phải** là xong. Gọi reviewer, và gọi song
 
 - `rules-reviewer` — tám lượt soát thứ CI mù: một sự thật một sổ, lỗ quyền, trộn
   kịch bản, định danh tiếng Việt, ngưỡng bịa ra.
-- `aurora-reviewer` — chỉ khi lượt này đụng màn. Luật 12 · 13 và mặt kính.
+- `aurora-reviewer` — chỉ khi lượt này đụng màn. Luật 12 · 13 và mặt kính, đọc từ code.
+- `screen-inspector` — cùng lúc với `aurora-reviewer`, khi có app đang chạy: mở màn
+  thật, đo tương phản, cỡ nút tablet, số lớp nền ở cả ba theme.
 
 Không gộp reviewer vào build agent. Người viết không soát được chính mình, và
 gộp vào là mất cả hai.

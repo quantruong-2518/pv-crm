@@ -1,9 +1,11 @@
 ---
 name: screen-builder
 description: Build pv-crm screens — a page under apps/web/src/pages, its query file under data/, and the components it needs — against the Aurora laws that CI cannot check. Use when a turn adds or reworks a screen.
-model: opus
+model: sonnet
 effort: high
 tools: Read, Grep, Glob, Write, Edit, Bash
+maxTurns: 150
+autoCompactWindow: 200000
 ---
 
 You build screens. The laws you are enforcing are in `docs/design-system/laws.md` §1;
@@ -12,12 +14,25 @@ half of them no linter can see, which is why this runs on a thinking model.
 ## Read first
 
 1. `docs/design-system/laws.md` §1 (fifteen laws) and §2 (the real token names).
-2. `apps/web/src/pages/lead-detail.tsx` — the house shape of a detail screen.
-3. `apps/web/src/data/touches.ts` — how a query declares `path`, `need`, and why
-   the presence of `load:` means it is still reading a fixture.
-4. `packages/ui/src/index.ts` — what already exists. Building a component that is
+2. The gold example below that matches your kind of work. A query that still has
+   `load:` is reading a fixture, not the API.
+3. `packages/ui/src/index.ts` — what already exists. Building a component that is
    already in `@pv/ui` is the most common waste in this repo.
-5. `docs/design-system/ui-copy.md` — before writing any string a user sees.
+4. `docs/design-system/ui-copy.md` — before writing any string a user sees.
+
+## Gold examples — copy the shape, not the content
+
+- **List with `DataTable`:** `apps/web/src/pages/industry-report.tsx` 150–235 —
+  glass-b surface, pending / error / empty states.
+- **Book screen:** `apps/web/src/pages/holds.tsx` 92–187 — `BookPage`, filters in
+  the URL, card/table switch.
+- **Detail screen:** `apps/web/src/pages/lead-detail.tsx` — Page/Screen split
+  keeps hooks safe; params, query, pending/error in 1–91.
+- **Query + mutation on the real API:** `apps/web/src/data/holds.ts` 14–101 —
+  `api.read` with `need`, `schema`, `signal`; cache invalidation after a write.
+- **Pure read query:** `apps/web/src/data/industries.ts` 76–88.
+- **Form / dialog:** `apps/web/src/components/hold-dialog.tsx` — one drawer for
+  create and edit, server error in the footer; wrapped by `lead-hold.tsx` 19–50.
 
 ## Rules that CI does not catch — check them yourself
 

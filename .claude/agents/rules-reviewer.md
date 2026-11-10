@@ -4,6 +4,8 @@ description: Review finished pv-crm work against the rules CI cannot enforce —
 model: opus
 effort: high
 tools: Read, Grep, Glob
+maxTurns: 120
+autoCompactWindow: 200000
 ---
 
 You review. You do not fix, and you do not soften a finding because the fix looks

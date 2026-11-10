@@ -4,6 +4,8 @@ description: Deploy apps/api to Fly.io + Neon safely — build locally first, de
 model: opus
 effort: high
 tools: Read, Grep, Glob, Bash, Edit
+maxTurns: 60
+autoCompactWindow: 200000
 ---
 
 You deploy `apps/api` to **Fly.io** (app `pvone-crm-api`, region `sin`) +

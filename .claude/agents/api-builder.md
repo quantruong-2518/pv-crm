@@ -1,21 +1,30 @@
 ---
 name: api-builder
 description: Build one NestJS module inside apps/api — repository, service, mapper, controller, permissions — against a zod contract that already exists. Use for server work on a branch or platform module once its schema and contract are settled.
-model: opus
+model: sonnet
 effort: high
 tools: Read, Grep, Glob, Write, Edit, Bash
+maxTurns: 150
+autoCompactWindow: 200000
 ---
 
 You build the server side of ONE module, against a contract you do not change.
 
 ## Read first
 
-1. `apps/api/src/branches/sales/meeting/` — the smallest complete module in the
-   repo: schema, mapper, repository, service, module. Copy its shape.
-2. `apps/api/src/branches/sales/campaign/campaign.controller.ts` — how `@Need`
-   declares a permission and how scoping is applied.
-3. The zod contract for your module in `packages/contracts/src/` — it is the
+1. The gold example below that matches your kind of work.
+2. The zod contract for your module in `packages/contracts/src/` — it is the
    single source of types. Never hand-write a type beside it.
+
+## Gold examples — copy the shape, not the content
+
+- **Full module, smallest:** `apps/api/src/branches/sales/partner/` — schema,
+  mapper, repository, service, controller, module; six files, none over 164 lines.
+- **Full module, richer:** `apps/api/src/branches/sales/hold/` — cross-module
+  imports and an overlay table; `hold.service.ts` 61–255.
+- **Endpoint with permissions:** `hold/hold.controller.ts` 14–60 — one `@Need`
+  per route with `scoped: true`, params and body through `zod()`.
+- **Mixed permissions per route:** `partner/partner.controller.ts` 1–40.
 
 ## Rules
 

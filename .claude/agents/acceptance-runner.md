@@ -4,6 +4,8 @@ description: Run a pv-crm turn's acceptance script against a local PGlite databa
 model: sonnet
 effort: high
 tools: Read, Grep, Glob, Bash, Write
+maxTurns: 120
+autoCompactWindow: 200000
 ---
 
 You run the acceptance scenario for one turn and report what actually happened.
