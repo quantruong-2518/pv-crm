@@ -111,14 +111,13 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
 
 Built through wave 2b (ADR 0112 to 0120).
 
-- In production (verified 10/11/2026: commit b1469b50 is on origin/master,
-  Neon has migration 0164 applied, Fly runs it as v214): ADR 0143 (weighted
+- In production (verified 10/11/2026: commit b5ac18a3 is on origin/master,
+  Neon has migration 0164 applied, Fly runs it as v217): ADR 0143 (weighted
   pipeline beside the linear forecast), ADR 0144 (quotes-sent and sales-cycle
-  metrics, off by default), ADR 0145 (morning digest of four low-weight bells).
+  metrics, off by default), ADR 0145 (morning digest of four low-weight bells;
+  the Monday-to-Friday amendment), ADR 0146 (quarter view, accepted; read-only,
+  `GET /sales/kpi/quarters/:quarter/me` and "KPI của tôi" only, no migration).
   Open questions 173 to 178 are answered (10/11).
-- Not yet shipped: the Monday-to-Friday digest amendment (ADR 0145, amended)
-  and the quarter view (ADR 0146, accepted; read-only, `GET
-/sales/kpi/quarters/:quarter/me` and "KPI của tôi" only, no migration).
 - KPI read holes (ADR 0143 amendment): built 10/11/2026, ships with the
   assistant reach fix. Release note: a holder of `performance.view` without
   `kpi.view-all` loses the company KPI screen and its nav entry. Open
