@@ -1,5 +1,6 @@
 import { Skeleton, cn } from '@pv/ui'
 import {
+  type CurrencyCode,
   type JourneyContract,
   type JourneyContractRung,
   type JourneyRungState,
@@ -15,6 +16,7 @@ import {
 } from '@/data/contract-detail-copy'
 import { type Installment, type InstallmentView } from '@/data/contracts'
 import type { RunRead } from '@/components/contract-run'
+import { FxLine } from '@/components/fx-line'
 import { TodoCard, type RungMark, type TodoRung } from '@/components/record/todo-card'
 
 /** The contract's todo card (ADR 0078 §1): its rungs off the run's journey —
@@ -54,11 +56,14 @@ export function ContractTodo({
   inside,
   read,
   next,
+  currency,
 }: {
   /** The contract as the run's journey reads it; `null` until `read` is `ready`. */
   inside: JourneyContract | null
   read: RunRead
   next: InstallmentView<Installment> | undefined
+  /** The contract's own currency; the installment's figure is in it, not in dong. */
+  currency: CurrencyCode | null
 }) {
   const { lang, t } = useI18n()
   const note = NO_RUNGS[read]
@@ -73,7 +78,7 @@ export function ContractTodo({
             {note && (
               <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">{t(note)}</p>
             )}
-            {next && <NextInstallment view={next} />}
+            {next && <NextInstallment view={next} code={currency} />}
           </div>
         )
       }
@@ -81,15 +86,24 @@ export function ContractTodo({
   )
 }
 
-function NextInstallment({ view }: { view: InstallmentView<Installment> }) {
+function NextInstallment({
+  view,
+  code,
+}: {
+  view: InstallmentView<Installment>
+  code: CurrencyCode | null
+}) {
   const { lang, t, currency } = useI18n()
   const { installment } = view
   return (
     <div className="flex flex-col gap-1">
       <span className="text-muted-foreground text-[12px] leading-[1.5]">{t(COPY.nextPayment)}</span>
       <span className="tnum text-[14px] font-semibold leading-[1.5]">
-        {installmentNoText(installment.no, lang)} · {currency(installment.amount, 'VND')}
+        {installmentNoText(installment.no, lang)} · {currency(installment.amount, code ?? 'VND')}
       </span>
+      {installment.amountVnd !== null && (
+        <FxLine vnd={installment.amountVnd} fx={installment.fx} className="text-left" />
+      )}
       <span
         className={cn(
           'tnum text-[12px] leading-[1.5]',

@@ -8,7 +8,7 @@ import type {
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { VN_TODAY_START } from '../contract/contract.repository'
-import { toVndSql } from '../money'
+import { fxColumns, moneyFxOf, OnDay, toVndSql } from '../money'
 import { contractTerminated } from '../open-deal'
 import { collectedMoves } from './collected-moves'
 import type { PeriodSpan } from './performance-period'
@@ -31,16 +31,19 @@ const LIVE = sql`JOIN sales.contract pm_k ON pm_k.code = pm_x.contract_code
   JOIN sales.lead pm_l ON pm_l.code = pm_k.lead_code AND pm_l.disabled_at IS NULL`
 
 /** Rows of `(contract_code, opportunity_code, title, kind, installment_no,
- *  label, at, vnd, pending, signed_at)`; the two names stay null, `entries`
- *  joins the rest. Due-unpaid keeps an installment with
- *  an approved overdue reason (unlike KPI): this is money not in, whatever the
+ *  label, at, vnd, pending, signed_at, fx_rate, fx_day, fx_provisional,
+ *  fx_legacy)`; the two names stay null, `entries` joins the rest. `vnd` converts
+ *  at the rate of the money's own day: paid installments by `paid_at`, an unpaid
+ *  one at today's, a penalty by its settled day (today's while pending); `fx_*`
+ *  name that rate. Due-unpaid keeps an installment with an approved overdue reason (unlike KPI): this is money not in, whatever the
  *  excuse. Upcoming is the same row from today on; settled is the paid ones,
  *  placed by their due day too, so the three add up to the expected revenue. */
 const moves = (kind: SalesMoneyFigureKind, fence: Fence): SQL => {
   if (kind === 'collected') {
     return sql`SELECT c.contract_code, NULL::text AS opportunity_code, NULL::text AS title,
                       CASE WHEN c.installment_no IS NULL THEN 'refund' ELSE 'installment-paid' END AS kind,
-                      c.installment_no, c.label, c.at, c.vnd, false AS pending, c.signed_at
+                      c.installment_no, c.label, c.at, c.vnd, false AS pending, c.signed_at,
+                      c.fx_rate, c.fx_day, c.fx_provisional, c.fx_legacy
                  FROM (${collectedMoves(fence)}) c`
   }
   if (kind === 'settled' || kind === 'due-unpaid' || kind === 'upcoming') {
@@ -48,20 +51,27 @@ const moves = (kind: SalesMoneyFigureKind, fence: Fence): SQL => {
     const side = kind === 'upcoming' ? sql`>=` : sql`<`
     const when = kind === 'settled' ? sql`TRUE` : sql`pm_x.due ${side} ${VN_TODAY_START}`
     const label = kind === 'settled' ? 'installment-paid' : kind
+    /* NULL `paid_at` (the two unpaid kinds) converts at today's rate. */
+    const fx = fxColumns(sql`pm_k.currency`, sql`pm_x.paid_at`)
     return sql`SELECT pm_k.code AS contract_code, NULL::text AS opportunity_code, NULL::text AS title,
                       ${label}::text AS kind, pm_x.no AS installment_no, pm_x.label, pm_x.due AS at,
-                      ${toVndSql(sql`pm_x.amount`, sql`pm_k.currency`)} AS vnd,
-                      false AS pending, pm_k.signed_at
+                      ${toVndSql(sql`pm_x.amount`, sql`pm_k.currency`, sql`pm_x.paid_at`)} AS vnd,
+                      false AS pending, pm_k.signed_at, ${fx.fxRate} AS fx_rate, ${fx.fxDay} AS fx_day,
+                      ${fx.fxProvisional} AS fx_provisional, ${fx.fxLegacy} AS fx_legacy
                  FROM sales.contract_installment pm_x ${LIVE}
                 WHERE pm_x.paid_at ${paid} AND ${when}
                   AND NOT ${contractTerminated(sql`pm_k.code`)} AND ${fence(sql`pm_x.due`)}`
   }
   const direction = kind === 'penalty-in' ? 'customer-pays' : 'company-pays'
+  const settledOn = new OnDay(sql`pm_x.penalty_settled_on`)
+  const fx = fxColumns(sql`pm_k.currency`, settledOn)
   return sql`SELECT pm_k.code AS contract_code, NULL::text AS opportunity_code, NULL::text AS title,
                     ${kind}::text AS kind, NULL::int AS installment_no,
                     NULL::text AS label, pm_x.terminated_at AS at,
-                    ${toVndSql(sql`pm_x.penalty_amount`, sql`pm_k.currency`)} AS vnd,
-                    pm_x.penalty_settled_on IS NULL AS pending, pm_k.signed_at
+                    ${toVndSql(sql`pm_x.penalty_amount`, sql`pm_k.currency`, settledOn)} AS vnd,
+                    pm_x.penalty_settled_on IS NULL AS pending, pm_k.signed_at,
+                    ${fx.fxRate} AS fx_rate, ${fx.fxDay} AS fx_day,
+                    ${fx.fxProvisional} AS fx_provisional, ${fx.fxLegacy} AS fx_legacy
                FROM sales.contract_termination pm_x ${LIVE}
               WHERE pm_x.penalty_direction = ${direction} AND ${fence(sql`pm_x.terminated_at`)}`
 }
@@ -148,7 +158,8 @@ export class PerformanceMoneyRepository {
                SELECT count(*)::int FROM sales.contract_installment pm_n
                 WHERE pm_n.contract_code = m.contract_code) END AS installment_count,
              m.label, ${vnDay(sql`m.at`)} AS day, COALESCE(m.vnd, 0)::bigint AS vnd,
-             m.pending, ${vnDay(sql`m.signed_at`)} AS signed_on,
+             m.pending, ${vnDay(sql`m.signed_at`)} AS signed_on, m.fx_rate, m.fx_day,
+             m.fx_provisional, m.fx_legacy,
              COALESCE(m.signed_at < ${vnInstant(period.from)}, false) AS from_earlier,
              EXISTS (SELECT 1 FROM sales.contract_termination pm_t
                       WHERE pm_t.contract_code = m.contract_code) AS terminated
@@ -168,6 +179,12 @@ export class PerformanceMoneyRepository {
       label: e.label,
       day: e.day,
       amountVnd: Number(e.vnd),
+      fx: moneyFxOf({
+        fxRate: e.fx_rate,
+        fxDay: e.fx_day,
+        fxProvisional: e.fx_provisional,
+        fxLegacy: e.fx_legacy,
+      }),
       pending: e.pending,
       signedOn: e.signed_on,
       fromEarlier: e.from_earlier,
@@ -186,6 +203,10 @@ type EntryRow = {
   label: string | null
   day: string
   vnd: number | string
+  fx_rate: string | number | null
+  fx_day: string | null
+  fx_provisional: boolean | null
+  fx_legacy: boolean | null
   pending: boolean
   signed_on: string | null
   from_earlier: boolean

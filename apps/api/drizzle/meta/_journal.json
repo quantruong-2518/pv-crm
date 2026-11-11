@@ -1128,6 +1128,13 @@
       "when": 1795600960000,
       "tag": "0165_assistant_tool_call_reveals_content",
       "breakpoints": true
+    },
+    {
+      "idx": 166,
+      "version": "7",
+      "when": 1795601020000,
+      "tag": "0166_fx_rate",
+      "breakpoints": true
     }
   ]
 }

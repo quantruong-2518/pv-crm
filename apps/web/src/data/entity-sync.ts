@@ -12,6 +12,7 @@ import { commVocabularyQuery } from '@/data/comm-vocabulary'
 import { CONTACT_BOOK_KEY } from '@/data/contacts'
 import { CONTRACT_BOOK_KEY, contractTerminationReasonsQuery } from '@/data/contracts'
 import { DIRECTORY_KEY } from '@/data/directory'
+import { FX_KEY } from '@/data/fx-rate'
 import { HOLD_LIST_KEY } from '@/data/holds'
 import { PERFORMANCE_KEY } from '@/data/home-charts'
 import { leadLabelOptionsQuery } from '@/data/lead-labels'
@@ -110,6 +111,19 @@ const KEYS_OF_KIND: Record<EntityKind, readonly QueryKey[]> = {
   /* A hold also moves the lead state and the deal's profile and book. */
   hold: [HOLD_LIST_KEY, ...LEAD_STATE_KEYS, OPPORTUNITY_BOOK_KEY, OPS_KEY],
   user: [USERS_KEY, DIRECTORY_KEY, ROLES_KEY],
+  /* A corrected day moves every figure converted on it: books, contract money,
+     the deal profile, journeys, account totals and the home money zones. */
+  'fx-rate': [
+    FX_KEY,
+    CONTRACT_BOOK_KEY,
+    OPPORTUNITY_BOOK_KEY,
+    OPS_KEY,
+    ACCOUNT_BOOK_KEY,
+    AFTER_SALE_BOOK_KEY,
+    WORKSTREAM_BOOK_KEY,
+    PERFORMANCE_KEY,
+    SALES_KPI_KEY,
+  ],
 }
 
 /** One call for all prefixes: kinds overlap (workstream is under lead and

@@ -106,7 +106,7 @@ export function useOverdueBanners(): {
     detail:
       [
         row.company,
-        row.amount === null ? null : currency(row.amount, 'VND'),
+        row.amount === null || row.currency === null ? null : currency(row.amount, row.currency),
         row.due === null
           ? null
           : t(message(`hạn ${dm(row.due)}`, `due ${dm(row.due)}`, `${dm(row.due)} 기한`)),

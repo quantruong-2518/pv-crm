@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { searchText } from '../search-text'
 import { Day, MoneyVnd, ContractCode, ObjectCode, Moment, textInput } from '../primitives'
 import { PageQuery, SortDir, paged } from '../pagination'
+import { MoneyFx } from '../fx-rate'
 import { ContractKind, CurrencyCode } from './enums'
 import {
   OpportunityOwner,
@@ -259,6 +260,11 @@ export const InstallmentRow = z.object({
   /** Share of the contract value, whole percent. */
   share: z.number().int().min(0).max(100),
   amount: MoneyVnd,
+  /** `amount` in dong, converted on the server at `fx`; null when the contract's currency is unknown. */
+  amountVnd: MoneyVnd.nullable(),
+  /** Rate behind the dong figure: the paid day's, or today's while unpaid
+   *  (provisional). Null for VND; optional for an API one deploy behind. */
+  fx: MoneyFx.nullable().optional(),
   due: Moment,
   /** Day the money landed. Absent = not collected. */
   paidAt: Moment.optional(),
@@ -281,6 +287,7 @@ export const InstallmentSummaryRow = InstallmentRow.pick({
   label: true,
   share: true,
   amount: true,
+  amountVnd: true,
   due: true,
   paidAt: true,
 })
@@ -323,6 +330,10 @@ export const ContractPenaltyInput = z.object({
 export const ContractPenalty = ContractPenaltyInput.extend({
   settledById: z.string().min(1).max(64).nullable(),
   settledByName: textInput(120).nullable(),
+  /** `amount` in dong, converted on the server at `fx`; null when the contract's currency is unknown. */
+  amountVnd: MoneyVnd.nullable(),
+  /** Rate of the settled day, or today's while pending (provisional). */
+  fx: MoneyFx.nullable().optional(),
 })
 
 /** The one `sales.contract_termination` row of a contract. The contract and its
@@ -362,6 +373,10 @@ export const ContractRow = z.object({
   kind: ContractKind.nullable(),
   amount: MoneyVnd.nullable(),
   currency: CurrencyCode.nullable(),
+  /** `amount` in dong, converted on the server at `fx`; null when amount or currency is unknown. */
+  amountVnd: MoneyVnd.nullable(),
+  /** Rate of the signing day behind the dong figure. */
+  fx: MoneyFx.nullable().optional(),
   signedAt: Moment,
   /** Present together or not at all — an unassigned contract has neither. */
   ownerId: z.string().min(1).max(64).optional(),

@@ -10,7 +10,10 @@ import {
   type QueryClient,
 } from '@tanstack/react-query'
 import {
+  CurrencyCode,
   KpiPeriodKey,
+  NOTIFICATION_DETAIL_AMOUNT,
+  NOTIFICATION_DETAIL_CURRENCY,
   NOTIFICATION_READ_MAX,
   NOTIFICATION_SUBJECT_PERMISSION,
   type NotificationListQuery,
@@ -240,6 +243,7 @@ const RUN_BOOK = '/sales/campaigns/mail-runs'
 const KPI_ME = '/sales/kpi/me'
 const KPI_TARGETS = '/sales/kpi/targets'
 const KPI_ASSIGN = '/sales/kpi/assign'
+const FX_RATES = '/admin/fx-rates'
 
 /** The KPI screens read `month`, then `role` and `team` (the targets desk's open package). */
 function kpiQuery(month: string, role?: string, team?: string): string {
@@ -287,10 +291,12 @@ const SUBJECT_PATH: Record<NotificationSubject, (code: string) => string> = {
     if (!unit) return `${KPI_ME}${kpiQuery(month)}`
     return `${KPI_ASSIGN}?${new URLSearchParams({ month, role, unit }).toString()}`
   },
+  /* The code is the currency; today only USD has rates, so one screen answers all. */
+  'fx-rate': () => FX_RATES,
 }
 
 /** An overdue-installment row, read back. `detail` keys are named by the
- *  sweeper that writes them (`installmentNo` · `amountVnd` · `due`); `null`
+ *  sweeper that writes them (`installmentNo` · `amount` · `currency` · `due`); `null`
  *  when the row is another kind or carries no installment number, so no path
  *  ends in `/undefined`. */
 export type OverdueInstallment = {
@@ -300,14 +306,20 @@ export type OverdueInstallment = {
    *  so the raw `"<code> · <company>"` label would say the code twice. */
   company: string | null
   no: number
+  /** In the contract's own currency; absent on a row written before the
+   *  sweeper named one, because its figure may have been dollars read as dong. */
   amount: number | null
+  currency: CurrencyCode | null
   due: string | null
   path: string
 }
 
 export function overdueInstallment(row: NotificationRow): OverdueInstallment | null {
   if (row.kind !== 'contract-installment-overdue' || row.subject.kind !== 'contract') return null
-  const { installmentNo, amountVnd, due } = row.detail ?? {}
+  const detail = row.detail ?? {}
+  const { installmentNo, due } = detail
+  const amount = detail[NOTIFICATION_DETAIL_AMOUNT]
+  const currency = CurrencyCode.safeParse(detail[NOTIFICATION_DETAIL_CURRENCY])
   const n = Number(installmentNo)
   if (!Number.isInteger(n) || n < 1) return null
   const { code, label } = row.subject
@@ -317,7 +329,8 @@ export function overdueInstallment(row: NotificationRow): OverdueInstallment | n
     code,
     company,
     no: n,
-    amount: typeof amountVnd === 'number' ? amountVnd : null,
+    amount: typeof amount === 'number' && currency.success ? amount : null,
+    currency: currency.success ? currency.data : null,
     due: typeof due === 'string' ? due : null,
     path: `${SUBJECT_PATH.contract(code)}/installments/${n}`,
   }

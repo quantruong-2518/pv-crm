@@ -184,6 +184,25 @@ Built through wave 2b (ADR 0112 to 0120).
 
 ## Sales · journey, opportunity, contract money
 
+- Exchange rate by event day (ADR 0149): built on branch `fx-daily-rate`, not
+  committed yet. Table `platform.fx_rate` (migration 0166), SQL conversion in
+  `apps/api/src/branches/sales/money.ts`, feed, sweeper and stale alert in
+  `apps/api/src/platform/fx/`, screen `/admin/fx-rates`, and the 20% guard on a typed rate in `fx-rate.service.ts`. The overdue bell and
+  banner print the installment in the contract's currency. Owed:
+  - Eye check of law 12 and law 13 on `/admin/fx-rates` and the new FxLine, after
+    this round.
+  - A real Vietcombank fetch from Fly has not been observed.
+  - First real fetch steps USD from 26,400 to about 25,440 (-3.6%) for new events
+    and provisional figures; past figures stay on the legacy row.
+  - The workstream tree card (`apps/web/src/pages/workstream-tree-cards.tsx`)
+    still shows a USD contract's installments as dong: `JourneyContract` has no
+    currency.
+  - Journey lane installments: `amountVnd` is blank for a foreign currency.
+  - Opportunity page "Đã thu" / "Đã ký" in USD overflows the card edge in Sứ.
+  - Home peek footer contrast is 4.46 on Aurora tablet.
+  - Terminate dialog textarea is 45-46px on tablet.
+  - en/ko strings of the new screen and lines are unreviewed.
+
 - Global search is shipped (migration 0088,
   `apps/api/src/branches/sales/search/`) (choices in ADR 0138).
   Not built, as the 08/10 plan left them: field conditions (`email:`, `sđt:`,

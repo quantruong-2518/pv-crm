@@ -150,6 +150,8 @@ function installment(row: InstallmentInput, invoicedAt: string | null): JourneyI
     label: row.label,
     share: row.share,
     amount: row.amount,
+    // The Sao Do scenario's contracts are in dong, so amountVnd equals amount.
+    amountVnd: row.amount,
     due: row.due,
     invoiceNo: null,
     invoicedAt,

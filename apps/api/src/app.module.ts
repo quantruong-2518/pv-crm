@@ -34,6 +34,7 @@ import { ActorGuard } from './platform/session/actor.guard'
 import { AiModule } from './platform/ai/ai.module'
 import { AssistantModule } from './platform/assistant/assistant.module'
 import { SettingModule } from './platform/setting/setting.module'
+import { FxRateModule } from './platform/fx/fx-rate.module'
 import { OrgModule } from './platform/org/org.module'
 import { KpiSeatModule } from './branches/sales/kpi/kpi-seat.module'
 import { KpiOrgHook } from './branches/sales/kpi/kpi-org.hook'
@@ -100,6 +101,7 @@ import { RolesModule } from './platform/roles/roles.module'
        those two doors — and it EXPORTS `SettingService`, the one way any other
        module asks what a threshold is worth today. */
     SettingModule,
+    FxRateModule,
     OrgModule.withHook({ imports: [KpiSeatModule], hook: KpiOrgHook }),
     /* Carries `/ai/costs` and `/ai/prices` (ADR 0102); `LeadModule` imports it
        again for the scan reader and the ledger. */

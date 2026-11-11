@@ -9,6 +9,7 @@ import type {
   QuotationRow,
 } from '@pv/contracts'
 import type { ContractInstallmentRowDb, ContractRowDb } from '../contract/contract.schema'
+import { vndOf, type Converted } from '../money'
 import { vnDay } from '../opportunity/opportunity-lifecycle'
 import type { StepFileCount } from './quotation.repository'
 
@@ -30,7 +31,10 @@ export type DealMoneyInput = {
   contracts: readonly ContractRowDb[]
   /** Codes of `contracts` that were terminated (ADR 0107): listed, never summed. */
   terminated: ReadonlySet<string>
-  installments: ReadonlyMap<string, readonly ContractInstallmentRowDb[]>
+  installments: ReadonlyMap<
+    string,
+    readonly { row: ContractInstallmentRowDb; fx: Pick<Converted, 'vnd'> }[]
+  >
   /** Every round of the deal, newest first. */
   rounds: readonly QuotationRow[]
   files: readonly StepFileCount[]
@@ -47,7 +51,10 @@ const shareOf = (collected: number, signed: number | null): number | null =>
   signed ? Math.min(100, Math.round((collected / signed) * 100)) : null
 
 /** Due today is still `upcoming`; a collected installment is never late. */
-function installmentOf(row: ContractInstallmentRowDb, today: string): OpportunityMoneyInstallment {
+function installmentOf(
+  { row, fx }: { row: ContractInstallmentRowDb; fx: Pick<Converted, 'vnd'> },
+  today: string,
+): OpportunityMoneyInstallment {
   const left = daysUntil(vnDay(row.due), today)
   const status: InstallmentStatus = row.paidAt ? 'paid' : left < 0 ? 'overdue' : 'upcoming'
   return {
@@ -55,6 +62,7 @@ function installmentOf(row: ContractInstallmentRowDb, today: string): Opportunit
     label: row.label,
     share: row.share,
     amount: row.amount,
+    amountVnd: vndOf(fx),
     due: row.due.toISOString(),
     ...(row.paidAt ? { paidAt: row.paidAt.toISOString() } : {}),
     status,
@@ -70,7 +78,7 @@ function contractOf(row: ContractRowDb, input: DealMoneyInput): OpportunityMoney
   /* A terminated paper keeps the money that came in; what was still due will
      never be collected, so it is no installment and never overdue. */
   const installments = (paymentsVisible ? (input.installments.get(row.code) ?? []) : [])
-    .filter((i) => !ended || i.paidAt !== null)
+    .filter((i) => !ended || i.row.paidAt !== null)
     .map((i) => installmentOf(i, input.today))
     .sort(
       (a, b) =>

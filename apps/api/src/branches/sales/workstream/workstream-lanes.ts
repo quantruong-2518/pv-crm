@@ -628,6 +628,7 @@ function contractOf(c: ContractLaneRow, rows: LaneRows, now: Date, today: string
       label: i.label,
       share: i.share,
       amount: i.amount,
+      amountVnd: vndOf(i.amount, c.currency),
       due: i.due.toISOString(),
       invoiceNo: null,
       invoicedAt: null,

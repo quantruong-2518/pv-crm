@@ -86,3 +86,7 @@ One place per fact, one place per action.
 
 - Real attachment upload: attachments stay name-only until a storage decision.
 - Do-not-contact enforcement (0067 D5). Settled by 0088 §23: warn only.
+
+## Amendment 11/11/2026 · conversion to VND
+
+The sign drawer's VND preview and the deal's open amounts convert at today's rate, marked provisional, not at the fixed `USD_VND` constant. See 0149.

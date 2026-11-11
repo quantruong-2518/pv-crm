@@ -17,13 +17,15 @@ import {
   type OpportunityFacetsQuery,
   type OpportunityOwner,
   type ObjectChainLink,
+  type MoneyFx,
   type OpportunityBookRow,
   type OpportunityRow,
   type OpportunityStatus,
 } from '@pv/contracts'
 
-import { toMoneyVnd, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
+import type { OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import type { RailObject } from '@pv/ui'
+import { vndAt } from '@/data/fx-rate'
 import { api, type ApiNeed } from '@/app/api'
 import { cacheTier } from '@/app/query-client'
 import { message, translate } from '@/app/i18n'
@@ -366,11 +368,16 @@ export const salePrimaryIn = (
  *  cùng nó thì ngắn: hai người gọi cũ là bảng `SORTERS` và phép cộng của thẻ
  *  điểm, cả hai nay đều ở máy chủ. Người gọi còn lại là cột Amount, thứ vẫn
  *  phải in `billions()` cho một đơn chào bằng USD — nên phép quy đổi vẫn cần,
- *  nó chỉ không còn là việc của tầng màn. Cùng bảng tỉ giá mà máy chủ sắp và
- *  cộng bằng (`@pv/contracts` · `./currency`): hai con số của một pipeline mà
- *  ra từ hai bảng tỉ giá là đúng thứ lệch không ai để ý. */
-export const amountVndOf = (op: OpportunityRow) =>
-  op.amount === null || op.currency === null ? null : toMoneyVnd(op.amount, op.currency)
+ *  nó chỉ không còn là việc của tầng màn. The rate is today's (`useTodayFx`);
+ *  without one the result is `null`, never a guess. */
+export const amountVndOf = (op: OpportunityRow, fx: MoneyFx | null) =>
+  op.amount === null || op.currency === null
+    ? null
+    : op.currency === 'VND'
+      ? op.amount
+      : fx === null
+        ? null
+        : vndAt(op.amount, fx)
 
 /** Đơn đang MỤC — đã đứng trong cột lâu hơn hạn của cột.
  *

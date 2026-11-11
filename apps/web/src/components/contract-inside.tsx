@@ -60,7 +60,14 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 const ROWS = 'm-0 flex list-none flex-col p-0'
 const ROW = 'flex min-w-0 flex-wrap items-center gap-2 py-2 text-[12.5px] leading-[1.5]'
 
-export function ContractInside({ contract: c }: { contract: JourneyContract }) {
+export function ContractInside({
+  contract: c,
+  currency = 'VND',
+}: {
+  contract: JourneyContract
+  /** The contract's own currency; the journey read does not carry it yet. */
+  currency?: string
+}) {
   const { t } = useI18n()
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -118,7 +125,7 @@ export function ContractInside({ contract: c }: { contract: JourneyContract }) {
               <li key={i.no} className="flex min-w-0 flex-col gap-1 py-2">
                 <span className="flex flex-wrap items-center gap-2 text-[12.5px] leading-[1.5]">
                   <span className="min-w-0 grow break-words font-medium">{i.label}</span>
-                  <span className="tnum">{formatCurrency(i.amount, 'VND')}</span>
+                  <span className="tnum">{formatCurrency(i.amount, currency)}</span>
                   <DueBadge level={i.dueLevel} />
                 </span>
                 <span className="text-muted-foreground tnum text-[12px] leading-[1.5]">
@@ -130,7 +137,7 @@ export function ContractInside({ contract: c }: { contract: JourneyContract }) {
                         .filter(Boolean)
                         .join(' '),
                     i.paidAt &&
-                      `${t(message(`đã thu ${dmy(i.paidAt)}`, `collected ${dmy(i.paidAt)}`, `수금 ${dmy(i.paidAt)}`))}${i.paidAmount === null ? '' : ` · ${formatCurrency(i.paidAmount, 'VND')}`}`,
+                      `${t(message(`đã thu ${dmy(i.paidAt)}`, `collected ${dmy(i.paidAt)}`, `수금 ${dmy(i.paidAt)}`))}${i.paidAmount === null || i.paidAmount === i.amount ? '' : ` · ${formatCurrency(i.paidAmount, currency)}`}`,
                   ]
                     .filter(Boolean)
                     .join(' · ')}

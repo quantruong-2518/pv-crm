@@ -9,6 +9,7 @@ import { COL } from '@/components/book-columns'
 import { DateCell, PicCell } from '@/components/book-cells'
 import { CollectedCell, NextDueCell } from '@/components/contract-bits'
 import { MoneyCell } from '@/components/money-cell'
+import { FxLine } from '@/components/fx-line'
 
 /** The contract book's cells and column list. One row reads: who signed what
  *  (customer, kind), who holds it, what it is worth and how far it is
@@ -66,18 +67,20 @@ export function contractCells(
       people={contract.participants.map(laneOf)}
       empty={translate(COPY.noSale, lang)}
     />,
-    <MoneyCell
-      key="value"
-      amount={contract.amount}
-      currency={contract.currency}
-      muted={ended}
-      missing={translate(COPY.noAmount, lang)}
-      title={
-        contract.currency && contract.currency !== 'VND'
-          ? translate(COPY.convertedWhy, lang)
-          : undefined
-      }
-    />,
+    <span key="value" className="flex min-w-0 flex-col items-end gap-1">
+      <MoneyCell
+        amount={contract.amount}
+        currency={contract.currency}
+        muted={ended}
+        missing={translate(COPY.noAmount, lang)}
+        title={
+          contract.currency && contract.currency !== 'VND'
+            ? translate(COPY.convertedWhy, lang)
+            : undefined
+        }
+      />
+      {contract.amountVnd !== null && <FxLine vnd={contract.amountVnd} fx={contract.fx} compact />}
+    </span>,
     <CollectedCell key="collected" row={row} atRisk={atRisk} ended={ended} />,
     <NextDueCell
       key="next"

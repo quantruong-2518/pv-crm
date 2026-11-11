@@ -103,7 +103,7 @@ export const notification = platform.table(
                      'kpi-counter-proposed', 'kpi-month-unclosed', 'kpi-stand-in',
                      'customer-recare-due', 'contract-penalty-changed',
                      'kpi-assignment-received', 'kpi-assignment-late',
-                     'kpi-away-declared', 'kpi-digest')`,
+                     'kpi-away-declared', 'kpi-digest', 'fx-rate-missing')`,
     ),
     /** The `NotificationSubject` values, copied out for the same reason. */
     check(
@@ -111,7 +111,7 @@ export const notification = platform.table(
       sql`"subject_kind" IN ('lead', 'lead-pool', 'opportunity', 'approval', 'lead-scan', 'mail-run',
                              'user', 'google-link', 'contract', 'campaign', 'kpi-target', 'comm',
                              'lead-batch', 'opportunity-batch', 'comm-record', 'kpi-scorecard',
-                             'kpi-allocation', 'kpi-team', 'kpi-assignment')`,
+                             'kpi-allocation', 'kpi-team', 'kpi-assignment', 'fx-rate')`,
     ),
   ],
 )
@@ -180,7 +180,7 @@ export const notificationKindPolicy = platform.table(
                      'kpi-counter-proposed', 'kpi-month-unclosed', 'kpi-stand-in',
                      'customer-recare-due', 'contract-penalty-changed',
                      'kpi-assignment-received', 'kpi-assignment-late',
-                     'kpi-away-declared', 'kpi-digest')`,
+                     'kpi-away-declared', 'kpi-digest', 'fx-rate-missing')`,
     ),
     /** `actor_role_ids_known`'s list: a typo'd role would mute nobody, silently. */
     check(

@@ -133,7 +133,8 @@ const CONTRACT_CODES = sql<string[]>`ARRAY(
  *  terminated deal from a won one (ADR 0107). */
 const TERMINATED = sql<boolean>`${dealTerminated(opportunity.code)}`
 
-/** The deal's value in dong, converted in SQL: ordering by money and the scorecard
+/** The deal's value in dong at today's rate (an open deal has no money event yet,
+ *  so it is provisional), converted in SQL: ordering by money and the scorecard
  *  sums both sit under `LIMIT`, so converting in Node would sort raw amounts (5,000
  *  USD under 10,000,000 VND). An unknown currency or a blank amount is NULL, not 0;
  *  `opportunity_money_pair` keeps the two columns together, and the scorecard

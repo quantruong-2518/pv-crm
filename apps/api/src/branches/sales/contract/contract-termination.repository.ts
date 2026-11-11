@@ -6,7 +6,7 @@ import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
-import { toVndSql } from '../money'
+import { convertedColumns, OnDay, toVndSql, type Converted } from '../money'
 import { leadDealsAllLost } from '../open-deal'
 import { opportunity } from '../opportunity/opportunity.schema'
 import { contract, contractInstallment } from './contract.schema'
@@ -28,6 +28,8 @@ export type TerminationRead = {
   byName: string
   reasonName: string | null
   settledByName: string | null
+  /** The penalty in dong and the rate behind it: the settled day's, else today's. */
+  fx: Converted
 }
 
 /** The four penalty columns (ADR 0124), all NULL when there is no penalty. */
@@ -49,8 +51,14 @@ export async function terminationsOf(
       byName: terminator.name,
       reasonName: configEntry.name,
       settledByName: settler.name,
+      fx: convertedColumns(
+        contractTermination.penaltyAmount,
+        contract.currency,
+        new OnDay(contractTermination.penaltySettledOn),
+      ),
     })
     .from(contractTermination)
+    .innerJoin(contract, eq(contract.code, contractTermination.contractCode))
     .innerJoin(terminator, eq(terminator.id, contractTermination.terminatedById))
     .leftJoin(settler, eq(settler.id, contractTermination.penaltySettledById))
     .leftJoin(
@@ -178,10 +186,15 @@ export class ContractTerminationRepository {
   }
 }
 
-/** The summary's penalty band (ADR 0124): company numbers, unscoped, in VND by
- *  the rate table. Terminated contracts only, so NOT the book's `LIVE` filter. */
+/** The summary's penalty band (ADR 0124): company numbers, unscoped, in VND at
+ *  the settled day's rate, or today's while pending. Terminated contracts only,
+ *  so NOT the book's `LIVE` filter. */
 export async function penaltySummary(db: Db) {
-  const vnd = toVndSql(contractTermination.penaltyAmount, contract.currency)
+  const vnd = toVndSql(
+    contractTermination.penaltyAmount,
+    contract.currency,
+    new OnDay(contractTermination.penaltySettledOn),
+  )
   const sum = (where: SQL) =>
     sql<number | string>`COALESCE(SUM(${vnd}) FILTER (WHERE ${where}), 0)::bigint`
   const customer = sql`${contractTermination.penaltyDirection} = 'customer-pays'`

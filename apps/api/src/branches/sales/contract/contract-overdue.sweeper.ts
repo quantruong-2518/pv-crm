@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
+import { NOTIFICATION_DETAIL_AMOUNT, NOTIFICATION_DETAIL_CURRENCY } from '@pv/contracts'
 import { CONTRACT_INSTALLMENT_OVERDUE } from '@pv/engines'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { ContractRepository } from './contract.repository'
@@ -50,7 +51,9 @@ export class ContractOverdueSweeper {
             subject: { kind: 'contract', code: item.contractCode, label: item.label },
             detail: {
               installmentNo: item.no,
-              amountVnd: item.amount,
+              /* In the contract's own currency: the banner prints the unit it is given. */
+              [NOTIFICATION_DETAIL_AMOUNT]: item.amount,
+              ...(item.currency ? { [NOTIFICATION_DETAIL_CURRENCY]: item.currency } : {}),
               due: item.due.toISOString(),
             },
           })

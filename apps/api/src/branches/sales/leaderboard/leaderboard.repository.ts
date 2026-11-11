@@ -48,8 +48,9 @@ export class LeaderboardRepository {
    *  `SUM` is `bigint`, which node-postgres returns as a STRING and PGlite as a
    *  number — `Number()` takes both, and an `::int` cast would overflow. */
   async rows(): Promise<LeaderboardTally[]> {
+    /* An open deal converts at today's rate; a signed contract at its signing day's. */
     const opsVnd = toVndSql(opportunity.amount, opportunity.currency)
-    const contractVnd = toVndSql(contract.amount, contract.currency)
+    const contractVnd = toVndSql(contract.amount, contract.currency, contract.signedAt)
     /* Open, won and lost come from `../open-deal`, the one reading of each:
        won is a LIVE contract, so a terminated deal leaves it (ADR 0107). */
     const open = dealOpen(opportunity.code, opportunity.state)

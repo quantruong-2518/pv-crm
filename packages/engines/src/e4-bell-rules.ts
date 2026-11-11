@@ -87,6 +87,8 @@ export const MAIL_REPLIED = 'platform.mail.replied'
 export const USER_ACCESS_CHANGED = 'platform.user.access-changed'
 export const USER_PASSWORD_RESET = 'platform.user.password-reset'
 export const GOOGLE_LINK_BROKEN = 'platform.google.link-broken'
+/** The exchange rate is over 3 days old; the emitter lists the `setting.manage` holders as `holders`. */
+export const FX_RATE_MISSING = 'platform.fx-rate.missing'
 
 const flag = (key: string, want: boolean) => (payload: EventPayload) =>
   (payload.data?.[key] === true) === want
@@ -213,4 +215,5 @@ export const NOTIFICATION_RULES: readonly NotificationRule[] = [
   bell('access-changed', ROLE_GRANTS_REPLACED, 'holders'),
   bell('password-reset-by-admin', USER_PASSWORD_RESET, 'user'),
   bell('google-link-broken', GOOGLE_LINK_BROKEN, 'user'),
+  bell('fx-rate-missing', FX_RATE_MISSING, 'holders'),
 ]

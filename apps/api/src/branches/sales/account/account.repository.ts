@@ -102,15 +102,15 @@ const SIGNED_DEALS = sql<number>`(
   WHERE ${at(lead.accountCode)} = ${at(account.code)} AND ${LIVE} AND ${KEPT}
 )`
 
-/** Everything signed, converted to dong with the same rate table the deal book
- *  sorts by. Two sums about one company have to come from one table, or the
- *  account page and the deal page disagree about the same customer.
+/** Everything signed, converted to dong at each contract's signing-day rate, the
+ *  same rule the deal book sorts by. Two sums about one company have to come from
+ *  one rule, or the account page and the deal page disagree about the same customer.
  *
  *  `COALESCE(…, 0)` because "this customer has signed nothing" is zero dong, not
  *  an unknown — unlike a single deal with no amount, where NULL is the honest
  *  answer and the deal book keeps it. */
 const SIGNED_AMOUNT_VND = sql<number>`(
-  SELECT COALESCE(SUM(${toVndSql(at(contract.amount), at(contract.currency))}), 0)::bigint
+  SELECT COALESCE(SUM(${toVndSql(at(contract.amount), at(contract.currency), at(contract.signedAt))}), 0)::bigint
   FROM ${contract}
   JOIN ${lead} ON ${at(lead.code)} = ${at(contract.leadCode)}
   WHERE ${at(lead.accountCode)} = ${at(account.code)} AND ${LIVE} AND ${KEPT}

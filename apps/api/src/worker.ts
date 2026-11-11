@@ -4,7 +4,7 @@ import 'reflect-metadata'
    label this process's pool in `pg_stat_activity`. */
 process.env.PV_ROLE = 'worker'
 
-import { Logger, Module } from '@nestjs/common'
+import { Logger, Module, type INestApplicationContext } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
 import type { JobWithMetadata, PgBoss } from 'pg-boss'
 import { AppModule } from './app.module'
@@ -27,6 +27,7 @@ import { OpportunityModule } from './branches/sales/opportunity/opportunity.modu
 import { OpportunityMailComposer } from './branches/sales/opportunity/opportunity-mail.composer'
 import { OpportunityMailSentHook } from './branches/sales/opportunity/opportunity-mail-sent.hook'
 import { NotificationDigestSweeper } from './platform/notification/notification-digest.sweeper'
+import { FxRateSweeper } from './platform/fx/fx-rate.sweeper'
 import { SessionSweeper } from './platform/auth/session.sweeper'
 import { CommAiJobSweeper } from './platform/comms/comm-ai-job.sweeper'
 import { MailModule } from './platform/mail/mail.module'
@@ -133,6 +134,119 @@ import {
 })
 class WorkerModule {}
 
+/** Sweeper ticks that share one timer (ADR 0145, 0149); split out of `bootstrap` for length. */
+function startSweeps(app: INestApplicationContext, log: Logger, env: Env): NodeJS.Timeout {
+  const relay = app.get(MailRelay)
+  const runs = app.get(MailRunSweeper)
+  const gmailThreads = app.get(GmailThreadSweeper)
+  const campaigns = app.get(CampaignSweeper)
+  const gates = app.get(MailWaveGateSweeper)
+  const holds = app.get(HoldReminderSweeper)
+  const recare = app.get(AfterSaleReminderSweeper)
+  const meetings = app.get(MeetingCancelSweeper)
+  const kpiAlerts = app.get(KpiAlertSweeper)
+  const kpiSets = app.get(KpiAssignmentSweeper)
+  const overdue = app.get(ContractOverdueSweeper)
+  const leadScans = app.get(LeadScanSweeper)
+  const aiJobs = app.get(LeadAiJobSweeper)
+  const commAiJobs = app.get(CommAiJobSweeper)
+  const sessions = app.get(SessionSweeper)
+
+  /* ------------------------------------------------------------------
+     BA LƯỢT QUÉT, MỘT ĐỒNG HỒ
+     ------------------------------------------------------------------
+     Ba tầng của cùng một câu hỏi "còn gì chưa ngã ngũ không", mỗi tầng trên
+     một bảng khác:
+
+       `MailRelay`        TỪNG LÁ THƯ — chỗ một dòng sổ gửi trở thành một job.
+                          Nhánh chỉ ghi bảng, nên phải có ai đó quét.
+       `MailRunSweeper`   CẢ LÔ — lô nào không còn thư nào chờ thì đóng, lô nào
+                          bounce vượt trần thì cầu dao ngắt và giữ lại những
+                          thư chưa kịp rời máy.
+       `CampaignSweeper`  CẢ CHIẾN DỊCH — mọi đợt đã ngã ngũ thì chuyển XONG.
+                          Phải hỏi từ phía nhánh: dây `sales.campaign_run` chạy
+                          một chiều, `platform` không biết chiến dịch nào đang
+                          chờ lô của nó.
+
+     Chung nhịp `PV_QUEUE_POLL_SECONDS`: ba vòng poll khác nhau là ba con số
+     phải giải thích, và không có gì để đổi lấy.
+
+     `void` chứ không `await`, và mỗi lượt một `catch` riêng: một vòng quét
+     hỏng (Neon ngắt kết nối chẳng hạn) không được giết tiến trình, cũng không
+     được kéo theo lượt kia — dòng vẫn `pending`, lô vẫn `SENDING`, chiến dịch
+     vẫn `RUNNING`, vòng sau nhặt lại. Đó là toàn bộ lý do sổ gửi là nguồn sự
+     thật chứ không phải hàng đợi. */
+  /* One flag per pass, so a pass that outlives the tick is skipped, not
+     stacked. */
+  const pass = (failed: string, run: () => Promise<unknown>) => {
+    let running = false
+    return (): void => {
+      if (running) return
+      running = true
+      run()
+        .catch((error: unknown) => {
+          log.error(`${failed}: ${error instanceof Error ? error.message : String(error)}`)
+        })
+        .finally(() => {
+          running = false
+        })
+    }
+  }
+  const sweepRelay = pass('Relay lỗi', async () => {
+    // Gate first so a due later wave is released (or withheld) before the relay looks;
+    // the gate fails closed, so a slow gate only delays that wave by one poll.
+    await gates.sweep().catch((error: unknown) => {
+      log.error(`Wave gate failed: ${error instanceof Error ? error.message : String(error)}`)
+    })
+    await relay.sweep()
+  })
+  const sweepRuns = pass('Quét lô mail lỗi', () => runs.sweep())
+  // Ticked here and nowhere else; it throttles itself to PV_GMAIL_POLL_MINUTES.
+  const sweepGmail = pass('Gmail thread sweep failed', () => gmailThreads.sweep())
+  const sweepCampaigns = pass('Quét chiến dịch lỗi', () => campaigns.sweep())
+  // Rides this tick, no clock of its own; it throttles itself to one pass an hour.
+  const sweepHolds = pass('Hold reminders failed', () => holds.sweep())
+  // Same: bought-customer re-care bells, hourly (ADR 0121 §4).
+  const sweepRecare = pass('Re-care reminders failed', () => recare.sweep())
+  // Same: one pass a minute (Google Calendar retries), the cancelled pass hourly.
+  const sweepMeetings = pass('Meeting calendar sweep failed', () => meetings.sweep())
+  // Same: one pass a day, the first tick after boot is the boot pass.
+  const sweepKpiAlerts = pass('KPI alert sweep failed', () => kpiAlerts.sweep())
+  // Same: hourly; a level past its deadline gets last month's targets (ADR 0120 §6).
+  const sweepKpiSets = pass('KPI default sets failed', () => kpiSets.sweep())
+  // Same: contract overdue bells hourly, scan expiry every 15 minutes, expired sessions hourly.
+  const sweepOverdue = pass('Contract overdue sweep failed', () => overdue.sweep())
+  const sweepLeadScans = pass('Lead scan sweep failed', () => leadScans.sweep())
+  const sweepAiJobs = pass('AI fill sweep failed', () => aiJobs.sweep())
+  const sweepCommAiJobs = pass('Comm report sweep failed', () => commAiJobs.sweep())
+  const sweepSessions = pass('Session sweep failed', () => sessions.sweep())
+  // Same: the morning bell digest, every 5 minutes from Vietnam 08:00 (ADR 0145).
+  const sweepDigest = pass('Digest sweep failed', () => app.get(NotificationDigestSweeper).sweep())
+  const sweepFx = pass('FX rate sweep failed', () => app.get(FxRateSweeper).sweep())
+  const sweep = setInterval(() => {
+    sweepRelay()
+    sweepRuns()
+    sweepGmail()
+    sweepCampaigns()
+    sweepHolds()
+    sweepRecare()
+    sweepMeetings()
+    sweepKpiAlerts()
+    sweepKpiSets()
+    sweepOverdue()
+    sweepLeadScans()
+    sweepAiJobs()
+    sweepCommAiJobs()
+    sweepSessions()
+    sweepDigest()
+    // Vietcombank rate fetch from 09:00 VN, stale alert hourly (ADR 0149).
+    sweepFx()
+  }, env.PV_QUEUE_POLL_SECONDS * 1_000)
+  /* Đừng giữ tiến trình sống chỉ vì cái đồng hồ này. */
+  sweep.unref()
+  return sweep
+}
+
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.createApplicationContext(WorkerModule, { bufferLogs: false })
 
@@ -149,21 +263,6 @@ async function bootstrap(): Promise<void> {
   const env = app.get<Env>(ENV)
   const boss = app.get<PgBoss>(BOSS)
   const consumer = app.get(MailConsumer)
-  const relay = app.get(MailRelay)
-  const runs = app.get(MailRunSweeper)
-  const gmailThreads = app.get(GmailThreadSweeper)
-  const campaigns = app.get(CampaignSweeper)
-  const gates = app.get(MailWaveGateSweeper)
-  const holds = app.get(HoldReminderSweeper)
-  const recare = app.get(AfterSaleReminderSweeper)
-  const meetings = app.get(MeetingCancelSweeper)
-  const kpiAlerts = app.get(KpiAlertSweeper)
-  const kpiSets = app.get(KpiAssignmentSweeper)
-  const overdue = app.get(ContractOverdueSweeper)
-  const leadScans = app.get(LeadScanSweeper)
-  const aiJobs = app.get(LeadAiJobSweeper)
-  const commAiJobs = app.get(CommAiJobSweeper)
-  const sessions = app.get(SessionSweeper)
 
   /* `boss.start()` và hai `createQueue` đã chạy trong provider `BOSS`: tiến
      trình HTTP cũng cần lược đồ và cần hàng đợi tồn tại trước khi `send`, nên
@@ -256,95 +355,7 @@ async function bootstrap(): Promise<void> {
     },
   )
 
-  /* ------------------------------------------------------------------
-     BA LƯỢT QUÉT, MỘT ĐỒNG HỒ
-     ------------------------------------------------------------------
-     Ba tầng của cùng một câu hỏi "còn gì chưa ngã ngũ không", mỗi tầng trên
-     một bảng khác:
-
-       `MailRelay`        TỪNG LÁ THƯ — chỗ một dòng sổ gửi trở thành một job.
-                          Nhánh chỉ ghi bảng, nên phải có ai đó quét.
-       `MailRunSweeper`   CẢ LÔ — lô nào không còn thư nào chờ thì đóng, lô nào
-                          bounce vượt trần thì cầu dao ngắt và giữ lại những
-                          thư chưa kịp rời máy.
-       `CampaignSweeper`  CẢ CHIẾN DỊCH — mọi đợt đã ngã ngũ thì chuyển XONG.
-                          Phải hỏi từ phía nhánh: dây `sales.campaign_run` chạy
-                          một chiều, `platform` không biết chiến dịch nào đang
-                          chờ lô của nó.
-
-     Chung nhịp `PV_QUEUE_POLL_SECONDS`: ba vòng poll khác nhau là ba con số
-     phải giải thích, và không có gì để đổi lấy.
-
-     `void` chứ không `await`, và mỗi lượt một `catch` riêng: một vòng quét
-     hỏng (Neon ngắt kết nối chẳng hạn) không được giết tiến trình, cũng không
-     được kéo theo lượt kia — dòng vẫn `pending`, lô vẫn `SENDING`, chiến dịch
-     vẫn `RUNNING`, vòng sau nhặt lại. Đó là toàn bộ lý do sổ gửi là nguồn sự
-     thật chứ không phải hàng đợi. */
-  /* One flag per pass, so a pass that outlives the tick is skipped, not
-     stacked. */
-  const pass = (failed: string, run: () => Promise<unknown>) => {
-    let running = false
-    return (): void => {
-      if (running) return
-      running = true
-      run()
-        .catch((error: unknown) => {
-          log.error(`${failed}: ${error instanceof Error ? error.message : String(error)}`)
-        })
-        .finally(() => {
-          running = false
-        })
-    }
-  }
-  const sweepRelay = pass('Relay lỗi', async () => {
-    // Gate first so a due later wave is released (or withheld) before the relay looks;
-    // the gate fails closed, so a slow gate only delays that wave by one poll.
-    await gates.sweep().catch((error: unknown) => {
-      log.error(`Wave gate failed: ${error instanceof Error ? error.message : String(error)}`)
-    })
-    await relay.sweep()
-  })
-  const sweepRuns = pass('Quét lô mail lỗi', () => runs.sweep())
-  // Ticked here and nowhere else; it throttles itself to PV_GMAIL_POLL_MINUTES.
-  const sweepGmail = pass('Gmail thread sweep failed', () => gmailThreads.sweep())
-  const sweepCampaigns = pass('Quét chiến dịch lỗi', () => campaigns.sweep())
-  // Rides this tick, no clock of its own; it throttles itself to one pass an hour.
-  const sweepHolds = pass('Hold reminders failed', () => holds.sweep())
-  // Same: bought-customer re-care bells, hourly (ADR 0121 §4).
-  const sweepRecare = pass('Re-care reminders failed', () => recare.sweep())
-  // Same: one pass a minute (Google Calendar retries), the cancelled pass hourly.
-  const sweepMeetings = pass('Meeting calendar sweep failed', () => meetings.sweep())
-  // Same: one pass a day, the first tick after boot is the boot pass.
-  const sweepKpiAlerts = pass('KPI alert sweep failed', () => kpiAlerts.sweep())
-  // Same: hourly; a level past its deadline gets last month's targets (ADR 0120 §6).
-  const sweepKpiSets = pass('KPI default sets failed', () => kpiSets.sweep())
-  // Same: contract overdue bells hourly, scan expiry every 15 minutes, expired sessions hourly.
-  const sweepOverdue = pass('Contract overdue sweep failed', () => overdue.sweep())
-  const sweepLeadScans = pass('Lead scan sweep failed', () => leadScans.sweep())
-  const sweepAiJobs = pass('AI fill sweep failed', () => aiJobs.sweep())
-  const sweepCommAiJobs = pass('Comm report sweep failed', () => commAiJobs.sweep())
-  const sweepSessions = pass('Session sweep failed', () => sessions.sweep())
-  // Same: the morning bell digest, every 5 minutes from Vietnam 08:00 (ADR 0145).
-  const sweepDigest = pass('Digest sweep failed', () => app.get(NotificationDigestSweeper).sweep())
-  const sweep = setInterval(() => {
-    sweepRelay()
-    sweepRuns()
-    sweepGmail()
-    sweepCampaigns()
-    sweepHolds()
-    sweepRecare()
-    sweepMeetings()
-    sweepKpiAlerts()
-    sweepKpiSets()
-    sweepOverdue()
-    sweepLeadScans()
-    sweepAiJobs()
-    sweepCommAiJobs()
-    sweepSessions()
-    sweepDigest()
-  }, env.PV_QUEUE_POLL_SECONDS * 1_000)
-  /* Đừng giữ tiến trình sống chỉ vì cái đồng hồ này. */
-  sweep.unref()
+  const sweep = startSweeps(app, log, env)
 
   log.log(
     `Worker đã lên · ${EMAIL_QUEUE} · ${env.PV_EMAIL_WORKER_CONCURRENCY} luồng · ` +

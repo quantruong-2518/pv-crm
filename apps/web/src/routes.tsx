@@ -155,6 +155,13 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/admin-notifications'),
   },
   {
+    /** One Core · exchange rate per day (ADR 0149). No `branch`. */
+    path: '/admin/fx-rates',
+    name: 'Tỷ giá', // i18n-ignore: route key, translated in route-copy
+    permission: 'setting.manage',
+    load: () => import('@/pages/admin-fx-rates'),
+  },
+  {
     /** One Core · AI cost per month and the unit prices it is costed at
      *  (ADR 0102). No `branch`: AI spend is not Sales-only. */
     path: '/admin/costs',

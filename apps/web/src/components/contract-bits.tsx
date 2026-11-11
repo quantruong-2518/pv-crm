@@ -13,6 +13,7 @@ import {
 } from '@/data/contract-copy'
 import { standingText } from '@/data/installment-copy'
 import { MoneyCell } from '@/components/money-cell'
+import { fxLineText } from '@/data/fx-rate'
 import { BADGE_INK } from '@/data/opportunities'
 
 /** The pieces every contract screen repeats. They live here rather than in
@@ -132,7 +133,14 @@ export function NextDueCell({
       <span className="flex min-w-0 flex-col items-end gap-1">
         <TerminatedBadge />
         {penalty && (
-          <span className="text-muted-foreground tnum font-num max-w-full truncate text-[11.5px]">
+          <span
+            title={
+              penalty.amountVnd !== null && penalty.fx
+                ? fxLineText(penalty.amountVnd, penalty.fx, lang)
+                : undefined
+            }
+            className="text-muted-foreground tnum font-num max-w-full truncate text-[11.5px]"
+          >
             {penaltyDirectionText(penalty.direction, lang)} {number(penalty.amount)}
             {currency && currency !== 'VND' ? ` ${currency}` : ''} ·{' '}
             {penaltyStatusText(penalty.direction, Boolean(penalty.settledOn), lang)}

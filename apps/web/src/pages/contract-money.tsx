@@ -16,6 +16,7 @@ import {
 import { BADGE_INK } from '@/data/opportunities'
 import { useContractKindLabel } from '@/data/sales-config'
 import { TintBadge } from '@/components/deal-money/tint-badge'
+import { FxLine } from '@/components/fx-line'
 import { NO_AMOUNT_COPY, compactMoney, kindLabel } from '@/components/deal-money/money'
 
 /** The contract's money block, drawn like the deal's (`PaperDetail`): one well
@@ -84,8 +85,11 @@ export function ContractMoney({
               ),
             )}
           </span>
-          <span className="tnum font-num ml-auto text-[20px] font-semibold">
-            {c.amount === null ? t(NO_AMOUNT_COPY) : compactMoney(c.amount, c.currency)}
+          <span className="ml-auto flex min-w-0 flex-col items-end">
+            <span className="tnum font-num text-[20px] font-semibold">
+              {c.amount === null ? t(NO_AMOUNT_COPY) : compactMoney(c.amount, c.currency)}
+            </span>
+            {c.amountVnd !== null && <FxLine vnd={c.amountVnd} fx={c.fx} />}
           </span>
         </div>
 
@@ -172,6 +176,7 @@ function InstallmentTile({
       <span className="tnum font-num text-[20px] font-semibold leading-[1.3]">
         {compactMoney(d.amount, currency)}
       </span>
+      {d.amountVnd !== null && <FxLine vnd={d.amountVnd} fx={d.fx} className="text-left" />}
       <span className="text-muted-foreground tnum text-[12px]">
         {t(message(`hạn ${dm(d.due)}`, `due ${dm(d.due)}`, `기한 ${dm(d.due)}`))}
       </span>

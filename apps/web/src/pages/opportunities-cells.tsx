@@ -10,6 +10,7 @@ import { dmy } from '@/lib/date'
 import { message, translate, useI18n, type Message } from '@/app/i18n'
 import { opportunityStageLabel, salesLabel } from '@/data/sales-labels-i18n'
 import { dueLevelText } from '@/data/contract-copy'
+import { fxBasisText, useTodayFx } from '@/data/fx-rate'
 import { lateLevel } from '@/data/contracts'
 import {
   activityAgo,
@@ -26,6 +27,7 @@ import {
 import { AcceptDealButton } from '@/components/opportunity-accept'
 import { AssignSaleButton } from '@/components/opportunity-assign'
 import { MoneyCell } from '@/components/money-cell'
+import { FxText } from '@/components/fx-line'
 import { DateCell, Missing, PicCell } from '@/components/book-cells'
 import { ROW_ICON } from '@/components/table-bits'
 
@@ -145,27 +147,30 @@ export function StageCell({ op }: { op: OpportunityBookRow }) {
   )
 }
 
-/** The deal's figure in VND, full digits; a foreign currency keeps its own
- *  figure in `title`. */
+/** The deal's figure in VND, full digits. A foreign currency keeps its own
+ *  figure and the rate behind the conversion on one line under it. */
 export function AmountCell({ op }: { op: OpportunityBookRow }) {
-  const { t, number } = useI18n()
-  const amountVnd = amountVndOf(op)
+  const { t, number, lang } = useI18n()
+  const fx = useTodayFx(op.currency)
+  const amountVnd = amountVndOf(op, fx)
+  /* The rate has not arrived: show the deal's own figure rather than a dash. */
+  const waiting =
+    amountVnd === null && op.amount !== null && op.currency !== null && op.currency !== 'VND'
   return (
-    <MoneyCell
-      amount={amountVnd}
-      missing={t(message('Chưa có giá trị dự kiến', 'No expected value yet', '예상 금액 없음'))}
-      title={
-        amountVnd === null || op.amount === null || op.currency === 'VND'
-          ? undefined
-          : t(
-              message(
-                `${number(op.amount)} ${op.currency} quy ra đồng`,
-                `${number(op.amount)} ${op.currency} converted to VND`,
-                `${number(op.amount)} ${op.currency}를 동으로 환산`,
-              ),
-            )
-      }
-    />
+    <span className="flex min-w-0 flex-col items-end gap-1">
+      <MoneyCell
+        amount={waiting ? op.amount : amountVnd}
+        currency={waiting ? op.currency : undefined}
+        missing={t(message('Chưa có giá trị dự kiến', 'No expected value yet', '예상 금액 없음'))}
+      />
+      {fx && amountVnd !== null && op.amount !== null && (
+        <FxText
+          text={`${number(op.amount)} ${op.currency} · ${number(fx.rate)}`}
+          title={`${number(op.amount)} ${op.currency} · ${fxBasisText(fx, lang)}`}
+          compact
+        />
+      )}
+    </span>
   )
 }
 

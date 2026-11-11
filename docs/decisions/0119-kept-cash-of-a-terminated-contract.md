@@ -29,3 +29,7 @@ October −10tr, no adjustment rows.
   only if the `vanished` row landed in the running month.
 - Code: `apps/api/src/branches/sales/kpi/kpi-readings.repository.ts` (`collected-value` room basis).
 - No migration.
+
+## Amendment 11/11/2026 · conversion to VND
+
+The refund row converts at the rate of `terminated_at`, collected cash at the rate of each installment's `paid_at`, not at the fixed `USD_VND` constant. See 0149.

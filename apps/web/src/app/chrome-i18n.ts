@@ -30,6 +30,10 @@ export const CHROME_ENTRY_COPY: Record<string, { label: Message; description?: M
       '역할별 알림 선택',
     ),
   },
+  '/admin/fx-rates': {
+    label: m('Tỷ giá', 'Exchange rates', '환율'),
+    description: m('Tỷ giá USD theo từng ngày', 'USD rate by day', '일별 USD 환율'),
+  },
   '/admin/costs': {
     label: m('Chi phí', 'Costs', '비용'),
     description: m('Chi phí AI và bảng giá', 'AI costs and pricing', 'AI 비용 및 요금'),

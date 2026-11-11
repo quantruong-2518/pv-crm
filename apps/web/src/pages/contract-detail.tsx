@@ -149,7 +149,12 @@ function ContractScreen({ contract }: { contract: Contract }) {
       }
       main={
         <>
-          <ContractTodo inside={run.inside} read={run.read} next={next} />
+          <ContractTodo
+            inside={run.inside}
+            read={run.read}
+            next={next}
+            currency={contract.currency}
+          />
           <ContractMoney
             contract={contract}
             views={views}
@@ -158,7 +163,7 @@ function ContractScreen({ contract }: { contract: Contract }) {
           />
           {run.inside && hasInside(run.inside) && (
             <RecordCard>
-              <ContractInside contract={run.inside} />
+              <ContractInside contract={run.inside} currency={contract.currency ?? undefined} />
             </RecordCard>
           )}
           {next?.blocking && !mailBlocked && canRecord && (

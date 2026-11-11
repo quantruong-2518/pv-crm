@@ -80,6 +80,7 @@ export const NotificationKind = z.enum([
   'kpi-assignment-late',
   'kpi-away-declared',
   'kpi-digest',
+  'fx-rate-missing',
 ])
 export type NotificationKind = z.infer<typeof NotificationKind>
 
@@ -104,6 +105,7 @@ export const NotificationSubject = z.enum([
   'kpi-allocation',
   'kpi-team',
   'kpi-assignment',
+  'fx-rate',
 ])
 export type NotificationSubject = z.infer<typeof NotificationSubject>
 
@@ -176,6 +178,7 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'kpi-assignment-late': 'Cấp dưới chưa giao chỉ tiêu đúng hạn, đã lấy mức tháng trước',
   'kpi-away-declared': 'Bạn được khai vắng việc KPI',
   'kpi-digest': 'Tóm tắt KPI buổi sáng',
+  'fx-rate-missing': 'Tỷ giá chưa được cập nhật',
 }
 
 /** The filter chips on the bell screen. */
@@ -278,6 +281,7 @@ export const NOTIFICATION_KIND_GROUP: Record<NotificationKind, NotificationGroup
   'kpi-assignment-late': 'kpi',
   'kpi-away-declared': 'kpi',
   'kpi-digest': 'kpi',
+  'fx-rate-missing': 'account',
 }
 
 /** Defaults of ADR 0093 §1 when no `notification_kind_policy` row exists (or
@@ -359,6 +363,8 @@ export const NOTIFICATION_KIND_POLICY: Record<
   /* ADR 0120 §7: someone else now holds your seat; you must hear it at once. */
   'kpi-away-declared': { important: true, locked: false },
   'kpi-digest': { important: false, locked: false },
+  /* Like `google-link-broken`: a system alert to `setting.manage` holders that no role may mute. */
+  'fx-rate-missing': { important: false, locked: true },
 }
 
 /** A stored `important` of `null` (or no row) follows the contract default,
@@ -395,6 +401,8 @@ export const NOTIFICATION_SUBJECT_PERMISSION: Record<NotificationSubject, Permis
   'kpi-team': 'kpi.view',
   /* A head reads their subtree with `kpi.view` alone (ADR 0120 §7). */
   'kpi-assignment': 'kpi.view',
+  /* The rate screen is the admin's `setting.manage` door; the subject code is the currency. */
+  'fx-rate': 'setting.manage',
 }
 
 /** Kinds the hub rings even when the reader cannot open the subject (ADR 0093
@@ -495,6 +503,7 @@ export const NOTIFICATION_KIND_SUBJECTS: Record<NotificationKind, readonly Notif
     'kpi-away-declared': ['kpi-scorecard'],
     /* Any subject of the four kinds it sums up. */
     'kpi-digest': ['kpi-scorecard', 'kpi-target', 'kpi-allocation', 'kpi-team'],
+    'fx-rate-missing': ['fx-rate'],
   }
 
 /** Key of the failed-letter count in `detail` on a closing `mail-run-sent` or
@@ -524,6 +533,10 @@ export const NOTIFICATION_DETAIL_SLIP = 'slip'
 export const NOTIFICATION_DETAIL_HIT = 'hit'
 export const NOTIFICATION_DETAIL_PROPOSED = 'proposed'
 export const NOTIFICATION_DETAIL_RESOLVED = 'resolved'
+/** Amount and currency code on a `contract-installment-overdue` line: the
+ *  contract's own currency, never dong, so the banner prints it as it is. */
+export const NOTIFICATION_DETAIL_AMOUNT = 'amount'
+export const NOTIFICATION_DETAIL_CURRENCY = 'currency'
 /** Distinct metrics a `kpi-about-to-miss` or `kpi-about-to-hit` line covers; the digest sums it. */
 export const NOTIFICATION_DETAIL_METRIC_COUNT = 'metricCount'
 
@@ -662,6 +675,7 @@ export const EntityKind = z.enum([
   'kpi',
   'hold',
   'user',
+  'fx-rate',
 ])
 export type EntityKind = z.infer<typeof EntityKind>
 

@@ -39,6 +39,8 @@ const KEEP = [
   'config_entry',
   'step_template',
   'state_rule',
+  /* The feed keeps no history: a wiped rate is gone for good. */
+  'fx_rate',
 ]
 const OWNED_SCHEMAS = ['platform', 'sales', 'comms']
 

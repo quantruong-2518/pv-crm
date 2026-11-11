@@ -40,6 +40,9 @@ const KEEP = [
      no motion to pick and no mail template to send. */
   'mail_template',
   'motion_policy',
+  /* Reference data the feed cannot give back: it keeps no history. A typed
+     rate names its author, so those rows go before `actor` does (below). */
+  'fx_rate',
 ]
 
 /** `actor` is emptied separately, by DELETE rather than TRUNCATE.
@@ -217,6 +220,7 @@ async function main(): Promise<void> {
          also left out. */
       const names = targets.map((t) => `"${t.table_schema}"."${t.table_name}"`).join(', ')
       await tx.execute(sql.raw(`TRUNCATE TABLE ${names} RESTART IDENTITY`))
+      await tx.execute(sql`DELETE FROM platform.fx_rate WHERE source = 'manual'`)
       await tx.execute(sql.raw(`DELETE FROM "platform"."${EMPTIED_LAST}"`))
 
       await tx.insert(actor).values(

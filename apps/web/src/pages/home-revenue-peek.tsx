@@ -4,6 +4,8 @@ import { Button, Icon, Skeleton, X, cn } from '@pv/ui'
 import type { SalesMoneyBucket, SalesMoneyEntry, SalesMoneyFigureKind } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { salesMoneyEntriesQuery } from '@/data/home-charts'
+import { FxText } from '@/components/fx-line'
+import { fxBasisText } from '@/data/fx-rate'
 import { rangeLabel } from '@/data/period-pick'
 import { money } from './home-model'
 import { CARD_WIDTH, type MoneyCard, type useMoneyCard } from './home-revenue-hover'
@@ -156,6 +158,7 @@ function GroupRow({
 }) {
   const first = group.entries[0]!
   const expandable = group.entries.length > 1
+  const lang = getLang()
   const head = (
     <>
       <span className="flex min-w-0 items-center gap-2">
@@ -177,6 +180,9 @@ function GroupRow({
       <span className="text-muted-foreground tnum font-num col-span-2 flex flex-wrap items-center">
         <Detail kind={kind} group={group} />
       </span>
+      {!expandable && first.fx && (
+        <FxText text={fxBasisText(first.fx, lang)} className="col-span-2" />
+      )}
     </>
   )
   return (
@@ -196,22 +202,22 @@ function GroupRow({
       {open && (
         <div className="bg-card mt-2 flex flex-col rounded-xl px-3 py-1">
           {group.entries.map((e, i) => (
-            <div
-              key={i}
-              className="text-muted-foreground tnum font-num flex justify-between gap-2 py-1"
-            >
-              <span className="flex items-center">
-                {e.amountVnd < 0 ? tr('Hoàn tiền', 'Refund', '환불') : installmentOf(e)}
-                <Day first={e.day} last={e.day} />
-              </span>
-              <span
-                className={cn(
-                  'font-semibold',
-                  e.amountVnd < 0 ? 'text-destructive-foreground' : ink,
-                )}
-              >
-                {signedMoney(e.amountVnd)}
-              </span>
+            <div key={i} className="flex flex-col py-1">
+              <div className="text-muted-foreground tnum font-num flex justify-between gap-2">
+                <span className="flex items-center">
+                  {e.amountVnd < 0 ? tr('Hoàn tiền', 'Refund', '환불') : installmentOf(e)}
+                  <Day first={e.day} last={e.day} />
+                </span>
+                <span
+                  className={cn(
+                    'font-semibold',
+                    e.amountVnd < 0 ? 'text-destructive-foreground' : ink,
+                  )}
+                >
+                  {signedMoney(e.amountVnd)}
+                </span>
+              </div>
+              {e.fx && <FxText text={fxBasisText(e.fx, lang)} />}
             </div>
           ))}
         </div>
@@ -286,7 +292,7 @@ function Section({
         </div>
       ) : (
         [0, 1, 2].map((i) => (
-          <div key={i} className="flex h-7 items-center">
+          <div key={i} className="h-13.5 flex items-center">
             <Skeleton width={i === 2 ? '50%' : '100%'} />
           </div>
         ))

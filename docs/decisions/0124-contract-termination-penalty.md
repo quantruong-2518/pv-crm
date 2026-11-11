@@ -66,3 +66,7 @@ Migrate before the API deploy, web after the API.
 ## Open
 
 Questions 120–123 in `open-questions.md`.
+
+## Amendment 11/11/2026 · conversion to VND
+
+The settled penalty converts at the rate of `penalty_settled_on` (today's rate, provisional, while unsettled), not by the single-constant rate table. See 0149.

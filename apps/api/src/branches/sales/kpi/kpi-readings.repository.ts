@@ -9,7 +9,7 @@ import {
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
-import { toVndSql } from '../money'
+import { OnDay, toVndSql } from '../money'
 import { contractTerminated, dealLost, dealOpen, dealTerminated, dealWon } from '../open-deal'
 import type { PeriodSpan } from '../performance/performance-period'
 import { collectedMoves } from '../performance/collected-moves'
@@ -54,8 +54,13 @@ const LIVE = sql`JOIN sales.lead l ON l.code = k.lead_code AND l.disabled_at IS 
  *  Collected keeps its cash and books the refund instead (`collected-value`).
  *  Only live readings move; a closed month reads its frozen copy. */
 const KEPT = sql`NOT ${contractTerminated(sql`k.code`)}`
-const contractVnd = toVndSql(sql`k.amount`, sql`k.currency`)
-const installmentVnd = toVndSql(sql`i.amount`, sql`k.currency`)
+const contractVnd = toVndSql(sql`k.amount`, sql`k.currency`, sql`k.signed_at`)
+/* A snapshot at `as_of`: a month read after its end keeps the rate of its own last day. */
+const installmentVnd = toVndSql(
+  sql`i.amount`,
+  sql`k.currency`,
+  new OnDay(sql`(SELECT as_of FROM span)`),
+)
 /** "Won" has ONE reading in KPI: the deal has a live contract. Terminated sits
  *  in the win-rate denominator beside lost (ADR 0107 §3). */
 const WON = dealWon(sql`k.code`)

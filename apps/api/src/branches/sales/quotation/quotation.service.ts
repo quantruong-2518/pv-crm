@@ -203,7 +203,7 @@ export class QuotationService {
     const visible = await this.contracts.inScopeAmong(who, may('contract.view') ? codes : [])
     const [rows, installments, terminated] = await Promise.all([
       this.repo.byDeal(handle, deal.code),
-      this.contracts.installmentsOf([...visible]),
+      this.contracts.scheduleOf([...visible]),
       this.deals.terminatedAmong(handle, codes),
     ])
     const shown = await this.shown(handle, rows, codes)

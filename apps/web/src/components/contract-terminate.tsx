@@ -36,6 +36,7 @@ import {
 } from '@/data/contract-penalty'
 import { useTerminateContract } from '@/data/contracts-write'
 import { moneyIn, symbolOf } from './deal-money/money'
+import { FxLine } from './fx-line'
 import { PenaltyDrawer, PenaltyFields } from './contract-penalty'
 import { Field } from './ops-fields'
 
@@ -383,11 +384,16 @@ function PenaltyBlock({
     <div className="bg-surface-ink/5 flex flex-wrap items-center gap-4 rounded-md p-4">
       {penalty ? (
         <>
-          <Figure
-            label={penaltyDirectionText(penalty.direction, lang)}
-            value={money(penalty.amount)}
-            strong
-          />
+          <div className="flex min-w-0 flex-col gap-1">
+            <Figure
+              label={penaltyDirectionText(penalty.direction, lang)}
+              value={money(penalty.amount)}
+              strong
+            />
+            {penalty.amountVnd !== null && (
+              <FxLine vnd={penalty.amountVnd} fx={penalty.fx} className="text-left" />
+            )}
+          </div>
           <Badge tone={penalty.settledOn ? 'success' : 'warning'}>
             {penalty.settledOn
               ? t(

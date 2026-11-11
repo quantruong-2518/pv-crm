@@ -39,6 +39,7 @@ import { configSeed, exitIdOf, person, productRows, sourceIdOf } from './seed-co
 import { STEP_TEMPLATE_SEED } from './seed-step-frame'
 import { walkDeal } from './seed-deal-walk'
 import { seedQuotationLedger } from './seed-quotation'
+import { wipeBusinessTables } from './seed-wipe'
 
 /** Wipe every demo row and plant the chip-industry book from `seed-book.ts`.
  *
@@ -48,17 +49,6 @@ import { seedQuotationLedger } from './seed-quotation'
  *  schemas, and `.env` has pointed at Neon before.
  *
  *  Run: `pnpm db:migrate && pnpm db:seed && pnpm db:seed:accounts -- --apply`. */
-
-/** Reference data the migrations plant and no seed rebuilds — same list as
- *  `reset-staff.ts` plus the two catalogs migrations insert. */
-const KEEP = [
-  'role_permission',
-  'permission_seed',
-  'email_suppression',
-  'mail_template',
-  'motion_policy',
-]
-const OWNED_SCHEMAS = ['platform', 'sales', 'comms']
 
 const DAY = 86_400_000
 const NOW = Date.now()
@@ -684,22 +674,7 @@ async function seed(): Promise<void> {
   })
 
   await db.transaction(async (tx) => {
-    /* Every table the app owns except `KEEP`, in one TRUNCATE so foreign keys
-       need no ordering; `actor` last by DELETE, so `role_permission.granted_by`
-       falls to NULL instead of cascading the permission matrix away. */
-    const listed = (await tx.execute(sql`
-      SELECT table_schema, table_name FROM information_schema.tables
-      WHERE table_schema IN (${sql.join(
-        OWNED_SCHEMAS.map((x) => sql`${x}`),
-        sql`, `,
-      )})
-        AND table_type = 'BASE TABLE'
-    `)) as { rows: { table_schema: string; table_name: string }[] }
-    const wiped = listed.rows
-      .filter((t) => !KEEP.includes(t.table_name) && t.table_name !== 'actor')
-      .map((t) => `"${t.table_schema}"."${t.table_name}"`)
-    await tx.execute(sql.raw(`TRUNCATE TABLE ${wiped.join(', ')} RESTART IDENTITY`))
-    await tx.execute(sql.raw(`DELETE FROM "platform"."actor"`))
+    await wipeBusinessTables(tx)
 
     await tx
       .insert(actor)

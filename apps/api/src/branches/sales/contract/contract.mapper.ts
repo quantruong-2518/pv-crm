@@ -15,6 +15,7 @@ import type {
   InstallmentSummaryRow,
 } from '@pv/contracts'
 import { OPPORTUNITY_STOP_REASON_OTHER, OPPORTUNITY_STOP_REASON_OTHER_LABEL } from '@pv/contracts'
+import { moneyFxOf, vndOf, type Converted } from '../money'
 import type { TerminationRead } from './contract-termination.repository'
 import type {
   contract,
@@ -94,6 +95,7 @@ export function toContract(
   row: ContractRowDb,
   names: { ownerName: string | null; collectorName: string | null },
   customer: string,
+  fx: Converted,
   participants: ContractParticipant[],
   termination: TerminationRead | null,
 ): ContractRow {
@@ -106,6 +108,8 @@ export function toContract(
     kind: row.kind,
     amount: row.amount,
     currency: row.currency,
+    amountVnd: vndOf(fx),
+    fx: moneyFxOf(fx),
     signedAt: row.signedAt.toISOString(),
     /* Cặp id/tên đi cùng nhau hoặc cùng vắng. Một hợp đồng chưa gán người có
        `owner_id` NULL, và lúc đó cái tên cũng không tồn tại — trả `ownerId`
@@ -136,7 +140,7 @@ function toTermination(read: TerminationRead): ContractTermination {
 }
 
 /** NULL direction = no penalty; the 0146 CHECKs keep direction and amount paired. */
-function toPenalty({ row, settledByName }: TerminationRead): ContractPenalty | null {
+function toPenalty({ row, settledByName, fx }: TerminationRead): ContractPenalty | null {
   if (row.penaltyDirection === null || row.penaltyAmount === null) return null
   return {
     direction: row.penaltyDirection,
@@ -144,6 +148,8 @@ function toPenalty({ row, settledByName }: TerminationRead): ContractPenalty | n
     settledOn: row.penaltySettledOn,
     settledById: row.penaltySettledById,
     settledByName,
+    amountVnd: vndOf(fx),
+    fx: moneyFxOf(fx),
   }
 }
 
@@ -178,12 +184,13 @@ export function toBookRow(read: {
   ownerName: string | null
   collectorName: string | null
   customer: string
+  fx: Converted
   participants: ContractParticipant[]
   termination: TerminationRead | null
-  installments: ContractInstallmentRowDb[]
+  installments: { row: ContractInstallmentRowDb; fx: Converted }[]
 }): ContractRow {
   return {
-    ...toContract(read.row, read, read.customer, read.participants, read.termination),
+    ...toContract(read.row, read, read.customer, read.fx, read.participants, read.termination),
     installments: read.installments.map(toInstallmentSummary),
   }
 }
@@ -195,12 +202,14 @@ export function toDetail(read: {
   ownerName: string | null
   collectorName: string | null
   customer: string
+  fx: Converted
   participants: ContractParticipant[]
   termination: TerminationRead | null
   contact: string
   contactRole: string | null
   installments: {
     row: ContractInstallmentRowDb
+    fx: Converted
     paidByName: string | null
     conditions: ContractConditionRowDb[]
     docs: ContractDocumentRowDb[]
@@ -209,7 +218,7 @@ export function toDetail(read: {
   }[]
 }): ContractDetailRow {
   return {
-    ...toContract(read.row, read, read.customer, read.participants, read.termination),
+    ...toContract(read.row, read, read.customer, read.fx, read.participants, read.termination),
     contact: read.contact,
     /* The lead may carry no job title, and the wire field is required because
        the header prints the contact and the role as one phrase. Falling back
@@ -221,12 +230,19 @@ export function toDetail(read: {
   }
 }
 
-function toInstallmentSummary(row: ContractInstallmentRowDb): InstallmentSummaryRow {
+function toInstallmentSummary({
+  row,
+  fx,
+}: {
+  row: ContractInstallmentRowDb
+  fx: Converted
+}): InstallmentSummaryRow {
   return {
     no: row.no,
     label: row.label,
     share: row.share,
     amount: row.amount,
+    amountVnd: vndOf(fx),
     due: row.due.toISOString(),
     ...(row.paidAt ? { paidAt: row.paidAt.toISOString() } : {}),
   }
@@ -234,6 +250,7 @@ function toInstallmentSummary(row: ContractInstallmentRowDb): InstallmentSummary
 
 function toInstallment(read: {
   row: ContractInstallmentRowDb
+  fx: Converted
   paidByName: string | null
   conditions: ContractConditionRowDb[]
   docs: ContractDocumentRowDb[]
@@ -241,7 +258,8 @@ function toInstallment(read: {
   notes: ContractNoteRowDb[]
 }): InstallmentRow {
   return {
-    ...toInstallmentSummary(read.row),
+    ...toInstallmentSummary(read),
+    fx: moneyFxOf(read.fx),
     /* Both or neither, like owner id/name: a recorder without a name would
        print as nobody, and a seeded paid row has no recorder at all. */
     ...(read.row.paidById && read.paidByName && read.row.paidRecordedAt

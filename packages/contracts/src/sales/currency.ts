@@ -24,7 +24,10 @@ import type { CurrencyCode } from './enums'
  *  vẫn phải khoá một mốc, nếu không mọi đơn giá USD trôi theo ngày chạy và hai
  *  lần mở màn ra hai con số.
  *
- *  **Mốc ĐẶT bởi Trần Thu Hà · 20/08.** */
+ *  **Mốc ĐẶT bởi Trần Thu Hà · 20/08.**
+ *
+ *  Since `./fx-rate` it is only the 'legacy' backfill row and the fixtures'
+ *  number; live conversion takes a rate from the caller. */
 export const USD_VND = 26_400
 
 /** Hai đồng tiền, không hơn.
@@ -33,16 +36,16 @@ export const USD_VND = 26_400
  *  trách nhiệm, không phải một con số tiện tay. Cần đồng thứ ba thì thêm mốc tỷ
  *  giá trước, đừng thêm dòng select trước.
  *
- *  `rate` là thứ SQL cũng đọc: `OpportunityRepository` dựng biểu thức
- *  `CASE currency WHEN … THEN amount * rate` từ chính mảng này, nên thêm một
- *  dòng ở đây là câu truy vấn biết luôn — không có bảng thứ hai để quên. */
+ *  No `rate` here on purpose: it moves daily and lives in `platform.fx_rate`, so
+ *  a caller that wants a rate cannot read a stale one off this array. */
 export const CURRENCIES = [
-  { code: 'VND', label: 'VND · Việt Nam đồng', symbol: '₫', rate: 1 },
-  { code: 'USD', label: 'USD · đô la Mỹ', symbol: '$', rate: USD_VND },
-] as const satisfies readonly { code: CurrencyCode; label: string; symbol: string; rate: number }[]
+  { code: 'VND', label: 'VND · Việt Nam đồng', symbol: '₫' },
+  { code: 'USD', label: 'USD · đô la Mỹ', symbol: '$' },
+] as const satisfies readonly { code: CurrencyCode; label: string; symbol: string }[]
 
-/** Quy về đồng. Mọi chỗ CỘNG tiền phải đi qua đây — sổ cơ hội cộng bằng đồng,
- *  cộng thẳng số USD vào đó là sai 26.400 lần. */
-export function toMoneyVnd(amount: number, currency: CurrencyCode): number {
-  return amount * (CURRENCIES.find((c) => c.code === currency)?.rate ?? 1)
+/** Quy về đồng ở tỷ giá `rate` (đồng cho một đơn vị `currency`, bỏ qua với VND).
+ *  Mọi chỗ CỘNG tiền phải đi qua đây — sổ cơ hội cộng bằng đồng, cộng thẳng số
+ *  USD vào đó là sai 26.400 lần. */
+export function toMoneyVnd(amount: number, currency: CurrencyCode, rate: number): number {
+  return currency === 'VND' ? amount : amount * rate
 }

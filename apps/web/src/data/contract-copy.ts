@@ -56,8 +56,8 @@ export const CONTRACT_COPY = {
   noCloser: message('Chưa có người chốt', 'No deal owner', '계약 담당자 없음'),
   noSale: message('Chưa có Sale', 'No salesperson', '영업 담당자 없음'),
   saleAndBd: message('Sale / BD', 'Sales / BD', '영업 / BD'),
-  estimatedValue: message('Giá trị ước đoán (₫)', 'Estimated value (₫)', '예상 금액 (₫)'),
-  collectedProgress: message('Tiến độ thu (₫)', 'Collection progress (₫)', '수금 진행 (₫)'),
+  estimatedValue: message('Giá trị ước đoán', 'Estimated value', '예상 금액'),
+  collectedProgress: message('Tiến độ thu', 'Collection progress', '수금 진행'),
   nextPayment: message('Đợt thu tiếp theo', 'Next installment', '다음 납부 회차'),
   convertedWhy: message(
     'Bộ lọc và thứ tự sắp xếp so số tiền đã quy ra đồng',

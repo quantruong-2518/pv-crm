@@ -3,14 +3,15 @@ import { ChevronDown, PenLine, TriangleAlert, X } from '@pv/ui'
 import { Button, Icon, Input, MetaPill, Select, billions, cn } from '@pv/ui'
 import {
   CURRENCIES,
-  toMoneyVnd,
   type ContractCollectorCandidates,
   type CurrencyCode,
   type OpportunityProfileResponse,
 } from '@pv/contracts'
 import { noCollectorText } from '@/data/contract-collector'
+import { fxBasisText, useTodayFx, vndAt } from '@/data/fx-rate'
 import { localDay } from '@/data/local-day'
 import { dmy } from '@/lib/date'
+import { FxLine } from './fx-line'
 import { Field } from './ops-fields'
 import { message, useI18n, type Message } from '@/app/i18n'
 
@@ -234,6 +235,7 @@ export function SignAmount({
 }) {
   const { number, currency: formatMoney, t } = useI18n()
   const code = currency === '' ? null : currency
+  const fx = useTodayFx(code)
   const symbol = CURRENCIES.find((c) => c.code === code)?.symbol ?? ''
   const options = [
     ...(code === null
@@ -298,10 +300,13 @@ export function SignAmount({
       </Field>
 
       {amount !== null && amount > 0 && code !== null && (
-        <span className="text-muted-foreground text-[11.5px] leading-[1.5] sm:col-span-2">
-          {code === 'VND'
-            ? `${formatMoney(amount, 'VND')} · ${billions(amount)}`
-            : `${formatMoney(amount, code)} · ${billions(toMoneyVnd(amount, code))} ${t(message('quy ra đồng', 'converted to VND', 'VND 환산'))}`}
+        <span className="sm:col-span-2">
+          <span className="text-muted-foreground block text-[11.5px] leading-[1.5]">
+            {code === 'VND'
+              ? `${formatMoney(amount, 'VND')} · ${billions(amount)}`
+              : formatMoney(amount, code)}
+          </span>
+          {fx && <FxLine vnd={vndAt(amount, fx)} fx={fx} className="text-left" />}
         </span>
       )}
     </section>
@@ -311,7 +316,8 @@ export function SignAmount({
 /** The warning (the point of the panel: the sign door has no way back) and the
  *  deal's own facts for reference. */
 export function SignNotice({ op, direct }: { op: OpportunityProfileResponse; direct: boolean }) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
+  const dealFx = useTodayFx(op.currency)
   return (
     <>
       <div className="bg-surface-ink/5 flex items-start gap-3 rounded-md p-4">
@@ -337,10 +343,13 @@ export function SignNotice({ op, direct }: { op: OpportunityProfileResponse; dir
 
       <div className="flex flex-wrap items-center gap-2">
         <MetaPill>{op.name}</MetaPill>
-        {op.amount !== null && op.currency !== null && (
-          <MetaPill className="tnum font-num">
+        {op.amount !== null && op.currency !== null && (op.currency === 'VND' || dealFx) && (
+          <MetaPill
+            className="tnum font-num"
+            title={dealFx ? fxBasisText(dealFx, lang) : undefined}
+          >
             {t(message('đơn đang ghi', 'deal recorded at', '기회 금액'))}{' '}
-            {billions(toMoneyVnd(op.amount, op.currency))}
+            {billions(dealFx ? vndAt(op.amount, dealFx) : op.amount)}
           </MetaPill>
         )}
         {op.contractCodes.map((code) => (

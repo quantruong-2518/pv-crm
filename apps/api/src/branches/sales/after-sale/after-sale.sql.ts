@@ -70,7 +70,7 @@ export function careRuns(cycles: RecareCycles): SQL {
               JOIN LATERAL (
                 SELECT max(as_ci.paid_at) AS completed_at,
                        max(coalesce(as_ci.paid_recorded_at, as_ci.paid_at)) AS anchor_at,
-                       coalesce(sum(${toVndSql(sql`as_ci.amount`, sql`as_pk.currency`)}), 0)::bigint AS collected_vnd
+                       coalesce(sum(${toVndSql(sql`as_ci.amount`, sql`as_pk.currency`, sql`as_ci.paid_at`)}), 0)::bigint AS collected_vnd
                   FROM sales.contract as_pk
                   JOIN sales.contract_installment as_ci ON as_ci.contract_code = as_pk.code
                  WHERE as_pk.lead_code = as_l.code AND NOT ${contractTerminated(sql`as_pk.code`)}

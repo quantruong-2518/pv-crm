@@ -227,3 +227,7 @@ Not decided; each is a numbered question in `open-questions.md`:
 - Pay linkage and the commission split (question 36).
 - Accountant and delivery roles (question 37).
 - A tolerance margin on the pace verdict (question 38).
+
+## Amendment 11/11/2026 · conversion to VND
+
+Money metrics convert foreign currency at the rate of the event day, not at the fixed `USD_VND` constant. See 0149.

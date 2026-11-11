@@ -99,7 +99,7 @@ export class PerformanceRepository {
       ) c ON true
       LEFT JOIN LATERAL (
         SELECT count(*)::int                                                    AS signed_count,
-               COALESCE(SUM(${toVndSql(contract.amount, contract.currency)}), 0)::bigint
+               COALESCE(SUM(${toVndSql(contract.amount, contract.currency, contract.signedAt)}), 0)::bigint
                                                                                 AS signed_amount_vnd,
                count(*) FILTER (WHERE ${contract.amount} IS NULL)::int          AS blank_amount
           FROM ${contract} JOIN ${lead} ON ${lead.code} = ${contract.leadCode} AND ${leadLive}

@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AiFillField, Combobox, Input, PillOverflow, Select, Textarea, billions, cn } from '@pv/ui'
 import { LEAD_NUM } from '@pv/contracts'
-import { toMoneyVnd, type CurrencyCode } from '@pv/engines/fixtures/das-vina'
+import type { CurrencyCode } from '@pv/engines/fixtures/das-vina'
 import { AddressField, type AddressBoxKey } from '@/components/address-field'
 import { LOCALE_TAG, message, useI18n, type Lang } from '@/app/i18n'
 import { peopleRoleOptions, useSalesPeople } from '@/data/directory'
@@ -13,6 +13,7 @@ import {
   industryChoices,
   leadIndustryOptionsQuery,
 } from '@/data/industries'
+import { fxLineText, useTodayFx, vndAt } from '@/data/fx-rate'
 import { leadStopReasonsQuery } from '@/data/leads'
 import { stopReasonLabel } from '@/data/sales-config'
 import type { LeadDraft } from '@/data/lead-draft'
@@ -656,16 +657,19 @@ function StopReasonRead({ value, mono }: { value: string; mono?: boolean }) {
  *  loud (billions), and a foreign currency converted too, because the
  *  opportunity book adds up in one currency. */
 function MoneyRead({ work, value }: { work: FormValues; value: string }) {
-  const { currency: formatMoney, t } = useI18n()
+  const { currency: formatMoney, lang } = useI18n()
+  const currency: CurrencyCode = work.currency
+  const fx = useTodayFx(currency)
   if (value === '') return null
   const amount = Number(value)
-  const currency: CurrencyCode = work.currency
 
   return (
     <span className="text-muted-foreground text-[12px] leading-[1.6]">
       {currency === 'VND'
         ? `${formatMoney(amount, 'VND')} · ${billions(amount)}`
-        : `${formatMoney(amount, currency)} · ${billions(toMoneyVnd(amount, currency))} ${t({ vi: 'quy ra đồng', en: 'converted to VND', ko: 'VND 환산' })}`}
+        : fx === null
+          ? formatMoney(amount, currency)
+          : `${formatMoney(amount, currency)} · ${fxLineText(vndAt(amount, fx), fx, lang)}`}
     </span>
   )
 }

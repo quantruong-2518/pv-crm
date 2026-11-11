@@ -2,14 +2,10 @@ import { useRef, useState, type ReactNode } from 'react'
 import { Paperclip, Plus, Trash2, Upload, X } from '@pv/ui'
 import { Button, Icon, Input, Select, billions, cn } from '@pv/ui'
 import { isSellerRole, OPPORTUNITY_FILES_MAX } from '@pv/contracts'
-import {
-  CURRENCIES,
-  toMoneyVnd,
-  type CurrencyCode,
-  type OpportunityDraft,
-} from '@pv/engines/fixtures/das-vina'
+import { CURRENCIES, type CurrencyCode, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import { message, useI18n } from '@/app/i18n'
 import type { SetDraft } from '@/data/deal-draft'
+import { fxLineText, useTodayFx, vndAt } from '@/data/fx-rate'
 import { useSalesPeople } from '@/data/directory'
 import { useProductCatalog } from '@/data/sales-config'
 import { PersonTokenField } from '@/components/person-token-field'
@@ -57,9 +53,10 @@ export function AmountField({
    *  a dead end — money moves the contract once a deal is signed. */
   lockNote?: string | null
 }) {
-  const { t, number } = useI18n()
+  const { t, number, lang } = useI18n()
   const amount = draft.amount
   const currency = draft.currency
+  const fx = useTodayFx(currency)
   const symbol = CURRENCIES.find((c) => c.code === currency)?.symbol ?? ''
 
   return (
@@ -79,7 +76,9 @@ export function AmountField({
           ? undefined
           : currency === 'VND'
             ? billions(amount)
-            : `${billions(toMoneyVnd(amount, currency))} ${t(message('quy ra đồng', 'converted to VND', 'VND 환산'))}`)
+            : fx === null
+              ? undefined
+              : fxLineText(vndAt(amount, fx), fx, lang))
       }
     >
       {/* `suffix` of `Input` (A-04) rather than a shell built here: the focus

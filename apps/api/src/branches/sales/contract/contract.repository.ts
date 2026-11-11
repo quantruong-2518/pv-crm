@@ -17,6 +17,7 @@ import { DUE_NEAR_DAYS, type Actor } from '@pv/engines'
 import {
   OWNER_NONE,
   type ContractBookQuery,
+  type CurrencyCode,
   type InstallmentDraft,
   type ContractParticipant,
   type ContractMonthPoint,
@@ -28,7 +29,7 @@ import { actor } from '@api/platform/db/platform.schema'
 import { notification } from '@api/platform/notification/notification.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
-import { toVndSql } from '../money'
+import { convertedColumns, toVndSql, type Converted } from '../money'
 import { contractReadBy, contractTerminated } from '../open-deal'
 import { fromDraft } from './contract.mapper'
 import { opportunityOwner } from '../opportunity/opportunity.schema'
@@ -74,8 +75,10 @@ export type ContractRead = {
  *  again says nothing to whoever reads an audit line. */
 export type ContractBookRead = ContractRead & {
   customer: string
+  /** Signed value in dong and the rate of the signing day behind it. */
+  fx: Converted
   termination: TerminationRead | null
-  installments: ContractInstallmentRowDb[]
+  installments: { row: ContractInstallmentRowDb; fx: Converted }[]
 }
 
 /** One installment past due and unpaid, with one person to tell. */
@@ -90,6 +93,8 @@ export type OverdueInstallment = {
   label: string
   due: Date
   amount: number
+  /** The contract's own currency: the bell prints the amount in it, unconverted. */
+  currency: CurrencyCode | null
 }
 
 export type ContractBookPage = {
@@ -104,6 +109,8 @@ export type ContractBookPage = {
  *  book's. */
 export type InstallmentRead = {
   row: ContractInstallmentRowDb
+  /** Dong figure at the paid day's rate, or today's while unpaid. */
+  fx: Converted
   /** NULL on an unpaid row and on one collected before the recorder was kept. */
   paidByName: string | null
   conditions: ContractConditionRowDb[]
@@ -114,6 +121,8 @@ export type InstallmentRead = {
 
 export type ContractDetailRead = ContractRead & {
   customer: string
+  /** Signed value in dong and the rate of the signing day behind it. */
+  fx: Converted
   termination: TerminationRead | null
   contact: string
   /** NULL when the lead never carried a job title — the mapper decides what to
@@ -135,9 +144,9 @@ export type ContractDetailRead = ContractRead & {
  *  riêng thay vì `ObjectCode`, và lý do đó đã ghi ở hợp đồng. */
 const NEXT_CODE = seqCodes('HĐ-', 'sales.contract_code_seq')
 
-/** The signed value of a contract in dong. Shared expression, one rate table —
+/** The signed value of a contract in dong, at the rate of its signing day —
  *  see `../money.ts`. */
-const CONTRACT_VND = toVndSql(contract.amount, contract.currency)
+const CONTRACT_VND = toVndSql(contract.amount, contract.currency, contract.signedAt)
 
 /** How far back the trend strip reaches. Twelve points including the current
  *  month, which is what `ContractSummary.byMonth` promises. */
@@ -350,6 +359,7 @@ export class ContractRepository {
           ownerName: actor.name,
           collectorName: collector.name,
           customer: lead.company,
+          fx: convertedColumns(contract.amount, contract.currency, contract.signedAt),
         })
         .from(contract)
         .innerJoin(lead, ON_LEAD)
@@ -368,7 +378,7 @@ export class ContractRepository {
 
     const codes = rows.map((r) => r.row.code)
     const [schedule, people, ended] = await Promise.all([
-      this.installmentsOf(codes),
+      this.scheduleOf(codes),
       this.participantsOf(codes),
       terminationsOf(this.db, codes),
     ])
@@ -398,6 +408,7 @@ export class ContractRepository {
         ownerName: actor.name,
         collectorName: collector.name,
         customer: lead.company,
+        fx: convertedColumns(contract.amount, contract.currency, contract.signedAt),
         contact: lead.contactName,
         contactRole: lead.contactTitle,
         inScope: this.inScopeValue(who),
@@ -415,7 +426,7 @@ export class ContractRepository {
        memory. Six installments times four tables is 24 round trips the other
        way, and every one of them rides the same index this one does. */
     const [schedule, people, ended, conditions, docs, records, notes] = await Promise.all([
-      this.installmentsOf([code]),
+      this.scheduleOf([code]),
       this.participantsOf([code]),
       terminationsOf(this.db, [code]),
       this.db
@@ -444,7 +455,7 @@ export class ContractRepository {
     ])
 
     const rows = schedule.get(code) ?? []
-    const payers = new Set(rows.flatMap((r) => (r.paidById ? [r.paidById] : [])))
+    const payers = new Set(rows.flatMap(({ row }) => (row.paidById ? [row.paidById] : [])))
     const payerNames = new Map<string, string>()
     if (payers.size > 0) {
       const named = await this.db
@@ -465,8 +476,9 @@ export class ContractRepository {
       ...found,
       participants: people.get(code) ?? [],
       termination: ended.get(code) ?? null,
-      installments: rows.map((row) => ({
+      installments: rows.map(({ row, fx }) => ({
         row,
+        fx,
         paidByName: (row.paidById && payerNames.get(row.paidById)) || null,
         conditions: byNo.conditions.get(row.no) ?? [],
         docs: byNo.docs.get(row.no) ?? [],
@@ -491,8 +503,12 @@ export class ContractRepository {
    *  SQL would blow up on a book worth a few thousand billion dong. */
   async summary(): Promise<ContractSummary> {
     const due = contractInstallment.due
-    /* An installment is in its contract's currency, like the contract's own amount. */
-    const money = toVndSql(contractInstallment.amount, contract.currency)
+    /* In its contract's currency; a paid one at its paid day's rate, an unpaid one at today's. */
+    const money = toVndSql(
+      contractInstallment.amount,
+      contract.currency,
+      contractInstallment.paidAt,
+    )
     const unpaid = sql`${contractInstallment.paidAt} IS NULL`
     const overdue = sql`${unpaid} AND ${due} < ${VN_TODAY_START}`
     /* Bounded on BOTH sides so an installment already late is counted as late
@@ -606,20 +622,31 @@ export class ContractRepository {
     }))
   }
 
-  async installmentsOf(codes: string[]): Promise<Map<string, ContractInstallmentRowDb[]>> {
+  /** The schedule of each contract with every installment's dong figure at the
+   *  rate of its paid day, or today's while unpaid. The profile and the book
+   *  print it. */
+  async scheduleOf(
+    codes: string[],
+  ): Promise<Map<string, { row: ContractInstallmentRowDb; fx: Converted }[]>> {
     if (codes.length === 0) return new Map()
-
     const rows = await this.db
-      .select()
+      .select({
+        row: contractInstallment,
+        fx: convertedColumns(
+          contractInstallment.amount,
+          contract.currency,
+          contractInstallment.paidAt,
+        ),
+      })
       .from(contractInstallment)
+      .innerJoin(contract, eq(contract.code, contractInstallment.contractCode))
       .where(inArray(contractInstallment.contractCode, codes))
       .orderBy(asc(contractInstallment.contractCode), asc(contractInstallment.no))
-
-    const by = new Map<string, ContractInstallmentRowDb[]>()
+    const by = new Map<string, { row: ContractInstallmentRowDb; fx: Converted }[]>()
     for (const r of rows) {
-      const list = by.get(r.contractCode)
+      const list = by.get(r.row.contractCode)
       if (list) list.push(r)
-      else by.set(r.contractCode, [r])
+      else by.set(r.row.contractCode, [r])
     }
     return by
   }
@@ -645,6 +672,7 @@ export class ContractRepository {
         label: sql<string>`${contract.code} || ' · ' || ${lead.company}`,
         due: ci.due,
         amount: ci.amount,
+        currency: contract.currency,
       })
       .from(ci)
       .innerJoin(contract, eq(contract.code, ci.contractCode))

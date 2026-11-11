@@ -31,3 +31,7 @@ This closes off what the design calls "the second source of truth" for
 contract money before it can exist. See ADR 0023 for how this is additionally
 enforced at the table layer via a foreign key pinned to `quote_status =
 'khach-chot'`, not left as a service-level convention.
+
+## Amendment 11/11/2026 · conversion to VND
+
+Amount and currency stay a snapshot at signing; the VND value of a foreign-currency amount is no longer the fixed `USD_VND` constant but the Vietcombank rate of the signing day. See 0149.

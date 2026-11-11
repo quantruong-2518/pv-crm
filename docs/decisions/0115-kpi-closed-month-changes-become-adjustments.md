@@ -45,3 +45,7 @@ basis of uniform rows `(actor_id, kind, code, at, value, tag)` folded by a total
 - Migration 0136: `sales.kpi_month_basis`, `sales.kpi_adjustment` (additive).
 - `kpi_month_value` stays the card's frozen source; the basis table serves lists and the reconcile pass.
 - Known gap kept open: a terminated contract's kept cash is dropped from `collected-value` (0107 §2); not this slice. Closed by 0119.
+
+## Amendment 11/11/2026 · conversion to VND
+
+A later correction of a day's exchange rate moves the live basis of a closed month; this reconcile books it as an adjustment in the running month, the closed month stays frozen. See 0149.

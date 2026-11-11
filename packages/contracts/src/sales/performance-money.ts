@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { MoneyFx } from '../fx-rate'
 import { ContractCode, Day, MoneyVnd, ObjectCode } from '../primitives'
 import { SalesDayRange, SalesPerformanceParams, SalesPeriodKey } from './performance'
 
@@ -89,6 +90,8 @@ export const SalesMoneyEntry = z.object({
   day: Day,
   /** Negative for a refund only. */
   amountVnd: SignedVnd,
+  /** Rate behind `amountVnd`; null for VND. Optional for an API one deploy behind. */
+  fx: MoneyFx.nullable().optional(),
   /** Not yet settled; only a penalty can be. */
   pending: z.boolean(),
   signedOn: Day.nullable(),

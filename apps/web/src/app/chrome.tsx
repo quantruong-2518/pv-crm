@@ -1,5 +1,6 @@
 import type { IconGlyph } from '@pv/ui'
 import {
+  ArrowLeftRight,
   Bell,
   BriefcaseDollar,
   Building,
@@ -198,6 +199,14 @@ const ADMIN_ENTRIES: SettingsEntry[] = [
     label: 'Thông báo theo vai trò', // i18n-ignore
     description: 'Vai trò nào nhận loại thông báo nào, loại nào hiện lên ngay', // i18n-ignore
     path: '/admin/notifications',
+    permission: 'setting.manage',
+    group: 'admin',
+  },
+  {
+    icon: ArrowLeftRight,
+    label: 'Tỷ giá', // i18n-ignore
+    description: 'Tỷ giá USD theo từng ngày', // i18n-ignore
+    path: '/admin/fx-rates',
     permission: 'setting.manage',
     group: 'admin',
   },

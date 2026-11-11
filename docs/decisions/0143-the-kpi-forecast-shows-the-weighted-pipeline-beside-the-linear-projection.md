@@ -76,3 +76,7 @@ Debt: `docs/status.md`.
 
 - `KpiForecast.pipeline` in the contracts. No migration.
 - Ship the API before the web.
+
+## Amendment 11/11/2026 · conversion to VND
+
+The weighted pipeline converts open deal amounts at today's rate, marked provisional, not through the fixed `USD_VND` constant. See 0149.
