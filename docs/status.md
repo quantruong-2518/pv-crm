@@ -61,8 +61,8 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
     model nor the audit") is now untrue for door-side audits.
   - Built 10/11/2026 (second amendment of ADR 0147): reach re-check of a
     stored answer and the audit line on re-serve.
-  - Replay and fold resend revealing answers to the vendor with no content
-    `view` audit line. Owner to decide.
+  - Replay and fold resend: no `view` audit line; closed, see ADR 0147
+    amendment 11/11/2026.
   - A `running` turn has no age limit in `detail`, so a stuck row skips the
     audit until the sweep.
   - `reveals` and `revealing` are two lists from one fact.
@@ -86,12 +86,16 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
     the generic line, as `get_history` does.
 - CRM assistant KPI tools (ADR 0151), debt:
   - On production at 18307063, Fly v220 (11/11/2026), /healthz ok; no migration.
-  - Room-scope metrics must be hidden from readers without `kpi.view-all` inside
-    `KpiService.me` (owner decision 11/11, KPI restructure worktree); the tools
-    depend on it.
-  - Open for the owner, before that change merges: a seat that lost `kpi.view-all`
-    still gets stored room-scope answers replayed, since `reveals` is fixed per
-    tool (per-answer `reveals`, or no room-scope readings in `get_my_kpi`).
+  - ADR 0151 amendment of 11/11/2026 (no room-scope readings in `get_my_kpi`,
+    prompt v12): built, not shipped.
+  - Owner decided 11/11/2026: production keeps counts only, never question text.
+  - Owner decided 11/11/2026: no counting tool beyond KPI is planned now (for
+    example "how many leads at stage X"); revisit after gate 0 shows real users
+    ask it.
+  - Fly worker machine `080d706a106718` (a stopped standby of worker
+    `185d01da193698`, which no longer existed; no volume) was destroyed by the
+    owner on 11/11/2026. `fly machines list` then showed two started machines:
+    api `e82e510f271e38` and worker `d8d0159ce39518`.
   - The named-team path of `get_team_kpi` computes everyone's forecast and then
     filters.
   - The eval seed covers `signed-value` only; no ratio metric is seeded.
@@ -136,8 +140,9 @@ Built through wave 2b (ADR 0112 to 0120).
   Open questions 173 to 178 are answered (10/11).
 - KPI read holes (ADR 0143 amendment): built 10/11/2026, ships with the
   assistant reach fix. Release note: a holder of `performance.view` without
-  `kpi.view-all` loses the company KPI screen and its nav entry. Open
-  questions 179 to 182.
+  `kpi.view-all` loses the company KPI screen and its nav entry. Questions 179
+  to 182 answered 11/11/2026 (`decisions/open-questions.md`); 180 to 182 are for
+  the KPI session to build.
 - Debt: `openPipeline` runs uselessly when a team lead reads a member's
   forecast.
 - Owed on the above: the first digest run has not been seen in the Fly logs;

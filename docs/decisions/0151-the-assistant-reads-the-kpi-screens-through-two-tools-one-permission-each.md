@@ -9,11 +9,12 @@ Source: slice 4 of the series opened by 0142; design in the session handoff of 1
 Slice 4 answers "how am I doing this month or quarter" and "who in the team is
 behind". Code: `apps/api/src/branches/sales/assistant/get-my-kpi.ts`,
 `get-team-kpi.ts`, `kpi-read.ts`, the binder keys in
-`apps/api/src/platform/assistant/assistant-bind.ts`, prompt v11
+`apps/api/src/platform/assistant/assistant-bind.ts`, prompt v11 (v12 since the 11/11/2026 amendment)
 (`apps/api/src/platform/ai/prompts/assistant.prompts.ts`), eval
 `apps/api/src/scripts/ai-eval/scope-kpi*.ts` and `seed-kpi.ts`, cases in
 `assistant-cases.json` (coverage-03 flipped to positive, coverage-14 and 15 new).
-Gate 0 is still OPEN. Open questions 179 to 182 (ADR 0143) are unanswered here.
+Gate 0 is still OPEN. Open questions 179 to 182 (ADR 0143) were answered 11/11/2026 (ADR 0143
+amendment).
 
 ## Decision
 
@@ -54,8 +55,8 @@ holding another seat's pipeline would replay after the reader lost it.
   (the owner always sees their own; this is the replay fix for the ADR 0143
   section 5 rule, separate from the room-metric hide in the KPI worktree). It is
   left out when the forecast's pipeline is null, which means it does not apply
-  (closed or future month, no signed-value holder). A null is never turned into
-  0; a true zero (no open deals due) is shown as 0. Never summed.
+  (closed or future month, no signed-value holder), and also when it is 0
+  (11/11/2026, question 182: null and 0 both draw nothing). Never summed.
 
 ### 6 · Units bind by key name
 
@@ -70,14 +71,27 @@ Scope group `scope-kpi` asks the doors under the seat's name. The seed covers
 
 ## Consequences
 
-- Room-scope metrics: on 11/11 the owner decided (in the KPI restructure
-  worktree) to hide them from readers without `kpi.view-all`. That rule must live
-  in `KpiService.me`, and in the person and team view, so the tool inherits it.
-  This slice depends on that work.
-- Open for the owner, before that change merges: a seat that held `kpi.view-all`
-  and later lost it still gets its stored room-scope answers replayed, because
-  `reveals` is fixed per tool. Options: per-answer `reveals` in the platform, or
-  no room-scope readings in `get_my_kpi`.
+- Room-scope metrics: the KPI screens hide them from readers without
+  `kpi.view-all` (question 179, ADR 0143 amendment). The tools do not depend on
+  that rule: see the Amendment below.
 - Debt (durations, period labels): a binder key family or a period formatter.
 - Remaining debt: `docs/status.md`.
 - Gate 0 command is unchanged from 0142.
+
+## Amendment 11/11/2026 · no room-scope readings in `get_my_kpi`; counts only on production; no counting tool yet
+
+Owner decisions of 11/11/2026, answering the open points of this slice.
+
+1. **Room-scope replay.** `get_my_kpi` carries no room-scope reading, in the
+   month path and the quarter path; `monthOnly` names no room metric. A director,
+   whose metrics are all room-scope, gets no rows. The model says room-wide
+   figures are not read by the assistant, and does not call them zero (prompt
+   v12). `get_team_kpi` is unchanged, gated on `kpi.view-all`. Code:
+   `apps/api/src/branches/sales/assistant/get-my-kpi.ts`.
+2. **Replay without a `view` audit row.** Kept as built (ADR 0147 amendment
+   11/11/2026); the KPI doors write no content audit at all.
+3. **Question text.** Production keeps counts only and never reads what users
+   asked.
+4. **Counting tool beyond KPI** (for example "how many leads at stage X"): not
+   planned now. Revisit after gate 0 shows real users ask it.
+5. Open questions 179 to 182 are answered in the ADR 0143 amendment.

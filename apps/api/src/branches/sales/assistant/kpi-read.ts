@@ -62,7 +62,7 @@ const shown = (unit: KpiUnit, n: number): number =>
 
 export const thisMonth = (): string => vietnamToday().slice(0, 7)
 
-/** The forecast of one person's seat; a null `pipeline` (does not apply) is left out, not passed on. */
+/** The forecast of one person's seat; a `pipeline` of null (does not apply) or 0 (nothing to show) is left out. */
 export function forecastBy(items: readonly KpiForecast[] = [], withPipeline = false) {
   const byKey = new Map(items.map((i) => [`${i.actorId}/${i.role}/${i.metricKey}`, i]))
   return (actorId: string, role: RoleId, key: KpiMetricKey): Ahead | undefined => {
@@ -71,7 +71,7 @@ export function forecastBy(items: readonly KpiForecast[] = [], withPipeline = fa
       item && {
         projected: item.projected,
         flag: item.flag,
-        ...(withPipeline && item.pipeline !== null && { pipeline: item.pipeline }),
+        ...(withPipeline && !!item.pipeline && { pipeline: item.pipeline }),
       }
     )
   }
@@ -92,8 +92,7 @@ export function readingRow(
     target: pace.target,
     expected: pace.expected,
     projected: ahead?.projected,
-    /* A room-scope line is the whole room's pipeline, which a stored answer cannot re-check per reader. */
-    pipeline: def.unit === 'money' && def.scope === 'own' ? ahead?.pipeline : undefined,
+    pipeline: ahead?.pipeline,
   }
   return [
     {
@@ -114,6 +113,12 @@ export function readingRow(
     },
   ]
 }
+
+/** The catalog `get_my_kpi` may read: no room-scope metric, so `readingRow` drops its readings. */
+export const ownCatalog = (catalog: KpiCatalog): KpiCatalog =>
+  Object.fromEntries(
+    Object.entries(catalog).map(([role, defs]) => [role, defs.filter((d) => d.scope === 'own')]),
+  ) as unknown as KpiCatalog
 
 export const scorecardRows = (
   catalog: KpiCatalog,

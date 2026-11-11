@@ -58,7 +58,19 @@ Same review, the other two holes (`apps/api/src/branches/sales/kpi/`):
 Behaviour note for the release: a holder of `performance.view` without
 `kpi.view-all` loses the company KPI screen and its nav entry.
 
-Open: questions 179 to 182. Debt: `docs/status.md`.
+Questions 179 to 182, answered 11/11/2026 (decision · where · status):
+
+- 179 · room-scope actuals hidden from readers without `kpi.view-all`, the
+  `book && (all || self)` rule · KPI restructure worktree · built, not merged.
+- 180 · matrix save enforces "`kpi.set-target` implies `kpi.view-all`" · KPI
+  session · to be built.
+- 181 · `roleValue` shown to readers without `kpi.view-all`, as their own role
+  target · `apps/api/src/branches/sales/kpi/kpi-allocation.mapper.ts` · kept as
+  built.
+- 182 · hide: null and 0 pipeline both draw nothing on the person-forecast
+  screen · KPI session; the assistant side is ADR 0151 §5 · to be built.
+
+Debt: `docs/status.md`.
 
 ## Consequences
 

@@ -810,16 +810,20 @@ Raised by ADRs 0143 to 0146. Questions 179 to 182 come from the read-hole amendm
      (whole-book signed value, overdue receivables) to every room-role holder,
      ignoring `kpi.view-all` and own-only. Keep by design (recommended), or
      apply the same `book && (all || self)` rule?** _(see ADR 0143 amendment)_
+     **Answered 11/11/2026: apply the rule; see the list — ADR 0143 amendment.**
 
 180. **`PUT targets/:role`, `agree` and `close-gate` return every role's targets
      to a `kpi.set-target` holder. Enforce "set-target implies view-all" at
      matrix save (recommended), or return only the written role?**
      _(see ADR 0143 amendment)_
+     **Answered 11/11/2026: enforce at matrix save; see the list — ADR 0143 amendment.**
 
 181. **Allocation `roleValue` (the reader's own role target): intended for
      readers without `kpi.view-all`? Recommended: yes, it is their own target.**
      _(see ADR 0143 amendment)_
+     **Answered 11/11/2026: yes; kept as built; see the list — ADR 0143 amendment.**
 
 182. **The person-forecast screen draws pipeline 0 while `/me` hides 0. Pick
      one; recommended: hide (null and 0 both draw nothing).**
      _(see ADR 0143 amendment)_
+     **Answered 11/11/2026: hide; see the list — ADR 0143 amendment.**

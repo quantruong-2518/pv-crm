@@ -37,9 +37,10 @@ import type { World } from './world'
  *  the rows the tools say they build from them: a figure under its unit's name (₫ as
  *  `…Money` with `currency`, a ratio as `…Percent` out of 100, the rest plain), people
  *  behind on their primary metric first, a team total only for the metrics that add up,
- *  and a pipeline only on the asker's own money line (never on a room metric, never in a
- *  team list). A reader shut out of
- *  the door a call stands on gets a refusal and not one figure. */
+ *  and a pipeline only on the asker's own money line (never in a team list, never null or
+ *  0). `get_my_kpi` keeps own-scope metrics only, so a room metric is no row and no
+ *  `monthOnly` key there, while `get_team_kpi` keeps it. A reader shut out of the door a
+ *  call stands on gets a refusal and not one figure. */
 
 export const GROUP = 'scope-kpi'
 export const MINE = 'get_my_kpi'
@@ -81,19 +82,22 @@ const figureOf = (unit: string, n: number): number =>
   unit === 'ratio' ? Math.round(n * 10_000) / 100 : unit === 'count' ? Math.round(n) : n
 
 /** Zero or one row; a metric the catalog does not carry has none. */
-function rowsOf(role: RoleId, pace: Pace, ahead?: KpiForecast, pipeline = false): object[] {
+function rowsOf(
+  role: RoleId,
+  pace: Pace,
+  ahead?: KpiForecast,
+  pipeline = false,
+  ownOnly = false,
+): object[] {
   const def = KPI_CATALOG[role].find((d) => d.key === pace.key)
-  if (!def) return []
+  if (!def || (ownOnly && def.scope !== 'own')) return []
   const suffix = UNIT_SUFFIX[def.unit] ?? ''
   const figures: Record<string, number | null | undefined> = {
     value: pace.value,
     target: pace.target,
     expected: pace.expected,
     projected: ahead?.projected,
-    pipeline:
-      pipeline && def.unit === 'money' && def.scope === 'own'
-        ? (ahead?.pipeline ?? undefined)
-        : undefined,
+    pipeline: pipeline ? ahead?.pipeline || undefined : undefined,
   }
   const shown = Object.entries(figures).flatMap(([name, n]) =>
     n === undefined ? [] : [[name + suffix, n === null ? n : figureOf(def.unit, n)]],
@@ -118,10 +122,16 @@ const cardRows = (
   cards: readonly Card[],
   ahead?: (role: RoleId, key: KpiMetricKey) => KpiForecast | undefined,
   pipeline = false,
+  ownOnly = false,
 ) =>
   cards.flatMap((card) =>
-    card.readings.flatMap((r) => rowsOf(card.role, r, ahead?.(card.role, r.key), pipeline)),
+    card.readings.flatMap((r) =>
+      rowsOf(card.role, r, ahead?.(card.role, r.key), pipeline, ownOnly),
+    ),
   )
+
+const isOwn = (role: RoleId, key: KpiMetricKey): boolean =>
+  KPI_CATALOG[role].some((d) => d.key === key && d.scope === 'own')
 
 const aheadOf =
   (items: readonly KpiForecast[] = []) =>
@@ -158,15 +168,17 @@ export async function expectedOf(world: World, who: Actor, call: KpiCall): Promi
 
   if (call.name === MINE && call.input.period === 'quarter') {
     const quarter = bodies[ID.quarter] as KpiQuarterMeResponse
-    const rows = cardRows(quarter.scorecards)
-    const monthOnly = [...new Set(quarter.scorecards.flatMap((s) => s.monthOnly))]
+    const rows = cardRows(quarter.scorecards, undefined, false, true)
+    const monthOnly = [
+      ...new Set(quarter.scorecards.flatMap((s) => s.monthOnly.filter((k) => isOwn(s.role, k)))),
+    ]
     const out = { kpi: { trusted: { period: quarter.quarter, monthOnly }, rows } }
     return { refused: false, out: wire(out), rowCount: rows.length, reveals: rows.length > 0 }
   }
   if (call.name === MINE) {
     const card = bodies[ID.me] as KpiMeResponse
     const forecast = bodies[ID.forecast] as KpiForecastResponse | undefined
-    const rows = cardRows(card.scorecards, aheadOf(forecast?.items)(who.id), true)
+    const rows = cardRows(card.scorecards, aheadOf(forecast?.items)(who.id), true, true)
     const out = { kpi: { trusted: { period: card.period }, rows } }
     return { refused: false, out: wire(out), rowCount: rows.length, reveals: rows.length > 0 }
   }

@@ -131,6 +131,12 @@ Eval: `scope-history-reach.ts`, `scope-history-audit.ts`, `runner-audit.ts` and
 `scope-matrix.ts` in `apps/api/src/scripts/ai-eval/`. Remaining debt:
 `docs/status.md`.
 
+## Amendment 11/11/2026 · replay and fold resend write no audit row
+
+Owner decision: kept as built. Replaying a stored answer, or re-sending the folded
+summary, to the model provider writes no `view` row. The text was audited on its
+first read; a replay or re-send adds no new reader.
+
 ## Known limits
 
 Listed as debt in `docs/status.md`: tool-token cap on a history read; door-side

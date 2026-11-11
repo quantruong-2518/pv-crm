@@ -1753,12 +1753,12 @@ describe('get_my_kpi', () => {
     expect((draft.output as Mine).kpi.rows[0]?.trusted).not.toHaveProperty('pipelineMoney')
   })
 
-  it('keeps a pipeline of zero, which is a figure and not an absence', async () => {
+  it('leaves a pipeline of zero out, as it does a null one', async () => {
     const s = setup()
     const [item] = KPI_FORECAST.items
     s.forecast.mine.mockResolvedValue({ ...KPI_FORECAST, items: [{ ...item!, pipeline: 0 }] })
     const { kpi } = await monthOf(s)
-    expect(kpi.rows[0]?.trusted).toHaveProperty('pipelineMoney', 0)
+    expect(kpi.rows[0]?.trusted).not.toHaveProperty('pipelineMoney')
   })
 
   /** What the model would print for one figure of one row, through the real binder. */
@@ -1787,13 +1787,14 @@ describe('get_my_kpi', () => {
     expect(sayer(verdict)(0, 'pipelineMoney')).toContain('₫')
   })
 
-  it('leaves the pipeline off a room-scope line, though the forecast carries one', async () => {
+  it('drops a room-scope reading and its pipeline, and keeps an own-scope row beside it', async () => {
     const s = setup()
     const [item] = KPI_FORECAST.items
-    const [signed] = SALE_CARD.readings
+    const [signed, , count] = SALE_CARD.readings
+    const lag = { ...count!, key: 'accept-lag-days' }
     s.kpi.me.mockResolvedValue({
       period: '2026-11',
-      scorecards: [{ ...SALE_CARD, role: 'head-of-sales', readings: [signed!] }],
+      scorecards: [{ ...SALE_CARD, role: 'head-of-sales', readings: [signed!, lag] }],
     })
     s.forecast.mine.mockResolvedValue({
       ...KPI_FORECAST,
@@ -1807,9 +1808,29 @@ describe('get_my_kpi', () => {
     )
     expect(verdict).toMatchObject({ outcome: 'ok', rowCount: 1 })
     expect((verdict.output as Mine).kpi.rows[0]?.trusted).toMatchObject({
-      projectedMoney: 900_000_000,
+      metric: 'accept-lag-days',
     })
-    expect(JSON.stringify(verdict.output)).not.toMatch(/ipeline|777000000/)
+    expect(JSON.stringify(verdict.output)).not.toMatch(/signed-value|ipeline|777000000/)
+  })
+
+  it('reads no row at all for a seat that holds only room-scope readings, in a quarter', async () => {
+    const s = setup()
+    const [signed] = SALE_CARD.readings
+    s.quarter.me.mockResolvedValue({
+      quarter: '2026-Q4',
+      scorecards: [
+        { role: 'head-of-sales', readings: [signed!], monthOnly: ['win-rate', 'accept-lag-days'] },
+      ],
+    })
+    const verdict = await s.gate.call(
+      actor('head-of-sales'),
+      call({ period: 'quarter', at: '2026-11' }),
+    )
+    expect(verdict).toMatchObject({ outcome: 'ok', rowCount: 0, revealsContent: false })
+    expect((verdict.output as Mine).kpi.trusted).toEqual({
+      period: '2026-Q4',
+      monthOnly: ['accept-lag-days'],
+    })
   })
 
   it('binds money with its currency, a ratio as a percent and a count plain', async () => {
