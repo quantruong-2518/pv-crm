@@ -17,18 +17,32 @@ import { ContractCode, CURRENCIES, ObjectCode } from '@pv/contracts'
 export const UNSURE = '[chưa rõ]'
 
 /* By key, because a JSON value carries no unit: these are the trusted halves' money
-   and percent fields, and a money value prints in its own record's currency. */
+   and percent fields, and a money value prints in its own record's currency. A KPI
+   figure has no fixed key, so the tool puts its unit in the name (`…Money`, `…Percent`). */
 const MONEY: ReadonlySet<string> = new Set([
   'amount',
   'budget',
   'collected',
   'collectedAmount',
+  'expectedMoney',
   'outstanding',
+  'pipelineMoney',
+  'projectedMoney',
   'quoting',
   'refundedAmount',
   'signed',
+  'targetMoney',
+  'valueMoney',
 ])
-const PERCENT: ReadonlySet<string> = new Set(['collectedShare', 'probability', 'share'])
+const PERCENT: ReadonlySet<string> = new Set([
+  'collectedShare',
+  'expectedPercent',
+  'probability',
+  'projectedPercent',
+  'share',
+  'targetPercent',
+  'valuePercent',
+])
 
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/
 const MOMENT = /^\d{4}-\d{2}-\d{2}T/

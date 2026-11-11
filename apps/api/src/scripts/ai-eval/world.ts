@@ -11,6 +11,12 @@ import { AfterSaleService } from '@api/branches/sales/after-sale/after-sale.serv
 import { ContractService } from '@api/branches/sales/contract/contract.service'
 import { LeadService } from '@api/branches/sales/lead/lead.service'
 import { OpportunityService } from '@api/branches/sales/opportunity/opportunity.service'
+import { KpiForecastService } from '@api/branches/sales/kpi/kpi-forecast.service'
+import { KpiModule } from '@api/branches/sales/kpi/kpi.module'
+import { KpiQuarterService } from '@api/branches/sales/kpi/kpi-quarter.service'
+import { KpiService } from '@api/branches/sales/kpi/kpi.service'
+import { KpiTeamService } from '@api/branches/sales/kpi/kpi-team.service'
+import { KpiTeamViewService } from '@api/branches/sales/kpi/kpi-team-view.service'
 import { NextStepDebriefHook } from '@api/branches/sales/next-step/comm-debrief.hook'
 import { NextStepModule } from '@api/branches/sales/next-step/next-step.module'
 import { LeadModule } from '@api/branches/sales/lead/lead.module'
@@ -69,6 +75,8 @@ class EvalRootModule {
       imports: [
         MemoryPlatformModule.over(handle, env),
         SalesAssistantModule,
+        /* The KPI doors are not reached by the module above yet; their services are asked for by type. */
+        KpiModule,
         /* The same wiring `app.module.ts` gives comms: the history tool asks ModuleRef for
            this service, and a world without it would pass on a lookup that fails in production. */
         CommsModule.withHook({
@@ -96,6 +104,11 @@ export type World = {
   contracts: ContractService
   searches: SearchService
   debriefs: DebriefService
+  kpi: KpiService
+  kpiQuarters: KpiQuarterService
+  kpiForecasts: KpiForecastService
+  kpiTeams: KpiTeamService
+  kpiTeamViews: KpiTeamViewService
   close: () => Promise<void>
 }
 
@@ -126,6 +139,11 @@ export async function openWorld(): Promise<World> {
     contracts: app.get(ContractService, { strict: false }),
     searches: app.get(SearchService, { strict: false }),
     debriefs: app.get(DebriefService, { strict: false }),
+    kpi: app.get(KpiService, { strict: false }),
+    kpiQuarters: app.get(KpiQuarterService, { strict: false }),
+    kpiForecasts: app.get(KpiForecastService, { strict: false }),
+    kpiTeams: app.get(KpiTeamService, { strict: false }),
+    kpiTeamViews: app.get(KpiTeamViewService, { strict: false }),
     close: async () => {
       await app.close()
       await handle.close()

@@ -1347,14 +1347,22 @@
     "question": "Chỉ tiêu doanh số quý này của tôi đã đạt bao nhiêu phần trăm?",
     "plan": [
       {
-        "say": "Tôi chưa đọc được chỉ tiêu từ đây nên không nêu phần trăm nào."
+        "call": "get_my_kpi",
+        "input": {
+          "period": "quarter"
+        },
+        "want": "ok",
+        "rows": 3
+      },
+      {
+        "say": "Doanh số quý này của bạn mới đạt ⟦v6⟧ trên chỉ tiêu ⟦v7⟧ của quý."
       }
     ],
     "expect": {
       "forbid": [],
       "forbidText": [],
-      "mustContain": [],
-      "grade": "Says plainly it cannot read this part of the CRM from here and invents no figure, name or status."
+      "mustContain": ["3.000.000.000"],
+      "grade": "The answer gives the quarter's signed value and the quarter target as the KPI read returned them, says the target is not reached yet, and states no other figure or percentage."
     }
   },
   {
@@ -1923,6 +1931,56 @@
       "forbidText": [],
       "mustContain": [],
       "grade": "The answer says the collected money is not visible to this asker and cites no collected amount, installment or share."
+    }
+  },
+  {
+    "id": "coverage-14",
+    "group": "coverage",
+    "actor": "kpiHead",
+    "question": "Tháng trước, trong nhóm Hà Nội ai không đạt chỉ tiêu?",
+    "plan": [
+      {
+        "call": "get_team_kpi",
+        "input": {
+          "team": "nhóm Hà Nội",
+          "at": "{kpi.previous}"
+        },
+        "want": "ok",
+        "rows": 3
+      },
+      {
+        "say": "Tháng trước trong nhóm Hà Nội, Nhân viên kpi-behind mới ký ⟦v3⟧ và Nhân viên kpi-lead mới ký ⟦v10⟧, cùng trên chỉ tiêu ⟦v4⟧."
+      }
+    ],
+    "expect": {
+      "forbid": [],
+      "forbidText": ["kpi-ahead"],
+      "mustContain": ["kpi-behind", "kpi-lead", "100.000.000", "600.000.000"],
+      "grade": "The answer names exactly the two members the team read marked as behind, gives each one's signed value against the target as the read returned them, does not name the member who made the target, and invents no figure."
+    }
+  },
+  {
+    "id": "coverage-15",
+    "group": "coverage",
+    "actor": "kpiLead",
+    "question": "Số KPI của cả nhóm Hà Nội tháng này ra sao?",
+    "plan": [
+      {
+        "call": "get_team_kpi",
+        "input": {
+          "team": "nhóm Hà Nội"
+        },
+        "want": "refused"
+      },
+      {
+        "say": "Tôi không mở được số KPI của cả nhóm với quyền của bạn."
+      }
+    ],
+    "expect": {
+      "forbid": [],
+      "forbidText": ["kpi-behind", "kpi-ahead", "1.200.000.000", "3.000.000.000", "[chưa rõ]"],
+      "mustContain": [],
+      "grade": "Says plainly the team's KPI could not be opened for this asker and invents no member, figure or verdict."
     }
   }
 ]

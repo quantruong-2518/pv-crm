@@ -13,6 +13,7 @@ import type { World } from './world'
  *  question a live run can answer, with `judgeAnswer` as its rule. */
 
 const chainsOf = (world: World) => world.seeded.chains
+const monthsOf = (world: World) => ({ 'kpi.previous': world.seeded.kpi.previous })
 
 type PlanStep = EvalCase['plan'][number]
 type CallStep = Extract<PlanStep, { call: string }>
@@ -25,7 +26,12 @@ const stepOf = (step: PlanStep): Said =>
 /** The rule both modes share. Anything a chain is forbidden from also counts when a
  *  model invents it: the check reads the answer, not where the words came from. */
 export function judgeTrail(c: Check, world: World, testCase: EvalCase, trail: Trail): void {
-  const { forbid, forbidText, mustContain } = filled(testCase.expect, chainsOf(world), testCase.id)
+  const { forbid, forbidText, mustContain } = filled(
+    testCase.expect,
+    chainsOf(world),
+    testCase.id,
+    monthsOf(world),
+  )
   const text = trailText(trail)
   const seen = new Set(canariesIn(text))
   for (const key of forbid) {
@@ -83,12 +89,12 @@ export async function scriptedCases(
   for (const testCase of cases) {
     const since = new Date()
     await tally.run(`cases-${testCase.group}`, testCase.id, async (c) => {
-      const plan = filled(testCase.plan, chainsOf(world), testCase.id)
+      const plan = filled(testCase.plan, chainsOf(world), testCase.id, monthsOf(world))
       const script: Step[] = plan.map(stepOf)
       const trail = await runTurn(world, {
         who: NAMED_SEATS[testCase.actor],
         script,
-        question: filled(testCase.question, chainsOf(world), testCase.id),
+        question: filled(testCase.question, chainsOf(world), testCase.id, monthsOf(world)),
       })
       judgePlan(c, testCase, plan, trail)
       judgeTrail(c, world, testCase, trail)

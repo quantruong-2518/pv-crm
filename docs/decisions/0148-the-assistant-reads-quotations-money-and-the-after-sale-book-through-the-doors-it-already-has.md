@@ -68,6 +68,6 @@ and 06 are rewritten and new coverage cases added.
 
 ## Consequences
 
-- Next slice: aggregate and KPI questions.
+- Next slice: aggregate and KPI questions (KPI: ADR 0151).
 - Remaining debt: `docs/status.md`.
 - Gate 0 command is unchanged from 0142.

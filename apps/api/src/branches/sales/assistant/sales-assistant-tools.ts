@@ -53,6 +53,9 @@ import { OpportunityService } from '../opportunity/opportunity.service'
 import { SearchController } from '../search/search.controller'
 import { SearchService } from '../search/search.service'
 import { getHistory } from './get-history'
+import { getMyKpi } from './get-my-kpi'
+import { getTeamKpi } from './get-team-kpi'
+import { kpiServices } from './kpi-read'
 import { listCustomers } from './list-customers'
 import {
   DealTrusted as BookDealTrusted,
@@ -462,6 +465,7 @@ export class SalesAssistantTools implements AssistantToolSource {
   ) {}
 
   tools(): readonly AssistantTool[] {
+    const kpi = kpiServices(this.modules)
     return [
       defineTool({
         name: 'search_records',
@@ -524,6 +528,8 @@ export class SalesAssistantTools implements AssistantToolSource {
         mayReach: (who) => this.mayReach(who),
         refOf: (who, kind, code, label) => refOf(kind, code, label, this.mayReach(who)),
       }),
+      getMyKpi(kpi),
+      getTeamKpi(kpi),
     ]
   }
 

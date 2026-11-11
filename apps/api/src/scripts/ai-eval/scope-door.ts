@@ -19,6 +19,7 @@ import type { ToolDoor } from '@api/platform/assistant/assistant-tools'
 import { PvError } from '@api/platform/http/problem'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CUSTOMER_ASK } from './scope-customers-door'
+import { KPI_ASK } from './scope-kpi-door'
 import { CANARY } from './seed-data'
 import type { Chain, Company } from './seed'
 import type { World } from './world'
@@ -190,6 +191,7 @@ const ASK: Record<string, Ask> = {
     return { body, codes: body.rows.map((r) => r.code) }
   },
   ...CUSTOMER_ASK,
+  ...KPI_ASK,
 }
 
 /** `AccessGuard`'s lookup: the handler first, then its class. */

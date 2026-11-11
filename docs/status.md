@@ -87,6 +87,19 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
     bounded by count, not by bytes.
   - The web wait-line labels for `list_customers` are not added; it falls back to
     the generic line, as `get_history` does.
+- CRM assistant KPI tools (ADR 0151), debt:
+  - Built, not shipped; no migration.
+  - Room-scope metrics must be hidden from readers without `kpi.view-all` inside
+    `KpiService.me` (owner decision 11/11, KPI restructure worktree); the tools
+    depend on it.
+  - Open for the owner, before that change merges: a seat that lost `kpi.view-all`
+    still gets stored room-scope answers replayed, since `reveals` is fixed per
+    tool (per-answer `reveals`, or no room-scope readings in `get_my_kpi`).
+  - The named-team path of `get_team_kpi` computes everyone's forecast and then
+    filters.
+  - The eval seed covers `signed-value` only; no ratio metric is seeded.
+  - Durations and period labels rely on the prompt; no binder key family or
+    period formatter yet.
 - A-3, finding several contacts for a lead: approved 01/11, not built (10/11: a
   grep of `apps/api/src` for a legal representative or a leadership page finds
   nothing). Sources: legal representative from the business register, "Ban lãnh

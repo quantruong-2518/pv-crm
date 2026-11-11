@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { Moment } from './primitives'
 import { AfterSaleCareStatus, AfterSaleTemperatureFilter } from './sales/after-sale'
+import { KpiPeriodKey } from './sales/kpi'
 import { SearchKind } from './sales/search'
 import { SEARCH_MAX_CHARS, SEARCH_MIN_CHARS } from './search-text'
 
@@ -228,3 +229,16 @@ export const ListCustomersInput = z
   })
   .strict()
 export type ListCustomersInput = z.infer<typeof ListCustomersInput>
+
+/** Always the asker's own cards: no field names anyone else, hence `.strict()`.
+ *  `at` is a month key (absent = this month); `quarter` reads the quarter containing it. */
+export const GetMyKpiInput = z
+  .object({ period: z.enum(['month', 'quarter']), at: KpiPeriodKey.optional() })
+  .strict()
+export type GetMyKpiInput = z.infer<typeof GetMyKpiInput>
+
+/** Month only: no quarter door exists for everyone's cards. `team` is a name as spoken; absent = every person. */
+export const GetTeamKpiInput = z
+  .object({ at: KpiPeriodKey.optional(), team: z.string().trim().min(1).max(80).optional() })
+  .strict()
+export type GetTeamKpiInput = z.infer<typeof GetTeamKpiInput>

@@ -40,6 +40,10 @@ export const HISTORY_CELLS = 63
  *  was cut) and 6 of the money of a deal. Typed by hand. */
 export const CUSTOMER_CELLS = 21
 
+/** The KPI read: 13 asks of `get_my_kpi` (9 of the month, 4 of the quarter) and 9 of
+ *  `get_team_kpi` (2 reading everyone, 3 asking for a team, 4 shut out). Typed by hand. */
+export const KPI_CELLS = 22
+
 /** The newest round of the open negotiation on `quote-deal`: the one figure a case
  *  answer must cite, locked by a test so a drifting seed cannot move it quietly. */
 export const QUOTE_LATEST_AMOUNT = 465_000_000
@@ -196,6 +200,12 @@ export const NAMED_SEATS = {
   casesSale: seat('cases-sale', 'sale', true),
   casesMarketing: seat('cases-marketing', 'marketing', true),
   casesExecutive: seat('cases-executive', 'account-executive', false),
+  /* The KPI team: its head holds `kpi.view-all`, its lead (a sale) holds only `kpi.view`,
+     and of the two members one closes over the target and one far under it. */
+  kpiHead: seat('kpi-head', 'head-of-sales', false),
+  kpiLead: seat('kpi-lead', 'sale', true),
+  kpiAhead: seat('kpi-ahead', 'sale', true),
+  kpiBehind: seat('kpi-behind', 'sale', true),
   /* Owns `hist-reach` alone, so a lead moved away from it hits no other seat's cells. */
   reach: seat('reach-sale', 'sale', true),
   /* The one seat whose grants are NOT its role's (see assistant-cases.test.ts): it opens

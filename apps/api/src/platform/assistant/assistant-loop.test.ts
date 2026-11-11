@@ -248,7 +248,7 @@ describe('a round', () => {
     expect(seen).toEqual({ audits: 1, calls: 1 })
     expect(turn).toMatchObject({ state: 'done', endedBy: 'answer', rounds: 2 })
     expect(turn.body).toBe('Lead đang được chăm sóc.')
-    expect(turn.promptVersion).toBe('assistant@10')
+    expect(turn.promptVersion).toBe('assistant@11')
     expect(rows[0]).toMatchObject({ role: 'user', state: 'done' })
     expect(rows[0]!.finishedAt).not.toBeNull()
     /* The sink threw on every event and the turn still ran to its end. */

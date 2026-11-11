@@ -13,6 +13,7 @@ import { actor, objectRef } from '@api/platform/db/platform.schema'
 import { fill, loadCases } from './cases'
 import { CustomerSeeder } from './seed-customers'
 import { HistorySeeder } from './seed-history'
+import { KpiSeeder, type KpiSeeded } from './seed-kpi'
 import {
   ALL_SEATS,
   canariesOf,
@@ -67,6 +68,7 @@ export type Seeded = {
   sibling: { canary: string; opportunity: string }
   /** Every canary in the world, so a cell can subtract what its door showed. */
   canaries: ReadonlySet<string>
+  kpi: KpiSeeded
 }
 
 const DUE = new Date('2026-12-15T00:00:00.000Z')
@@ -323,12 +325,14 @@ export async function seedWorld(db: Db): Promise<Seeded> {
     if (CUSTOMER_CHAINS.includes(spec)) await customers.seed(spec, chain)
   }
   const sibling = await seedSibling(db, chains, specs.length)
+  const kpi = await new KpiSeeder(db).seed()
   await db.execute(sql`UPDATE platform.ai_route SET enabled = true WHERE task = 'assistant'`)
   const own = Object.values(canariesOf(company.n))
   return {
     chains,
     company,
     sibling,
+    kpi,
     canaries: new Set([...chains.values()].flatMap((c) => c.canaries).concat(sibling.canary, own)),
   }
 }

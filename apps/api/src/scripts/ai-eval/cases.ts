@@ -29,7 +29,7 @@ export const CASE_COUNTS: Record<CaseGroup, number> = {
   injection: 15,
   'off-topic': 10,
   lookup: 5,
-  coverage: 13,
+  coverage: 15,
   linked: 6,
   history: 5,
 }
@@ -68,9 +68,17 @@ const FILE = resolve(__dirname, 'assistant-cases.json')
 
 type Named = { word: string; lead: string; opportunity: string; contract: string | null }
 
-/** `{chain.field}`; an unknown name throws, because a typo must not reach a model. */
-export function fill(text: string, chains: ReadonlyMap<string, Named>, self?: string): string {
+/** `{chain.field}`; an unknown name throws, because a typo must not reach a model.
+ *  `fixed` holds values that are no chain, such as `kpi.previous`, which follows the clock. */
+export function fill(
+  text: string,
+  chains: ReadonlyMap<string, Named>,
+  self?: string,
+  fixed: Readonly<Record<string, string>> = {},
+): string {
   return text.replace(/\{([a-z-]+)\.([a-z]+)\}/g, (_, key: string, field: keyof Named) => {
+    const given = fixed[`${key}.${field}`]
+    if (given !== undefined) return given
     const value = chains.get(key === 'self' ? (self ?? '') : key)?.[field]
     if (typeof value !== 'string') throw new Error(`case template: no ${key}.${field}`)
     return value
@@ -78,8 +86,12 @@ export function fill(text: string, chains: ReadonlyMap<string, Named>, self?: st
 }
 
 /** The same fill over a plan step or an input, by way of its JSON. */
-export const filled = <T>(value: T, chains: ReadonlyMap<string, Named>, self?: string): T =>
-  JSON.parse(fill(JSON.stringify(value), chains, self)) as T
+export const filled = <T>(
+  value: T,
+  chains: ReadonlyMap<string, Named>,
+  self?: string,
+  fixed?: Readonly<Record<string, string>>,
+): T => JSON.parse(fill(JSON.stringify(value), chains, self, fixed)) as T
 
 export function loadCases(): EvalCase[] {
   return z.array(EvalCase).parse(JSON.parse(readFileSync(FILE, 'utf8')))

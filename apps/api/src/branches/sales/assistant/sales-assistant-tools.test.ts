@@ -1,6 +1,7 @@
 // @vitest-environment node
 import 'reflect-metadata'
 import {
+  KPI_CATALOG,
   SEARCH_MAX_CHARS,
   SEARCH_MIN_CHARS,
   type AccountProfile,
@@ -22,7 +23,6 @@ import {
   suggestionsOf,
 } from '@api/platform/assistant/assistant-turn-read'
 import { AssistantToolGate } from '@api/platform/assistant/assistant-tools'
-import type { DebriefService } from '@api/platform/comms/debrief.service'
 import { denied, notFound } from '@api/platform/http/problem'
 import type { AccountService } from '../account/account.service'
 import type { AfterSaleService } from '../after-sale/after-sale.service'
@@ -147,6 +147,75 @@ const ACCOUNT = { code: 'AC-0001' } as unknown as AccountProfile
 
 const page = <R>(rows: R[]) => ({ rows, total: rows.length, hidden: 0 })
 
+const kpiReading = (key: string, over: object = {}) => ({
+  key,
+  value: null,
+  target: null,
+  targetVersion: null,
+  targetAck: null,
+  expected: null,
+  verdict: 'no-data',
+  adjustedBy: null,
+  afterAdjustments: null,
+  ...over,
+})
+
+/** A seller behind on the primary metric: money, a ratio and a count, one of each unit. */
+const SALE_CARD = {
+  role: 'sale',
+  readings: [
+    kpiReading('signed-value', {
+      value: 480_000_000,
+      target: 1_200_000_000,
+      expected: 600_000_000,
+      verdict: 'behind',
+    }),
+    kpiReading('win-rate', { value: 0.4, target: 0.5, verdict: 'on-track' }),
+    kpiReading('debriefs-closed', { value: 12, target: 20, expected: 10.4, verdict: 'met' }),
+  ],
+  acknowledgedAt: null,
+  acknowledgementStale: false,
+  acceptedByDefault: false,
+}
+
+const BD_CARD = {
+  role: 'bd',
+  readings: [
+    kpiReading('opportunities-opened', { value: 9, target: 8, expected: 4, verdict: 'met' }),
+    kpiReading('first-response-hours', { value: 3.5, target: 4, verdict: 'on-track' }),
+  ],
+  acknowledgedAt: null,
+  acknowledgementStale: false,
+  acceptedByDefault: false,
+}
+
+const KPI_PEOPLE = [
+  { actorId: 'u-bd', name: 'Chị Lan', roleIds: ['bd'], scorecards: [BD_CARD] },
+  { actorId: 'u-sale', name: 'Anh Nam', roleIds: ['sale'], scorecards: [SALE_CARD] },
+]
+
+/** `pipeline` null: it does not apply to this reading, which is not the same as zero. */
+const KPI_FORECAST = {
+  period: '2026-11',
+  items: [
+    {
+      actorId: 'u-sale',
+      name: 'Anh Nam',
+      role: 'sale',
+      metricKey: 'signed-value',
+      value: 480_000_000,
+      target: 1_200_000_000,
+      projected: 900_000_000,
+      projectedRatio: 0.75,
+      pipeline: null,
+      flag: 'slip',
+    },
+  ],
+}
+
+/** Stored without the leading word for "team": `KpiTeamBody` refuses a name that starts with it. */
+const KPI_TEAM = { id: 't1', name: 'Hà Nội' }
+
 function setup() {
   const leads = {
     profile: vi.fn(async () => LEAD),
@@ -173,6 +242,71 @@ function setup() {
   const dealSteps = { get: vi.fn(async () => ({ step: null })) }
   const accounts = { profile: vi.fn(async () => ACCOUNT) }
   const afterSales = { book: vi.fn(async () => page([])) }
+  const kpi = {
+    me: vi.fn(async () => ({ period: '2026-11', scorecards: [SALE_CARD] })),
+    people: vi.fn(async () => ({ period: '2026-11', people: KPI_PEOPLE })),
+    company: vi.fn(),
+    targetsOf: vi.fn(),
+  }
+  const forecast = {
+    mine: vi.fn(async () => KPI_FORECAST),
+    everyone: vi.fn(async () => KPI_FORECAST),
+  }
+  const quarter = {
+    me: vi.fn(async () => ({
+      quarter: '2026-Q4',
+      scorecards: [
+        {
+          role: 'sale',
+          readings: [SALE_CARD.readings[0], SALE_CARD.readings[2]],
+          monthOnly: ['win-rate'],
+        },
+      ],
+    })),
+  }
+  const teams = { read: vi.fn(async () => ({ teams: [KPI_TEAM] })) }
+  const teamView = {
+    view: vi.fn(async () => ({
+      team: KPI_TEAM,
+      people: KPI_PEOPLE,
+      readings: [
+        {
+          role: 'sale',
+          metricKey: 'signed-value',
+          value: 480_000_000,
+          share: 1_200_000_000,
+          expected: 600_000_000,
+          verdict: 'behind',
+        },
+        {
+          role: 'sale',
+          metricKey: 'win-rate',
+          value: null,
+          share: null,
+          expected: null,
+          verdict: 'no-data',
+        },
+      ],
+    })),
+  }
+  const kpiConfig = { effectiveCatalog: vi.fn(async () => KPI_CATALOG) }
+  /* Every service by class name; any other one fails the call, so a stray door shows. */
+  const services: Record<string, object> = {
+    DebriefService: debriefs,
+    KpiService: kpi,
+    KpiForecastService: forecast,
+    KpiQuarterService: quarter,
+    KpiTeamService: teams,
+    KpiTeamViewService: teamView,
+    KpiConfigService: kpiConfig,
+  }
+  const modules = {
+    get: (token: { name: string }) => {
+      const service = services[token.name]
+      if (!service) throw new Error(`unexpected service ${token.name}`)
+      return service
+    },
+  } as unknown as ModuleRef
   const source = new SalesAssistantTools(
     leads as unknown as LeadService,
     opportunities as unknown as OpportunityService,
@@ -183,7 +317,7 @@ function setup() {
     dealSteps as unknown as OpportunityStepService,
     accounts as unknown as AccountService,
     afterSales as unknown as AfterSaleService,
-    { get: () => debriefs as unknown as DebriefService } as unknown as ModuleRef,
+    modules,
   )
   const gate = new AssistantToolGate(source, createAccessControl())
   return {
@@ -196,6 +330,11 @@ function setup() {
     dealSteps,
     debriefs,
     afterSales,
+    kpi,
+    forecast,
+    quarter,
+    teams,
+    teamView,
   }
 }
 
@@ -233,6 +372,8 @@ describe('the sales tools', () => {
       'list_customers',
       'list_my_work',
       'get_history',
+      'get_my_kpi',
+      'get_team_kpi',
     ])
     for (const tool of declared) {
       expect(tool.parameters).toMatchObject({ additionalProperties: false })
@@ -1541,4 +1682,308 @@ describe('list_customers', () => {
     expect([...(await recheck(s.gate, noContract, chat)).shut]).toEqual([['a1', 'withheld']])
     expect((await recheck(s.gate, sale, chat)).shut.size).toBe(0)
   })
+})
+
+describe('get_my_kpi', () => {
+  const sale = actor('sale')
+  const call = (input: object) => ({ id: 'c1', name: 'get_my_kpi', input })
+  type Mine = {
+    kpi: { trusted: Record<string, unknown>; rows: { trusted: Record<string, unknown> }[] }
+  }
+  const monthOf = async (s = setup()) => {
+    const verdict = await s.gate.call(sale, call({ period: 'month', at: '2026-11' }))
+    expect(verdict.outcome).toBe('ok')
+    return { s, verdict, kpi: (verdict.output as Mine).kpi }
+  }
+
+  it('reads the month and its forecast as the asker, each unit under its own key', async () => {
+    const { s, verdict, kpi } = await monthOf()
+    expect(s.kpi.me).toHaveBeenCalledWith(expect.objectContaining({ id: 'u-sale' }), '2026-11')
+    expect(s.forecast.mine).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'u-sale' }),
+      '2026-11',
+    )
+    expect(verdict).toMatchObject({ codes: [], rowCount: 3, hidden: null, revealsContent: true })
+    expect(kpi.trusted).toEqual({ period: '2026-11' })
+    expect(kpi.rows[0]?.trusted).toMatchObject({
+      metric: 'signed-value',
+      unit: 'money',
+      currency: 'VND',
+      verdict: 'behind',
+      valueMoney: 480_000_000,
+      targetMoney: 1_200_000_000,
+      expectedMoney: 600_000_000,
+      projectedMoney: 900_000_000,
+      flag: 'slip',
+    })
+    expect(kpi.rows[1]?.trusted).toMatchObject({
+      unit: 'ratio',
+      valuePercent: 40,
+      targetPercent: 50,
+    })
+    expect(kpi.rows[2]?.trusted).toMatchObject({
+      unit: 'count',
+      value: 12,
+      target: 20,
+      expected: 10,
+    })
+    expect(kpi.rows[2]?.trusted).not.toHaveProperty('currency')
+  })
+
+  it('reads a quarter through the quarter door and no month door', async () => {
+    const s = setup()
+    const verdict = await s.gate.call(sale, call({ period: 'quarter', at: '2026-11' }))
+    expect(verdict).toMatchObject({ outcome: 'ok', rowCount: 2 })
+    expect(s.quarter.me).toHaveBeenCalledWith(expect.objectContaining({ id: 'u-sale' }), '2026-Q4')
+    for (const spent of [s.kpi.me, s.forecast.mine, s.kpi.people, s.forecast.everyone]) {
+      expect(spent).not.toHaveBeenCalled()
+    }
+    expect((verdict.output as Mine).kpi.trusted).toEqual({
+      period: '2026-Q4',
+      monthOnly: ['win-rate'],
+    })
+  })
+
+  it('leaves a pipeline of null out, in the answer and through the binder', async () => {
+    const { verdict, kpi } = await monthOf()
+    expect(kpi.rows[0]?.trusted).not.toHaveProperty('pipelineMoney')
+    expect(kpi.rows[1]?.trusted).not.toHaveProperty('pipelineMoney')
+    const bind = new TurnBinding('', null)
+    const draft = bind.draft(verdict.output, verdict.rowCount)
+    expect((draft.output as Mine).kpi.rows[0]?.trusted).not.toHaveProperty('pipelineMoney')
+  })
+
+  it('keeps a pipeline of zero, which is a figure and not an absence', async () => {
+    const s = setup()
+    const [item] = KPI_FORECAST.items
+    s.forecast.mine.mockResolvedValue({ ...KPI_FORECAST, items: [{ ...item!, pipeline: 0 }] })
+    const { kpi } = await monthOf(s)
+    expect(kpi.rows[0]?.trusted).toHaveProperty('pipelineMoney', 0)
+  })
+
+  /** What the model would print for one figure of one row, through the real binder. */
+  const sayer = (verdict: { output: object; rowCount: number | null }) => {
+    const bind = new TurnBinding('', null)
+    const draft = bind.draft(verdict.output, verdict.rowCount)
+    bind.keep(draft)
+    return (row: number, key: string) => {
+      const trusted = (draft.output as Mine).kpi.rows[row]?.trusted as Record<
+        string,
+        { cite: string }
+      >
+      return bind.push(`${trusted[key]?.cite} `)
+    }
+  }
+
+  it('prints a visible own pipeline in ₫', async () => {
+    const s = setup()
+    const [item] = KPI_FORECAST.items
+    s.forecast.mine.mockResolvedValue({
+      ...KPI_FORECAST,
+      items: [{ ...item!, pipeline: 250_000_000 }],
+    })
+    const { verdict, kpi } = await monthOf(s)
+    expect(kpi.rows[0]?.trusted).toHaveProperty('pipelineMoney', 250_000_000)
+    expect(sayer(verdict)(0, 'pipelineMoney')).toContain('₫')
+  })
+
+  it('leaves the pipeline off a room-scope line, though the forecast carries one', async () => {
+    const s = setup()
+    const [item] = KPI_FORECAST.items
+    const [signed] = SALE_CARD.readings
+    s.kpi.me.mockResolvedValue({
+      period: '2026-11',
+      scorecards: [{ ...SALE_CARD, role: 'head-of-sales', readings: [signed!] }],
+    })
+    s.forecast.mine.mockResolvedValue({
+      ...KPI_FORECAST,
+      items: [
+        { ...item!, actorId: 'u-head-of-sales', role: 'head-of-sales', pipeline: 777_000_000 },
+      ],
+    })
+    const verdict = await s.gate.call(
+      actor('head-of-sales'),
+      call({ period: 'month', at: '2026-11' }),
+    )
+    expect(verdict).toMatchObject({ outcome: 'ok', rowCount: 1 })
+    expect((verdict.output as Mine).kpi.rows[0]?.trusted).toMatchObject({
+      projectedMoney: 900_000_000,
+    })
+    expect(JSON.stringify(verdict.output)).not.toMatch(/ipeline|777000000/)
+  })
+
+  it('binds money with its currency, a ratio as a percent and a count plain', async () => {
+    const said = sayer((await monthOf()).verdict)
+    expect(said(0, 'valueMoney')).toContain('₫')
+    expect(said(0, 'projectedMoney')).toContain('₫')
+    expect(said(1, 'valuePercent')).toContain('40%')
+    expect(said(1, 'targetPercent')).toContain('50%')
+    expect(said(2, 'value')).not.toMatch(/₫|%/)
+  })
+})
+
+describe('get_team_kpi', () => {
+  const director = actor('director')
+  const call = (input: object = {}) => ({
+    id: 'c1',
+    name: 'get_team_kpi',
+    input: { at: '2026-11', ...input },
+  })
+  type Team = {
+    kpi: {
+      trusted: { period: string; more: boolean }
+      rows: {
+        untrusted: { name: string }
+        trusted: { behind: boolean }
+        readings: { trusted: Record<string, unknown> }[]
+      }[]
+    }
+    team?: { untrusted: { name: string }; rows: { trusted: Record<string, unknown> }[] }
+    teamNotFound?: boolean
+    teams?: { rows: { untrusted: { name: string } }[] }
+  }
+
+  it('is refused for a reader without kpi.view-all, whatever the team named', async () => {
+    for (const input of [{}, { team: 'Nhóm Hà Nội' }]) {
+      const s = setup()
+      const verdict = await s.gate.call(actor('sale'), call(input))
+      expect(verdict.outcome).toBe('refused')
+      for (const spent of [s.kpi.people, s.teams.read, s.teamView.view, s.forecast.everyone]) {
+        expect(spent).not.toHaveBeenCalled()
+      }
+    }
+  })
+
+  /** A forecast that carries a pipeline for the seller: this tool must not pass it on. */
+  const withPipeline = () => {
+    const [item] = KPI_FORECAST.items
+    return { ...KPI_FORECAST, items: [{ ...item!, pipeline: 777_000_000 }] }
+  }
+
+  it('lists the people behind first and cuts the list with `more`', async () => {
+    const s = setup()
+    s.forecast.everyone.mockResolvedValue(withPipeline())
+    const quiet = Array.from({ length: 24 }, (_, i) => ({
+      ...KPI_PEOPLE[0]!,
+      actorId: `u-quiet-${i}`,
+      name: `Người ${i}`,
+    }))
+    s.kpi.people.mockResolvedValue({ period: '2026-11', people: [...quiet, KPI_PEOPLE[1]!] })
+    const verdict = await s.gate.call(director, call())
+    const { kpi } = verdict.output as Team
+    expect(verdict).toMatchObject({ outcome: 'ok', rowCount: 20, hidden: null, codes: [] })
+    expect(kpi.trusted).toEqual({ period: '2026-11', more: true })
+    expect(kpi.rows[0]).toMatchObject({ untrusted: { name: 'Anh Nam' }, trusted: { behind: true } })
+    expect(kpi.rows[1]?.trusted).toEqual({ behind: false })
+    expect(s.forecast.everyone).toHaveBeenCalledWith(
+      '2026-11',
+      expect.objectContaining({ id: 'u-director' }),
+    )
+    expect(kpi.rows[0]?.readings[0]?.trusted).toMatchObject({ projectedMoney: 900_000_000 })
+    expect(JSON.stringify(verdict.output)).not.toMatch(/ipeline|777000000/)
+  })
+
+  it('names a duration by its unit and keeps people out of `trusted`', async () => {
+    const s = setup()
+    const verdict = await s.gate.call(director, call())
+    const { kpi } = verdict.output as Team
+    const lan = kpi.rows.find((r) => r.untrusted.name === 'Chị Lan')
+    expect(lan?.readings[1]?.trusted).toMatchObject({ unit: 'hours', value: 3.5 })
+    expect(JSON.stringify(kpi.rows.map((r) => r.readings))).not.toContain('Chị Lan')
+    expect(kpi.trusted.more).toBe(false)
+
+    const bind = new TurnBinding('', null)
+    const draft = bind.draft(verdict.output, verdict.rowCount)
+    bind.keep(draft)
+    const bound = (
+      draft.output as Team & {
+        kpi: { rows: { readings: { trusted: Record<string, { cite: string }> }[] }[] }
+      }
+    ).kpi
+    const printed = bind.push(`${bound.rows[1]?.readings[1]?.trusted.value?.cite} `)
+    expect(printed).toMatch(/3[,.]5/)
+    expect(printed).not.toMatch(/₫|%/)
+  })
+
+  it.each(['Hà Nội', 'HÀ NỘI', 'nhóm Hà Nội', 'Nhóm  hà nội', 'nhóm Hà Nội'.normalize('NFD')])(
+    'finds the team asked for as "%s"',
+    async (team) => {
+      const s = setup()
+      await s.gate.call(director, call({ team }))
+      expect(s.teamView.view).toHaveBeenCalledTimes(1)
+    },
+  )
+
+  it('reads a named team through the roster and the team view alone', async () => {
+    const s = setup()
+    s.forecast.everyone.mockResolvedValue(withPipeline())
+    const verdict = await s.gate.call(director, call({ team: 'nhóm hà nội' }))
+    const out = verdict.output as Team
+    expect(verdict).toMatchObject({ outcome: 'ok', rowCount: 2, revealsContent: true })
+    expect(s.teams.read).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'u-director' }),
+      '2026-11',
+    )
+    expect(s.teamView.view).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'u-director' }),
+      '2026-11',
+      't1',
+    )
+    for (const spent of [s.kpi.people, s.kpi.company, s.kpi.targetsOf, s.kpi.me]) {
+      expect(spent).not.toHaveBeenCalled()
+    }
+    expect(out.team?.untrusted.name).toBe('Hà Nội')
+    expect(out.team?.rows).toHaveLength(1)
+    expect(out.team?.rows[0]?.trusted).toMatchObject({
+      valueMoney: 480_000_000,
+      targetMoney: 1_200_000_000,
+    })
+    /* The team's share is an amount; under `share` the binder would print it as a percent. */
+    expect(out.team?.rows[0]?.trusted).not.toHaveProperty('share')
+    expect(JSON.stringify(verdict.output)).not.toMatch(/ipeline|777000000/)
+  })
+
+  it('still reveals a named team whose view holds no row, since its name is returned', async () => {
+    const s = setup()
+    s.teamView.view.mockResolvedValue({ team: KPI_TEAM, people: [], readings: [] } as never)
+    const verdict = await s.gate.call(director, call({ team: 'Hà Nội' }))
+    expect(verdict).toMatchObject({ outcome: 'ok', rowCount: 0, revealsContent: true })
+    expect((verdict.output as Team).team?.untrusted.name).toBe('Hà Nội')
+  })
+
+  it('answers an unknown team with the team names and no figure', async () => {
+    const s = setup()
+    const verdict = await s.gate.call(director, call({ team: 'Nhóm Đà Nẵng' }))
+    const out = verdict.output as Team
+    expect(verdict).toMatchObject({ outcome: 'ok', rowCount: 1, revealsContent: true })
+    expect(out.teamNotFound).toBe(true)
+    expect(out.teams?.rows[0]?.untrusted.name).toBe('Hà Nội')
+    expect(out).not.toHaveProperty('kpi')
+    expect(s.teamView.view).not.toHaveBeenCalled()
+    expect(s.kpi.people).not.toHaveBeenCalled()
+  })
+})
+
+describe('a stored KPI answer', () => {
+  it.each([
+    ['get_my_kpi', 'kpi.view'],
+    ['get_team_kpi', 'kpi.view-all'],
+  ] as const)(
+    '%s is withheld from a reader who lost %s and audits no view',
+    async (name, permission) => {
+      const s = setup()
+      const director = actor('director')
+      const stored = [{ name, codes: [], revealsContent: true }]
+      const chat = chatOf(s.gate, ['a1'], new Map([['a1', stored]]) as never)
+      const lost = {
+        ...director,
+        permissions: director.permissions.filter((p) => p !== permission),
+      }
+
+      expect(chat[0]).toMatchObject({ reveals: [permission], revealing: [] })
+      expect(s.gate.reaches(name)).toBe(false)
+      expect([...(await recheck(s.gate, lost, chat)).shut]).toEqual([['a1', 'withheld']])
+      expect((await recheck(s.gate, director, chat)).shut.size).toBe(0)
+    },
+  )
 })
