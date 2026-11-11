@@ -41,6 +41,7 @@ import { denied, PvError } from '@api/platform/http/problem'
 import { zod } from '@api/platform/http/zod.pipe'
 import { AccountController } from '../account/account.controller'
 import { AccountService } from '../account/account.service'
+import { AfterSaleService } from '../after-sale/after-sale.service'
 import { ContractController } from '../contract/contract.controller'
 import { ContractService } from '../contract/contract.service'
 import { LeadController } from '../lead/lead.controller'
@@ -52,11 +53,13 @@ import { OpportunityService } from '../opportunity/opportunity.service'
 import { SearchController } from '../search/search.controller'
 import { SearchService } from '../search/search.service'
 import { getHistory } from './get-history'
+import { listCustomers } from './list-customers'
 import {
   DealTrusted as BookDealTrusted,
   LeadTrusted as BookLeadTrusted,
   listMyWork,
 } from './list-my-work'
+import { withMoney } from './opportunity-money-read'
 
 /** The Sales branch's tools (ADR 0133 D2): door methods taking the `Actor` first and
  *  fencing rows themselves, never a sub-service. One exception: the company profile
@@ -251,29 +254,34 @@ const leadRead = (p: LeadProfile, mayReach: boolean): ToolRead =>
   )
 
 const opportunityRead = (p: OpportunityProfileResponse, mayReach: boolean): ToolRead =>
-  oneRecord(
-    refOf('opportunity', p.code, p.name, mayReach),
-    OpportunityTrusted.parse(p),
-    {
-      name: p.name,
-      account: p.account,
-      holder: p.holder?.name,
-      owners: p.owners.map((o) => ({ name: o.name, role: o.role })),
-      products: p.products.map((x) => x.name),
-      description: p.description,
-      nextStep: p.nextStep && { text: p.nextStep.text, due: p.nextStep.due },
-      contacts: p.contacts.map((c) => ({
-        name: c.name,
-        title: c.title,
-        role: c.role,
-        ...reachOf(c, mayReach),
-        primary: c.primary,
-      })),
-      stopReason: p.stopReasonLabel,
-      stopNote: p.stopNote,
-    },
+  withMoney(
+    oneRecord(
+      refOf('opportunity', p.code, p.name, mayReach),
+      OpportunityTrusted.parse(p),
+      {
+        name: p.name,
+        account: p.account,
+        holder: p.holder?.name,
+        owners: p.owners.map((o) => ({ name: o.name, role: o.role })),
+        products: p.products.map((x) => x.name),
+        description: p.description,
+        nextStep: p.nextStep && { text: p.nextStep.text, due: p.nextStep.due },
+        contacts: p.contacts.map((c) => ({
+          name: c.name,
+          title: c.title,
+          role: c.role,
+          ...reachOf(c, mayReach),
+          primary: c.primary,
+        })),
+        stopReason: p.stopReasonLabel,
+        stopNote: p.stopNote,
+      },
+      mayReach,
+      p.contacts,
+    ),
+    p.money,
     mayReach,
-    p.contacts,
+    (code) => refOf('contract', code, p.account, mayReach),
   )
 
 /** No contact fields: `contact` is the lead's contact name, so only text can hold one. */
@@ -449,6 +457,7 @@ export class SalesAssistantTools implements AssistantToolSource {
     private readonly leadSteps: NextStepService,
     private readonly dealSteps: OpportunityStepService,
     private readonly accounts: AccountService,
+    private readonly afterSales: AfterSaleService,
     private readonly modules: ModuleRef,
   ) {}
 
@@ -466,7 +475,7 @@ export class SalesAssistantTools implements AssistantToolSource {
       defineTool({
         name: 'get_record',
         description:
-          "Read one lead, opportunity, contract or company by its code. A lead comes with its opportunities: use it, not search_records, for a lead's opportunities. A company comes with the leads, opportunities and people the asker may see.",
+          "Read one lead, opportunity, contract or company by its code. A lead comes with its opportunities: use it, not search_records, for a lead's opportunities. An opportunity comes with its quotation rounds and money: the contracts signed on it, and where the asker may see payments, what was collected and the installments. A company comes with the leads, opportunities and people the asker may see.",
         input: GetRecordInput,
         doors: {
           lead: door(LeadController, 'profile'),
@@ -493,6 +502,13 @@ export class SalesAssistantTools implements AssistantToolSource {
             return kind ? { kind, code } : null
           },
         },
+      }),
+      listCustomers({
+        customers: this.afterSales,
+        bookLeads: (who, ask) => this.bookLeads(who, ask, false),
+        openLead: (who, code) => this.leads.guard(who, zod(ObjectCode).transform(code)),
+        mayReach: (who) => this.mayReach(who),
+        refOf: (who, kind, code, label) => refOf(kind, code, label, this.mayReach(who)),
       }),
       listMyWork({
         leads: this.leads,

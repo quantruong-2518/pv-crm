@@ -1,6 +1,6 @@
 import type { AssistantEvent } from '@pv/contracts'
 import type { Actor } from '@pv/engines'
-import { eq, sql } from 'drizzle-orm'
+import { eq, gte, sql } from 'drizzle-orm'
 import { aiCall } from '@api/platform/ai/ai-cost.schema'
 import type { AiClient } from '@api/platform/ai/ai-client'
 import { AiGateway } from '@api/platform/ai/ai-gateway'
@@ -217,3 +217,12 @@ export function trailText(trail: Trail): string {
     ledger: trail.ledger,
   })
 }
+
+/** The hourly turn cap counts `ai_call` rows by `at`. A group that asks as seats other
+ *  groups also use moves its turns out of the window, so the cap, which only
+ *  `runner-caps` tests, never starves a later group. */
+export const releaseHour = (world: World, since: Date) =>
+  world.db
+    .update(aiCall)
+    .set({ at: sql`${aiCall.at} - interval '2 hours'` })
+    .where(gte(aiCall.at, since))

@@ -34,8 +34,9 @@ export const door = <C>(controller: Type<C>, handler: keyof C & string): ToolDoo
 /** What a door answered, already projected. `data` splits each record into
  *  `trusted` (only values whose zod type is a whitelisted code, enum, id, date or
  *  number, D5) and `untrusted`. `hidden` is the door's own count, null when it
- *  gives none; a tool never derives one. `refs` name the records for the screen
- *  and never reach a model; `steps` counts next steps, which have no code. */
+ *  gives none, plus only the rows the tool dropped itself. `refs` name the records
+ *  for the screen and never reach a model; `steps` counts next steps, which have no
+ *  code. */
 export type ToolRead = {
   data: object
   codes: readonly string[]
@@ -329,6 +330,12 @@ export class AssistantToolGate {
       }
     }
     return reached
+  }
+
+  /** Whether the tool re-asks a reach for what it revealed: only then does serving its
+   *  stored answer again re-open a door that audits its own content read. */
+  reaches(name: string): boolean {
+    return this.registered.get(name)?.tool.revealReach !== undefined
   }
 
   declarations(): AiToolDecl[] {

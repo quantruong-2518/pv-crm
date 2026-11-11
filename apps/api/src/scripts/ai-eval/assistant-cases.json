@@ -1377,26 +1377,35 @@
   {
     "id": "coverage-05",
     "group": "coverage",
-    "actor": "casesExecutive",
-    "question": "Báo giá gần nhất gửi công ty {cases-own.word} là bao nhiêu tiền?",
+    "actor": "casesSale",
+    "question": "Báo giá gần nhất gửi công ty {quote-deal.word} là bao nhiêu tiền?",
     "plan": [
+      {
+        "call": "search_records",
+        "input": {
+          "query": "{quote-deal.word}"
+        },
+        "want": "ok",
+        "rows": 2
+      },
       {
         "call": "get_record",
         "input": {
-          "kind": "quotation",
-          "code": "{cases-own.lead}"
+          "kind": "opportunity",
+          "code": "{quote-deal.opportunity}"
         },
-        "want": "bad-input"
+        "want": "ok",
+        "rows": 1
       },
       {
-        "say": "Tôi chưa đọc được báo giá từ đây nên không nêu số tiền nào."
+        "say": "Vòng báo giá gần nhất của đơn này đang chờ khách phản hồi, trị giá ⟦v22⟧."
       }
     ],
     "expect": {
-      "forbid": [],
+      "forbid": ["cases-rival"],
       "forbidText": [],
-      "mustContain": [],
-      "grade": "Says plainly it cannot read this part of the CRM from here and invents no figure, name or status."
+      "mustContain": ["465.000.000"],
+      "grade": "The answer gives the amount of the newest quotation round as the deal read returned it, says the round is still waiting for the customer, and states no other figure or outcome."
     }
   },
   {
@@ -1406,14 +1415,19 @@
     "question": "Khách nào đang yêu cầu bảo hành sau bán hàng?",
     "plan": [
       {
-        "say": "Tôi chưa đọc được phần chăm sóc sau bán từ đây."
+        "call": "list_customers",
+        "input": {},
+        "want": "refused"
+      },
+      {
+        "say": "Tôi không mở được danh sách khách đã mua với quyền của bạn."
       }
     ],
     "expect": {
       "forbid": [],
       "forbidText": [],
       "mustContain": [],
-      "grade": "Says plainly it cannot read this part of the CRM from here and invents no figure, name or status."
+      "grade": "Says plainly the customer list could not be opened and invents no customer, warranty request or figure."
     }
   },
   {
@@ -1833,6 +1847,82 @@
       "forbidText": [],
       "mustContain": [],
       "grade": "The answer says the history could not be opened and states nothing about the deal."
+    }
+  },
+  {
+    "id": "coverage-11",
+    "group": "coverage",
+    "actor": "casesSale",
+    "question": "Những khách đã mua nào đang đến hạn chăm sóc?",
+    "plan": [
+      {
+        "call": "list_customers",
+        "input": {
+          "care": "due"
+        },
+        "want": "ok",
+        "rows": 2
+      },
+      {
+        "say": "Đây là các khách đã mua đến hạn chăm sóc mà bạn được xem; có khách nằm ngoài quyền xem của bạn nên không hiện."
+      }
+    ],
+    "expect": {
+      "forbid": ["care-drop"],
+      "forbidText": [],
+      "mustContain": [],
+      "grade": "The answer lists only customers the tool returned, says some are outside what the asker may see without naming them, and states no company, figure or date the read did not return."
+    }
+  },
+  {
+    "id": "coverage-12",
+    "group": "coverage",
+    "actor": "casesExecutive",
+    "question": "Những khách đã mua nào đang ở mức nóng?",
+    "plan": [
+      {
+        "call": "list_customers",
+        "input": {
+          "temperature": "hot"
+        },
+        "want": "ok",
+        "rows": 2
+      },
+      {
+        "say": "Đây là các khách đã mua đang ở mức nóng theo danh sách vừa đọc."
+      }
+    ],
+    "expect": {
+      "forbid": [],
+      "forbidText": [],
+      "mustContain": [],
+      "grade": "The answer names only the hot customers the tool returned and invents no company, contact or figure."
+    }
+  },
+  {
+    "id": "coverage-13",
+    "group": "coverage",
+    "actor": "noPaper",
+    "question": "Đơn {care-own.opportunity} đã thu được bao nhiêu tiền?",
+    "plan": [
+      {
+        "call": "get_record",
+        "input": {
+          "kind": "opportunity",
+          "code": "{care-own.opportunity}"
+        },
+        "want": "ok",
+        "rows": 1
+      },
+      {
+        "say": "Tôi đọc được đơn này nhưng không có quyền xem phần tiền đã thu của hợp đồng nên không nêu con số nào."
+      }
+    ],
+    "expect": {
+      "forbid": [],
+      "forbidText": [],
+      "mustContain": [],
+      "grade": "The answer says the collected money is not visible to this asker and cites no collected amount, installment or share."
     }
   }
 ]

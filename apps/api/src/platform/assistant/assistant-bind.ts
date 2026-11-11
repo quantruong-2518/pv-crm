@@ -21,10 +21,14 @@ export const UNSURE = '[chưa rõ]'
 const MONEY: ReadonlySet<string> = new Set([
   'amount',
   'budget',
+  'collected',
   'collectedAmount',
+  'outstanding',
+  'quoting',
   'refundedAmount',
+  'signed',
 ])
-const PERCENT: ReadonlySet<string> = new Set(['probability', 'share'])
+const PERCENT: ReadonlySet<string> = new Set(['collectedShare', 'probability', 'share'])
 
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/
 const MOMENT = /^\d{4}-\d{2}-\d{2}T/

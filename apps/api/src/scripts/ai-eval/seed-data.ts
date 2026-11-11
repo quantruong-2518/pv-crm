@@ -36,6 +36,14 @@ export const MATRIX_CELLS = 180
  *  grant was cut or added, 4 on the rich chain, 1 on the widest. Typed by hand. */
 export const HISTORY_CELLS = 63
 
+/** The customer read: 15 asks of the list (6 seats, 7 filtered asks, 2 seats whose grant
+ *  was cut) and 6 of the money of a deal. Typed by hand. */
+export const CUSTOMER_CELLS = 21
+
+/** The newest round of the open negotiation on `quote-deal`: the one figure a case
+ *  answer must cite, locked by a test so a drifting seed cannot move it quietly. */
+export const QUOTE_LATEST_AMOUNT = 465_000_000
+
 /** The rich chain's lists: past the tool's 20 rows, so `more` and the cut are real. */
 export const RICH_TOUCHES = 24
 export const RICH_COMMS = 22
@@ -134,6 +142,12 @@ export const WORDS = [
   'Thạch Thảo',
   'Đỗ Quyên',
   'Lục Bình',
+  'Hạnh Nhân',
+  'Bách Hợp',
+  'Trà My',
+  'Lộc Vừng',
+  'Tường Vi',
+  'Thủy Tiên',
 ] as const
 
 export type Seat = Actor & { ownOnly: boolean }
@@ -184,6 +198,13 @@ export const NAMED_SEATS = {
   casesExecutive: seat('cases-executive', 'account-executive', false),
   /* Owns `hist-reach` alone, so a lead moved away from it hits no other seat's cells. */
   reach: seat('reach-sale', 'sale', true),
+  /* The one seat whose grants are NOT its role's (see assistant-cases.test.ts): it opens
+     a deal and never its contract, which no default role can do. The gate reads the
+     grants off the seat it is handed, so the role id in the table changes nothing. */
+  noPaper: {
+    ...seat('no-paper', 'sale', true),
+    permissions: DEFAULT_ROLE_PERMISSIONS.sale.filter((p) => p !== 'contract.view'),
+  },
 } as const
 
 export type NamedSeat = keyof typeof NAMED_SEATS
@@ -209,6 +230,12 @@ export type ChainSpec = {
   /** `rich` passes the tool's 20-row cut on touches and comms; `wide` fills 20 comms with
    *  the widest text a summary can hold. Every other chain carries a small base history. */
   history?: 'rich' | 'wide'
+  /** Fully paid and won, so the run stands in `growth` and the after-sale book lists it.
+   *  `temperature` is its newest reading, or none. */
+  care?: { temperature: 'hot' | 'warm' | 'cold' | null }
+  /** Quotation rounds on the deal: an open negotiation of two rounds, or a signed one
+   *  whose rounds carry the contract. */
+  quotes?: 'open' | 'signed'
   /** Text that replaces a field; the injection cases hide their payload here. */
   plants?: Readonly<Partial<Record<PlantField, string>>>
 }
@@ -304,4 +331,38 @@ export const HISTORY_CHAINS: readonly ChainSpec[] = [
   { key: 'hist-rich', ...signed('sale-a'), history: 'rich' },
   { key: 'hist-wide', ...signed('sale-a'), history: 'wide' },
   { key: 'hist-reach', ...signed('reach-sale') },
+]
+
+/** Seeded last, so no earlier chain changes its number. `care-own` is a customer
+ *  the case seller closed, with a co-owner who reads the deal and never its contract;
+ *  `care-drop` is a customer whose lead is a rival's and whose money the seller
+ *  collects, so the book row stays and its lead does not; `care-carer` is the seller's
+ *  contract on a rival's lead. */
+export const CUSTOMER_CHAINS: readonly ChainSpec[] = [
+  {
+    key: 'care-own',
+    leadOwner: 'cases-sale',
+    dealOwners: [
+      { id: 'cases-sale', lane: 'SALE' },
+      { id: 'no-paper', lane: 'BD' },
+    ],
+    contract: { owner: 'cases-sale', collector: 'cases-sale' },
+    care: { temperature: 'hot' },
+    quotes: 'signed',
+  },
+  {
+    key: 'care-drop',
+    leadOwner: 'rival',
+    dealOwners: [{ id: 'rival', lane: 'SALE' }],
+    contract: { owner: 'rival', collector: 'cases-sale' },
+    care: { temperature: 'hot' },
+  },
+  {
+    key: 'care-carer',
+    leadOwner: 'rival',
+    dealOwners: [{ id: 'rival', lane: 'SALE' }],
+    contract: { owner: 'cases-sale', collector: 'cases-sale' },
+    care: { temperature: 'cold' },
+  },
+  { key: 'quote-deal', ...signed('cases-sale'), contract: null, quotes: 'open' },
 ]

@@ -11,6 +11,7 @@ import {
 import type { Db } from '@api/platform/db/db.module'
 import { actor, objectRef } from '@api/platform/db/platform.schema'
 import { fill, loadCases } from './cases'
+import { CustomerSeeder } from './seed-customers'
 import { HistorySeeder } from './seed-history'
 import {
   ALL_SEATS,
@@ -19,6 +20,7 @@ import {
   COMPANY_CHAINS,
   CONTRACT_AMOUNT,
   CONTRACT_CURRENCY,
+  CUSTOMER_CHAINS,
   FIRST_ACCOUNT,
   FIRST_CONTRACT,
   FIRST_LEAD,
@@ -305,11 +307,12 @@ export async function seedWorld(db: Db): Promise<Seeded> {
         ]
       : [],
   )
-  const specs = [...CHAINS, ...injected, ...COMPANY_CHAINS, ...HISTORY_CHAINS]
+  const specs = [...CHAINS, ...injected, ...COMPANY_CHAINS, ...HISTORY_CHAINS, ...CUSTOMER_CHAINS]
   /* Two numbers past the chains: the sibling takes the first. */
   const company = await seedCompany(db, specs.length + 1)
   const chains = new Map<string, Chain>()
   const history = new HistorySeeder(db)
+  const customers = new CustomerSeeder(db)
   for (const [n, spec] of specs.entries()) {
     /* In order: a planted sentence may name a chain seeded before it. */
     const plants = Object.entries(spec.plants ?? {}).map(([k, text]) => [k, fill(text, chains)])
@@ -317,6 +320,7 @@ export async function seedWorld(db: Db): Promise<Seeded> {
     const chain = await seedChain(db, planted, n, company.code)
     chains.set(spec.key, chain)
     if (CHAINS.includes(spec) || HISTORY_CHAINS.includes(spec)) await history.seed(spec, chain)
+    if (CUSTOMER_CHAINS.includes(spec)) await customers.seed(spec, chain)
   }
   const sibling = await seedSibling(db, chains, specs.length)
   await db.execute(sql`UPDATE platform.ai_route SET enabled = true WHERE task = 'assistant'`)

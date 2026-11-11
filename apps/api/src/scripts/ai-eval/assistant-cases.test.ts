@@ -14,6 +14,8 @@ import {
   COMPANY_CHAINS,
   CONTRACT_AMOUNT,
   CONTRACT_CURRENCY,
+  CUSTOMER_CELLS,
+  CUSTOMER_CHAINS,
   FIRST_ACCOUNT,
   FIRST_CONTRACT,
   FIRST_LEAD,
@@ -21,7 +23,9 @@ import {
   HISTORY_CELLS,
   HISTORY_CHAINS,
   MATRIX_CELLS,
+  NAMED_SEATS,
   PLANTED_PHONE,
+  QUOTE_LATEST_AMOUNT,
   RICH_COMMS,
   RICH_TOUCHES,
   ROLE_SEATS,
@@ -46,14 +50,14 @@ const stand = (key: string, n: number) => ({
 })
 
 describe('the case set', () => {
-  it('is 71 cases split 20, 15, 10, 5, 10, 6 and 5', () => {
-    expect(cases).toHaveLength(71)
+  it('is 74 cases split 20, 15, 10, 5, 13, 6 and 5', () => {
+    expect(cases).toHaveLength(74)
     expect(CASE_COUNTS).toEqual({
       scope: 20,
       injection: 15,
       'off-topic': 10,
       lookup: 5,
-      coverage: 10,
+      coverage: 13,
       linked: 6,
       history: 5,
     })
@@ -65,7 +69,9 @@ describe('the case set', () => {
   })
 
   it('names only chains the seed makes', () => {
-    const chains = new Map([...CHAINS, ...HISTORY_CHAINS].map((c, i) => [c.key, stand(c.key, i)]))
+    const chains = new Map(
+      [...CHAINS, ...HISTORY_CHAINS, ...CUSTOMER_CHAINS].map((c, i) => [c.key, stand(c.key, i)]),
+    )
     for (const c of cases) {
       const own = new Map(chains).set(c.id, stand(c.id, 99))
       expect(() => filled(c, own, c.id)).not.toThrow()
@@ -81,6 +87,16 @@ describe('the seed', () => {
     expect(MATRIX_CELLS).toBe(180)
     expect(ACCOUNT_CELLS).toBe(21)
     expect(HISTORY_CELLS).toBe(63)
+    expect(CUSTOMER_CELLS).toBe(21)
+    expect(QUOTE_LATEST_AMOUNT).toBe(465_000_000)
+    const quoted = cases.find((c) => c.id === 'coverage-05')?.expect.mustContain
+    expect(quoted).toEqual([new Intl.NumberFormat('vi-VN').format(QUOTE_LATEST_AMOUNT)])
+    expect(CUSTOMER_CHAINS.map((c) => c.key)).toEqual([
+      'care-own',
+      'care-drop',
+      'care-carer',
+      'quote-deal',
+    ])
     expect(HISTORY_CHAINS.map((c) => c.key)).toEqual(['hist-rich', 'hist-wide', 'hist-reach'])
     expect(COMPANY_CHAINS).toHaveLength(3)
     expect(CONTRACT_AMOUNT).toBe(480_000_000)
@@ -93,7 +109,9 @@ describe('the seed', () => {
   it('reads every permission from the role table', () => {
     for (const seat of ALL_SEATS) {
       const [role] = seat.roleIds
-      if (role) expect(seat.permissions).toBe(DEFAULT_ROLE_PERMISSIONS[role])
+      if (role && seat.id !== NAMED_SEATS.noPaper.id) {
+        expect(seat.permissions).toBe(DEFAULT_ROLE_PERMISSIONS[role])
+      }
     }
   })
 
@@ -102,7 +120,12 @@ describe('the seed', () => {
     const planted = cases.filter((c) => c.plant).length
     /* The company takes the word after the chains, and the sibling the number after that. */
     expect(
-      CHAINS.length + COMPANY_CHAINS.length + HISTORY_CHAINS.length + planted + 1,
+      CHAINS.length +
+        COMPANY_CHAINS.length +
+        HISTORY_CHAINS.length +
+        CUSTOMER_CHAINS.length +
+        planted +
+        1,
     ).toBeLessThan(WORDS.length)
     const tokens = Object.values(canariesOf(7))
     expect(tokens.join(' ').match(CANARY)).toEqual(tokens)

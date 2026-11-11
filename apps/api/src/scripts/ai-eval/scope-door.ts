@@ -18,6 +18,7 @@ import { UNSURE } from '@api/platform/assistant/assistant-bind'
 import type { ToolDoor } from '@api/platform/assistant/assistant-tools'
 import { PvError } from '@api/platform/http/problem'
 import { zod } from '@api/platform/http/zod.pipe'
+import { CUSTOMER_ASK } from './scope-customers-door'
 import { CANARY } from './seed-data'
 import type { Chain, Company } from './seed'
 import type { World } from './world'
@@ -61,11 +62,13 @@ export type DoorAnswer =
 
 export const doorId = ([controller, handler]: ToolDoor): string => `${controller.name}.${handler}`
 
-type Asked = { body: unknown; codes: string[] }
+/** `rows` is what the tool counts when that is not one per code: a deal is one row
+ *  whatever contracts ride on it. */
+type Asked = { body: unknown; codes: string[]; rows?: number }
 
 /** What a cell stands on: a chain of one lead, or the company over several. */
 export type Subject = Chain | Company
-type Ask = (world: World, who: Actor, on: Subject, input?: unknown) => Promise<Asked>
+export type Ask = (world: World, who: Actor, on: Subject, input?: unknown) => Promise<Asked>
 
 const chainOf = (on: Subject): Chain => {
   if (!('lead' in on)) throw new Error('oracle: this door is asked on a chain, not a company')
@@ -77,8 +80,9 @@ const companyOf = (on: Subject): Company => {
   return on
 }
 
-/* The size the tool asks the deals of a lead with; the constant is private to the tool. */
+/* Sizes the tools ask with; the constants are private to the tools. */
 const LEAD_DEALS = 20
+const MONEY_LIST = 20
 
 /** The chains a company lists, as the seed knows them and not as its profile says. */
 const liveChains = (world: World, company: Company): Chain[] =>
@@ -116,7 +120,12 @@ const ASK: Record<string, Ask> = {
       who,
       zod(ObjectCode).transform(chainOf(on).opportunity),
     )
-    return { body, codes: [body.code] }
+    /* The contracts whose payments the reader may see ride on the deal's codes. */
+    const papers = body.money.contracts
+      .slice(0, MONEY_LIST)
+      .filter((c) => c.paymentsVisible)
+      .map((c) => c.code)
+    return { body, codes: [body.code, ...papers], rows: 1 }
   },
   contract: async (world, who, on) => {
     const body = await world.contracts.profile(
@@ -180,6 +189,7 @@ const ASK: Record<string, Ask> = {
     const body = await world.opportunities.book(who, q)
     return { body, codes: body.rows.map((r) => r.code) }
   },
+  ...CUSTOMER_ASK,
 }
 
 /** `AccessGuard`'s lookup: the handler first, then its class. */
@@ -267,6 +277,7 @@ async function askDoors(
   const bodies: Record<string, unknown> = {}
   const codes: string[] = []
   const skipped: string[] = []
+  let rows = 0
   for (const { named, verdict } of checks) {
     if (!verdict.ok) {
       skipped.push(named.key)
@@ -280,9 +291,10 @@ async function askDoors(
     if (!got.ok) return { ok: false as const, reason: got.reason, json: '' as const }
     bodies[doorId(named.door)] = got.body
     codes.push(...got.codes)
+    rows += got.rows ?? got.codes.length
   }
   const json = JSON.stringify(Object.values(bodies))
-  return { ok: true as const, json, codes, rows: codes.length, bodies, skipped }
+  return { ok: true as const, json, codes, rows, bodies, skipped }
 }
 
 /** One door, the one `probe` stands for: what a fact is about. */

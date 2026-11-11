@@ -39,7 +39,7 @@ const blind: Seat | undefined = reviewer && {
   permissions: reviewer.permissions.filter((p) => p !== 'comm.view-content'),
 }
 
-const serviceOf = (world: World): AssistantService =>
+export const serviceOf = (world: World): AssistantService =>
   new AssistantService(
     new AssistantSessionRepository(world.db),
     new AssistantRepository(world.db),
@@ -51,7 +51,7 @@ const serviceOf = (world: World): AssistantService =>
     world.gateAccess,
   )
 
-const answersOf = (detail: AssistantSessionDetail) =>
+export const answersOf = (detail: AssistantSessionDetail) =>
   detail.messages.filter((m) => m.role === 'assistant')
 
 type ChainRow = NonNullable<ReturnType<World['seeded']['chains']['get']>>

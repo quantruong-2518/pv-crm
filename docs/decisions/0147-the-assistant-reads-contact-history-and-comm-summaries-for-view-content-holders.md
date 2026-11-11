@@ -113,6 +113,10 @@ answers as plain text outside the delimiter" of 0133 §7.
    `assistant · page N`. No lines are written for shut answers, or while a turn
    runs. Over-count is known and safe: the web refetches sessions after each
    turn, and failed answers that made a revealing call are audited too.
+   Since ADR 0148 only revealing calls of tools that declare `revealReach` are
+   audited on re-serve; a tool with `reveals` and no `revealReach`
+   (`list_customers`) is withheld but writes no line
+   (`docs/decisions/0148-the-assistant-reads-quotations-money-and-the-after-sale-book-through-the-doors-it-already-has.md`).
 4. **Sibling contact (OP-6008).** The tool may show the other seller's contact on
    a deal, as the deal screen does. Eval check `siblingContact`
    (`apps/api/src/scripts/ai-eval/scope-matrix.ts`) now asserts this, where it

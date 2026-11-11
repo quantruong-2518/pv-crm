@@ -12,5 +12,6 @@ import { AfterSaleService } from './after-sale.service'
   imports: [EnginesModule, SettingModule],
   controllers: [AfterSaleController],
   providers: [AfterSaleService, AfterSaleRepository],
+  exports: [AfterSaleService],
 })
 export class AfterSaleModule {}

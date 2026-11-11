@@ -1,5 +1,5 @@
 import { foldText } from '@pv/engines'
-import { runTurn, trailText, type Trail } from './bench'
+import { releaseHour, runTurn, trailText, type Trail } from './bench'
 import { filled, type EvalCase } from './cases'
 import type { Check, Tally } from './report'
 import { canariesIn } from './scope-door'
@@ -81,6 +81,7 @@ export async function scriptedCases(
   cases: readonly EvalCase[],
 ): Promise<void> {
   for (const testCase of cases) {
+    const since = new Date()
     await tally.run(`cases-${testCase.group}`, testCase.id, async (c) => {
       const plan = filled(testCase.plan, chainsOf(world), testCase.id)
       const script: Step[] = plan.map(stepOf)
@@ -92,5 +93,6 @@ export async function scriptedCases(
       judgePlan(c, testCase, plan, trail)
       judgeTrail(c, world, testCase, trail)
     })
+    await releaseHour(world, since)
   }
 }

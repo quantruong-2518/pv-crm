@@ -81,6 +81,12 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
     stores only a boolean.
   - The ref chip label falls back to the bare code when the comms door is
     skipped or empty.
+- CRM assistant quotations, money and customer list (ADR 0148), debt:
+  - Not shipped to production yet.
+  - Stored-answer token size, worst case 20 rounds in each of 20 lists, is
+    bounded by count, not by bytes.
+  - The web wait-line labels for `list_customers` are not added; it falls back to
+    the generic line, as `get_history` does.
 - A-3, finding several contacts for a lead: approved 01/11, not built (10/11: a
   grep of `apps/api/src` for a legal representative or a leadership page finds
   nothing). Sources: legal representative from the business register, "Ban lãnh

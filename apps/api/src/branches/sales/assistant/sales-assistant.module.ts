@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { AccountModule } from '../account/account.module'
+import { AfterSaleModule } from '../after-sale/after-sale.module'
 import { ContractModule } from '../contract/contract.module'
 import { LeadModule } from '../lead/lead.module'
 import { NextStepModule } from '../next-step/next-step.module'
@@ -13,6 +14,7 @@ import { SalesAssistantTools } from './sales-assistant-tools'
   imports: [
     EnginesModule,
     AccountModule,
+    AfterSaleModule,
     LeadModule,
     OpportunityModule,
     ContractModule,

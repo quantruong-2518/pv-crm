@@ -101,7 +101,7 @@ const callOf = ({ probe, chain }: Cell) =>
         input: { kind: probe, code: probe === 'lead' ? chain.lead : chain[probe] },
       }
 
-function agreeOnRefusal(c: Check, door: DoorAnswer, trail: Trail): void {
+export function agreeOnRefusal(c: Check, door: DoorAnswer, trail: Trail): void {
   const [row] = trail.toolRows
   c.eq(row?.outcome, 'refused', 'the tool must refuse what the door refuses')
   c.eq(row?.codes, [], 'a refused tool names no record')
@@ -114,7 +114,7 @@ function agreeOnRefusal(c: Check, door: DoorAnswer, trail: Trail): void {
   }
 }
 
-function agreeOnAnswer(
+export function agreeOnAnswer(
   c: Check,
   door: Extract<DoorAnswer, { ok: true }>,
   trail: Trail,

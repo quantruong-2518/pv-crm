@@ -23,7 +23,8 @@ import type { AssistantRepository, StoredCall } from './assistant.repository'
 export const REF_CHECKS = 400
 
 /** `reveals`: a null is a revealing call whose tool declares no permission now.
- *  `revealing`: those calls' tool and codes, for the reach re-check and the audit. */
+ *  `revealing`: the tool and codes of those whose tool re-asks a reach, for the
+ *  reach re-check and the audit. */
 export type MessageCodes = {
   id: string
   codes: readonly string[]
@@ -120,8 +121,9 @@ export const chatOf = (
 ): MessageCodes[] =>
   ids.map((id) => {
     const stored = calls.get(id) ?? []
+    /* Only a reach-checked reveal re-opens a door that audits its own content read. */
     const revealing = stored
-      .filter((c) => c.revealsContent)
+      .filter((c) => c.revealsContent && gate.reaches(c.name))
       .map((c) => ({ tool: c.name, codes: c.codes }))
     return {
       id,

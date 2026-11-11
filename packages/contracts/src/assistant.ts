@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { Moment } from './primitives'
+import { AfterSaleCareStatus, AfterSaleTemperatureFilter } from './sales/after-sale'
 import { SearchKind } from './sales/search'
 import { SEARCH_MAX_CHARS, SEARCH_MIN_CHARS } from './search-text'
 
@@ -213,3 +214,17 @@ export const ListMyWorkInput = z
   .object({ kind: z.enum(['lead', 'opportunity', 'next-step']).optional() })
   .strict()
 export type ListMyWorkInput = z.infer<typeof ListMyWorkInput>
+
+/** `.strict()` so a model-supplied `carer` or actor id fails parsing instead of being ignored.
+ *  `mine` means the asker: the server fills in their id, and no field can name anyone else. */
+export const ListCustomersInput = z
+  .object({
+    temperature: AfterSaleTemperatureFilter.optional(),
+    /** Absent = both `due` and `upcoming`. */
+    care: AfterSaleCareStatus.exclude(['all']).optional(),
+    /** Substring of the run code or the customer name. */
+    query: z.string().trim().min(SEARCH_MIN_CHARS).max(SEARCH_MAX_CHARS).optional(),
+    mine: z.boolean().optional(),
+  })
+  .strict()
+export type ListCustomersInput = z.infer<typeof ListCustomersInput>

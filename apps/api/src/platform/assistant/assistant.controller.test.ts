@@ -140,6 +140,23 @@ const readNote = defineTool({
   }),
 })
 
+/* Named `list_customers`, a tool that reveals gated text but re-asks no reach. */
+const listCustomers = defineTool({
+  name: 'list_customers',
+  description: 'Fake.',
+  input: z.object({ code: z.string() }).strict(),
+  doors: { lead: door(FakeDoors, 'lead') },
+  doorFor: () => 'lead',
+  reveals: 'contract.view',
+  run: async (_who, { code }) => ({
+    data: { trusted: { code } },
+    codes: [code],
+    rowCount: 1,
+    hidden: null,
+    refs: [{ kind: 'lead', code, label: COMPANY }],
+  }),
+})
+
 type Limits = AiLimits & { signal: AbortSignal }
 type Step =
   | Partial<AiRound>
@@ -201,13 +218,24 @@ const noteRound = (...codes: string[]): Partial<AiRound> => ({
   stop: 'tools',
 })
 
+const listAndNoteRound = (listed: string, noted: string): Partial<AiRound> => ({
+  calls: [
+    { id: 'vendor-0', name: 'list_customers', input: { code: listed } },
+    { id: 'vendor-1', name: 'get_history', input: { kind: 'lead', code: noted } },
+  ],
+  stop: 'tools',
+})
+
 let db: Db
 let close: () => Promise<void>
 
 function doors(client: Scripted) {
   const routes = new AiRouteRepository(db)
   const gateway = new AiGateway(routes, new AiLedger(), { gemini: client, anthropic: client }, db)
-  const gate = new AssistantToolGate({ tools: () => [readLead, readNote] }, createAccessControl())
+  const gate = new AssistantToolGate(
+    { tools: () => [readLead, readNote, listCustomers] },
+    createAccessControl(),
+  )
   const repo = new AssistantRepository(db)
   const audits = new AuditRepository(db)
   const runner = new AssistantRunner(gateway, repo, audits, gate)
@@ -756,6 +784,35 @@ describe('a stored answer that read comm summaries', () => {
     const shut = await service.reports(director, query)
     expect(shut.rows[0]).toMatchObject({ withheld: true, answer: '' })
     expect(await linesOf('assistant · page 1 ·')).toHaveLength(before)
+  })
+})
+
+describe('a stored list_customers answer', () => {
+  it('writes no view line for the codes it listed, on detail or on a report page', async () => {
+    const first = await ask(
+      new Scripted([listAndNoteRound('LD-0708', 'LD-0709'), { text: 'Rồi.' }]),
+    )
+    const sessionId = first.sessionId!
+    const { service } = doors(new Scripted([]))
+
+    const shown = await service.detail(director, sessionId)
+    expect(shown.messages[1]).toMatchObject({ withheld: false, body: 'Rồi.' })
+    const lines = async (where: string) =>
+      (await db.select().from(audit).where(eq(audit.action, 'view')))
+        .filter((l) => l.note?.startsWith(where))
+        .map((l) => l.code)
+    expect(await lines(`assistant · session ${sessionId}`)).toEqual(['LD-0709'])
+
+    const [answer] = await db
+      .select()
+      .from(assistantMessage)
+      .where(eq(assistantMessage.sessionId, sessionId))
+      .then((rows) => rows.filter((r) => r.role === 'assistant'))
+    await service.report(director, answer!.id, { reason: 'missing' })
+    await service.reports(director, zod(AssistantReportQuery).transform({ size: '1' }))
+    const page = await lines('assistant · page 1 ·')
+    expect(page).toContain('LD-0709')
+    expect(page).not.toContain('LD-0708')
   })
 })
 

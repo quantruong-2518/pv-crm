@@ -10,6 +10,7 @@ import { runnerBind } from './runner-bind'
 import { runnerCaps } from './runner-caps'
 import { runnerGateway } from './runner-gateway'
 import { runnerSummary } from './runner-summary'
+import { customerMatrix } from './scope-customers'
 import { scopeMatrix } from './scope-matrix'
 import { businessChecksum, moved, openWorld, type World } from './world'
 
@@ -35,6 +36,7 @@ async function scripted(
 ): Promise<void> {
   const before = await businessChecksum(world.db)
   await scopeMatrix(world, tally)
+  await customerMatrix(world, tally)
   await hostileModel(world, tally)
   await runnerCaps(world, tally)
   await runnerGateway(world, tally)
@@ -53,7 +55,7 @@ async function scripted(
 export async function runAll(options: Options): Promise<void> {
   const cases = loadCases()
   const tally = new Tally()
-  await tally.run('cases', 'the set is 20, 15, 10, 5, 10, 6 and 5', async (c) => {
+  await tally.run('cases', 'the set is 20, 15, 10, 5, 13, 6 and 5', async (c) => {
     c.eq(caseSetFaults(cases), [], 'faults of the set')
   })
   const world = await openWorld()

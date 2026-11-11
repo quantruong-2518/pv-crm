@@ -13,6 +13,8 @@ import {
 import type { ModuleRef } from '@nestjs/core'
 import { createAccessControl, DEFAULT_ROLE_PERMISSIONS, type Actor, type RoleId } from '@pv/engines'
 import { describe, expect, it, vi } from 'vitest'
+import { TurnBinding } from '@api/platform/assistant/assistant-bind'
+import { chatOf, recheck } from '@api/platform/assistant/assistant-refs'
 import {
   footerOf,
   newReads,
@@ -21,8 +23,9 @@ import {
 } from '@api/platform/assistant/assistant-turn-read'
 import { AssistantToolGate } from '@api/platform/assistant/assistant-tools'
 import type { DebriefService } from '@api/platform/comms/debrief.service'
-import { notFound } from '@api/platform/http/problem'
+import { denied, notFound } from '@api/platform/http/problem'
 import type { AccountService } from '../account/account.service'
+import type { AfterSaleService } from '../after-sale/after-sale.service'
 import type { ContractService } from '../contract/contract.service'
 import type { LeadService } from '../lead/lead.service'
 import type { OpportunityStepService } from '../next-step/next-step-opportunity.service'
@@ -79,6 +82,7 @@ const OPPORTUNITY = {
   code: 'OP-0301',
   name: 'Triển khai MES',
   leadCode: 'LD-0001',
+  account: 'Sao Đỏ',
   state: 'open',
   contractCodes: [],
   stage: 'engaged',
@@ -95,6 +99,12 @@ const OPPORTUNITY = {
   nextStep: null,
   stopReasonLabel: null,
   contacts: [CONTACT],
+  money: {
+    paymentsVisible: false,
+    totals: { currency: 'VND', quoting: 0 },
+    open: [],
+    contracts: [],
+  },
 } as unknown as OpportunityProfileResponse
 
 /** Phone and mail no real contract carries: the projection must not pass them on. */
@@ -140,6 +150,7 @@ const page = <R>(rows: R[]) => ({ rows, total: rows.length, hidden: 0 })
 function setup() {
   const leads = {
     profile: vi.fn(async () => LEAD),
+    guard: vi.fn(async () => undefined),
     book: vi.fn(async () => page([])),
     touches: vi.fn(async () => ({ rows: [] })),
     meetingList: vi.fn(async () => ({ rows: [] })),
@@ -161,6 +172,7 @@ function setup() {
   const leadSteps = { get: vi.fn(async () => ({ step: null })) }
   const dealSteps = { get: vi.fn(async () => ({ step: null })) }
   const accounts = { profile: vi.fn(async () => ACCOUNT) }
+  const afterSales = { book: vi.fn(async () => page([])) }
   const source = new SalesAssistantTools(
     leads as unknown as LeadService,
     opportunities as unknown as OpportunityService,
@@ -170,10 +182,21 @@ function setup() {
     leadSteps as unknown as NextStepService,
     dealSteps as unknown as OpportunityStepService,
     accounts as unknown as AccountService,
+    afterSales as unknown as AfterSaleService,
     { get: () => debriefs as unknown as DebriefService } as unknown as ModuleRef,
   )
   const gate = new AssistantToolGate(source, createAccessControl())
-  return { gate, leads, opportunities, contracts, searches, leadSteps, dealSteps, debriefs }
+  return {
+    gate,
+    leads,
+    opportunities,
+    contracts,
+    searches,
+    leadSteps,
+    dealSteps,
+    debriefs,
+    afterSales,
+  }
 }
 
 const getRecord = (kind: string, code: string) => ({
@@ -207,6 +230,7 @@ describe('the sales tools', () => {
     expect(declared.map((t) => t.name)).toEqual([
       'search_records',
       'get_record',
+      'list_customers',
       'list_my_work',
       'get_history',
     ])
@@ -1071,5 +1095,450 @@ describe('get_history', () => {
 
     expect(footerOf(reads, new Date(0)).read).toEqual([{ kind: 'lead', count: 1 }])
     expect(suggestionsOf(reads)).toEqual([])
+  })
+})
+
+describe('get_record on a deal carries its quotations and money', () => {
+  const MASK = '[withheld]'
+  const round = (over: object = {}) => ({
+    id: '00000000-0000-4000-8000-000000000001',
+    opportunityCode: 'OP-0301',
+    kind: 'CK-01',
+    negotiationNo: 1,
+    roundNo: 1,
+    amount: 500_000_000,
+    currency: 'VND',
+    sentAt: '2026-10-01T02:00:00.000Z',
+    validUntil: '2026-10-31',
+    source: 'manual',
+    outcome: 'won',
+    closedAt: '2026-10-10T02:00:00.000Z',
+    reasonLabel: null,
+    note: null,
+    contractCode: 'HĐ-2711',
+    files: 2,
+    expired: false,
+    ...over,
+  })
+  const installment = (no: number, over: object = {}) => ({
+    no,
+    label: `Đợt ${no} SECRET LABEL`,
+    share: 50,
+    amount: 250_000_000,
+    due: '2026-11-01T00:00:00.000Z',
+    paidAt: '2026-10-30T00:00:00.000Z',
+    status: 'paid',
+    days: null,
+    ...over,
+  })
+  const paper = (code: string, visible: boolean) => ({
+    code,
+    kind: 'CK-01',
+    amount: 500_000_000,
+    currency: 'VND',
+    signedAt: '2026-10-10T02:00:00.000Z',
+    collected: visible ? 250_000_000 : 0,
+    collectedShare: visible ? 50 : 0,
+    paymentsVisible: visible,
+    can: { editSchedule: true, recordPayment: true },
+    installments: visible ? [installment(1), installment(2, { status: 'overdue', days: 3 })] : [],
+    rounds: [round({ contractCode: code })],
+    files: { quotation: 1, contract: 1, installment: 0 },
+  })
+  const totals = {
+    currency: 'VND',
+    signed: 500_000_000,
+    contracts: 1,
+    collected: 250_000_000,
+    collectedShare: 50,
+    installments: { paid: 1, total: 2 },
+    outstanding: 250_000_000,
+    overdue: { amount: 250_000_000, count: 1, maxDaysLate: 3 },
+    notYetDue: { amount: 0, count: 0, nearestDays: null },
+    quoting: 120_000_000,
+  }
+  const open = {
+    kind: 'CK-01',
+    negotiationNo: 2,
+    pendingId: '00000000-0000-4000-8000-000000000009',
+    amount: 120_000_000,
+    currency: 'VND',
+    rounds: [round({ outcome: 'pending', closedAt: null, contractCode: null })],
+  }
+
+  type Money = {
+    trusted: Record<string, unknown>
+    open: { trusted: Record<string, unknown>; rows: { trusted: object; rounds: Listed }[] }
+    contracts: {
+      trusted: { count: number; more: boolean }
+      rows: { trusted: Record<string, unknown>; installments?: Listed; rounds: Listed }[]
+    }
+  }
+
+  async function dealWith(who: Actor, money: object) {
+    const { gate, opportunities } = setup()
+    opportunities.profile.mockResolvedValueOnce({ ...OPPORTUNITY, money } as never)
+    const verdict = await gate.call(who, OPPORTUNITY_CALL)
+    expect(verdict.outcome).toBe('ok')
+    return { verdict, money: (verdict.output as { money: Money }).money }
+  }
+
+  it('shows the payments of a contract the reader sees and none of one they do not', async () => {
+    const { verdict, money } = await dealWith(actor('sale'), {
+      paymentsVisible: true,
+      totals,
+      open: [open],
+      contracts: [paper('HĐ-2711', true), paper('HĐ-2712', false)],
+    })
+
+    expect(money.trusted).toMatchObject({ paymentsVisible: true, signed: 500_000_000 })
+    expect(money.trusted).toMatchObject({ quoting: 120_000_000, outstanding: 250_000_000 })
+    const [seen, shut] = money.contracts.rows
+    expect(seen?.trusted).toMatchObject({ code: 'HĐ-2711', collected: 250_000_000 })
+    expect(seen?.installments?.rows).toHaveLength(2)
+    expect(shut?.trusted).toMatchObject({ code: 'HĐ-2712', paymentsVisible: false })
+    /* Left out, not nulled: a null tells the model the deal has none. */
+    expect(shut?.trusted).not.toHaveProperty('collected')
+    expect(shut?.trusted).not.toHaveProperty('collectedShare')
+    expect(shut).not.toHaveProperty('installments')
+    expect(shut?.rounds.rows).toHaveLength(1)
+    expect(verdict.codes).toEqual(['OP-0301', 'HĐ-2711'])
+    expect(verdict.refs).toContainEqual({ kind: 'contract', code: 'HĐ-2711', label: 'Sao Đỏ' })
+    expect(verdict.refs.map((r) => r.code)).toEqual(['OP-0301', 'HĐ-2711'])
+    const body = JSON.stringify(verdict.output)
+    for (const leak of ['pendingId', 'editSchedule', 'SECRET LABEL', '000000000009']) {
+      expect(body).not.toContain(leak)
+    }
+  })
+
+  it('leaves the totals out when the reader sees no payment, and keeps `quoting`', async () => {
+    const { verdict, money } = await dealWith(actor('sale'), {
+      paymentsVisible: false,
+      totals,
+      open: [open],
+      contracts: [paper('HĐ-2712', false)],
+    })
+
+    expect(money.trusted).toEqual({ paymentsVisible: false, currency: 'VND', quoting: 120_000_000 })
+    expect(money.open.rows[0]?.trusted).toEqual({
+      kind: 'CK-01',
+      negotiationNo: 2,
+      amount: 120_000_000,
+      currency: 'VND',
+    })
+    expect(verdict.codes).toEqual(['OP-0301'])
+  })
+
+  it("masks a phone typed into a round's note for a reader without data.export", async () => {
+    const note = `Khách hẹn, gọi 0912 345 678`
+    const money = {
+      paymentsVisible: false,
+      totals,
+      open: [],
+      contracts: [
+        { ...paper('HĐ-2712', false), rounds: [round({ note, reasonLabel: 'Giá cao' })] },
+      ],
+    }
+    const masked = await dealWith(actor('sale'), money)
+    const text = masked.money.contracts.rows[0]?.rounds.rows[0]?.untrusted
+    expect(text).toEqual({ note: `Khách hẹn, gọi ${MASK}`, reasonLabel: 'Giá cao' })
+    expect(masked.verdict.output).toMatchObject({ contactInfoWithheld: true })
+    expect(JSON.stringify(masked.verdict.output)).not.toContain('0912')
+
+    const held = await dealWith(actor('director'), money)
+    expect(held.money.contracts.rows[0]?.rounds.rows[0]?.untrusted).toMatchObject({ note })
+    expect(held.verdict.output).not.toHaveProperty('contactInfoWithheld')
+  })
+
+  it('cuts each list at 20 rows and says how many there are', async () => {
+    const many = Array.from({ length: 25 }, (_, i) => paper(`HĐ-${3000 + i}`, true))
+    const { verdict, money } = await dealWith(actor('sale'), {
+      paymentsVisible: true,
+      totals,
+      open: [],
+      contracts: many,
+    })
+
+    expect(money.contracts.rows).toHaveLength(20)
+    expect(money.contracts.trusted).toEqual({ count: 25, more: true })
+    expect(verdict.codes).toHaveLength(26)
+    expect(verdict.codes).toContain('HĐ-3020')
+  })
+
+  it('prints each money figure in its own paper currency and each share as a percent', async () => {
+    const { verdict } = await dealWith(actor('sale'), {
+      paymentsVisible: true,
+      totals,
+      open: [],
+      contracts: [paper('HĐ-2711', true), { ...paper('HĐ-2713', true), currency: 'USD' }],
+    })
+    const bind = new TurnBinding('', null)
+    const draft = bind.draft(verdict.output, verdict.rowCount)
+    bind.keep(draft)
+    const said = (...path: (string | number)[]) => {
+      const node = path.reduce<unknown>(
+        (n, k) => (n as Record<string | number, unknown>)[k],
+        draft.output,
+      )
+      return bind.push(`${(node as { cite: string }).cite} `)
+    }
+    const row = (n: number) => ['money', 'contracts', 'rows', n] as const
+
+    expect(said('money', 'trusted', 'signed')).toContain('₫')
+    expect(said('money', 'trusted', 'outstanding')).toContain('₫')
+    expect(said('money', 'trusted', 'collectedShare')).toContain('50%')
+    expect(said(...row(0), 'trusted', 'collected')).toContain('₫')
+    expect(said(...row(0), 'installments', 'rows', 0, 'trusted', 'amount')).toContain('₫')
+    expect(said(...row(1), 'installments', 'rows', 0, 'trusted', 'amount')).not.toContain('₫')
+    expect(said(...row(1), 'installments', 'rows', 0, 'trusted', 'amount')).toContain('$')
+  })
+})
+
+describe('list_customers', () => {
+  const sale = actor('sale')
+  const row = (n: number, over: object = {}) => ({
+    code: `WS-${1000 + n}`,
+    leadCode: `LD-${2000 + n}`,
+    customer: `Sao Đỏ ${n}`,
+    temperature: {
+      value: 'hot',
+      at: '2026-10-01T00:00:00.000Z',
+      by: { id: 'u-lan', name: 'Chị Lan' },
+    },
+    nextStep: {
+      text: `Gọi anh Nam ${PHONE}`,
+      due: '2026-11-20',
+      doer: { id: 'u-lan', name: 'Chị Lan' },
+      dueLevel: 'upcoming',
+      kind: null,
+    },
+    carers: [{ id: 'u-lan', name: 'Chị Lan' }],
+    canOpenDeal: true,
+    lastContactAt: '2026-10-15T00:00:00.000Z',
+    nextCareOn: '2026-11-15',
+    careDue: false,
+    completedAt: '2026-09-01T00:00:00.000Z',
+    ...over,
+  })
+  const call = (input: object = {}) => ({ id: 'c1', name: 'list_customers', input })
+  type Customers = {
+    customers: {
+      trusted: { more: boolean }
+      rows: { trusted: Record<string, unknown>; untrusted: Record<string, unknown> }[]
+    }
+  }
+
+  /** The lead book answers only the codes it is given, minus those in `unseen`; the
+   *  read fence then opens only the `carried` ones (a carer's lead, not in the book). */
+  function customers(
+    rows: object[],
+    unseen: string[] = [],
+    hidden = 0,
+    total = rows.length,
+    carried: string[] = [],
+  ) {
+    const s = setup()
+    s.leads.guard.mockImplementation((async (_who: Actor, code: string) => {
+      if (!carried.includes(code)) throw notFound('lead', code)
+    }) as never)
+    s.afterSales.book.mockResolvedValue({ rows, total, hidden } as never)
+    s.leads.book.mockImplementation((async (_who: Actor, q: { codes: string }) =>
+      page(
+        q.codes
+          .split(',')
+          .filter((code) => !unseen.includes(code))
+          .map((code) => ({ ...LEAD, code })),
+      )) as never)
+    return s
+  }
+
+  it('lists a customer by its lead code, with the care state and no contact data', async () => {
+    const s = customers([row(1), row(2)])
+    const verdict = await s.gate.call(sale, call())
+    const out = verdict.output as Customers
+
+    expect(verdict.outcome).toBe('ok')
+    expect(out.customers.rows[0]?.trusted).toEqual({
+      code: 'WS-1001',
+      leadCode: 'LD-2001',
+      temperature: { value: 'hot', at: '2026-10-01T00:00:00.000Z' },
+      lastContactAt: '2026-10-15T00:00:00.000Z',
+      nextCareOn: '2026-11-15',
+      careDue: false,
+      completedAt: '2026-09-01T00:00:00.000Z',
+      nextStep: { due: '2026-11-20', dueLevel: 'upcoming' },
+    })
+    expect(out.customers.rows[0]?.untrusted).toEqual({
+      customer: 'Sao Đỏ 1',
+      carers: ['Chị Lan'],
+      temperatureBy: 'Chị Lan',
+      nextStep: 'Gọi anh Nam [withheld]',
+    })
+    expect(out).toMatchObject({ contactInfoWithheld: true })
+    expect(JSON.stringify(out)).not.toContain(PHONE)
+    expect(verdict).toMatchObject({
+      codes: ['LD-2001', 'LD-2002'],
+      rowCount: 2,
+      hidden: 0,
+      revealsContent: true,
+    })
+    expect(verdict.refs).toEqual([
+      { kind: 'lead', code: 'LD-2001', label: 'Sao Đỏ 1' },
+      { kind: 'lead', code: 'LD-2002', label: 'Sao Đỏ 2' },
+    ])
+    expect(s.leads.book).toHaveBeenCalledWith(
+      sale,
+      expect.objectContaining({ codes: 'LD-2001,LD-2002', state: 'all', size: 2 }),
+    )
+  })
+
+  it('drops a row whose lead the lead book does not return, and counts it in hidden', async () => {
+    const s = customers([row(1), row(2), row(3)], ['LD-2002'], 2)
+    const verdict = await s.gate.call(sale, call())
+    const out = verdict.output as Customers & { hidden: number }
+
+    expect(out.customers.rows.map((r) => r.trusted.leadCode)).toEqual(['LD-2001', 'LD-2003'])
+    expect(JSON.stringify(out)).not.toContain('Sao Đỏ 2')
+    expect(verdict).toMatchObject({ codes: ['LD-2001', 'LD-2003'], rowCount: 2, hidden: 3 })
+    expect(out.hidden).toBe(3)
+    expect(verdict.refs.map((r) => r.code)).toEqual(['LD-2001', 'LD-2003'])
+    expect(s.leads.guard).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a lead only the read fence opens, a carer or a deal holder, and does not count it', async () => {
+    const s = customers([row(1), row(2), row(3)], ['LD-2002', 'LD-2003'], 0, 3, ['LD-2002'])
+    const verdict = await s.gate.call(sale, call())
+
+    expect(verdict.codes).toEqual(['LD-2001', 'LD-2002'])
+    expect(verdict).toMatchObject({ rowCount: 2, hidden: 1 })
+    expect(s.leads.guard).toHaveBeenCalledWith(sale, 'LD-2002')
+    expect(s.leads.guard).toHaveBeenCalledWith(sale, 'LD-2003')
+    expect(s.leads.guard).not.toHaveBeenCalledWith(sale, 'LD-2001')
+  })
+
+  it('counts a fence refusal as hidden, and fails the call on any other error', async () => {
+    const s = customers([row(1)], ['LD-2001'])
+    s.leads.guard.mockRejectedValueOnce(denied('permission-denied') as never)
+    expect(await s.gate.call(sale, call())).toMatchObject({ outcome: 'ok', rowCount: 0, hidden: 1 })
+
+    s.leads.guard.mockRejectedValueOnce(new Error('db down') as never)
+    expect((await s.gate.call(sale, call())).outcome).toBe('error')
+  })
+
+  it('reads at most 20 guards, one per code the book left out, and still reveals when all are dropped', async () => {
+    const rows = Array.from({ length: 20 }, (_, i) => row(i + 1))
+    const s = customers(
+      rows,
+      rows.map((r) => r.leadCode),
+      0,
+      20,
+    )
+    const verdict = await s.gate.call(sale, call())
+
+    expect(s.leads.guard).toHaveBeenCalledTimes(20)
+    expect(verdict).toMatchObject({ rowCount: 0, hidden: 20, revealsContent: true })
+  })
+
+  it('stores the lead codes once and never a run code, and says when the book is longer', async () => {
+    const s = customers([row(1), row(2, { leadCode: 'LD-2001' })], [], 0, 35)
+    const verdict = await s.gate.call(sale, call())
+
+    expect(verdict.codes).toEqual(['LD-2001'])
+    expect(verdict.rowCount).toBe(2)
+    expect((verdict.output as Customers).customers.trusted).toEqual({ more: true })
+    expect(s.leads.book).toHaveBeenCalledTimes(1)
+  })
+
+  it('reads no lead book for an empty page, and reveals nothing', async () => {
+    const s = customers([])
+    const verdict = await s.gate.call(sale, call())
+
+    expect(verdict).toMatchObject({ outcome: 'ok', codes: [], rowCount: 0, revealsContent: false })
+    expect(s.leads.book).not.toHaveBeenCalled()
+  })
+
+  it('refuses the call when the lead door is shut, and reads no book', async () => {
+    const s = customers([row(1)])
+    const noLead = { ...sale, permissions: sale.permissions.filter((p) => p !== 'lead.view') }
+    const verdict = await s.gate.call(noLead, call())
+
+    expect(verdict.outcome).toBe('refused')
+    expect(s.afterSales.book).not.toHaveBeenCalled()
+    expect(s.leads.book).not.toHaveBeenCalled()
+  })
+
+  it('refuses the call when the after-sale door is shut, and reads no book', async () => {
+    const s = customers([row(1)])
+    const verdict = await s.gate.call(actor('marketing'), call())
+
+    expect(verdict.outcome).toBe('refused')
+    expect(s.afterSales.book).not.toHaveBeenCalled()
+    expect(s.leads.book).not.toHaveBeenCalled()
+  })
+
+  it("sets `carer` to the asker for `mine`, and sends no sort and no other person's id", async () => {
+    const s = customers([row(1)])
+    await s.gate.call(sale, call({ mine: true, care: 'due', temperature: 'hot', query: 'sao' }))
+
+    const q = s.afterSales.book.mock.calls[0]?.[1] as unknown as Record<string, unknown>
+    expect(s.afterSales.book).toHaveBeenCalledWith(
+      sale,
+      expect.objectContaining({
+        carer: 'u-sale',
+        care: 'due',
+        temperature: 'hot',
+        q: 'sao',
+        size: 20,
+      }),
+    )
+    expect(q).not.toHaveProperty('sort')
+
+    await s.gate.call(sale, call())
+    const plain = s.afterSales.book.mock.calls[1]?.[1] as unknown as Record<string, unknown>
+    expect(plain).not.toHaveProperty('carer')
+    expect(plain).not.toHaveProperty('temperature')
+  })
+
+  it('takes a model-supplied carer as bad input', async () => {
+    const s = customers([row(1)])
+    const verdict = await s.gate.call(sale, call({ carer: 'u-someone-else' }))
+    expect(verdict.outcome).toBe('bad-input')
+    expect(s.afterSales.book).not.toHaveBeenCalled()
+  })
+
+  it('withholds a stored answer, and every later one, from a reader who lost contract.view', async () => {
+    const s = customers([row(1)])
+    const ids = ['a1', 'a2']
+    const calls = new Map([
+      ['a1', [{ name: 'list_customers', codes: ['LD-2001'], revealsContent: true }]],
+      ['a2', [{ name: 'get_record', codes: ['LD-2001'], revealsContent: false }]],
+    ])
+    const chat = chatOf(s.gate, ids, calls as never)
+    const shutFor = async (who: Actor) => [...(await recheck(s.gate, who, chat)).shut]
+    const noContract = {
+      ...sale,
+      permissions: sale.permissions.filter((p) => p !== 'contract.view'),
+    }
+
+    expect(await shutFor(noContract)).toEqual([
+      ['a1', 'withheld'],
+      ['a2', 'withheld'],
+    ])
+    expect(await shutFor(sale)).toEqual([])
+  })
+
+  it('withholds an answer whose every row was dropped, since hidden and more still come from the book', async () => {
+    const s = customers([row(1)], ['LD-2001'])
+    const verdict = await s.gate.call(sale, call())
+    expect(verdict).toMatchObject({ rowCount: 0, codes: [], revealsContent: true })
+
+    const stored = [{ name: 'list_customers', codes: verdict.codes, revealsContent: true }]
+    const chat = chatOf(s.gate, ['a1'], new Map([['a1', stored]]) as never)
+    const noContract = {
+      ...sale,
+      permissions: sale.permissions.filter((p) => p !== 'contract.view'),
+    }
+    expect([...(await recheck(s.gate, noContract, chat)).shut]).toEqual([['a1', 'withheld']])
+    expect((await recheck(s.gate, sale, chat)).shut.size).toBe(0)
   })
 })
