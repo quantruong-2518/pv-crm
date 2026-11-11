@@ -70,10 +70,7 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
     direct test.
   - Gate 0 needs a live multi-turn case checking that the model never copies
     the fence into its answer.
-  - Deploy window: migration 0165 backfills at migrate time and the old API
-    keeps writing `false` until the new release is live; the UPDATE in 0165
-    must be run once more after the deploy (mark this line done once it has
-    run).
+  - Re-ran 0165's UPDATE after deploy on 11/11/2026: 0 rows needed marking.
   - While an answer covered by a chat's folded summary stays shut for its
     owner, that chat no longer folds; past `REF_CHECKS` codes an answer counts
     as unchecked, so folding stops there too.
