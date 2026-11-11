@@ -88,7 +88,7 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
   - The web wait-line labels for `list_customers` are not added; it falls back to
     the generic line, as `get_history` does.
 - CRM assistant KPI tools (ADR 0151), debt:
-  - Built, not shipped; no migration.
+  - On production at 18307063, Fly v220 (11/11/2026), /healthz ok; no migration.
   - Room-scope metrics must be hidden from readers without `kpi.view-all` inside
     `KpiService.me` (owner decision 11/11, KPI restructure worktree); the tools
     depend on it.

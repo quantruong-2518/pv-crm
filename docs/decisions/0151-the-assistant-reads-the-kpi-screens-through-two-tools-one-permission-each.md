@@ -1,6 +1,6 @@
 # 0151 · The assistant reads the KPI screens through `get_my_kpi` and `get_team_kpi`, one permission each, and carries no weighted pipeline outside the asker's own lines
 
-Status: accepted (not shipped)
+Status: accepted
 Date: 2026-11-11
 Source: slice 4 of the series opened by 0142; design in the session handoff of 11/11/2026
 
