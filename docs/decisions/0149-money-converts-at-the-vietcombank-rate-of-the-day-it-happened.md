@@ -72,5 +72,5 @@ The owner did not rule on the first five or on `set_by`; they are the builder's 
 
 ## Status of the work
 
-Built on branch `fx-daily-rate`, not committed yet: migration 0166, `apps/api/src/branches/sales/money.ts`,
+On production (b3bb6361, Fly v222): migration 0166, `apps/api/src/branches/sales/money.ts`,
 `apps/api/src/platform/fx/`, screen `/admin/fx-rates`. Debt is in `docs/status.md`.
