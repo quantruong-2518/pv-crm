@@ -87,7 +87,7 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
 - CRM assistant KPI tools (ADR 0151), debt:
   - On production at 18307063, Fly v220 (11/11/2026), /healthz ok; no migration.
   - ADR 0151 amendment of 11/11/2026 (no room-scope readings in `get_my_kpi`,
-    prompt v12): built, not shipped.
+    prompt v12): on production at 086fd6fb, Fly v221 (11/11/2026), /healthz ok; no migration.
   - Owner decided 11/11/2026: production keeps counts only, never question text.
   - Owner decided 11/11/2026: no counting tool beyond KPI is planned now (for
     example "how many leads at stage X"); revisit after gate 0 shows real users
