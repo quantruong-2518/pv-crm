@@ -82,7 +82,7 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
   - The ref chip label falls back to the bare code when the comms door is
     skipped or empty.
 - CRM assistant quotations, money and customer list (ADR 0148), debt:
-  - Not shipped to production yet.
+  - In production (verified 11/11/2026).
   - Stored-answer token size, worst case 20 rounds in each of 20 lists, is
     bounded by count, not by bytes.
   - The web wait-line labels for `list_customers` are not added; it falls back to
