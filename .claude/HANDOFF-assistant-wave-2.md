@@ -8,7 +8,7 @@ Viết 15/11/2026 tối. Nhánh `assistant-wave-2` ở worktree `/home/quantruon
 - Đợt 2 dựng xong theo ADR 0154
   (`docs/decisions/0154-the-assistant-sends-a-morning-brief-of-a-persons-own-work-by-bell-email-and-a-live-card.md`),
   `pnpm check` xanh trên nhánh. Migration 0169: CHECK loại thông báo + bật tuyến `assistant-brief`, trần 1.
-- Gate 0 của đợt 1b (eval live ở v14) **không làm trong phiên này** — chủ dự án để phiên khác.
+- Gate 0 của đợt 1b (eval live ở v14) chưa chạy: phiên này không chạy, chủ dự án cũng chưa chạy.
   Cách chạy: bàn giao cũ trong `git show 9418ddfe:.claude/HANDOFF-assistant-wave-2.md` §1.
 - Chưa ai nhìn trên trình duyệt: thẻ "Việc hôm nay", dòng chuông, mail (`pnpm mail:preview`).
   WSL này thiếu `libnspr4` nên không chạy headless được.
@@ -37,6 +37,10 @@ Viết 15/11/2026 tối. Nhánh `assistant-wave-2` ở worktree `/home/quantruon
    thì danh sách phải giữ `assistant-brief`.
 3. Ship xong vào ngày thường trước 11:00 thì bản tin gửi ngay trong cửa sổ đó — báo chủ dự án trước.
 4. `/ship`: migrate trước, deploy sau, từ worktree tách rời.
+5. Worker chưa từng khởi động với module mới (`AssistantModule` nay nạp mail, thông báo, vai, phiên;
+   scripted eval có dựng Nest nhưng không dựng `WorkerModule`). Sau deploy đọc log worker trên Fly
+   ở tick đầu: không lỗi resolve của Nest, và có lượt quét bản tin trong 08:00–11:00. `/healthz`
+   không bắt được worker chết.
 
 ## 3 · Giới hạn đã biết (ghi trong ADR 0154)
 
