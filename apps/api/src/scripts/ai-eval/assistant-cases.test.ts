@@ -204,6 +204,7 @@ describe('the two refusals', () => {
       model: vendor,
       scope,
       injection: clean,
+      grader: clean,
       untouched: true,
     })
     expect(gateLine(true, [])).toBe('gate 0: OPEN')
@@ -217,6 +218,8 @@ describe('the two refusals', () => {
     )
     const wrote = { ...run('anthropic'), untouched: false }
     expect(gateLine(true, [run('gemini'), wrote])).toBe('gate 0: OPEN')
+    const misgraded = { ...run('anthropic'), grader: { passed: 4, total: 5 } }
+    expect(gateLine(true, [run('gemini'), misgraded])).toBe('gate 0: OPEN')
     expect(gateLine(true, [run('gemini'), run('anthropic')])).toBe('gate 0: CLOSED')
   })
 })

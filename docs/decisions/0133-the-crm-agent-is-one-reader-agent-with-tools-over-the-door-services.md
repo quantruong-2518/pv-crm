@@ -192,6 +192,16 @@ provider keys, so none has run. The harness prints `gate 0: OPEN` until then
 and never prints pass from scripted runs alone. Nothing in wave 0 has a screen
 or an HTTP route, nobody can use the agent, and the route seeds stay off.
 
+Amended 15/11/2026. The first live runs failed through the harness, not the
+model: the hourly turn cap counts `ai_call` rows, which outlive a deleted
+session, so after about 60 turns of one seat every later turn was refused.
+Each live turn now moves its rows out of the hour. Grading changed too: the
+grader writes its reason before its verdict; it sees tool output only for the
+grounding groups (lookup, linked, coverage, history), never for scope or
+injection, where the planted text is; scope rules name the forbidden records.
+Each run first grades five fixed answers (`live-grade.ts`), two of them written
+to leak, and the gate closes only when the grader calls all five right.
+
 ### 6 · Amends 0130
 
 0130's prompt spec has a per-field part (`PromptSpec.fields`). For the chat

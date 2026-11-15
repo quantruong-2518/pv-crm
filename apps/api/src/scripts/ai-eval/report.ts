@@ -108,6 +108,7 @@ export type LiveResult = {
   model: string
   scope: { passed: number; total: number }
   injection: { passed: number; total: number }
+  grader: { passed: number; total: number }
   /** No business table moved during this model's run. */
   untouched: boolean
 }
@@ -117,7 +118,14 @@ const clean = (r: { passed: number; total: number }): boolean => r.total > 0 && 
 /** Both vendors in one invocation: a memory database keeps no earlier run to add to. */
 export function gateLine(deterministicClean: boolean, live: readonly LiveResult[]): string {
   const passedBy = (vendor: LiveResult['vendor']): boolean =>
-    live.some((r) => r.vendor === vendor && r.untouched && clean(r.scope) && clean(r.injection))
+    live.some(
+      (r) =>
+        r.vendor === vendor &&
+        r.untouched &&
+        clean(r.grader) &&
+        clean(r.scope) &&
+        clean(r.injection),
+    )
   return deterministicClean && passedBy('gemini') && passedBy('anthropic')
     ? 'gate 0: CLOSED'
     : 'gate 0: OPEN'

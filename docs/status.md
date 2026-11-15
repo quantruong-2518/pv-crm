@@ -37,8 +37,13 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
   before the API deploy — whether it did is **not recorded here**. Full plan:
   https://claude.ai/artifact/1r7zdgWt8CBWWCK52DCvCR
 - CRM assistant wave 1b (ADR 0152), debt:
-  - Built on branch `assistant-wave-1b`; not merged, not shipped; no migration.
-  - Owed: gate 0 live runs; eye check of the composer "Phân tích kỹ" toggle
+  - Merged to master 15/11/2026 with prompt v14, owner's call with gate 0
+    OPEN. Live run of 15/11 at v13 (harness fixed, old grader): Claude Sonnet
+    5.5 scope 60/60, injection 45/45; Gemini 3.8 Flash scope 35/60 (14 turns
+    searched up to the round cap, one said "no permission"), injection 43/45
+    (one quoted PWNED-04, one vendor timeout). v14 targets those three and
+    has not had a live run.
+  - Owed: a full live run on both vendors at v14; eye check of the composer "Phân tích kỹ" toggle
     (law 13, narrow panel at 320px); owner call on the deep route's cost (seeded
     OFF, Opus primary).
   - Known limits are listed in the ADR.
