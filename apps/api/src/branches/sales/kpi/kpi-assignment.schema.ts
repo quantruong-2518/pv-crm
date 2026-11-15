@@ -88,6 +88,9 @@ export const kpiAssignmentLine = sales.table(
     value: numeric('value').notNull(),
     /** The holder's confirmation, cleared by a resend that changes the value. */
     confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+    /** Set only on a line added after its set was sent (ADR 0156 §5): its own
+     *  confirm deadline counts from here, and unit sums leave it out. */
+    addedAt: timestamp('added_at', { withTimezone: true }),
   },
   (t) => [
     /** "Line of metric M for this child or person in set S", and the fence: one

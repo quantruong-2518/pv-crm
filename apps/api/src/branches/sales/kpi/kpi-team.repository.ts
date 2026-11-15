@@ -110,6 +110,12 @@ export class KpiTeamRepository {
     return { from, nodes, members }
   }
 
+  /** The newest version: the one org edits land on until the next month sent
+   *  (ADR 0101 D7). Any period past every `from_period` names it. */
+  latestOrgTree(handle: Db = this.db): Promise<KpiOrgTree | null> {
+    return this.orgTreeAt('9999-12', handle)
+  }
+
   /** The tree's first month, or null while no version exists. */
   treeStart(handle: Db = this.db): Promise<string | null> {
     return firstOrgVersion(handle)

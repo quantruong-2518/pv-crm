@@ -183,7 +183,9 @@ function flagSpecs(
         key: b.code,
         text: [
           b.code,
-          b.actor?.name ?? t(message('Chưa có người phụ trách', 'No owner', '담당자 없음')),
+          b.actors.length === 0
+            ? t(message('Chưa có người phụ trách', 'No owner', '담당자 없음'))
+            : b.actors.map((a) => a.name).join(', '),
           printValue('money', b.value, true),
           t(message(`gấp ${num(b.ratio)} lần`, `${num(b.ratio)}× average`, `${num(b.ratio)}배`)),
         ].join(' · '),

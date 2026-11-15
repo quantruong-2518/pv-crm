@@ -827,3 +827,103 @@ Raised by ADRs 0143 to 0146. Questions 179 to 182 come from the read-hole amendm
      one; recommended: hide (null and 0 both draw nothing).**
      _(see ADR 0143 amendment)_
      **Answered 11/11/2026: hide; see the list — ADR 0143 amendment.**
+
+## KPI remaining slices of 15/11/2026
+
+The design page that held the old Q5–Q9 and the exception matrix was deleted
+(404 since 26/10), so the questions for slices 2c, 2d and waves 3 and 4 were
+asked again. All answered the same day; the ADRs of each slice cite them.
+
+183. **2c · A person joins mid-month after the month is assigned: how is their
+     target set?**
+     **Answered 15/11/2026: the machine suggests role level × remaining working
+     days / working days × 50 % for the first month, 75 % for the second, 100 %
+     from the third; the head may edit the suggestion; the unit's assigned total
+     is not reopened.**
+
+184. **2c · A person leaves mid-month (account locked on day 10): target and
+     results?**
+     **Answered 15/11/2026: results before the lock stay theirs; the target for
+     the days after the lock moves onto the handover receiver named at lock.**
+     Default not the owner's: with no receiver named, the leaver's target is cut
+     by days and the rest goes nowhere.
+
+185. **2c · A person changes role mid-month?**
+     **Answered 15/11/2026: applies from next month, like a team move (0101
+     D7); the running month is scored on the old role; no ramp on the new
+     role.**
+
+186. **2c · Where does the start date come from, and what about people already
+     working?**
+     **Answered 15/11/2026: a new account field "Ngày vào làm" entered by the
+     admin, blank = the account's creation date; everyone working on the day
+     2c ships counts as fully ramped; 2c applies from 2027-01, December 2026 is
+     untouched.**
+
+187. **2d · Who proposes a contract credit split and who approves it?**
+     **Answered 15/11/2026: the closer fills the split (up to three people,
+     summing to 100 %) in the sign drawer; the head of sales or the director
+     approves it with the sign approval; no split = 100 % to the closer.**
+     Corrected 15/11/2026 after reading the code: a Sale's sign request is
+     approved by the director only (`SIGN_APPROVERS`), and the head of sales
+     and the director sign directly. **The split rides that one approval; a
+     split written by a head or director who signs directly takes effect at
+     once.**
+
+188. **2d · Which KPI figures follow the split?**
+     **Answered 15/11/2026: money splits by %, counts are not split and keep
+     their current credit; room totals unchanged. Commission stays with the
+     closer (ADR 0110); overdue debt counts for the collector (decided
+     22/10/2026).** In the code today only `signed-value` is a per-person money
+     figure: `collected-value` is a room metric, and won opportunities credit
+     the deal's SALE lane, not the closer.
+
+189. **Wave 3 · What does the assignment page suggest for each person?**
+     **Answered 15/11/2026: the average of the last three closed months × the
+     ramp factor; beside it the person's weighted pipeline and a flag when it
+     is under 3× the target; with fewer than three closed months, "chưa đủ dữ
+     liệu" and last month's figure.**
+
+190. **Wave 3 · Leading indicators and "Kế hoạch của tôi": scored or shown?**
+     **Answered 15/11/2026: shown only, never scored. "Kế hoạch của tôi" is
+     computed backwards from the target with the person's own win rates; the
+     person enters nothing.**
+
+191. **Wave 4 · Weekly forecast: who records it, who is judged on accuracy?**
+     **Answered 15/11/2026: every Monday each Sale and AE picks the
+     opportunities they are sure to sign this month; the team lead or head
+     edits and commits the unit's number; at month end committed vs actual
+     shows as accuracy for both the person and the head, not scored.**
+
+192. **Wave 4 · Total score and grade?**
+     **Answered 15/11/2026: each metric's % achieved, capped at 120 %
+     (lower-is-better inverted); the primary metric weighs 50 %, the others
+     share 50 % equally; A ≥ 100, B 85–99, C 70–84, D < 70; weights and bands
+     editable in the KPI config through its approval flow.**
+
+193. **Wave 4 · What does the monthly 1:1 record?**
+     **Answered 15/11/2026: after the month closes the head opens each
+     person's 1:1 page (score, grade, forecast accuracy), writes a note and up
+     to three dated actions; the person presses "Đã trao đổi"; open actions
+     show on "KPI của tôi" until done.**
+
+194. **Wave 4 · Bells earlier than day 16 now that leading indicators exist?**
+     This reversed an earlier owner decision, so no default was offered.
+     **Answered 15/11/2026: no — slip and hit bells stay from day 16; low
+     pipeline is a screen flag only.**
+
+195. **Wave 4 · Year view and seasonal factor?**
+     **Answered 15/11/2026: a year view as the sum of twelve months, like the
+     quarter (ADR 0146); the seasonal factor waits for twelve months of data
+     (10/2027).**
+
+196. **2d · An own-only seller credited with part of a contract: what can they
+     open?** Today own-only readers open a contract only as its closer or
+     collector.
+     **Answered 15/11/2026: they open that contract read-only (no edit, no
+     payment entry); the KPI contribution line links to it.**
+
+197. **May the KPI slices add unit tests for the three pure calculations
+     (working-day proration with ramp, split rounding, total score)?**
+     **Answered 15/11/2026: no — prove them with hand-computed acceptance
+     scripts on PGlite.**

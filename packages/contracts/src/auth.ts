@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { email, Moment, textInput, textInputOptional } from './primitives'
+import { Day, email, Moment, textInput, textInputOptional } from './primitives'
 
 /** Sign-in, the session it produces, and the people book behind it.
  *
@@ -404,6 +404,8 @@ export const UserRow = SessionActor.extend({
    *  in at all, this one signs in and lands on a single screen. */
   mustChangePasswordAt: Moment.nullable(),
   createdAt: Moment,
+  /** First day on the job; `null` = fully ramped (ADR 0156). */
+  startedOn: Day.nullable(),
 })
 
 export const UserListResponse = z.object({ rows: z.array(UserRow) })
@@ -454,6 +456,8 @@ export const UserCreate = z.object({
    *  a useful account. */
   branches: z.array(Branch).max(5),
   ownOnly: z.boolean().default(false),
+  /** Absent = the server stores the creation day. */
+  startedOn: Day.optional(),
 })
 
 /** Editing a person. Every field optional; `email` is absent on purpose —
@@ -467,6 +471,8 @@ export const UserPatch = z
     roleIds: RoleIds.optional(),
     branches: z.array(Branch).max(5).optional(),
     ownOnly: z.boolean().optional(),
+    /** `null` clears the date (fully ramped). */
+    startedOn: Day.nullable().optional(),
     /** `true` locks the account and kills every live session it holds;
      *  `false` unlocks it. Absent leaves the lock exactly as it was. */
     disabled: z.boolean().optional(),

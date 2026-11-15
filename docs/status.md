@@ -173,27 +173,16 @@ Built through wave 2b (ADR 0112 to 0120).
 - Owed on the above: the first digest run has not been seen in the Fly logs;
   probability coverage on Neon is not measured.
 
-- 2c: start date, ramp factor and exceptions for joining, leaving, changing
-  group or role (needs a start date and a leave date on the account). Not
-  built; no ADR, no migration (10/11).
-- 2d: contract credit split between up to three people, summing to 100%, head
-  approves, locked at signing; ADR 0110 (the closer earns the commission)
-  stands. Not built.
+- 2c (ADR 0156) and 2d (ADR 0155): built 15/11/2026 on branch `kpi-finish`,
+  migrations 0167 and 0168, not merged or shipped; owner answers are questions
+  183 to 197. Screens never seen in a browser. Ship after 28/11 so December's
+  assignment window is not touched; 2c applies from 2027-01.
 - 2e: remove the old screens and flows after a month in parallel; the
-  migration that breaks things ships on its own. Not built.
-- Wave 3, plan from capacity: metric dictionary (seven columns for each
-  catalog metric; a metric with no source cannot be switched on), leading
-  indicators, capacity suggestion and gap, "my plan". Needs the owner's
-  answers Q5, Q6, Q7. Q7 (5% tolerance) is only a config value through the
-  existing approval flow.
-- Wave 4, forecast and review: weekly forecast meeting, forecast accuracy by
-  head, total score and grade with a 1:1, quarter and year periods, seasonal
-  factor, closing the loop into next month's suggestion. Needs Q8 and Q9. Q8
-  reverses an earlier owner decision (bell from the 16th): ask, apply no
-  default.
-- The design page holding Q1 to Q11, the exception matrix and the roadmap no
-  longer opens (since 26/10). The exception matrix and Q5 to Q9 have to be
-  written again before 2c and before waves 3 and 4.
+  migration that breaks things ships on its own. Not before 2027-01, after
+  December runs on the tiered model.
+- Wave 3 (ADR 0157) and wave 4 (ADR 0158): decided 15/11/2026, not built.
+  The per-role screen layout is on the canvas
+  https://claude.ai/artifact/TPUpwR7Yv5Ci8gUMShbfW6, awaiting the owner.
 - Hard date: if the cut stays at 12/2026 the director must close the figures
   before 20/11, so 2a and 2b must be on production by about 15/11. Both are on
   master; production **not checked here**.

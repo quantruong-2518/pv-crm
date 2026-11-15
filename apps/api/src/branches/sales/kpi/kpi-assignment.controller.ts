@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, Post, Put, Query } from '@nestj
 import type { Actor } from '@pv/engines'
 import {
   KpiAssignmentDraftBody,
+  KpiAssignmentLateLineBody,
   KpiAssignmentQuery,
   KpiAssignmentSendBody,
   KpiRoleParams,
@@ -13,7 +14,7 @@ import { KpiAssignmentReader } from './kpi-assignment-read.service'
 import { KpiAssignmentService } from './kpi-assignment.service'
 
 /** `/sales/kpi/:period/assignments/:role…` — targets handed down the org tree
- *  (ADR 0120). Six doors, all `kpi.view` (ADR 0004): a head of a unit may hold
+ *  (ADR 0120). Seven doors, all `kpi.view` (ADR 0004): a head of a unit may hold
  *  nothing more, so who sits on the unit's seat — head, stand-in, a head above,
  *  else the setters — is the tree's fact and the service's check (§7). Writes
  *  that answer with refreshed state are 200. */
@@ -65,6 +66,17 @@ export class KpiAssignmentController {
     @Body(zod(KpiAssignmentSendBody)) body: KpiAssignmentSendBody,
   ) {
     return this.sets.send(who, params.period, params.role, body.unitId)
+  }
+
+  /** 201, a new line is created: one late line for one person, the acting seat only. */
+  @Post(':period/assignments/:role/late-line')
+  @Need({ branch: 'Sales', permission: 'kpi.view' })
+  lateLine(
+    @CurrentActor() who: Actor,
+    @Param(zod(KpiRoleParams)) params: KpiRoleParams,
+    @Body(zod(KpiAssignmentLateLineBody)) body: KpiAssignmentLateLineBody,
+  ) {
+    return this.sets.lateLine(who, params.period, params.role, body)
   }
 
   /** No body: every unanswered line of the role is confirmed at once. */

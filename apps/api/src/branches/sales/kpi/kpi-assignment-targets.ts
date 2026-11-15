@@ -2,10 +2,11 @@ import { Injectable } from '@nestjs/common'
 import type { KpiPeriodKey, RoleId } from '@pv/contracts'
 import type { targetSources } from './kpi-allocation.mapper'
 import { KpiAssignmentRepository, type KpiSetRow } from './kpi-assignment.repository'
-import { deadlineOf, defaulted, shareOf, toLine, type Line } from './kpi-assignment.mapper'
+import { deadlineOf, defaulted, dueOf, shareOf, toLine, type Line } from './kpi-assignment.mapper'
 import type { Actors } from './kpi-readings.repository'
 import { lapsedAt } from './kpi-rules'
 import type { KpiTargetRow } from './kpi-targets.repository'
+import { RAMP_FROM, applyTransfers } from './kpi-transfer'
 import { slotsOf, type LineAck } from './kpi.mapper'
 
 /** ADR 0120 §8: in a tiered month a person's target is their line in the set
@@ -44,14 +45,21 @@ export class KpiAssignmentTargets {
     const all = await this.repo.sets(period)
     const held = all.filter((s) => s.status === 'sent')
     const byId = new Map(held.map((s) => [s.id, s]))
-    const wanted = typeof only === 'string' ? (only ? [only] : null) : (only ?? null)
-    const lines = (await this.repo.lines([...byId.keys()])).flatMap((r) => {
+    const asked = typeof only === 'string' ? (only ? [only] : null) : (only ?? null)
+    /* A receiver's slot needs the leaver's lines, so those are read with it. */
+    const moves = period >= RAMP_FROM ? await this.repo.transfers(period) : []
+    const wanted = asked && [
+      ...asked,
+      ...moves.filter((m) => m.toActorId && asked.includes(m.toActorId)).map((m) => m.fromActorId),
+    ]
+    const read = (await this.repo.lines([...byId.keys()])).flatMap((r) => {
       const keep =
         r.kind === 'person'
           ? !wanted || wanted.includes(r.personId!)
           : r.kind === 'total' && shareOf(byId.get(r.assignmentId)!.role, r.metricKey) === 'total'
       return keep ? [{ set: byId.get(r.assignmentId)!, line: toLine(r) }] : []
     })
+    const lines = applyTransfers(read, moves)
     const room = lines.filter((x) => x.line.kind === 'total').map((x) => rowOf(x.set, x.line))
     const own = (actorId: string, role?: RoleId) =>
       lines.filter(
@@ -71,7 +79,7 @@ export class KpiAssignmentTargets {
           return {
             metricKey: line.metricKey,
             ackState: line.confirmedAt ? 'acknowledged' : lapsed ? 'lapsed' : 'pending',
-            lapsedAt: lapsed ? lapsedAt(due) : null,
+            lapsedAt: lapsed ? lapsedAt(dueOf(line, due)) : null,
           }
         }),
     }

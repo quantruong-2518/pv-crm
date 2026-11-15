@@ -1,8 +1,10 @@
-import { and, asc, eq, inArray, isNull, max, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, isNull, max, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { KpiAssignmentContact, RoleId } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
+import { kpiTransfer } from './kpi-transfer.schema'
+import type { KpiTransferView } from './kpi-transfer'
 import {
   kpiAssignment,
   kpiAssignmentLine,
@@ -63,6 +65,32 @@ export class KpiAssignmentRepository {
       .where(inArray(kpiAssignmentLine.assignmentId, [...setIds]))
   }
 
+  /** One month's leaver transfers (ADR 0156): a few rows at most. */
+  transfers(period: string, handle: Db = this.db): Promise<KpiTransferView[]> {
+    return handle
+      .select({
+        period: kpiTransfer.period,
+        fromActorId: kpiTransfer.fromActorId,
+        toActorId: kpiTransfer.toActorId,
+        fromDay: kpiTransfer.fromDay,
+      })
+      .from(kpiTransfer)
+      .where(eq(kpiTransfer.period, period))
+  }
+
+  /** Start days of the people a page lists; the tree read carries none. */
+  async startedOnOf(
+    ids: readonly string[],
+    handle: Db = this.db,
+  ): Promise<Map<string, string | null>> {
+    if (ids.length === 0) return new Map()
+    const rows = await handle
+      .select({ id: actor.id, startedOn: actor.startedOn })
+      .from(actor)
+      .where(inArray(actor.id, [...ids]))
+    return new Map(rows.map((r) => [r.id, r.startedOn]))
+  }
+
   /** Apart from `sets` and the tree on purpose: of the KPI doors, only a person's own
    *  lines carry an email. */
   async contactOf(actorId: string): Promise<KpiAssignmentContact | null> {
@@ -118,20 +146,49 @@ export class KpiAssignmentRepository {
     }
   }
 
-  /** The holder's unanswered lines in `setIds`; the count stamped. */
-  async confirm(tx: Db, setIds: readonly string[], personId: string, at: Date): Promise<number> {
+  /** The holder's unanswered lines in `setIds` still open to answer; the count stamped.
+   *  Every line is open until the level's day (`normal`); after it, only a late
+   *  line within its own five days (`lateSince`, `lateLineSince`'s answer). */
+  async confirm(
+    tx: Db,
+    setIds: readonly string[],
+    personId: string,
+    open: { at: Date; normal: boolean; lateSince: Date },
+  ): Promise<number> {
+    const reach = open.normal ? undefined : gte(kpiAssignmentLine.addedAt, open.lateSince)
     const done = await tx
       .update(kpiAssignmentLine)
-      .set({ confirmedAt: at })
+      .set({ confirmedAt: open.at })
       .where(
         and(
           inArray(kpiAssignmentLine.assignmentId, [...setIds]),
           eq(kpiAssignmentLine.personId, personId),
           eq(kpiAssignmentLine.kind, 'person'),
           isNull(kpiAssignmentLine.confirmedAt),
+          reach,
         ),
       )
       .returning({ id: sql`1` })
     return done.length
+  }
+
+  /** Late lines go into the set in force as they are: no replace, no version. */
+  async addLines(
+    tx: Db,
+    setId: string,
+    personId: string,
+    lines: readonly { metricKey: KpiAssignmentLineValues['metricKey']; value: number }[],
+    at: Date,
+  ): Promise<void> {
+    await tx.insert(kpiAssignmentLine).values(
+      lines.map((l) => ({
+        assignmentId: setId,
+        metricKey: l.metricKey,
+        kind: 'person' as const,
+        personId,
+        value: String(l.value),
+        addedAt: at,
+      })),
+    )
   }
 }

@@ -2,6 +2,7 @@ import { and, arrayContains, asc, eq, inArray, isNull, or, sql, type SQL } from 
 import { Inject, Injectable } from '@nestjs/common'
 import {
   isCumulative,
+  TIERED_FROM,
   type KpiMetricDef,
   type KpiMetricKey,
   type KpiScope,
@@ -9,9 +10,11 @@ import {
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
+import { contract } from '../contract/contract.schema'
 import { OnDay, toVndSql } from '../money'
 import { contractTerminated, dealLost, dealOpen, dealTerminated, dealWon } from '../open-deal'
 import type { PeriodSpan } from '../performance/performance-period'
+import { CREDIT_PART, CREDIT_ROWS, creditValue, NO_CREDIT } from '../contract/contract-credit.sql'
 import { collectedMoves } from '../performance/collected-moves'
 import { realExchanges } from '../performance/real-exchange'
 import { kpiMonthClose, kpiMonthValue } from './kpi-close.schema'
@@ -94,6 +97,11 @@ const OVERDUE = sql`FROM sales.contract_installment i
        WHERE r.contract_code = i.contract_code AND r.installment_no = i.no
          AND r.state = 'approved' AND r.due = i.due)`
 
+/** Whose guardrail an overdue installment is (ADR 0155 §7): the collector from the
+ *  first tiered month, falling back to the closer; earlier months keep the closer. */
+const DEBTOR = sql`CASE WHEN (SELECT lo FROM span) >= (${TIERED_FROM + '-01'}::date)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh'
+  THEN COALESCE(k.collector_id, k.owner_id) ELSE k.owner_id END`
+
 /** An installment has no code of its own; `contract/no` is its page's address. */
 const INSTALLMENT = sql`'installment' AS kind, k.code || '/' || i.no AS code`
 
@@ -114,14 +122,25 @@ const sourced =
     WHERE k.disabled_at IS NULL AND k.marketing_owner_id IS NOT NULL
       AND ${within(sql`k.created_at`)}${only(sql`k.marketing_owner_id`)}`
 
-/** Contracts signed in the period, credited to `credit`; `null` = the room. */
+/** Contracts signed in the period, credited to `credit`; `null` = the room.
+ *  `also` narrows which contracts count. */
 const signed =
-  (credit: SQL | null): Basis =>
+  (credit: SQL | null, also?: SQL): Basis =>
   (only) => sql`
     SELECT ${credit ?? sql`NULL`} AS actor_id, 'contract' AS kind, k.code, k.signed_at AS at,
            ${worth(contractVnd, 'signed')}
     FROM sales.contract k ${LIVE}
-    WHERE ${KEPT} AND ${credit ? sql`${credit} IS NOT NULL AND ` : sql``}${within(sql`k.signed_at`)}${credit ? only(credit) : sql``}`
+    WHERE ${KEPT} AND ${credit ? sql`${credit} IS NOT NULL AND ` : sql``}${also ? sql`${also} AND ` : sql``}${within(sql`k.signed_at`)}${credit ? only(credit) : sql``}`
+
+/** A person's own signed money (ADR 0155): the contracts nobody shares stay on
+ *  the closer exactly as `signed` reads them, a shared one is one row per credited person. */
+const signedByCredit: Basis = (only) => sql`
+  ${signed(sql`k.owner_id`, NO_CREDIT)(only)}
+  UNION ALL
+  SELECT cr.actor_id, 'contract' AS kind, k.code, k.signed_at AS at,
+         ${worth(CREDIT_PART, 'signed')}
+  FROM sales.contract k ${LIVE} ${CREDIT_ROWS} ${creditValue(contractVnd)}
+  WHERE ${KEPT} AND ${within(sql`k.signed_at`)}${only(sql`cr.actor_id`)}`
 
 /** Accepted at birth (ADR 0088 §18): the deal ENTERED the board at `assigned`,
  *  by the person recorded as its acceptor — the row both the create and the
@@ -218,7 +237,7 @@ const OWN: Partial<Record<KpiMetricKey, KpiMetricSql>> = {
         AND ${within(sql`m.held_at`)}${only(sql`a.actor_id`)}`,
     total: COUNT,
   },
-  'signed-value': { basis: signed(sql`k.owner_id`), total: SUM },
+  'signed-value': { basis: signedByCredit, total: SUM },
   'win-rate': {
     basis: onLane('SALE', sql`k.closed_at`, OUTCOME, CLOSED),
     total: SHARE,
@@ -236,8 +255,8 @@ const OWN: Partial<Record<KpiMetricKey, KpiMetricSql>> = {
   },
   'overdue-receivables': {
     basis: (only) => sql`
-      SELECT k.owner_id AS actor_id, ${INSTALLMENT}, i.due AS at, ${worth(installmentVnd, 'overdue')}
-      ${OVERDUE} AND k.owner_id IS NOT NULL${only(sql`k.owner_id`)}`,
+      SELECT ${DEBTOR} AS actor_id, ${INSTALLMENT}, i.due AS at, ${worth(installmentVnd, 'overdue')}
+      ${OVERDUE} AND ${DEBTOR} IS NOT NULL${only(DEBTOR)}`,
     total: SUM,
   },
   'accept-lag-days': {
@@ -551,6 +570,16 @@ export class KpiReadingsRepository {
       ),
     )) as { rows: (Omit<KpiBasisRow, 'at'> & { at: Date | string })[] }
     return r.rows.map((row) => ({ ...row, at: new Date(row.at) }))
+  }
+
+  /** Who closed each contract (`owner_id`): the person a split lists first. */
+  async closersOf(codes: readonly string[], handle: Db = this.db): Promise<Map<string, string>> {
+    if (codes.length === 0) return new Map()
+    const rows = await handle
+      .select({ code: contract.code, ownerId: contract.ownerId })
+      .from(contract)
+      .where(inArray(contract.code, [...codes]))
+    return new Map(rows.flatMap((r) => (r.ownerId ? [[r.code, r.ownerId] as const] : [])))
   }
 
   /** The mean value and the row count of one seat's live basis over `span`,

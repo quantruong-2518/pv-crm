@@ -35,7 +35,14 @@ import { actor } from '@api/platform/db/platform.schema'
 import { account } from '../account/account.schema'
 import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
-import { contractReadBy, contractTerminated, dealStoodBy, journeyInGrowth } from '../open-deal'
+import {
+  contractReadBy,
+  contractTerminated,
+  creditHeldBy,
+  creditedIdsOf,
+  dealStoodBy,
+  journeyInGrowth,
+} from '../open-deal'
 import { CAMPAIGN_ON } from '../lead/lead.repository'
 import { leadLive } from '../lead/lead-scope'
 import { lead, type LeadRowDb } from '../lead/lead.schema'
@@ -278,6 +285,7 @@ export class WorkstreamRepository {
         deal: contract.opportunityCode,
         ownerId: contract.ownerId,
         collectorId: contract.collectorId,
+        creditedIds: creditedIdsOf(contract.code),
         ownerName: actor.name,
         terminated: sql<boolean>`${contractTerminated(contract.code)}`,
       })
@@ -438,6 +446,7 @@ export class WorkstreamRepository {
   private opensStand(who: Actor): SQL {
     const paper = contractReadBy(
       {
+        code: sql`ws_s.code`,
         ownerId: sql`ws_s.owner_id`,
         collectorId: sql`ws_s.collector_id`,
         leadOwnerId: lead.ownerId,
@@ -655,6 +664,8 @@ export type RunContract = {
   deal: string
   ownerId: string | null
   collectorId: string
+  /** Whose share rows the contract holds: the twin of `contractReadBy`'s credit term. */
+  creditedIds: string[]
   ownerName: string | null
   terminated: boolean
 }
@@ -776,7 +787,8 @@ const ANCHOR_ON = eq(lead.workstreamCode, workstream.code)
 const runReachedBy = (actorId: string): SQL =>
   sql`(${eq(lead.ownerId, actorId)}
     OR EXISTS (SELECT 1 FROM sales.opportunity ws_o WHERE ws_o.workstream_code = ${workstream.code} AND ${dealStoodBy(sql`ws_o.code`, actorId)})
-    OR EXISTS (SELECT 1 FROM sales.contract ws_k WHERE ws_k.workstream_code = ${workstream.code} AND (ws_k.owner_id = ${actorId} OR ws_k.collector_id = ${actorId})))`
+    OR EXISTS (SELECT 1 FROM sales.contract ws_k WHERE ws_k.workstream_code = ${workstream.code} AND (ws_k.owner_id = ${actorId} OR ws_k.collector_id = ${actorId}
+      OR ${creditHeldBy(sql`ws_k.code`, actorId)})))`
 
 /** The customer name on the row: the COMPANY once somebody has said which
  *  company this run belongs to, and the lead's own wording until then.

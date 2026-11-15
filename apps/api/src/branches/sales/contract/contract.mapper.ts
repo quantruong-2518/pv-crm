@@ -1,5 +1,6 @@
 import type { ObjectRef } from '@pv/engines'
 import type {
+  ContractCreditRow,
   ContractDetailRow,
   ContractParticipant,
   ContractPenalty,
@@ -97,6 +98,7 @@ export function toContract(
   customer: string,
   fx: Converted,
   participants: ContractParticipant[],
+  credits: ContractCreditRow[],
   termination: TerminationRead | null,
 ): ContractRow {
   const { ownerName, collectorName } = names
@@ -117,6 +119,7 @@ export function toContract(
     ...(row.ownerId && ownerName ? { ownerId: row.ownerId, ownerName } : {}),
     ...(collectorName ? { collectorId: row.collectorId, collectorName } : {}),
     participants,
+    credits,
     termination: termination && toTermination(termination),
   }
 }
@@ -186,11 +189,20 @@ export function toBookRow(read: {
   customer: string
   fx: Converted
   participants: ContractParticipant[]
+  credits: ContractCreditRow[]
   termination: TerminationRead | null
   installments: { row: ContractInstallmentRowDb; fx: Converted }[]
 }): ContractRow {
   return {
-    ...toContract(read.row, read, read.customer, read.fx, read.participants, read.termination),
+    ...toContract(
+      read.row,
+      read,
+      read.customer,
+      read.fx,
+      read.participants,
+      read.credits,
+      read.termination,
+    ),
     installments: read.installments.map(toInstallmentSummary),
   }
 }
@@ -204,6 +216,7 @@ export function toDetail(read: {
   customer: string
   fx: Converted
   participants: ContractParticipant[]
+  credits: ContractCreditRow[]
   termination: TerminationRead | null
   contact: string
   contactRole: string | null
@@ -218,7 +231,15 @@ export function toDetail(read: {
   }[]
 }): ContractDetailRow {
   return {
-    ...toContract(read.row, read, read.customer, read.fx, read.participants, read.termination),
+    ...toContract(
+      read.row,
+      read,
+      read.customer,
+      read.fx,
+      read.participants,
+      read.credits,
+      read.termination,
+    ),
     contact: read.contact,
     /* The lead may carry no job title, and the wire field is required because
        the header prints the contact and the role as one phrase. Falling back

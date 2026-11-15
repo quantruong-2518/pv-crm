@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { message, useI18n } from '@/app/i18n'
+import { creditsLine } from '@/data/contract-credits'
 import type { Contract } from '@/data/contracts'
 import { ChangeCollectorDrawer } from './contract-collector-change'
 import { collectorDoorKey } from './run/owner-doors'
+import { RunBlock } from './run/run-block'
 import { RunOwners } from './run/run-owners'
 
 /** A contract's people in the rail, with the collector door on it when the
@@ -37,6 +39,11 @@ export function ContractOwners({
             : {}
         }
       />
+      {contract.credits.length > 0 && (
+        <RunBlock title={t(message('Chia công', 'Credit split', '실적 배분'))}>
+          <p className="tnum text-[13px]">{creditsLine(contract.credits)}</p>
+        </RunBlock>
+      )}
       {canChange && (
         <ChangeCollectorDrawer contract={contract} open={open} onClose={() => setOpen(false)} />
       )}

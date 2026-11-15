@@ -1,5 +1,6 @@
 import {
   KpiAssignmentDraftBody,
+  RAMP_STEPS,
   TIERED_FROM,
   kpiAssignmentSum,
   kpiMetricShare,
@@ -324,4 +325,59 @@ export function sumWord(
     }
   }
   return { text: translate(message('Đủ', 'Complete', '충족')), tone: 'success' }
+}
+
+// ---------------------------------------------------------------------------
+// RAMP — a newcomer's lower level, said beside their box (ADR 0156)
+// ---------------------------------------------------------------------------
+
+/** The factor of a ramp that still lowers a target; `null` when there is none or it is full. */
+export const rampFactorOf = (ramp: { factor: number } | null | undefined): number | null =>
+  ramp && ramp.factor < 1 ? ramp.factor : null
+
+/** The ramp a person child carries; `null` once they are fully ramped. */
+export const rampOf = (child: KpiAssignmentChild): number | null =>
+  child.kind === 'person' ? rampFactorOf(child.ramp) : null
+
+/** Average of `values` × `factor`, rounded; `null` with no values. */
+export const rampedAverage = (values: readonly number[], factor: number): number | null =>
+  values.length === 0
+    ? null
+    : Math.round((values.reduce((n, v) => n + v, 0) / values.length) * factor)
+
+/** Month 2 is the one 75 % step; month 1 scales with the days left, never past 50 %. */
+export function rampWord(factor: number): string {
+  if (factor === RAMP_STEPS[1])
+    return translate(message('Tháng thứ 2 · 75%', 'Month 2 · 75%', '2개월 차 · 75%'))
+  const pct = Math.round(factor * 100)
+  return translate(message(`Mới vào · ${pct}%`, `New · ${pct}%`, `신규 · ${pct}%`))
+}
+
+/** The typed figures of one metric among `peers`; blank or broken boxes are skipped. */
+export function typedFigures(
+  peers: readonly KpiAssignmentChild[],
+  def: KpiMetricDef,
+  { textOf }: Fields,
+): number[] {
+  return peers.flatMap((c) => {
+    const value = parseTyped(def.unit, textOf(keyOfChild(c, def.key), def))
+    return typeof value === 'number' ? [value] : []
+  })
+}
+
+/** What a ramping person's box could hold: the typed average of the people with
+ *  no ramp in this table × the factor. `null` when nobody is there to average. */
+export function rampSuggestion(
+  page: KpiAssignmentPageResponse,
+  def: KpiMetricDef,
+  fields: Fields,
+  factor: number,
+): number | null {
+  const peers = page.children.filter((c) => c.kind === 'person' && rampOf(c) === null)
+  return rampedAverage(typedFigures(peers, def, fields), factor)
+}
+
+export const rampHintText = (def: KpiMetricDef, value: number): string => {
+  const figure = printValue(def.unit, value, true)
+  return translate(message(`Gợi ý ${figure}`, `Suggested ${figure}`, `제안 ${figure}`))
 }

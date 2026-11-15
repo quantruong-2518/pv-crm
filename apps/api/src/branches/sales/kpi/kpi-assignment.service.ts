@@ -3,6 +3,7 @@ import type { Actor } from '@pv/engines'
 import {
   kpiMetricShare,
   type KpiAssignmentDraftBody,
+  type KpiAssignmentLateLineBody,
   type KpiAssignmentMineResponse,
   type KpiAssignmentPageResponse,
   type KpiAssignmentSendResponse,
@@ -22,6 +23,7 @@ import {
   draftOf,
   inForceOf,
   isCompany,
+  lateLineSince,
   linesOf,
   nodeOf,
   receivedOf,
@@ -44,6 +46,7 @@ import {
   vietnamToday,
 } from './kpi-rules'
 import { KpiSeatService } from './kpi-seat.service'
+import { RAMP_FROM } from './kpi-transfer'
 import { KpiTeamRepository } from './kpi-team.repository'
 
 /** The three write doors of the tiered sets (ADR 0120 §2–§5), all on `kpi.view`:
@@ -96,7 +99,11 @@ export class KpiAssignmentService {
     assertTargetValues(defs, body.lines, 'lines')
     await this.repo.run(async (tx) => {
       const book = await this.seat(tx, who, period, body.unitId)
-      const typed = this.typed(book, defs, role, body)
+      const held = inForceOf(book.sets, role, body.unitId)
+      const typed = carryLate(
+        this.typed(book, defs, role, body),
+        held ? linesOf(book, held.id) : null,
+      )
       let id = draftOf(book.sets, role, body.unitId)?.id ?? null
       if (!id) {
         const sent = inForceOf(book.sets, role, body.unitId)
@@ -146,11 +153,14 @@ export class KpiAssignmentService {
       const live = draftOf(book.sets, role, unitId)
       if (!live && before)
         throw assignmentRefusal('nothing-to-send', 'Bộ chỉ tiêu này đã gửi và chưa có gì thay đổi.')
-      const typed = live ? linesOf(book, live.id) : []
+      const old = before ? linesOf(book, before.id) : null
+      const typed = carryLate(live ? linesOf(book, live.id) : [], old)
       this.assertReceivers(typed, to)
       const received = receivedOf(book, role, unitId)
-      const old = before ? linesOf(book, before.id) : null
-      const lines = keepAnswers(withCopied(defs, company, received, typed, to), old)
+      const lines = [
+        ...keepAnswers(withCopied(defs, company, received, typed, to), old),
+        ...lateKept(typed, old),
+      ]
       if (lines.length === 0)
         throw assignmentRefusal('nothing-to-send', 'Chưa có chỉ tiêu nào để giao.')
       const sums = sumsOf(defs, company ? totalsIn(lines) : received, lines)
@@ -198,27 +208,93 @@ export class KpiAssignmentService {
     stillOpen(period)
     if (!who.roleIds.map(toContractRole).includes(role))
       throw denied('permission-denied', 'Bạn không giữ vai này nên không có chỉ tiêu của vai.')
-    if (vietnamToday() > deadlineOf(period, 'person'))
-      throw assignmentRefusal(
-        'confirm-past-deadline',
-        'Đã quá hạn xác nhận, mức đã giao được áp dụng.',
-      )
     await this.repo.run(async (tx) => {
       await this.teams.lockRoster(tx)
       const book = await this.reader.bookOf(period, tx)
       const held = book.sets.filter((s) => s.role === role && s.status === 'sent')
-      const at = new Date()
+      const today = vietnamToday()
       const n = await this.repo.confirm(
         tx,
         held.map((s) => s.id),
         who.id,
-        at,
+        {
+          at: new Date(),
+          normal: today <= deadlineOf(period, 'person'),
+          lateSince: lateLineSince(today),
+        },
       )
-      if (n === 0)
-        throw assignmentRefusal('nothing-to-confirm', 'Bạn không có chỉ tiêu nào cần xác nhận.')
+      if (n === 0) {
+        const ids = new Set(held.map((s) => s.id))
+        const waiting = book.lines.some(
+          (l) => ids.has(l.assignmentId) && l.personId === who.id && !l.confirmedAt,
+        )
+        throw waiting
+          ? assignmentRefusal(
+              'confirm-past-deadline',
+              'Đã quá hạn xác nhận, mức đã giao được áp dụng.',
+            )
+          : assignmentRefusal('nothing-to-confirm', 'Bạn không có chỉ tiêu nào cần xác nhận.')
+      }
       await this.note(tx, who, { kpi: 'assignment-confirmed', period, role, lines: n })
     })
     return this.reader.mine(who, period, role)
+  }
+
+  /** ADR 0156 §5: one person who joined after the unit sent. The line goes into
+   *  the set in force, outside the unit-sum check; the person has five days to answer. */
+  async lateLine(
+    who: Actor,
+    period: KpiPeriodKey,
+    role: RoleId,
+    body: KpiAssignmentLateLineBody,
+  ): Promise<KpiAssignmentPageResponse> {
+    const catalog = await this.opening(period)
+    if (period < RAMP_FROM)
+      throw conflict(
+        `Thêm chỉ tiêu cho người vào muộn chỉ áp dụng từ tháng ${Number(RAMP_FROM.slice(5))}/${RAMP_FROM.slice(0, 4)}.`,
+      )
+    const defs = catalog[role]
+    assertTargetValues(defs, body.lines, 'lines')
+    const fixed = body.lines.filter(
+      (l) => !defs.some((d) => d.key === l.metricKey && kpiMetricShare(d) === 'additive'),
+    )
+    if (fixed.length > 0)
+      throw assignmentRefusal(
+        'line-not-editable',
+        'Có chỉ tiêu không giao riêng được cho một người.',
+        fixed.map((l) => l.metricKey),
+      )
+    await this.repo.run(async (tx) => {
+      const book = await this.seat(tx, who, period, body.unitId)
+      const set = inForceOf(book.sets, role, body.unitId)
+      if (!set) throw conflict('Đơn vị chưa gửi chỉ tiêu tháng này. Giao như bình thường.')
+      const open = await this.reader.lateCandidates(book, role, body.unitId, set, tx)
+      if (!open.some((c) => c.personId === body.personId))
+        throw conflict(
+          linesOf(book, set.id).some((l) => l.personId === body.personId)
+            ? 'Người này đã có chỉ tiêu trong bộ này.'
+            : 'Người này không giữ vai này trong đơn vị, hoặc vào làm sau tháng này.',
+        )
+      await this.repo.addLines(tx, set.id, body.personId, body.lines, new Date())
+      await this.note(tx, who, {
+        kpi: 'assignment-late-line',
+        period,
+        role,
+        unit: body.unitId,
+        person: body.personId,
+        lines: body.lines,
+      })
+      const told = body.lines.map((l): Line => ({
+        ...l,
+        kind: 'person',
+        childUnitId: null,
+        personId: body.personId,
+        confirmedAt: null,
+      }))
+      const slot = { period, role, unitId: body.unitId, version: set.version }
+      await this.bells.received(tx, who.id, book, slot, told, null, vietnamToday())
+    })
+    return this.answer(who, period, role, body.unitId, catalog)
   }
 
   /** The month rules every write shares, and the effective catalog. */
@@ -298,6 +374,22 @@ export class KpiAssignmentService {
     return this.audit.write({ actorId: who.id, action: 'edit', note: JSON.stringify(payload) }, tx)
   }
 }
+
+/** A retyped late person keeps the old `addedAt`: the line stays out of the unit sums and keeps
+ *  its own due, however the draft was typed. */
+const carryLate = (typed: readonly Line[], old: readonly Line[] | null): Line[] => {
+  const at = new Map<string, Date>()
+  for (const b of old ?? [])
+    if (b.addedAt && b.personId && !at.has(b.personId)) at.set(b.personId, b.addedAt)
+  return typed.map((l) => {
+    const added = l.kind === 'person' && l.personId ? at.get(l.personId) : undefined
+    return added ? { ...l, addedAt: added } : l
+  })
+}
+
+/** A resend keeps a late line the head did not retype: it is outside the typed sums. */
+const lateKept = (typed: readonly Line[], old: readonly Line[] | null): Line[] =>
+  (old ?? []).filter((b) => b.addedAt && !typed.some((l) => l.personId === b.personId))
 
 /** §5: a resend keeps a confirmation only where the value did not move. */
 export const keepAnswers = (lines: readonly Line[], before: readonly Line[] | null): Line[] =>

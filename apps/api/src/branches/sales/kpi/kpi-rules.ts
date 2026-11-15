@@ -22,8 +22,8 @@ import { elapsedOf, phaseOf } from './kpi-verdict'
 export const vietnamToday = (at = Date.now()): string =>
   new Date(at + 7 * 3_600_000).toISOString().slice(0, 10)
 
-const DAY_MS = 86_400_000
-const VIETNAM_MS = 7 * 3_600_000
+export const DAY_MS = 86_400_000
+export const VIETNAM_MS = 7 * 3_600_000
 
 /** The acknowledgement deadline of an AGREED package (`lastAgreed`'s own test:
  *  decided and not returned): its decision day in Vietnam plus `ackDays`.

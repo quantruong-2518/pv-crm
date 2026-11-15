@@ -49,12 +49,18 @@ export const dealStoodBy = (code: SQLWrapper, actorId: string): SQL =>
   sql`(EXISTS (SELECT 1 FROM sales.opportunity_owner od_s WHERE od_s.opportunity_code = ${code} AND od_s.actor_id = ${actorId})
        OR EXISTS (SELECT 1 FROM sales.opportunity od_a WHERE od_a.code = ${code} AND od_a.accepted_by_id = ${actorId}))`
 
+/** The contract holds a share row for `actorId` (ADR 0155 §6): the one fence for
+ *  credit holders. `code` is the OUTER contract code. */
+export const creditHeldBy = (code: SQLWrapper, actorId: string): SQL =>
+  sql`EXISTS (SELECT 1 FROM sales.contract_credit od_cc WHERE od_cc.contract_code = ${code} AND od_cc.actor_id = ${actorId})`
+
 /** A contract an `ownOnly` reader may OPEN (ADR 0110 §2): they closed it,
- *  collect its money, hold its run's lead, or stand on its deal. Reading only —
- *  writing is `mayWriteContract` and `mayCollect`. All four are the OUTER
- *  query's columns. */
+ *  collect its money, hold its run's lead, stand on its deal, or hold a share of
+ *  it (ADR 0155 §6). Reading only — writing is `mayWriteContract` and
+ *  `mayCollect`. All five are the OUTER query's columns. */
 export const contractReadBy = (
   c: {
+    code: SQLWrapper
     ownerId: SQLWrapper
     collectorId: SQLWrapper
     leadOwnerId: SQLWrapper
@@ -62,7 +68,15 @@ export const contractReadBy = (
   },
   actorId: string,
 ): SQL =>
-  sql`(${c.ownerId} = ${actorId} OR ${c.collectorId} = ${actorId} OR ${c.leadOwnerId} = ${actorId} OR ${dealStoodBy(c.opportunityCode, actorId)})`
+  sql`(${c.ownerId} = ${actorId} OR ${c.collectorId} = ${actorId} OR ${c.leadOwnerId} = ${actorId} OR ${dealStoodBy(c.opportunityCode, actorId)}
+       OR ${creditHeldBy(c.code, actorId)})`
+
+/** The people holding a share of a contract, for readers that decide `contractReadBy`
+ *  in memory. `code` is the OUTER contract code. */
+export const creditedIdsOf = (code: SQLWrapper): SQL<string[]> =>
+  sql<
+    string[]
+  >`ARRAY(SELECT od_ci.actor_id FROM sales.contract_credit od_ci WHERE od_ci.contract_code = ${code})`
 
 /** `actorId` stands on (`dealStoodBy`) an open deal of the lead — the reach a
  *  deal's people get over the lead it hangs off. `leadCode` is the OUTER column. */

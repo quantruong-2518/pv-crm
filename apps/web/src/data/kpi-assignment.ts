@@ -5,6 +5,7 @@ import {
   KpiAssignmentSendResponse,
   KpiAssignmentTreeResponse,
   type KpiAssignmentDraftBody,
+  type KpiAssignmentLateLineBody,
   type RoleId,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
@@ -110,6 +111,21 @@ export function useSendKpiAssignment(period: string, role: RoleId, unitParam: st
         body,
         need: NEED,
         schema: KpiAssignmentSendResponse,
+      }),
+    onSuccess: useSettle(period, key),
+    onError: useRefetchOnConflict(key),
+  })
+}
+
+/** One person who joined after the unit sent: lines added to the set in force. */
+export function useLateKpiLine(period: string, role: RoleId, unitParam: string | null) {
+  const key = pageKey(period, role, unitParam)
+  return useMutation<KpiAssignmentPageResponse, ApiError, KpiAssignmentLateLineBody>({
+    mutationFn: (body) =>
+      api.write<KpiAssignmentPageResponse>(`${base(period, role)}/late-line`, {
+        body,
+        need: NEED,
+        schema: KpiAssignmentPageResponse,
       }),
     onSuccess: useSettle(period, key),
     onError: useRefetchOnConflict(key),

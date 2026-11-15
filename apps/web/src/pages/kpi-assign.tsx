@@ -45,6 +45,7 @@ import {
   statusHref,
   type Label,
 } from './kpi-assign-model'
+import { LateJoiners } from './kpi-assign-late'
 import { SendDown } from './kpi-assign-over-dialog'
 import { ReceivedCard } from './kpi-assign-received'
 import { ChildrenTable } from './kpi-assign-table'
@@ -283,6 +284,7 @@ function RoleDesk({
           onEdit={onEdit}
         />
       </div>
+      {page.canAct && !closed && <LateJoiners page={page} defs={defs} unitParam={unitParam} />}
     </>
   )
 }

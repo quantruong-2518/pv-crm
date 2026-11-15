@@ -30,6 +30,7 @@ export function ValueCell({
   saved,
   last,
   lastLabel,
+  hint,
   onChange,
 }: {
   def: KpiMetricDef
@@ -43,6 +44,8 @@ export function ValueCell({
   last: number | null
   /** Which month `last` is; the tiered screens name it. */
   lastLabel?: string
+  /** A suggestion printed under the box; it never fills the box. */
+  hint?: string | undefined
   onChange: (text: string) => void
 }) {
   const { t } = useI18n()
@@ -72,6 +75,7 @@ export function ValueCell({
           {saved === null ? DASH : printValue(def.unit, saved)}
         </span>
       )}
+      {hint !== undefined && <span className={NOTE_NUM}>{hint}</span>}
       {last !== null && (
         <span className={NOTE_NUM}>
           {t(

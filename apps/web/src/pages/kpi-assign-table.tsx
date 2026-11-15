@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { Avatar, Badge, GlassCard, cn } from '@pv/ui'
 import {
   kpiAssignmentDeadline,
+  kpiMetricShare,
   type KpiAssignmentChild,
   type KpiAssignmentPageResponse,
   type KpiAssignmentSum,
@@ -24,6 +25,10 @@ import {
   childId,
   keyOfChild,
   lastReading,
+  rampHintText,
+  rampOf,
+  rampSuggestion,
+  rampWord,
   receivedWord,
   sumFigures,
   sumWord,
@@ -76,11 +81,15 @@ function WhoCell({
   role: KpiAssignmentPageResponse['role']
 }) {
   const { t } = useI18n()
+  const ramp = rampOf(child)
   if (child.kind === 'person') {
     return (
       <span className="flex min-w-0 items-center gap-3">
         <Avatar name={child.person.name} size="sm" />
-        <span className="truncate font-semibold">{child.person.name}</span>
+        <span className="flex min-w-0 flex-col items-start gap-1">
+          <span className="max-w-full truncate font-semibold">{child.person.name}</span>
+          {ramp !== null && <Badge tone="draft">{rampWord(ramp)}</Badge>}
+        </span>
       </span>
     )
   }
@@ -164,6 +173,8 @@ export function ChildrenTable({
     const key = keyOfChild(child, def.key)
     const text = fields.textOf(key, def)
     const name = child.kind === 'unit' ? child.unit.name : child.person.name
+    const ramp = editable && kpiMetricShare(def) === 'additive' ? rampOf(child) : null
+    const hint = ramp === null ? null : rampSuggestion(page, def, fields, ramp)
     return (
       <ValueCell
         key={def.key}
@@ -178,6 +189,7 @@ export function ChildrenTable({
         editable={editable}
         text={text}
         saved={saved.get(key) ?? null}
+        hint={hint === null ? undefined : rampHintText(def, hint)}
         {...lastReading(page.lastActualPeriod, child.lastActuals, def.key)}
         onChange={(typed) => onEdit(key, typed)}
       />

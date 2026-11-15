@@ -15,7 +15,13 @@ import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { contract, contractInstallment } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
-import { dealTerminated, dealWon, journeyInGrowth, leadDealsAllLost } from '../open-deal'
+import {
+  creditedIdsOf,
+  dealTerminated,
+  dealWon,
+  journeyInGrowth,
+  leadDealsAllLost,
+} from '../open-deal'
 import { openHoldsOf, type HoldRead } from '../hold/hold.sql'
 import { MILESTONE_TOUCH } from '../opportunity/opportunity.mapper'
 import { opportunityStageEvent } from '../opportunity/opportunity.schema'
@@ -103,6 +109,7 @@ export class WorkstreamLanesRepository {
               ownerName: actor.name,
               collectorId: contract.collectorId,
               collectorName: collector.name,
+              creditedIds: creditedIdsOf(contract.code),
               terminatedAt:
                 sql<Date | null>`(SELECT t.terminated_at FROM sales.contract_termination t
                 WHERE t.contract_code = ${contract.code})`.mapWith(contract.signedAt),
@@ -310,6 +317,8 @@ export type ContractLaneRow = {
   ownerName: string | null
   collectorId: string
   collectorName: string | null
+  /** Whose share rows the contract holds (ADR 0155). */
+  creditedIds: string[]
   /** Set when the contract was terminated (ADR 0107); the row itself stays. */
   terminatedAt: Date | null
   /** The DEAL's reading (`dealWon` / `dealTerminated`), same on each of its rows. */

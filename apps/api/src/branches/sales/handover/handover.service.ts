@@ -4,6 +4,7 @@ import {
   NOTIFICATION_DETAIL_COUNT,
   NOTIFICATION_DETAIL_DEALS,
   NOTIFICATION_DETAIL_STEPS,
+  vnDayOf,
   type TouchHolder,
   type UserHoldingsResponse,
 } from '@pv/contracts'
@@ -15,6 +16,7 @@ import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { ActorRepository } from '@api/platform/session/actor.repository'
 import type { WorkHandover } from '@api/platform/users/work-handover'
 import { LeadStateWriter } from '../lead/lead-state'
+import { dropOpenLeaves, recordLeave } from '../kpi/kpi-transfer.write'
 import { LEAD_NOTE } from '../lead/lead-write.mapper'
 import { handDealsOverMany, peopleOf } from '../opportunity/opportunity-handover'
 import { acceptorOf, holderOf, toRef } from '../opportunity/opportunity.mapper'
@@ -108,6 +110,16 @@ export class SalesWorkHandover implements WorkHandover {
     )
     await this.repo.moveSteps(tx, from.id, to.id)
     await this.ring(tx, { from, toId: to.id, actorId: move.by.id, counts })
+  }
+
+  /** The leaver's KPI months (ADR 0156 §6): written on every fresh lock, receiver or not. */
+  leave(tx: Db, move: { fromId: string; toId: string | null; at: Date }): Promise<void> {
+    return recordLeave(tx, { fromId: move.fromId, toId: move.toId, day: vnDayOf(move.at) })
+  }
+
+  /** An unlock drops the leaver's rows for months not yet closed (ADR 0156 §6). */
+  unlock(tx: Db, userId: string): Promise<void> {
+    return dropOpenLeaves(tx, userId)
   }
 
   /** ONE line to the receiver for the whole lock (ADR 0093), on the leaver,

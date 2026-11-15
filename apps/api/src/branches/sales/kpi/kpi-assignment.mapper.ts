@@ -4,6 +4,7 @@ import {
   kpiAssignmentSum,
   kpiMetricShare,
   stepSalesPeriod,
+  vnDayOf,
   type KpiAssignmentActual,
   type KpiAssignmentLine,
   type KpiAssignmentLineKind,
@@ -18,6 +19,7 @@ import {
 } from '@pv/contracts'
 import { subtreeOf } from '@api/platform/org/org-heads'
 import { defOf } from './kpi-allocation.mapper'
+import { DAY_MS, VIETNAM_MS } from './kpi-rules'
 import type { KpiSetLineRow, KpiSetRow } from './kpi-assignment.repository'
 import type { KpiOrgMember, KpiOrgTree } from './kpi-team.repository'
 
@@ -36,6 +38,8 @@ export type Line = {
   personId: string | null
   value: number
   confirmedAt: Date | null
+  /** Set only on a late line (ADR 0156 §5); `null` came with the send. */
+  addedAt?: Date | null
 }
 
 /** One month's sets and lines with the tree that month reads. */
@@ -68,6 +72,7 @@ export const toLine = (r: KpiSetLineRow): Line => ({
   personId: r.personId,
   value: Number(r.value),
   confirmedAt: r.confirmedAt,
+  addedAt: r.addedAt,
 })
 
 export const linesOf = (book: Book, setId: string): Line[] =>
@@ -88,10 +93,31 @@ export const nodeOf = (tree: KpiOrgTree, unitId: string) =>
 export const isCompany = (tree: KpiOrgTree, unitId: string): boolean =>
   nodeOf(tree, unitId)?.kind === 'company'
 
-/** ADR 0120 §6 and 0114's flag: a person line unanswered past the 28th is
+/** A late line is answered within five days of being written (ADR 0156 §5). */
+const LATE_LINE_DAYS = 5
+
+/** The last day a line may still be answered: its own five days, else the level's `due`. */
+export const dueOf = (l: Pick<Line, 'addedAt'>, due: string): string => {
+  if (!l.addedAt) return due
+  const late = new Date(Date.parse(vnDayOf(l.addedAt)) + LATE_LINE_DAYS * DAY_MS)
+    .toISOString()
+    .slice(0, 10)
+  // Never shorter than the level's own day: a line added early keeps the normal window.
+  return late > due ? late : due
+}
+
+/** The earliest `added_at` of a late line still open to answer on `today`: the
+ *  Vietnam midnight starting the day five days back. */
+export const lateLineSince = (today: string): Date =>
+  new Date(Date.parse(today) - LATE_LINE_DAYS * DAY_MS - VIETNAM_MS)
+
+/** ADR 0120 §6 and 0114's flag: a person line unanswered past its due day is
  *  accepted by default, never confirmed. The one copy of that rule. */
-export const defaulted = (l: Pick<Line, 'confirmedAt'>, today: string, due: string): boolean =>
-  !l.confirmedAt && today > due
+export const defaulted = (
+  l: Pick<Line, 'confirmedAt' | 'addedAt'>,
+  today: string,
+  due: string,
+): boolean => !l.confirmedAt && today > dueOf(l, due)
 
 /** Depth-first from the company, siblings by name: the order the tree screen reads. */
 export function treeOrder(tree: KpiOrgTree): { unitId: string; depth: number }[] {
@@ -227,7 +253,7 @@ export function defaultLines(
   })
 }
 
-/** ADR 0120 §4, additive metrics only; the company's own total is what it "received". */
+/** ADR 0120 §4, additive metrics only; a late line is outside it (ADR 0156 §5); the company's own total is what it "received". */
 export function sumsOf(
   defs: readonly KpiMetricDef[],
   received: ReadonlyMap<KpiMetricKey, number>,
@@ -237,7 +263,7 @@ export function sumsOf(
     .filter((d) => kpiMetricShare(d) === 'additive')
     .map((d) => {
       const assigned = lines
-        .filter((l) => l.metricKey === d.key && l.kind !== 'total')
+        .filter((l) => l.metricKey === d.key && l.kind !== 'total' && !l.addedAt)
         .reduce((n, l) => n + l.value, 0)
       return kpiAssignmentSum(d.key, received.get(d.key) ?? 0, assigned)
     })

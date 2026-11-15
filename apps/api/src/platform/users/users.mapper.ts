@@ -2,6 +2,7 @@ import type { Branch, RoleId as EngineRoleId } from '@pv/engines'
 import type { UserCreate, UserPatch, UserRow } from '@pv/contracts'
 import { toEngineRole, toSessionActor } from '../auth/auth.mapper'
 import { RoleId as ContractRoleId } from '@pv/contracts'
+import { vnDayOf } from '@pv/contracts'
 import type { ActorRow } from '../db/platform.schema'
 
 /** THE PEOPLE BOOK'S TWO DIRECTIONS — row → admin DTO, and body → columns.
@@ -70,6 +71,7 @@ export function toUserRow(row: ActorRow): UserRow {
     disabledAt: row.disabledAt ? row.disabledAt.toISOString() : null,
     mustChangePasswordAt: row.mustChangePasswordAt ? row.mustChangePasswordAt.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
+    startedOn: row.startedOn,
   }
 }
 
@@ -84,6 +86,7 @@ export type ActorDraft = {
   roleIds: EngineRoleId[]
   branches: Branch[]
   ownOnly: boolean
+  startedOn: string
 }
 
 export function toActorDraft(id: string, body: UserCreate): ActorDraft {
@@ -95,6 +98,8 @@ export function toActorDraft(id: string, body: UserCreate): ActorDraft {
     roleIds: canonicalRoles(body.roleIds),
     branches: withCore(body.branches),
     ownOnly: body.ownOnly,
+    /* Blank = the creation day, in Vietnam time (ADR 0156 §1). */
+    startedOn: body.startedOn ?? vnDayOf(new Date()),
   }
 }
 
@@ -111,6 +116,7 @@ export type ActorColumns = {
   branches?: Branch[]
   ownOnly?: boolean
   disabledAt?: Date | null
+  startedOn?: string | null
 }
 
 /** `UserPatch` → columns. Compares against `undefined`, never against
@@ -125,6 +131,7 @@ export function toActorColumns(patch: UserPatch): ActorColumns {
   if (patch.roleIds !== undefined) columns.roleIds = canonicalRoles(patch.roleIds)
   if (patch.branches !== undefined) columns.branches = withCore(patch.branches)
   if (patch.ownOnly !== undefined) columns.ownOnly = patch.ownOnly
+  if (patch.startedOn !== undefined) columns.startedOn = patch.startedOn
   /* `disabled` is a boolean on the wire and a MOMENT in the table. The column
      is a timestamp because "khoá từ bao giờ" is the question actually asked
      about a locked account and a boolean answers it with a shrug — see

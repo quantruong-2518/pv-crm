@@ -136,10 +136,17 @@ export const contractOpens = (
 ): boolean =>
   paper.ownerId === readerId ||
   paper.collectorId === readerId ||
+  paper.creditedIds.includes(readerId) ||
   read.lead.ownerId === readerId ||
   stands(paper.deal)
 
-type SignedPaper = { code: string; deal: string; ownerId: string | null; collectorId: string }
+type SignedPaper = {
+  code: string
+  deal: string
+  ownerId: string | null
+  collectorId: string
+  creditedIds: readonly string[]
+}
 
 /** Which object of the run this reader OPENS — what E3's inbox is asked
  *  about. The one thing `live` still decides: `stand` is off the row now. */

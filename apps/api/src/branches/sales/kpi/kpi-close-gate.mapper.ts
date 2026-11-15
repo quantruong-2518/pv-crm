@@ -17,6 +17,30 @@ const DAY_MS = 86_400_000
 const actorOf = (r: KpiBasisRow) =>
   r.actorId ? { actorId: r.actorId, name: r.name ?? r.actorId } : null
 
+/** Everyone credited on a contract (ADR 0155): the closer first, then the bigger
+ *  part, ties to the lower id. A contract nobody holds has no one to name. */
+function creditedActors(
+  owned: readonly KpiBasisRow[],
+  closers: ReadonlyMap<string, string>,
+): Map<string, NonNullable<ReturnType<typeof actorOf>>[]> {
+  const byCode = new Map<string, KpiBasisRow[]>()
+  for (const r of owned) if (r.actorId) byCode.set(r.code, [...(byCode.get(r.code) ?? []), r])
+  const first = (r: KpiBasisRow, code: string) => (r.actorId === closers.get(code) ? 0 : 1)
+  return new Map(
+    [...byCode].map(([code, rows]) => [
+      code,
+      [...rows]
+        .sort(
+          (a, b) =>
+            first(a, code) - first(b, code) ||
+            (b.value ?? 0) - (a.value ?? 0) ||
+            (a.actorId ?? '').localeCompare(b.actorId ?? ''),
+        )
+        .flatMap((r) => actorOf(r) ?? []),
+    ]),
+  )
+}
+
 /** `room` judges every contract, an ownerless one included; `owned` only says
  *  whose it is. No earlier contract, or an average of nothing, leaves nothing
  *  to compare against (ADR 0116, default 1): no flag, not a made-up baseline. */
@@ -24,15 +48,16 @@ export function bigContracts(
   room: readonly KpiBasisRow[],
   owned: readonly KpiBasisRow[],
   earlier: KpiBasisAverage,
+  closers: ReadonlyMap<string, string>,
 ): KpiCloseGateBigContract[] {
   const { average, count } = earlier
   if (count === 0 || average <= 0) return []
-  const owners = new Map(owned.map((r) => [r.code, actorOf(r)]))
+  const people = creditedActors(owned, closers)
   return room.flatMap((r) => {
     const ratio = (r.value ?? 0) / average
     if (ratio <= bigContractRatio) return []
-    const actor = owners.get(r.code) ?? null
-    return [{ code: r.code, actor, value: Math.round(r.value ?? 0), average, ratio }]
+    const actors = people.get(r.code) ?? []
+    return [{ code: r.code, actors, value: Math.round(r.value ?? 0), average, ratio }]
   })
 }
 

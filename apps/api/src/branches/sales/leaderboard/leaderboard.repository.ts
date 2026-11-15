@@ -4,6 +4,7 @@ import type { RoleId as EngineRoleId } from '@pv/engines'
 import { LEAD_OPEN_STATES } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
+import { CREDIT_PART, CREDIT_ROWS, creditValue, NO_CREDIT } from '../contract/contract-credit.sql'
 import { contract } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
@@ -50,14 +51,16 @@ export class LeaderboardRepository {
   async rows(): Promise<LeaderboardTally[]> {
     /* An open deal converts at today's rate; a signed contract at its signing day's. */
     const opsVnd = toVndSql(opportunity.amount, opportunity.currency)
-    const contractVnd = toVndSql(contract.amount, contract.currency, contract.signedAt)
+    const contractVnd = toVndSql(sql`k.amount`, sql`k.currency`, sql`k.signed_at`)
+    const LIVE_K = sql`JOIN sales.lead l ON l.code = k.lead_code AND l.disabled_at IS NULL
+      WHERE NOT ${contractTerminated(sql`k.code`)}`
     /* Open, won and lost come from `../open-deal`, the one reading of each:
        won is a LIVE contract, so a terminated deal leaves it (ADR 0107). */
     const open = dealOpen(opportunity.code, opportunity.state)
     const lost = dealLost(opportunity.code, opportunity.state)
     const signed = dealWon(opportunity.code)
 
-    const [leads, ops, contracts] = await Promise.all([
+    const [leads, ops, contracts, money] = await Promise.all([
       this.db
         .select({ actorId: lead.ownerId, n: count() })
         .from(lead)
@@ -83,18 +86,24 @@ export class LeaderboardRepository {
         .innerJoin(lead, eq(lead.code, opportunity.leadCode))
         .where(and(eq(opportunityOwner.role, 'SALE'), leadLive))
         .groupBy(opportunityOwner.actorId),
-      /* The whole book, no period: the overview has no period axis of its own,
-         and inventing one here would disagree with the Performance screen's. */
+      /* The whole book, no period, as the Performance screen reads it. The count
+         stays with the closer; the money follows the split (ADR 0155). */
       this.db
-        .select({
-          actorId: contract.ownerId,
-          n: count(),
-          amountVnd: sql<number | string>`COALESCE(SUM(${contractVnd}), 0)::bigint`,
-        })
+        .select({ actorId: contract.ownerId, n: count() })
         .from(contract)
         .innerJoin(lead, eq(lead.code, contract.leadCode))
         .where(and(isNotNull(contract.ownerId), leadLive, not(contractTerminated(contract.code))))
         .groupBy(contract.ownerId),
+      this.db.execute(sql`
+        SELECT p.actor_id, COALESCE(SUM(p.vnd), 0)::bigint AS amount_vnd FROM (
+          SELECT k.owner_id AS actor_id, ${contractVnd} AS vnd
+            FROM sales.contract k ${LIVE_K} AND k.owner_id IS NOT NULL AND ${NO_CREDIT}
+          UNION ALL
+          SELECT cr.actor_id, ${CREDIT_PART}
+            FROM sales.contract k ${CREDIT_ROWS} ${creditValue(contractVnd)} ${LIVE_K}
+        ) p GROUP BY p.actor_id`) as Promise<{
+        rows: { actor_id: string; amount_vnd: number | string }[]
+      }>,
     ])
 
     /* Who is on the desk: holding something NOW. A person whose only trace is a
@@ -104,11 +113,13 @@ export class LeaderboardRepository {
     for (const r of leads) if (r.actorId) ids.add(r.actorId)
     for (const r of ops) if (r.open > 0) ids.add(r.actorId)
     for (const r of contracts) if (r.actorId) ids.add(r.actorId)
+    for (const r of money.rows) ids.add(r.actor_id)
     if (ids.size === 0) return []
 
     const byLead = new Map(leads.map((r) => [r.actorId, r]))
     const byOps = new Map(ops.map((r) => [r.actorId, r]))
     const byContract = new Map(contracts.map((r) => [r.actorId, r]))
+    const byMoney = new Map(money.rows.map((r) => [r.actor_id, Number(r.amount_vnd)]))
 
     const people = await this.db
       .select({ id: actor.id, name: actor.name, roleIds: actor.roleIds })
@@ -131,7 +142,7 @@ export class LeaderboardRepository {
           won: o?.won ?? 0,
           lost: o?.lost ?? 0,
           signedCount: c?.n ?? 0,
-          signedAmountVnd: Number(c?.amountVnd ?? 0),
+          signedAmountVnd: byMoney.get(p.id) ?? 0,
         }
       })
       .sort((a, b) => b.signedAmountVnd - a.signedAmountVnd || a.name.localeCompare(b.name, 'vi'))

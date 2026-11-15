@@ -3,6 +3,12 @@ import { searchText } from '../search-text'
 import { Day, MoneyVnd, ContractCode, ObjectCode, Moment, textInput } from '../primitives'
 import { PageQuery, SortDir, paged } from '../pagination'
 import { MoneyFx } from '../fx-rate'
+import {
+  CREDIT_ISSUE_TEXT,
+  ContractCreditRow,
+  ContractCredits,
+  creditIssues,
+} from './contract-credit'
 import { ContractKind, CurrencyCode } from './enums'
 import {
   OpportunityOwner,
@@ -157,10 +163,16 @@ export const ContractSignShape = z.object({
   /** The payment schedule, approved together with the signature. Absent or
    *  empty = signed with no schedule yet. */
   installments: InstallmentDrafts.optional(),
+
+  /** Split of the signed value between two or three people (ADR 0155). Absent =
+   *  100 % to the closer. */
+  credits: ContractCredits.optional(),
 })
 
 /** A schedule, once given, must account for the whole paper — both sums. */
 export const ContractSign = ContractSignShape.superRefine((v, ctx) => {
+  for (const issue of creditIssues(v.credits ?? []))
+    ctx.addIssue({ code: 'custom', message: CREDIT_ISSUE_TEXT[issue], path: ['credits'] })
   const rows = v.installments ?? []
   if (rows.length === 0) return
   const fail = (message: string) =>
@@ -387,6 +399,8 @@ export const ContractRow = z.object({
   /** The deal's SALE/BD lanes as they stood at signing — written once by the
    *  server, so no request body carries it and a later lane edit never moves it. */
   participants: z.array(ContractParticipant),
+  /** The signed-value split, locked at signing; empty = 100 % to the owner. */
+  credits: z.array(ContractCreditRow),
   /** Absent on a just-signed contract with no schedule drafted yet — the
    *  sign door (`ContractSignResponse`) returns a row before any installment
    *  exists. */

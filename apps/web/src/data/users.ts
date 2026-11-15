@@ -363,6 +363,8 @@ export type UserDraft = {
   roleIds: readonly RoleId[]
   branches: readonly Branch[]
   ownOnly: boolean
+  /** `YYYY-MM-DD`; `''` = none. */
+  startedOn: string
 }
 
 /** Branch and role lists are SETS, so compare them as sets. The form renders checkboxes
@@ -399,6 +401,8 @@ export function diffUser(row: UserRow, draft: UserDraft): UserPatch | null {
   if (!sameSet(row.roleIds, draft.roleIds)) patch.roleIds = [...draft.roleIds]
   if (!sameSet(row.branches, draft.branches)) patch.branches = [...draft.branches]
   if (draft.ownOnly !== row.ownOnly) patch.ownOnly = draft.ownOnly
+  const startedOn = draft.startedOn === '' ? null : draft.startedOn
+  if (startedOn !== row.startedOn) patch.startedOn = startedOn
 
   return Object.keys(patch).length === 0 ? null : patch
 }

@@ -1142,6 +1142,20 @@
       "when": 1795860220000,
       "tag": "0169_assistant_brief",
       "breakpoints": true
+    },
+    {
+      "idx": 167,
+      "version": "7",
+      "when": 1795687420000,
+      "tag": "0167_contract_credit",
+      "breakpoints": true
+    },
+    {
+      "idx": 168,
+      "version": "7",
+      "when": 1795773820000,
+      "tag": "0168_actor_started_on_and_kpi_transfer",
+      "breakpoints": true
     }
   ]
 }

@@ -332,6 +332,16 @@ export class UsersService {
       if (body.disabled === true) revoked = await this.auth.revokeAllSessions(target.id, tx)
       /* After the lock is written, so the hub already drops the leaver's own lines. */
       if (move) await this.work().handOver(tx, { fromId: target.id, toId: move.id, by: who })
+      /* A re-lock keeps its first stamp, so the leaver's days are counted to the original day. */
+      if (body.disabled === true && (target.disabledAt === null || toId !== undefined)) {
+        await this.work().leave(tx, {
+          fromId: target.id,
+          toId: move?.id ?? toId ?? null,
+          at: saved.disabledAt ?? new Date(),
+        })
+      }
+      if (body.disabled === false && target.disabledAt !== null)
+        await this.work().unlock(tx, target.id)
 
       const note = this.noteFor(target, body) + (move ? ` · giao việc cho ${move.name}` : '')
       const noteId = await this.repo.writeNote(
@@ -795,6 +805,7 @@ export class UsersService {
     if (body.roleIds !== undefined) parts.push(`vai=${body.roleIds.join('/')}`)
     if (body.branches !== undefined) parts.push(`nhánh=${body.branches.join('/')}`)
     if (body.ownOnly !== undefined) parts.push(`phạm vi=${body.ownOnly ? 'chỉ của mình' : 'cả sổ'}`)
+    if (body.startedOn !== undefined) parts.push(`ngày vào làm=${body.startedOn ?? 'trống'}`)
     if (body.disabled !== undefined) parts.push(body.disabled ? 'khoá' : 'mở khoá')
     return `sửa người dùng ${target.id} · ${parts.join(' · ')}`
   }

@@ -26,6 +26,7 @@ import {
   useSaveUser,
 } from '@/data/users'
 import { HandoverDrawer } from './users-lock'
+import { StartedOnField } from './users-started-on'
 
 /** The blocks of Quản trị · Người dùng — the row cells, and the panel that does
  *  double duty for "thêm người" and "sửa một người".
@@ -64,6 +65,7 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
   const [roleIds, setRoleIds] = useState<readonly RoleId[]>([DEFAULT_ROLE])
   const [branches, setBranches] = useState<readonly Branch[]>([CORE_BRANCH])
   const [ownOnly, setOwnOnly] = useState(false)
+  const [startedOn, setStartedOn] = useState('')
 
   const [errors, setErrors] = useState<FieldErrors>({})
   const [failure, setFailure] = useState('')
@@ -109,6 +111,7 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
     setRoleIds(user?.roleIds ?? [DEFAULT_ROLE])
     setBranches(user ? withCore(user.branches) : [CORE_BRANCH])
     setOwnOnly(user?.ownOnly ?? scopeFrozen)
+    setStartedOn(user?.startedOn ?? '')
     setLockedAt(user?.disabledAt ?? null)
     setErrors({})
     setFailure('')
@@ -164,13 +167,14 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
           roleIds: [...roleIds],
           branches: [...branches],
           ownOnly,
+          ...(startedOn !== '' && { startedOn }),
         },
         { onSuccess: onClose, onError: onRefusal },
       )
       return
     }
 
-    const patch = diffUser(user, { name, role: roleLabel, roleIds, branches, ownOnly })
+    const patch = diffUser(user, { name, role: roleLabel, roleIds, branches, ownOnly, startedOn })
     if (!patch) {
       setFailure(t(NOTHING_TO_SAVE))
       return
@@ -552,6 +556,16 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
               }}
             />
           </FormField>
+
+          <StartedOnField
+            value={startedOn}
+            creating={!user}
+            errors={errors.startedOn}
+            onChange={(day) => {
+              setStartedOn(day)
+              clearError('startedOn')
+            }}
+          />
         </section>
 
         <section className="flex flex-col gap-4">

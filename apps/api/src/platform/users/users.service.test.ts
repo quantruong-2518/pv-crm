@@ -67,6 +67,8 @@ const handover: WorkHandover = {
   handOver: async (_tx, move) => {
     reached.push(`hand-over:${move.fromId}`)
   },
+  leave: async () => {},
+  unlock: async () => {},
 }
 
 const seat = (id: string, role: RoleId, ownOnly = false) =>

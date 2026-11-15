@@ -2,6 +2,7 @@ import {
   bigint,
   boolean,
   check,
+  date,
   index,
   integer,
   pgSchema,
@@ -91,6 +92,10 @@ export const actor = platform.table(
      *  câu đó bằng một cái nhún vai. Cùng quy ước với `closed_at`, `exited_at`,
      *  `revoked_at` ở khắp repo này. */
     disabledAt: timestamp('disabled_at', { withTimezone: true }),
+
+    /** First working day, Vietnam calendar. NULL = fully ramped (ADR 0156 §1):
+     *  every actor from before the column, so nobody is backfilled. */
+    startedOn: date('started_on'),
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

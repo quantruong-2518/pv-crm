@@ -56,10 +56,11 @@ const PackageRef = KpiAllocation.pick({
 })
 
 /** `ratio` is `value / average`, the average over every contract signed before the month.
- *  Judged over the room, so a contract with no owner can be flagged: `actor` is then `null`. */
+ *  Judged over the room, so a contract with no owner can be flagged: `actors` is then empty.
+ *  `actors` are everyone credited with a share (ADR 0155): the closer first, then by share. */
 export const KpiCloseGateBigContract = z.object({
   code: ContractCode,
-  actor: KpiTargetActor.nullable(),
+  actors: z.array(KpiTargetActor),
   value: MoneyVnd,
   average: z.number().nonnegative(),
   ratio: z.number().positive(),

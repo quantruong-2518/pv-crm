@@ -161,6 +161,7 @@ function scopeOf(who: Actor): SQL | undefined {
   if (!who.ownOnly) return undefined
   const reach = contractReadBy(
     {
+      code: sql`k.code`,
       ownerId: sql`k.owner_id`,
       collectorId: sql`k.collector_id`,
       leadOwnerId: sql`care.lead_owner_id`,

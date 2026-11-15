@@ -131,7 +131,15 @@ export class KpiCloseGateService {
       returned: packages.filter((p) => p.status === 'returned'),
       drafts: packages.filter((p) => p.status === 'draft'),
       proposed,
-      big: bigContracts(month, owned, earlier),
+      big: bigContracts(
+        month,
+        owned,
+        earlier,
+        await this.readings.closersOf(
+          month.map((r) => r.code),
+          handle,
+        ),
+      ),
       late: lateHeavy(owned, span.to),
       tiered,
     }

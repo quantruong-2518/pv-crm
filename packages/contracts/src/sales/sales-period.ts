@@ -15,7 +15,7 @@ const VN_OFFSET_MS = 7 * 3_600_000
 
 const pad = (n: number): string => String(n).padStart(2, '0')
 
-const dayNo = (day: string): number =>
+export const dayNo = (day: string): number =>
   Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, Number(day.slice(8, 10))) / DAY_MS
 
 function dayAt(n: number): string {
@@ -28,7 +28,7 @@ const monthStart = (year: number, month0: number): string =>
   dayAt(Date.UTC(year, month0, 1) / DAY_MS)
 
 /** Monday 0 … Sunday 6. Day 0 (1970-01-01) was a Thursday. */
-const weekdayOf = (n: number): number => (((n + 3) % 7) + 7) % 7
+export const weekdayOf = (n: number): number => (((n + 3) % 7) + 7) % 7
 
 /** Monday of ISO week 1: the week that holds 4 January. */
 function weekOneMonday(year: number): number {

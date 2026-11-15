@@ -9,9 +9,11 @@ import {
   type OpportunityProfileResponse,
 } from '@pv/contracts'
 import { userMessage } from '@/app/api'
+import { useSession } from '@/app/auth'
 import { useI18n, type Message } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import { collectorNote, useCollectorCandidates } from '@/data/contract-collector'
+import { NO_CREDITS, creditsState, type CreditsDraft } from '@/data/contract-credits'
 import { localDay } from '@/data/local-day'
 import { useSignContract } from '@/data/opportunities-write'
 import { useContractKindLabel, useContractKindOptions } from '@/data/sales-config'
@@ -20,6 +22,7 @@ import { NO_AMOUNT_COPY, compactMoney, kindLabel } from '@/components/deal-money
 import { ScheduleEditor } from '@/components/deal-pay'
 import { scheduleIssue, scheduleSummary } from '@/components/deal-pay/schedule-math'
 import { Field } from './ops-fields'
+import { SignCredits } from './sign-drawer-credits'
 import { SIGN_COPY } from './sign-drawer-copy'
 import { SignAmount, SignCollector, SignFooter, SignNotice, SignDay } from './sign-drawer-parts'
 
@@ -50,6 +53,8 @@ type SignForm = {
   quotationId: string
   /** The payment schedule proposed with the signature; empty = none. */
   installments: InstallmentDraft[]
+  /** The split of the signed value; off = no list on the body. */
+  credits: CreditsDraft
 }
 
 /** `YYYY-MM-DD` → the `Moment` the contract wants. Today sends the real
@@ -151,6 +156,7 @@ export function SignDrawer({ op, open, onClose, quotationId }: Props) {
       collectorId: '',
       quotationId: '',
       installments: [],
+      credits: NO_CREDITS,
     }),
     [op, again],
   )
@@ -168,8 +174,13 @@ export function SignDrawer({ op, open, onClose, quotationId }: Props) {
     setForm((f) => ({ ...f, [key]: value }))
 
   const collectors = useCollectorCandidates(open)
+  const me = useSession((s) => s.actor)
+  const split = creditsState(form.credits, me?.id ?? '')
   const base = bodyOf(form)
-  const body = base && form.collectorId !== '' ? { ...base, collectorId: form.collectorId } : null
+  const body =
+    base && form.collectorId !== '' && split.ready
+      ? { ...base, collectorId: form.collectorId, ...(split.credits && { credits: split.credits }) }
+      : null
   const check = body ? ContractSign.safeParse(body) : null
   const blocked = check !== null && !check.success
   const waiting = waitingOptions(op, resolveKind, t)
@@ -272,6 +283,14 @@ export function SignDrawer({ op, open, onClose, quotationId }: Props) {
           value={form.collectorId}
           candidates={collectors.data}
           onChange={(id) => set('collectorId', id)}
+        />
+
+        <SignCredits
+          draft={form.credits}
+          onChange={(next) => set('credits', next)}
+          closer={me ? { id: me.id, name: me.name } : null}
+          amount={form.amount}
+          currency={form.currency}
         />
 
         <SignDay

@@ -19,6 +19,8 @@ import {
   type ContractBookQuery,
   type CurrencyCode,
   type InstallmentDraft,
+  type ContractCredit,
+  type ContractCreditRow,
   type ContractParticipant,
   type ContractMonthPoint,
   type ContractSummary,
@@ -30,9 +32,10 @@ import { notification } from '@api/platform/notification/notification.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
 import { convertedColumns, toVndSql, type Converted } from '../money'
-import { contractReadBy, contractTerminated } from '../open-deal'
+import { contractReadBy, contractTerminated, creditHeldBy } from '../open-deal'
 import { fromDraft } from './contract.mapper'
 import { opportunityOwner } from '../opportunity/opportunity.schema'
+import { contractCredit } from './contract-credit.schema'
 import { contractParticipant } from './contract-participant.schema'
 import {
   contract,
@@ -65,6 +68,8 @@ export type ContractRead = {
   collectorName: string | null
   /** The deal's lanes frozen at signing (ADR 0086), SALE primary first. */
   participants: ContractParticipant[]
+  /** The signed-value split, locked at signing; empty = 100 % to the closer. */
+  credits: ContractCreditRow[]
 }
 
 /** One book line: the row plus the LEAN schedule the table paints.
@@ -159,11 +164,15 @@ const ON_LEAD = eq(lead.code, contract.leadCode)
 
 /** `contractReadBy` over this file's joins: the lead joined is the run's lead. */
 const CONTRACT_REACH = {
+  code: contract.code,
   ownerId: contract.ownerId,
   collectorId: contract.collectorId,
   leadOwnerId: lead.ownerId,
   opportunityCode: contract.opportunityCode,
 }
+
+/** The contract holds a share row for `actorId`: read-only reach, never a write seat. */
+const creditedTo = (actorId: string): SQL => creditHeldBy(contract.code, actorId)
 
 /** A terminated contract's unpaid installments are owed by nobody (ADR 0107):
  *  every money, status and overdue read below stands on live contracts only. */
@@ -259,6 +268,38 @@ export class ContractRepository {
     return byCode
   }
 
+  /** The split of a contract, written once beside the contract row (ADR 0155).
+   *  Nothing writes `contract_credit` afterwards. */
+  async insertCredits(
+    tx: Db,
+    contractCode: string,
+    credits: readonly ContractCredit[],
+  ): Promise<void> {
+    if (credits.length === 0) return
+    await tx
+      .insert(contractCredit)
+      .values(credits.map((c) => ({ contractCode, actorId: c.actorId, shareBp: c.shareBp })))
+  }
+
+  /** Credits of a batch of contracts, one query for the page, biggest share first. */
+  private async creditsOf(codes: readonly string[]): Promise<Map<string, ContractCreditRow[]>> {
+    const byCode = new Map<string, ContractCreditRow[]>()
+    if (codes.length === 0) return byCode
+    const rows = await this.db
+      .select({
+        code: contractCredit.contractCode,
+        actorId: contractCredit.actorId,
+        name: actor.name,
+        shareBp: contractCredit.shareBp,
+      })
+      .from(contractCredit)
+      .innerJoin(actor, eq(actor.id, contractCredit.actorId))
+      .where(inArray(contractCredit.contractCode, [...codes]))
+      .orderBy(desc(contractCredit.shareBp), actor.name, actor.id)
+    for (const { code, ...who } of rows) byCode.set(code, [...(byCode.get(code) ?? []), who])
+    return byCode
+  }
+
   /** Carry a signed deal's edited money or commission holder onto its contract
    *  (ADR 0057 §1). Returns the row as stored. */
   async updateTerms(
@@ -327,8 +368,13 @@ export class ContractRepository {
       .leftJoin(collector, eq(collector.id, contract.collectorId))
       .where(and(eq(contract.opportunityCode, opportunityCode), eq(contract.leadCode, leadCode)))
       .orderBy(asc(contract.signedAt), asc(contract.code))
-    const people = await this.participantsOf(rows.map((r) => r.row.code))
-    return rows.map((r) => ({ ...r, participants: people.get(r.row.code) ?? [] }))
+    const codes = rows.map((r) => r.row.code)
+    const [people, split] = await Promise.all([this.participantsOf(codes), this.creditsOf(codes)])
+    return rows.map((r) => ({
+      ...r,
+      participants: people.get(r.row.code) ?? [],
+      credits: split.get(r.row.code) ?? [],
+    }))
   }
 
   // -- read ------------------------------------------------------------------
@@ -377,9 +423,10 @@ export class ContractRepository {
     ] as const)
 
     const codes = rows.map((r) => r.row.code)
-    const [schedule, people, ended] = await Promise.all([
+    const [schedule, people, split, ended] = await Promise.all([
       this.scheduleOf(codes),
       this.participantsOf(codes),
+      this.creditsOf(codes),
       terminationsOf(this.db, codes),
     ])
 
@@ -387,6 +434,7 @@ export class ContractRepository {
       rows: rows.map((r) => ({
         ...r,
         participants: people.get(r.row.code) ?? [],
+        credits: split.get(r.row.code) ?? [],
         termination: ended.get(r.row.code) ?? null,
         installments: schedule.get(r.row.code) ?? [],
       })),
@@ -425,9 +473,10 @@ export class ContractRepository {
     /* One query per child table for the WHOLE contract, then grouped in
        memory. Six installments times four tables is 24 round trips the other
        way, and every one of them rides the same index this one does. */
-    const [schedule, people, ended, conditions, docs, records, notes] = await Promise.all([
+    const [schedule, people, split, ended, conditions, docs, records, notes] = await Promise.all([
       this.scheduleOf([code]),
       this.participantsOf([code]),
+      this.creditsOf([code]),
       terminationsOf(this.db, [code]),
       this.db
         .select()
@@ -475,6 +524,7 @@ export class ContractRepository {
     return {
       ...found,
       participants: people.get(code) ?? [],
+      credits: split.get(code) ?? [],
       termination: ended.get(code) ?? null,
       installments: rows.map(({ row, fx }) => ({
         row,
@@ -772,10 +822,11 @@ export class ContractRepository {
    *
    *  Two columns, no join table — a contract has one owner and one collector,
    *  unlike an opportunity where Sale and BD both stand on the row. A contract
-   *  with neither matches nobody: an unassigned contract is not "everybody's". */
+   *  with neither matches nobody: an unassigned contract is not "everybody's".
+   *  A person credited with a share reads the paper too (ADR 0155 §6). */
   private scopeOf(who: Actor, scoped: boolean): SQL | undefined {
     if (!scoped || !who.ownOnly) return undefined
-    return or(eq(contract.ownerId, who.id), eq(contract.collectorId, who.id))
+    return or(eq(contract.ownerId, who.id), eq(contract.collectorId, who.id), creditedTo(who.id))
   }
 
   /** One contract's verdict, SELECTed instead of filtered on — see `byCode`.

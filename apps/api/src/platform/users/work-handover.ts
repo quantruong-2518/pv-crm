@@ -22,6 +22,12 @@ export interface WorkHandover {
   /** Moves everything `holdings` counted, and the leaver's switched-off
    *  leads, inside the lock's transaction. */
   handOver(tx: Db, move: { fromId: string; toId: string; by: Actor }): Promise<void>
+  /** A fresh lock, with or without work to move and with or without a receiver
+   *  (`null`): the branch records what else the leaver leaves behind, in the
+   *  lock's transaction (ADR 0156 §6). A re-lock with a receiver asks again. */
+  leave(tx: Db, move: { fromId: string; toId: string | null; at: Date }): Promise<void>
+  /** An unlock takes back what `leave` recorded for months still open. */
+  unlock(tx: Db, userId: string): Promise<void>
 }
 
 export const WORK_HANDOVER = Symbol('pv.users.work-handover')

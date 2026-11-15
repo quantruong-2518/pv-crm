@@ -30,6 +30,7 @@ import { closeForSign, NOTE, stageEventOf, toRef } from './opportunity.mapper'
 import { DEAL_HELD_REFUSAL, terminatedSentence } from './opportunity-lifecycle'
 import { actorsByIds, lanePeople, primaryOf, salePrimaryOf } from './opportunity-owners'
 import { OpportunityRepository, type OpportunityRead } from './opportunity.repository'
+import { assertCredits, creditLine } from './opportunity-sign-credits'
 
 /** Signing a deal, through E3 (ADR 0057 §7).
  *
@@ -80,14 +81,20 @@ export class OpportunitySign implements ApprovalApplier {
       this.approvals.pendingOn(code),
       this.approvals.chainFor(SIGN_APPROVERS),
     ])
-    await this.assertProposable(this.deals.readonlyHandle, found, body, pending.some(isSign))
+    await this.assertProposable(
+      this.deals.readonlyHandle,
+      found,
+      body,
+      who.id,
+      pending.some(isSign),
+    )
     if (signsDirect(who)) return this.signNow(who, code, body)
 
     const request = await this.deals.run(async (tx) => {
       const lock = await this.deals.lockDeal(tx, code)
       const fresh = lock ? await this.deals.byCode(who, code, tx) : null
       if (!lock || !fresh || !fresh.inScope) throw notFound('cơ hội', code)
-      await this.assertProposable(tx, fresh, body, lock.pendingSign)
+      await this.assertProposable(tx, fresh, body, who.id, lock.pendingSign)
 
       /* `signedAt` frozen at the press: the person reporting the signature knows
          when the pen moved, the approval days later does not. */
@@ -95,14 +102,19 @@ export class OpportunitySign implements ApprovalApplier {
         opportunityCode: code,
         sign: { ...body, signedAt: body.signedAt ?? new Date().toISOString() },
       }
-      const [collector] = await actorsByIds(tx, [body.collectorId])
+      const named = await actorsByIds(tx, [
+        body.collectorId,
+        ...(body.credits ?? []).map((c) => c.actorId),
+      ])
+      const names = new Map(named.map((a) => [a.id, a.name]))
       const draft = {
         kind: 'contract-sign' as const,
         consequence: consequenceOf(
           fresh,
           body,
           await kindLabel(tx, body.kind),
-          collector?.name ?? body.collectorId,
+          names.get(body.collectorId) ?? body.collectorId,
+          body.credits?.length ? creditLine(body.credits, names) : null,
         ),
         payload: proposal,
         chain,
@@ -125,7 +137,7 @@ export class OpportunitySign implements ApprovalApplier {
       const lock = await this.deals.lockDeal(tx, code)
       const fresh = lock ? await this.deals.byCode(who, code, tx) : null
       if (!lock || !fresh || !fresh.inScope) throw notFound('cơ hội', code)
-      await this.assertProposable(tx, fresh, body, lock.pendingSign)
+      await this.assertProposable(tx, fresh, body, who.id, lock.pendingSign)
       const sign = { ...body, signedAt: body.signedAt ?? new Date().toISOString() }
       const by = { id: who.id, name: who.name }
       const contractCode = await this.write(tx, fresh, sign, by, { actorId: who.id, skip: [] })
@@ -143,11 +155,13 @@ export class OpportunitySign implements ApprovalApplier {
   }
 
   /** Every refusal the door makes: the deal (`signVerdict`, 409), the round the
-   *  signature claims to win (409), then the collector (422). */
+   *  signature claims to win (409), then the collector and the split (400).
+   *  `closerId` is whoever signs or raises the request (ADR 0113). */
   private async assertProposable(
     handle: Db,
     found: OpportunityRead,
     body: ContractSign,
+    closerId: string,
     pendingSign: boolean,
   ): Promise<void> {
     const rounds = await this.quotes.byDeal(handle, found.row.code)
@@ -168,6 +182,7 @@ export class OpportunitySign implements ApprovalApplier {
       adoptedPlace(rounds, body.kind, await kindLabel(handle, body.kind))
     }
     await this.collectors.assertPick(handle, body.collectorId)
+    await assertCredits(handle, body.credits, closerId)
   }
 
   /** `ApprovalApplier` for `contract-sign`. Everything is checked again against
@@ -182,6 +197,7 @@ export class OpportunitySign implements ApprovalApplier {
     const verdict = signableVerdict(signFactsOf(found, quoted))
     if (!verdict.ok) throw conflict(verdict.reason)
     await this.collectors.assertPick(tx, sign.collectorId)
+    await assertCredits(tx, sign.credits, request.raisedById)
 
     /* The bell's actor is the decider; the raiser already hears `approval-approved`. */
     const decider = [...request.chain].reverse().find((l) => l.state === 'approved')?.personId
@@ -227,6 +243,7 @@ export class OpportunitySign implements ApprovalApplier {
       await this.deals.setSalePrimary(tx, code, salePrimaryOf(await lanePeople(tx, sale), null))
     }
     await this.contracts.insert(tx, values)
+    await this.contracts.insertCredits(tx, contractCode, body.credits ?? [])
     /* The schedule the approver just read is written with the paper (ADR 0090). */
     if (body.installments?.length) {
       await this.contracts.insertInstallments(tx, contractCode, body.installments)
@@ -398,13 +415,15 @@ const SIGN_DIRECT: RoleId[] = ['director', 'head-of-sales']
 export const signsDirect = (who: Actor): boolean =>
   who.roleIds.some((role) => SIGN_DIRECT.includes(role))
 
-/** What the approver reads instead of the payload: deal, customer, kind, amount, collector. */
+/** What the approver reads instead of the payload: deal, customer, kind, amount, collector, split. */
 function consequenceOf(
   found: OpportunityRead,
   body: ContractSign,
   kind: string,
   collectorName: string,
+  split: string | null,
 ): string {
   const money = `${body.amount.toLocaleString('vi-VN')} ${body.currency}`
-  return `Ký hợp đồng ${kind} cho cơ hội ${found.row.code} · ${found.account} · ${money} · ${collectorName} thu tiền`
+  const shares = split ? ` · chia ${split}` : ''
+  return `Ký hợp đồng ${kind} cho cơ hội ${found.row.code} · ${found.account} · ${money} · ${collectorName} thu tiền${shares}`
 }

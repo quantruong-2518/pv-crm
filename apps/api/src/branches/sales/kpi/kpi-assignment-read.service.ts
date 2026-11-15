@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common'
 import type { AccessControl, Actor } from '@pv/engines'
 import {
   isTieredPeriod,
+  rampFactor,
   kpiMetricShare,
   KpiAssignmentContact,
   KpiAssignmentMineResponse,
@@ -9,6 +10,7 @@ import {
   KpiAssignmentTreeResponse,
   RoleId,
   type KpiAssignmentActual,
+  type KpiAssignmentLateCandidate,
   type KpiAssignmentUnitState,
   type KpiMetricDef,
   type KpiMonthClose,
@@ -33,6 +35,7 @@ import {
   confirmedIn,
   deadlineOf,
   defaulted,
+  dueOf,
   draftOf,
   holdersUnder,
   inForceOf,
@@ -61,6 +64,7 @@ import { KpiConfigService } from './kpi-config.service'
 import { readsInTree } from './kpi-person-access'
 import { assertTieredMonth, nextMonth, vietnamToday } from './kpi-rules'
 import { KpiSeatService } from './kpi-seat.service'
+import { RAMP_FROM } from './kpi-transfer'
 import { KpiTargetsRepository } from './kpi-targets.repository'
 import { KpiTeamRepository, type KpiOrgTree } from './kpi-team.repository'
 import { agreedIn } from './kpi.mapper'
@@ -89,6 +93,12 @@ type LastMonth = {
   period: KpiPeriodKey | null
   of: (ids: readonly string[]) => KpiAssignmentActual[]
   totals: KpiAssignmentActual[]
+}
+
+/** Only a person still ramping carries one; the web works the suggestion out. */
+const rampOf = (startedOn: string | null, period: KpiPeriodKey) => {
+  const factor = rampFactor(startedOn, period)
+  return factor < 1 ? { factor } : undefined
 }
 
 const NO_LAST_MONTH: LastMonth = { period: null, of: () => [], totals: [] }
@@ -126,6 +136,34 @@ export class KpiAssignmentReader {
     const book = await this.book(period, handle)
     if (!book) throw notFound('sơ đồ phòng ban của tháng này')
     return book
+  }
+
+  /** ADR 0156 §5: who may still get a late line on `unitId`'s sent set. An active holder
+   *  of `role` in the unit in the month's tree or in the newest one (a newcomer added after
+   *  the send lands only there), without a line in the set, started by the month's last day. */
+  async lateCandidates(
+    book: Book,
+    role: RoleId,
+    unitId: string,
+    set: KpiSetRow,
+    handle?: Db,
+  ): Promise<KpiAssignmentLateCandidate[]> {
+    const latest = await this.teams.latestOrgTree(handle)
+    const trees = latest && latest.from !== book.tree.from ? [book.tree, latest] : [book.tree]
+    const held = new Set(linesOf(book, set.id).flatMap((l) => (l.personId ? [l.personId] : [])))
+    const ids = [...new Set(trees.flatMap((t) => receiversOf(t, role, unitId).people))].filter(
+      (id) => !held.has(id),
+    )
+    const started = await this.repo.startedOnOf(ids, handle)
+    return ids
+      .filter((id) => (started.get(id) ?? '').slice(0, 7) <= book.period)
+      .map((id) => ({
+        personId: id,
+        name: face(trees.find((t) => t.members.some((m) => m.actorId === id)) ?? book.tree, id)
+          .name,
+        startedOn: started.get(id) ?? null,
+        ramp: rampOf(started.get(id) ?? null, book.period) ?? null,
+      }))
   }
 
   /** Without `unitId`, the unit the caller heads. Read by its seat, by every head
@@ -178,6 +216,11 @@ export class KpiAssignmentReader {
     const held = inForce ? linesOf(book, inForce.id) : []
     const due = deadlineOf(period, 'person')
     const last = await this.lastMonth(who, book, catalog, role, unitId, today)
+    const started = period >= RAMP_FROM ? await this.repo.startedOnOf(to.people) : new Map()
+    const late =
+      period >= RAMP_FROM && inForce && acting.includes(who.id)
+        ? await this.lateCandidates(book, role, unitId, inForce)
+        : undefined
     return KpiAssignmentPageResponse.parse({
       period,
       role,
@@ -215,8 +258,10 @@ export class KpiAssignmentReader {
             due,
           ),
           lastActuals: last.of([p]),
+          ramp: rampOf(started.get(p) ?? null, period),
         })),
       ],
+      lateCandidates: late,
       sums: sumsOf(defs, company ? totalsIn(shown) : received, shown),
       lastActualPeriod: last.period,
       lastActualTotals: last.totals,
@@ -301,7 +346,8 @@ export class KpiAssignmentReader {
       lines: held.flatMap((h) => h.lines.map((l) => toWireLine(role, l, h.company, today, due))),
       confirmedAt: confirmed ? new Date(Math.max(...(stamps as number[]))).toISOString() : null,
       acceptedByDefault: own.some((l) => defaulted(l, today, due)),
-      deadline: due,
+      deadline:
+        own.length > 0 ? own.map((l) => dueOf(l, due)).reduce((x, y) => (y > x ? y : x)) : due,
       changedFrom: from ? changedSince(book!, from.set, who.id) : [],
       contact: from ? await this.contactFor(who, book!, from.set) : null,
     })

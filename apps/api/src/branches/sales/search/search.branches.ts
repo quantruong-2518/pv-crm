@@ -134,6 +134,7 @@ function branchOf(kind: SearchKind, who: Scope, q?: string): Branch {
           who.ownOnly
             ? contractReadBy(
                 {
+                  code: contract.code,
                   ownerId: contract.ownerId,
                   collectorId: contract.collectorId,
                   leadOwnerId: lead.ownerId,

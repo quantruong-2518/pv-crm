@@ -136,6 +136,17 @@ export const KpiAssignmentActual = z.object({ metricKey: KpiMetricKey, value: z.
 
 const lastActuals = z.array(KpiAssignmentActual).default([])
 
+/** A newcomer's ramp (ADR 0156). The web works out the suggestion from the page's own lines. */
+export const KpiAssignmentRamp = z.object({ factor: z.number().min(0).max(1) })
+
+/** One person the acting seat may still give a late line (ADR 0156 §5). */
+export const KpiAssignmentLateCandidate = z.object({
+  personId: actorId,
+  name: z.string(),
+  startedOn: Day.nullable(),
+  ramp: KpiAssignmentRamp.nullable(),
+})
+
 export const KpiAssignmentChild = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('unit'),
@@ -148,6 +159,7 @@ export const KpiAssignmentChild = z.discriminatedUnion('kind', [
     person: KpiTargetActor,
     state: KpiAssignmentPersonState,
     lastActuals,
+    ramp: KpiAssignmentRamp.nullable().optional(),
   }),
 ])
 
@@ -210,6 +222,9 @@ export const KpiAssignmentPageResponse = z.object({
   /** A child unit has sent, so a resend answers `resend-locked`. */
   resendLocked: z.boolean(),
   children: z.array(KpiAssignmentChild),
+  /** Joined after the set was sent and hold no line in it; only for the acting seat of a
+   *  sent set from `RAMP_FROM`. Absent in older months. */
+  lateCandidates: z.array(KpiAssignmentLateCandidate).optional(),
   sums: z.array(KpiAssignmentSum),
   /** The finished month `lastActuals` read; `null` while none can be read. A month still
    *  running would read short, and heads assign before P−1 ends (ADR 0120 §12). */
@@ -310,6 +325,19 @@ export const KpiAssignmentDraftBody = z.object({
 
 export const KpiAssignmentSendBody = z.object({ unitId })
 
+/** `POST late-line`: the acting seat adds lines for one person who joined after the
+ *  unit sent (ADR 0156 §5). Outside the unit-sum check; the person confirms as usual. */
+export const KpiAssignmentLateLineBody = z.object({
+  unitId,
+  personId: actorId,
+  lines: z
+    .array(z.object({ metricKey: KpiMetricKey, value: amount }))
+    .min(1)
+    .refine((l) => new Set(l.map((x) => x.metricKey)).size === l.length, {
+      message: 'Chỉ tiêu bị lặp.',
+    }),
+})
+
 export type KpiMetricShare = z.infer<typeof KpiMetricShare>
 export type KpiAssignmentStatus = z.infer<typeof KpiAssignmentStatus>
 export type KpiAssignmentLineKind = z.infer<typeof KpiAssignmentLineKind>
@@ -336,3 +364,6 @@ export type KpiAssignmentTreeUnit = z.infer<typeof KpiAssignmentTreeUnit>
 export type KpiAssignmentTreeResponse = z.infer<typeof KpiAssignmentTreeResponse>
 export type KpiAssignmentDraftBody = z.infer<typeof KpiAssignmentDraftBody>
 export type KpiAssignmentSendBody = z.infer<typeof KpiAssignmentSendBody>
+export type KpiAssignmentRamp = z.infer<typeof KpiAssignmentRamp>
+export type KpiAssignmentLateCandidate = z.infer<typeof KpiAssignmentLateCandidate>
+export type KpiAssignmentLateLineBody = z.infer<typeof KpiAssignmentLateLineBody>

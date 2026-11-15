@@ -117,12 +117,12 @@ export class ContractService {
 }
 
 /** The book row's ref for E2's second grid. The SQL fence (`scopeOf`) lets in
- *  the closer OR the payment PIC; the ref names one owner, so a PIC reading
- *  their own collection is named as owner — the move `runRef` makes for a run —
+ *  the closer, the payment PIC OR a credited seller; the ref names one owner, so
+ *  such a reader is named as owner — the move `runRef` makes for a run —
  *  or axis 3 hides a row the SQL already let through. */
 function bookRef(who: Actor, r: ContractBookRead): ObjectRef {
   const owner =
-    r.row.collectorId === who.id
+    r.row.collectorId === who.id || r.credits.some((c) => c.actorId === who.id)
       ? { id: who.id, name: who.name }
       : r.row.ownerId && r.ownerName
         ? { id: r.row.ownerId, name: r.ownerName }
