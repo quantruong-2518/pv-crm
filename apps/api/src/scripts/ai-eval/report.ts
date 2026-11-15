@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs'
 import { isDeepStrictEqual } from 'node:util'
 
 /** Counts per group and the gate line. The gate line is decided in one place and
@@ -61,6 +62,11 @@ export class Tally {
       say(`... and ${this.failures.length - shown.length} more failures`)
     }
     for (const f of this.findings) say(`FINDING ${f}`)
+  }
+
+  writeFailures(path: string): void {
+    writeFileSync(path, this.failures.map((f) => JSON.stringify(f)).join('\n'))
+    say(`${this.failures.length} failures written to ${path}`)
   }
 }
 

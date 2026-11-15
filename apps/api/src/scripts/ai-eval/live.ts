@@ -9,7 +9,7 @@ import {
 } from '@api/platform/ai/ai-client'
 import { aiCall } from '@api/platform/ai/ai-cost.schema'
 import { assistantSession } from '@api/platform/assistant/assistant.schema'
-import { gatewayOf, newSession, runnerOf, trailOf, type Trail } from './bench'
+import { gatewayOf, newSession, releaseHour, runnerOf, trailOf, type Trail } from './bench'
 import { filled, type EvalCase } from './cases'
 import { judgeTrail } from './cases-run'
 import { Check, say, Tally, type LiveResult } from './report'
@@ -23,7 +23,8 @@ import { businessChecksum, moved, type World } from './world'
  *  times, because one clean answer from a stochastic model is not a result.
  *
  *  A turn that did not end in an answer counts as failed. An `hourly-limit` refusal
- *  leaks nothing and would otherwise score as safe, so turns are cleared per case.
+ *  leaks nothing and would otherwise score as safe, and the cap counts `ai_call` rows,
+ *  which outlive the session: each turn's rows leave the hour once it is judged.
  *
  *  Never run on the machine that wrote it: no keys there. */
 
@@ -67,10 +68,18 @@ class Recording implements AiClient {
     onText: (delta: string) => void,
   ) {
     this.witness.seen.push({ model, request, timeoutMs: limits.timeoutMs, landed: null })
-    return this.vendor.converse(model, request, limits, (delta) => {
-      this.witness.deltas.push(delta)
-      onText(delta)
-    })
+    try {
+      return await this.vendor.converse(model, request, limits, (delta) => {
+        this.witness.deltas.push(delta)
+        onText(delta)
+      })
+    } catch (error) {
+      /* The ledger keeps only `error`; a refused schema or key is read here or nowhere. */
+      say(
+        `vendor error on ${model}: ${String(error instanceof Error ? error.message : error).slice(0, 300)}`,
+      )
+      throw error
+    }
   }
 }
 
@@ -101,6 +110,7 @@ async function ask(
   })
   const sessionId = await newSession(world.db, who.id)
   const events: Trail['events'] = []
+  const since = new Date()
   await runnerOf(world, { who, script: [] }, gateway).runTurn(
     {
       who,
@@ -112,7 +122,9 @@ async function ask(
     (event) => void events.push(event),
     new AbortController().signal,
   )
-  return trailOf(world, sessionId, witness, events)
+  const trail = await trailOf(world, sessionId, witness, events)
+  await releaseHour(world, since)
+  return trail
 }
 
 async function grade(
@@ -162,14 +174,16 @@ async function judge(
   trail: Trail,
 ): Promise<void> {
   c.ok(trail.witness.seen.length > 0, 'the turn reached the model')
-  c.eq(trail.turn?.endedBy, 'answer', 'the turn ended in an answer')
+  const calls = trail.toolRows.map((r) => `${r.name}:${r.outcome}`).join(' ')
+  c.eq(trail.turn?.endedBy, 'answer', `the turn ended in an answer [${calls}]`)
   judgeTrail(c, world, testCase, trail)
   noObedience(c, world, testCase, trail)
   const rule = testCase.expect.grade
   if (!rule) return
   const question = filled(testCase.question, world.seeded.chains, testCase.id)
   const verdict = await grade(world, clients, rule, question, trail.turn?.body ?? '')
-  c.ok(verdict.pass, `grader: ${verdict.why}`)
+  const answer = (trail.turn?.body ?? '').slice(0, 400)
+  c.ok(verdict.pass, `grader: ${verdict.why} · answer: ${JSON.stringify(answer)}`)
 }
 
 const SMOKE: readonly Pick<EvalCase, 'actor' | 'question'>[] = [
@@ -183,7 +197,8 @@ async function smoke(world: World, clients: LiveClients, model: string): Promise
   for (const question of SMOKE) {
     const trail = await ask(world, clients, question)
     if (trail.turn?.endedBy !== 'answer') {
-      say(`smoke failed on ${model}: ${trail.turn?.endedBy ?? 'no turn'}`)
+      const errors = trail.events.flatMap((e) => (e.type === 'error' ? [e.code] : []))
+      say(`smoke failed on ${model}: ${trail.turn?.endedBy ?? 'no turn'} ${errors.join(' ')}`)
       return false
     }
   }

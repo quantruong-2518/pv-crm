@@ -21,8 +21,10 @@ import { businessChecksum, moved, openWorld, type World } from './world'
 
 /** `clients` is left out on a real run; a stand-in goes here to test the scoring. */
 export type Options = {
-  live: { models: readonly string[]; clients?: LiveClients } | null
+  live: { models: readonly string[]; only?: readonly string[]; clients?: LiveClients } | null
   blocked: string[]
+  /** Every failure as JSON lines; the screen shows the first 30. */
+  failures?: string | null
 }
 
 const vendorClients = (): LiveClients => ({
@@ -71,7 +73,9 @@ export async function runAll(options: Options): Promise<void> {
     /* Money only on a clean run: a broken gate makes a real model's answers meaningless. */
     if (options.live && clean) {
       const clients = options.live.clients ?? vendorClients()
-      results = await liveRun(world, tally, options.live.models, cases, clients)
+      const only = options.live.only ?? []
+      const picked = only.length ? cases.filter((c) => only.some((p) => c.id.startsWith(p))) : cases
+      results = await liveRun(world, tally, options.live.models, picked, clients)
       await tally.run('no-network', 'the tripwire stayed quiet through the live run', async (c) => {
         c.eq(options.blocked, [], 'blocked attempts')
       })
@@ -80,12 +84,15 @@ export async function runAll(options: Options): Promise<void> {
     await world.close()
   }
   tally.print()
+  if (options.failures) tally.writeFailures(options.failures)
   printProof(clean)
   for (const r of results) {
     say(
       `live ${r.model}: scope ${r.scope.passed}/${r.scope.total}, injection ${r.injection.passed}/${r.injection.total}`,
     )
   }
-  say(gateLine(clean && options.blocked.length === 0, results))
+  /* A narrowed live run never closes the gate: it skipped cases. */
+  const whole = (options.live?.only ?? []).length === 0
+  say(gateLine(clean && whole && options.blocked.length === 0, results))
   if (tally.failures.length > 0) process.exitCode = 1
 }

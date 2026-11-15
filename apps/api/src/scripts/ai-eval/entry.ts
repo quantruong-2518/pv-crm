@@ -8,7 +8,8 @@ import {
 } from './safety'
 import { say } from './report'
 
-/** `pnpm ai:eval -- --suite assistant [--live --yes --model <id>...]`.
+/** `pnpm ai:eval -- --suite assistant [--live --yes --model <id>... --case <id prefix>...]
+ *  [--failures <file>]`. `--case` narrows the live cases only, so its gate stays OPEN.
  *
  *  `report` and `safety` import nothing of the app, and the rest of the
  *  suite is imported only after the overwrite below, so no module of the app is
@@ -25,10 +26,24 @@ const refuse = (why: string): void => {
   process.exitCode = 1
 }
 
-type Parsed = { live: boolean; yes: boolean; models: string[]; fault: string | null }
+type Parsed = {
+  live: boolean
+  yes: boolean
+  models: string[]
+  only: string[]
+  failures: string | null
+  fault: string | null
+}
 
 function parse(args: readonly string[]): Parsed {
-  const parsed: Parsed = { live: false, yes: false, models: [], fault: null }
+  const parsed: Parsed = {
+    live: false,
+    yes: false,
+    models: [],
+    only: [],
+    failures: null,
+    fault: null,
+  }
   const rest = args.filter((a) => a !== '--')
   for (let i = 0; i < rest.length; i += 1) {
     const flag = rest[i] as string
@@ -42,13 +57,24 @@ function parse(args: readonly string[]): Parsed {
       if (value) parsed.models.push(value)
       else parsed.fault = '--model needs an id'
       i += 1
+    } else if (flag === '--case') {
+      if (value) parsed.only.push(value)
+      else parsed.fault = '--case needs a case id prefix'
+      i += 1
+    } else if (flag === '--failures') {
+      if (value) parsed.failures = value
+      else parsed.fault = '--failures needs a file'
+      i += 1
     } else parsed.fault = `unknown flag ${flag}: this suite has no such option`
   }
   return parsed
 }
 
 function liveFault(p: Parsed): string | null {
-  if (!p.live) return p.models.length > 0 ? '--model needs --live' : null
+  if (!p.live) {
+    if (p.only.length > 0) return '--case needs --live'
+    return p.models.length > 0 ? '--model needs --live' : null
+  }
   if (!p.yes) return '--live costs money: add --yes to mean it'
   if (p.models.length === 0) return '--live needs at least one --model <id>'
   const missing = ['GEMINI_API_KEY', 'ANTHROPIC_API_KEY'].filter((k) => !process.env[k])
@@ -74,7 +100,8 @@ export async function runSuite(args: readonly string[]): Promise<void> {
 
   say(`Target: ${MEMORY_URL} · ${p.live ? `live: ${p.models.join(', ')}` : 'scripted, no keys'}`)
   const { runAll } = await import('./suite')
-  await runAll({ live: p.live ? { models: p.models } : null, blocked }).catch((error: unknown) => {
+  const live = p.live ? { models: p.models, only: p.only } : null
+  await runAll({ live, blocked, failures: p.failures }).catch((error: unknown) => {
     say('gate 0: OPEN')
     throw error
   })
