@@ -10,6 +10,7 @@ import {
   type NotificationKind,
 } from '@pv/contracts'
 import { NOTIFICATION_DIGEST } from '@pv/engines'
+import { cutOf, isWeekend, vietnamDay, vietnamHour } from '../clock/vietnam-clock'
 import { DB, type Db } from '../db/db.module'
 import { NotificationPolicyRepository } from './notification-policy.repository'
 import { NotificationHub } from './notification.hub'
@@ -22,7 +23,6 @@ const DAY_MS = 24 * 60 * 60_000
  *  4 days is the Friday-to-Monday gap plus one working day, so a missed
  *  Monday or Friday pass still sees the digest before it. */
 const LOOKBACK_MS = 4 * DAY_MS
-const VIETNAM_MS = 7 * 60 * 60_000
 
 /** Which `detail` key counts each digested kind (the contract's four keys). */
 const COUNT_KEY: Partial<Record<NotificationKind, string>> = {
@@ -36,22 +36,6 @@ const COUNT_KEY: Partial<Record<NotificationKind, string>> = {
  *  beats a forecast (ADR 0145 §3). */
 const rank = (kind: NotificationKind): number =>
   kind === 'kpi-counter-proposed' ? 0 : kind === 'kpi-counter-resolved' ? 1 : 2
-
-/** Vietnam is UTC+7 all year; the same fixed shift `kpi-rules.ts` uses, local
- *  here because `platform/` may not import a branch. */
-const vietnamClock = (at: number): { day: string; hour: number } => {
-  const shifted = new Date(at + VIETNAM_MS)
-  return { day: shifted.toISOString().slice(0, 10), hour: shifted.getUTCHours() }
-}
-
-/** The 08:00 Vietnam cut of a Vietnam day. */
-const cutOf = (day: string): number => Date.parse(`${day}T08:00:00+07:00`)
-
-/** Saturday or Sunday of a Vietnam day (`YYYY-MM-DD`). */
-const isWeekend = (day: string): boolean => {
-  const weekday = new Date(`${day}T00:00:00Z`).getUTCDay()
-  return weekday === 0 || weekday === 6
-}
 
 /** A forecast line covers several metrics and says how many; a line written
  *  before that key existed counts as one. */
@@ -88,11 +72,12 @@ export class NotificationDigestSweeper {
 
   /** Called on every worker tick. `null` = this tick was not a pass. */
   async sweep(now = Date.now()): Promise<number | null> {
-    if (this.running || now < this.notBefore || vietnamClock(now).hour < FROM_HOUR) return null
+    if (this.running || now < this.notBefore || vietnamHour(now) < FROM_HOUR) return null
     this.running = true
     try {
-      const cut = cutOf(vietnamClock(now).day)
-      if (isWeekend(vietnamClock(now).day)) {
+      const day = vietnamDay(now)
+      const cut = cutOf(day, FROM_HOUR)
+      if (isWeekend(day)) {
         this.notBefore = cut + DAY_MS
         return null
       }
@@ -108,7 +93,7 @@ export class NotificationDigestSweeper {
   }
 
   private pass(cut: number): Promise<number> {
-    const day = vietnamClock(cut).day
+    const day = vietnamDay(cut)
     const isMonday = new Date(`${day}T00:00:00Z`).getUTCDay() === 1
     return this.db.transaction(async (tx) => {
       const lastDigest = await this.repo.lastCreated(tx, 'kpi-digest', new Date(cut - LOOKBACK_MS))
@@ -118,7 +103,7 @@ export class NotificationDigestSweeper {
       for (const row of rows) {
         const last = lastDigest.get(row.recipientId)
         const from = last
-          ? cutOf(vietnamClock(last.getTime()).day)
+          ? cutOf(vietnamDay(last.getTime()), FROM_HOUR)
           : cut - (isMonday ? 3 : 1) * DAY_MS
         if (row.createdAt.getTime() < from) continue
         byPerson.set(row.recipientId, [...(byPerson.get(row.recipientId) ?? []), row])

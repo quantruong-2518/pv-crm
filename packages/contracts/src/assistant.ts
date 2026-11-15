@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { COMM_CONFIRM_WITHIN_HOURS } from './comms/thread'
 import { Moment } from './primitives'
 import { AfterSaleCareStatus, AfterSaleTemperatureFilter } from './sales/after-sale'
 import { KpiPeriodKey } from './sales/kpi'
@@ -234,10 +235,51 @@ export type GetHistoryInput = z.infer<typeof GetHistoryInput>
  *  a shared pool with no holder and deals have no nurturing state, so neither is "mine". */
 export const ListMyWorkInput = z
   .object({
-    kind: z.enum(['lead', 'opportunity', 'next-step', 'approval', 'parked', 'meeting']).optional(),
+    kind: z
+      .enum([
+        'lead',
+        'opportunity',
+        'next-step',
+        'approval',
+        'parked',
+        'meeting',
+        'stale-deal',
+        'late-debrief',
+        'overdue-contract',
+      ])
+      .optional(),
   })
   .strict()
 export type ListMyWorkInput = z.infer<typeof ListMyWorkInput>
+
+/** The kinds of `ListMyWorkInput` that count as today's work (ADR 0154). */
+export const MyWorkSection = z.enum([
+  'next-step',
+  'approval',
+  'meeting',
+  'parked',
+  'stale-deal',
+  'late-debrief',
+  'overdue-contract',
+])
+export type MyWorkSection = z.infer<typeof MyWorkSection>
+
+/** One ledger for the section names: the card, the bell and the email all print these. */
+export const MY_WORK_SECTION_LABEL: Record<MyWorkSection, string> = {
+  'next-step': 'Bước tiếp theo đến hạn',
+  approval: 'Chờ bạn duyệt',
+  meeting: 'Cuộc họp hôm nay',
+  parked: 'Khách tạm hoãn đến hạn liên hệ',
+  'stale-deal': 'Cơ hội lâu chưa có hoạt động',
+  'late-debrief': `Liên hệ chưa xác nhận quá ${COMM_CONFIRM_WITHIN_HOURS} giờ`,
+  'overdue-contract': 'Hợp đồng có đợt thu quá hạn',
+}
+
+/** Morning-brief lines; the server rejects any line holding a digit or an object code, so the model names no figures. */
+export const AssistantBriefModelOutput = z
+  .object({ lines: z.array(z.string().min(1).max(160)).min(1).max(3) })
+  .strict()
+export type AssistantBriefModelOutput = z.infer<typeof AssistantBriefModelOutput>
 
 /** `.strict()` so a model-supplied `carer` or actor id fails parsing instead of being ignored.
  *  `mine` means the asker: the server fills in their id, and no field can name anyone else. */

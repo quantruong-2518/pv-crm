@@ -42,6 +42,7 @@ import { AssistantController } from './assistant.controller'
 import { AssistantRepository } from './assistant.repository'
 import { assistantMessage, assistantReport, assistantSession } from './assistant.schema'
 import { AssistantService } from './assistant.service'
+import { MyWorkService } from './my-work.service'
 
 /** The `/assistant` doors on the real migrations, gateway and runner, with a
  *  scripted vendor: no network, no key. The guards are asked over the handlers'
@@ -243,7 +244,11 @@ function doors(client: Scripted) {
   const turns = new AssistantTurns(runner, gateway, sessions)
   const access = createAccessControl()
   const service = new AssistantService(sessions, repo, gate, turns, routes, audits, access)
-  return { turns, service, controller: new AssistantController(service, turns) }
+  return {
+    turns,
+    service,
+    controller: new AssistantController(service, turns, new MyWorkService(gate)),
+  }
 }
 
 /** One turn through `AssistantTurns.run`, as the controller drives it. */

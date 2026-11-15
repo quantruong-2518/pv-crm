@@ -1,6 +1,6 @@
 # 0152 · The assistant reads contacts, campaigns and workstreams through their profile doors, lists approvals, holds and meetings on `list_my_work`, shrinks over-budget results, and offers "Phân tích kỹ" as a person's switch
 
-Status: accepted
+Status: accepted (amended by 0154: `list_my_work` gains `stale-deal`, `late-debrief` and `overdue-contract`)
 Date: 2026-11-15
 Source: wave 1b of the CRM assistant, on branch `assistant-wave-1b` (not merged); plan in the Claude doc https://claude.ai/artifact/1r7zdgWt8CBWWCK52DCvCR, section "Kế hoạch phủ đủ sản phẩm"
 

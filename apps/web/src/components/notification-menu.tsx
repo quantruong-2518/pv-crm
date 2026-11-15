@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Button, SegmentedControl, Skeleton } from '@pv/ui'
 import type { NotificationRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
@@ -12,6 +12,7 @@ import {
   unreadIds,
   useMarkNotificationsRead,
 } from '@/data/notifications'
+import { openAssistant } from '@/data/assistant-live'
 import { NotificationList } from './notification-list'
 import { message, useI18n } from '@/app/i18n'
 
@@ -40,6 +41,7 @@ export function NotificationMenu({
 }) {
   const { t } = useI18n()
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const [tab, setTab] = useState<'all' | 'unread'>('all')
   const everything = useInfiniteQuery(notificationListQuery())
   const unreadOnly = useInfiniteQuery({
@@ -70,7 +72,8 @@ export function NotificationMenu({
     if (ids.length) markRead.mutate({ ids })
     if (!path) return
     close()
-    navigate(path)
+    if (lines[0]?.kind === 'assistant-brief') openAssistant(pathname)
+    else navigate(path)
   }
 
   const rows = list.data?.rows.slice(0, NOTIFICATION_PAGE_SIZE) ?? []

@@ -166,6 +166,19 @@ export class NotificationHub {
     )
   }
 
+  /** Whether this person already holds the line with this event key; a failed
+   *  read rejects, so a sweeper retries instead of announcing twice. */
+  lineExists(tx: Db, recipientId: string, eventKey: string): Promise<boolean> {
+    return this.repo.lineExists(tx, recipientId, eventKey)
+  }
+
+  /** `inRoles` for a sweeper whose whole pass is the audience: it rejects instead
+   *  of answering nobody, so a failed read at the cut is retried, not a lost day. */
+  inRolesOrFail(tx: Db, roles: RoleId[], branch?: Branch): Promise<string[]> {
+    if (roles.length === 0) return Promise.resolve([])
+    return this.repo.activeInRoles(tx, roles, branch)
+  }
+
   /** `inRoles` without own-only people: a role audience for one record, which
    *  someone who may only see their own could not open unless they hold it. */
   sharedInRoles(tx: Db, roles: RoleId[], branch?: Branch): Promise<string[]> {

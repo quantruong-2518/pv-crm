@@ -8,10 +8,11 @@ import {
   AssistantReadKind,
   type AssistantRef,
   type ListMyWorkInput,
+  type MyWorkSection,
 } from '@pv/contracts'
 import type { Actor } from '@pv/engines'
 import { z } from 'zod'
-import { door } from '@api/platform/assistant/assistant-tools'
+import { door, type WorkItem } from '@api/platform/assistant/assistant-tools'
 import { maskContact } from '@api/platform/assistant/assistant-contact'
 import { ApprovalController } from '@api/platform/approval/approval.controller'
 import { ApprovalService } from '@api/platform/approval/approval.service'
@@ -39,6 +40,9 @@ import { kindOfCode } from './record-read-kit'
 export const LIST_SIZE = 20
 
 export type ExtraSection = 'approval' | 'parked' | 'meeting'
+
+/** Step and hold levels that are today's work (ADR 0154 §1): a step not yet due is not. */
+export const TODAY_LEVELS: ReadonlySet<string> = new Set(['due', 'overdue', 'long-overdue'])
 
 /** Two doors for approvals: the inbox and the asker's own requests are two routes. */
 export const EXTRA_DOORS = {
@@ -86,7 +90,7 @@ const MeetingTrusted = z.object({
 })
 
 /** Null = the service refused (403 or 404); anything else is a failure. */
-async function soft<T>(read: () => Promise<T>): Promise<T | null> {
+export async function soft<T>(read: () => Promise<T>): Promise<T | null> {
   try {
     return await read()
   } catch (error) {
@@ -96,17 +100,22 @@ async function soft<T>(read: () => Promise<T>): Promise<T | null> {
   }
 }
 
-const listOf = <R, V>(rows: readonly R[], row: (r: R) => V) => ({
+export const listOf = <R, V>(rows: readonly R[], row: (r: R) => V) => ({
   rows: rows.slice(0, LIST_SIZE).map(row),
   more: rows.length > LIST_SIZE,
 })
 
-export type Extra = {
+export type Extra<S extends string = ExtraSection> = {
   data: Record<string, object>
   /** Sections the service itself refused, on top of the doors the gate shut. */
-  refused: ExtraSection[]
+  refused: S[]
   rowCount: number
   refs: AssistantRef[]
+  /** The refs whose code is stored with the call: only what its re-check door reaches. */
+  codes: string[]
+  workItems: WorkItem[]
+  /** Sections whose items are known incomplete; the extra sections read whole. */
+  workCut: MyWorkSection[]
 }
 
 export async function readExtra(
@@ -131,6 +140,7 @@ export async function readExtra(
     return mayReach ? value : (maskContact(value) as T)
   }
   const refs: AssistantRef[] = []
+  const workItems: WorkItem[] = []
 
   /* A link keeps its kind and label, never its code: a code would be re-checked on reload
      through a stricter book door, and the whole answer withheld if the asker cannot open it. */
@@ -157,6 +167,18 @@ export async function readExtra(
     }
   }
 
+  /* Items come from the whole read, not the LIST_SIZE rows shown; raised approvals never count. */
+  workItems.push(
+    ...(own ?? [])
+      .filter((r) => TODAY_LEVELS.has(r.dueLevel))
+      .map((r) => ({ section: 'parked' as const, code: r.code })),
+  )
+  if (waiting && raised) {
+    workItems.push(...waiting.rows.map(() => ({ section: 'approval' as const, code: null })))
+  }
+  const meetingCount = meeting ? (meeting.next ? 1 : 0) + meeting.remaining : 0
+  for (let i = 0; i < meetingCount; i++) workItems.push({ section: 'meeting', code: null })
+
   const data = {
     ...(waiting &&
       raised && {
@@ -181,5 +203,5 @@ export async function readExtra(
       : 0) +
     (data.holds?.rows.length ?? 0) +
     (meeting?.next ? 1 : 0)
-  return { data, refused, rowCount, refs }
+  return { data, refused, rowCount, refs, codes: refs.map((r) => r.code), workItems, workCut: [] }
 }

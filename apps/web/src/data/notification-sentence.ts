@@ -6,6 +6,9 @@ import {
   NOTIFICATION_DETAIL_NO,
   NOTIFICATION_DETAIL_PROPOSED,
   NOTIFICATION_DETAIL_REASON,
+  MyWorkSection,
+  NOTIFICATION_DETAIL_FLOOR,
+  NOTIFICATION_DETAIL_SUMMARY,
   NOTIFICATION_DETAIL_RESOLVED,
   NOTIFICATION_DETAIL_SLIP,
   NOTIFICATION_DETAIL_STEPS,
@@ -129,7 +132,29 @@ function digestSentence(row: NotificationRow, lang: Lang): string | null {
   return said.length > 0 ? said.join(' · ') : null
 }
 
+/** `assistant-brief`: the total of the section counts (a floor when cut), then the model's lines when it wrote any. */
+function briefSentence(row: NotificationRow, lang: Lang): string {
+  const total = MyWorkSection.options.reduce((sum, key) => {
+    const value = row.detail?.[key]
+    return typeof value === 'number' ? sum + value : sum
+  }, 0)
+  const atLeast = row.detail?.[NOTIFICATION_DETAIL_FLOOR] === 1
+  const count = formatNumber(total, lang)
+  const lead = translate(
+    message(
+      `Hôm nay bạn có ${atLeast ? 'ít nhất ' : ''}${count} việc.`,
+      `You have ${atLeast ? 'at least ' : ''}${count} tasks today.`,
+      `오늘 할 일이 ${atLeast ? '최소 ' : ''}${count}개 있습니다.`,
+    ),
+    lang,
+  )
+  const summary = row.detail?.[NOTIFICATION_DETAIL_SUMMARY]
+  /* The summary is model text in Vietnamese only. */
+  return lang === 'vi' && typeof summary === 'string' && summary ? `${lead} ${summary}` : lead
+}
+
 function otherSentence(row: NotificationRow, lang: Lang): string | null {
+  if (row.kind === 'assistant-brief') return briefSentence(row, lang)
   if (lang === 'vi') return notificationSentence(row)
   const name = row.subject.label
   const count = (key: string) => {

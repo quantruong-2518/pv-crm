@@ -19,9 +19,11 @@ import {
   type FooterReads,
   type ToolDoor,
   type ToolRead,
+  type WorkItem,
 } from '@api/platform/assistant/assistant-tools'
 import { PvError } from '@api/platform/http/problem'
 import { zod } from '@api/platform/http/zod.pipe'
+import type { ContractService } from '../contract/contract.service'
 import { LeadController } from '../lead/lead.controller'
 import type { LeadService } from '../lead/lead.service'
 import { OpportunityStepController } from '../next-step/next-step-opportunity.controller'
@@ -35,15 +37,25 @@ import {
   LIST_SIZE,
   readExtra,
   SECTION_OF_DOOR,
+  TODAY_LEVELS,
   type ExtraDoor,
   type ExtraSection,
 } from './list-my-work-extra'
+import {
+  readToday,
+  SECTION_OF_TODAY_DOOR,
+  TODAY_DOORS,
+  type TodayDoor,
+  type TodaySection,
+} from './list-my-work-today'
 import { shrinkRows } from './shrink-rows'
 
 /** `list_my_work`: the asker's own open leads, open deals and next steps, never
  *  all a role may read, so a director gets their own desk and not the company.
  *  Approvals, holds and today's meetings are three more sections in
- *  `list-my-work-extra.ts`, each behind its own door and read only when its kind is named.
+ *  `list-my-work-extra.ts`, and quiet deals, late debriefs and overdue contracts three
+ *  in `list-my-work-today.ts`, each behind its own door and read only when its kind is named.
+ *  `workItems` lists the rows that count as today's work (ADR 0154), for the card and the brief.
  *
  *  Leads: the lead book with `owner` = the asker. Deals: the deal book once per
  *  lane, `sale` and `bd` = the asker, the book's own "my deals" filters. Steps:
@@ -57,7 +69,7 @@ import { shrinkRows } from './shrink-rows'
 const STEP_READS = 20
 const STEP_PARALLEL = 4
 
-type Door = 'lead' | 'opportunity' | 'lead-step' | 'opportunity-step' | ExtraDoor
+type Door = 'lead' | 'opportunity' | 'lead-step' | 'opportunity-step' | ExtraDoor | TodayDoor
 type Kind = NonNullable<ListMyWorkInput['kind']>
 
 const DESK: readonly Door[] = ['lead', 'opportunity', 'lead-step', 'opportunity-step']
@@ -68,6 +80,9 @@ const DOORS: Record<Kind | 'all', readonly Door[]> = {
   approval: ['approvalWaiting', 'approvalRaised'],
   parked: ['hold'],
   meeting: ['meeting'],
+  'stale-deal': ['staleDeal'],
+  'late-debrief': ['lateDebrief'],
+  'overdue-contract': ['overdueContract'],
   /* The extra sections are named, never defaulted: a plain call keeps the desk's size. */
   all: DESK,
 }
@@ -80,15 +95,19 @@ const WORK_LISTS = [
   ['approvals', 'waitingOnMe', 'rows'],
   ['approvals', 'raisedByMe', 'rows'],
   ['holds', 'rows'],
+  ['staleDeals', 'rows'],
+  ['lateDebriefs', 'rows'],
+  ['overdueContracts', 'rows'],
 ] as const
 
 /** What the model is told was not read: a step door is a lead or deal part. */
-const SECTION_OF: Record<Door, 'lead' | 'opportunity' | ExtraSection> = {
+const SECTION_OF: Record<Door, 'lead' | 'opportunity' | ExtraSection | TodaySection> = {
   lead: 'lead',
   'lead-step': 'lead',
   opportunity: 'opportunity',
   'opportunity-step': 'opportunity',
   ...SECTION_OF_DOOR,
+  ...SECTION_OF_TODAY_DOOR,
 }
 
 /** The kinds that read the lead and deal books; the others read none of them. */
@@ -133,7 +152,8 @@ export type WorkDoors = {
   opportunities: OpportunityService
   leadSteps: NextStepService
   dealSteps: OpportunityStepService
-  /** The approval, hold and meeting services are fetched through it, per section. */
+  contracts: ContractService
+  /** The approval, hold, meeting and debrief services are fetched through it, per section. */
   modules: ModuleRef
   mayReach: (who: Actor) => boolean
   /** A chip as `get_record` makes it, masked by the live `data.export` grant. */
@@ -227,14 +247,18 @@ async function run(
           })),
         )
   const extra = await readExtra(d, who, kind, open)
+  const today = await readToday(d, who, kind, open)
   const books = onDesk(kind) && kind !== 'next-step' ? [leads, deals] : []
   const deskRefs = kind === 'next-step' ? steps.map((s) => s.ref) : [...leadRefs, ...dealRefs]
-  const refs = [...(onDesk(kind) ? deskRefs : []), ...extra.refs]
+  const refs = [...(onDesk(kind) ? deskRefs : []), ...extra.refs, ...today.refs]
   /* A kind behind a refused door is unknown, not empty: the model must say so. */
   const shut = DOORS[kind ?? 'all']
     .filter((door) => !open.has(door))
     .map((door) => SECTION_OF[door])
-  const skipped = [...new Set([...shut, ...extra.refused])]
+  const skipped = [...new Set([...shut, ...extra.refused, ...today.refused])]
+  /* Some desk doors shut: the step count is what the open ones could read, a floor. */
+  const stepsPartial =
+    (kind === undefined || kind === 'next-step') && shut.length > 0 && shut.length < DESK.length
   const desk = {
     leads: books.length > 0 ? leads.rows.map((r) => LeadTrusted.parse(r)) : [],
     opportunities: books.length > 0 ? deals.rows.map((r) => DealTrusted.parse(r)) : [],
@@ -242,13 +266,30 @@ async function run(
     /* A step list is cut when its books were, or when the step budget ran out. */
     more: leads.more || deals.more || cut,
   }
-  const rowCount = desk.leads.length + desk.opportunities.length + steps.length + extra.rowCount
+  const rowCount =
+    desk.leads.length + desk.opportunities.length + steps.length + extra.rowCount + today.rowCount
+  const dueSteps: WorkItem[] = steps
+    .filter((s) => TODAY_LEVELS.has(s.step.dueLevel))
+    .map((s) => ({ section: 'next-step', code: s.ref.code }))
+  const deskCodes = (onDesk(kind) ? deskRefs : []).map((r) => r.code)
   return {
-    data: { trusted: onDesk(kind) ? { skipped, ...desk } : { skipped }, ...extra.data },
-    codes: [...new Set(refs.map((r) => r.code))],
+    data: {
+      trusted: onDesk(kind) ? { skipped, ...desk } : { skipped },
+      ...extra.data,
+      ...today.data,
+    },
+    codes: [...new Set([...deskCodes, ...extra.codes, ...today.codes])],
     rowCount,
     hidden: books.length > 0 ? leads.hidden + deals.hidden : null,
     refs,
+    workItems: [...dueSteps, ...extra.workItems, ...today.workItems],
+    workCut: [
+      ...extra.workCut,
+      ...today.workCut,
+      ...((desk.more || stepsPartial) && (kind === undefined || kind === 'next-step')
+        ? ['next-step' as const]
+        : []),
+    ],
   }
 }
 
@@ -258,24 +299,26 @@ const DOOR_MAP: Record<Door, ToolDoor> = {
   'lead-step': door(NextStepController, 'get'),
   'opportunity-step': door(OpportunityStepController, 'get'),
   ...EXTRA_DOORS,
+  ...TODAY_DOORS,
 }
 
 export const listMyWork = (d: WorkDoors): AssistantTool =>
   defineTool({
     name: 'list_my_work',
     description:
-      "The asker's own open leads, open opportunities and next steps they must do, as codes, states and dates. No names on those rows: read one with get_record. Approval, parked and meeting are read only when named: approval = requests waiting for their decision and ones they raised; parked = their own holds; meeting = their next meeting today and how many follow.",
+      "The asker's own open leads, open opportunities and next steps they must do, as codes, states and dates. No names on those rows: read one with get_record. Approval, parked, meeting, stale-deal, late-debrief and overdue-contract are read only when named: approval = requests waiting for their decision and ones they raised; parked = their own holds; meeting = their next meeting today and how many follow; stale-deal = their open opportunities with no recent customer activity; late-debrief = contacts they have not yet written up, past their day; overdue-contract = contracts they own or collect with an overdue installment.",
     input: ListMyWorkInput,
     doors: DOOR_MAP,
     /* A service-level refusal of a section is reported in `skipped`, not as a failed call. */
-    optional: Object.keys(EXTRA_DOORS) as ExtraDoor[],
+    optional: [...Object.keys(EXTRA_DOORS), ...Object.keys(TODAY_DOORS)] as (
+      ExtraDoor | TodayDoor
+    )[],
     doorFor: (input) => DOORS[input.kind ?? 'all'],
     run: (who, input, open) => run(d, who, input, open),
     readsOf,
-    /* These sections are counted by `readsOf`; their refs must not count a second time. */
+    /* These sections are counted by `readsOf`, or have no footer kind and keep none of their
+       refs; either way their refs must not count. A debrief's subject chip is not stored. */
     refsCounted: (input) =>
-      input.kind === 'approval' || input.kind === 'parked' || input.kind === 'meeting'
-        ? 'none'
-        : 'all',
+      ['approval', 'parked', 'meeting', 'late-debrief'].includes(input.kind ?? '') ? 'none' : 'all',
     shrink: (output, fits) => shrinkRows(output, WORK_LISTS, fits),
   })

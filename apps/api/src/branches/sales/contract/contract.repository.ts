@@ -733,6 +733,8 @@ export class ContractRepository {
         : undefined,
       q.status === 'terminated' ? contractTerminated(contract.code) : undefined,
       q.owner ? this.byOwner(q.owner) : undefined,
+      /* The payment PIC: no `OWNER_NONE`, since "nobody collects" is not a person's work. */
+      q.collector ? inArray(contract.collectorId, listOf(q.collector)) : undefined,
       q.signedFrom
         ? sql`${contract.signedAt} >= (${q.signedFrom}::date)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh'`
         : undefined,

@@ -83,7 +83,6 @@ export function AssistantAnswerText({
             code={ref.code}
             label={openLabel(ref.code, lang)}
             onOpen={() => openPath(refPath(ref))}
-            className="pointer-coarse:after:-inset-y-2"
           />,
         )
       } else if (g.code) {

@@ -26,6 +26,7 @@ import { CurrentActor } from '../session/current-actor.decorator'
 import { openTurnStream } from './assistant-stream'
 import { ASSISTANT_NEED, AssistantTurns } from './assistant-turns'
 import { AssistantService } from './assistant.service'
+import { MyWorkService } from './my-work.service'
 
 /** `/assistant` — the CRM assistant chat, wave 1 (contract: `assistant-http.ts`).
  *
@@ -38,6 +39,7 @@ export class AssistantController {
   constructor(
     private readonly assistant: AssistantService,
     private readonly turns: AssistantTurns,
+    private readonly work: MyWorkService,
   ) {}
 
   @Get('availability')
@@ -68,6 +70,13 @@ export class AssistantController {
   @Need(ASSISTANT_NEED)
   stop(@CurrentActor() who: Actor, @Param(zod(AssistantIdParams)) p: AssistantIdParams): void {
     this.turns.stop(who, p.id)
+  }
+
+  /** Today's work of the asker only, read live through the same doors as the chat; no model. */
+  @Get('my-work')
+  @Need(ASSISTANT_NEED)
+  myWork(@CurrentActor() who: Actor) {
+    return this.work.read(who)
   }
 
   @Get('sessions')

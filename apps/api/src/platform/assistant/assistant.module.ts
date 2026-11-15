@@ -2,7 +2,13 @@ import { Module, type DynamicModule, type ModuleMetadata, type Type } from '@nes
 import { AiModule } from '../ai/ai.module'
 import { AuditModule } from '../audit/audit.module'
 import { EnginesModule } from '../engines/engines.module'
+import { MailModule } from '../mail/mail.module'
+import { NotificationModule } from '../notification/notification.module'
+import { RolesModule } from '../roles/roles.module'
+import { SessionModule } from '../session/session.module'
 import { AssistantBootSweeper } from './assistant-boot.sweeper'
+import { AssistantBriefMailer } from './assistant-brief.mailer'
+import { AssistantBriefSweeper } from './assistant-brief.sweeper'
 import { AssistantRunner } from './assistant-loop'
 import { AssistantSessionRepository } from './assistant-session.repository'
 import { AssistantSummarizer } from './assistant-summary'
@@ -11,6 +17,7 @@ import { AssistantTurns } from './assistant-turns'
 import { AssistantController } from './assistant.controller'
 import { AssistantRepository } from './assistant.repository'
 import { AssistantService } from './assistant.service'
+import { MyWorkService } from './my-work.service'
 
 /** The CRM assistant (ADR 0133). Wave 1 opens `/assistant` to holders of
  *  `assistant.use`, and only while the `assistant` route is on.
@@ -19,7 +26,15 @@ import { AssistantService } from './assistant.service'
  *  branch, so the composition root hands over the branch's class. The plain module
  *  leaves `ASSISTANT_TOOLS` unbound and refuses to boot. */
 @Module({
-  imports: [AiModule, AuditModule, EnginesModule],
+  imports: [
+    AiModule,
+    AuditModule,
+    EnginesModule,
+    MailModule,
+    NotificationModule,
+    RolesModule,
+    SessionModule,
+  ],
   controllers: [AssistantController],
   providers: [
     AssistantRepository,
@@ -30,6 +45,9 @@ import { AssistantService } from './assistant.service'
     AssistantTurns,
     AssistantService,
     AssistantBootSweeper,
+    MyWorkService,
+    AssistantBriefMailer,
+    AssistantBriefSweeper,
   ],
 })
 export class AssistantModule {

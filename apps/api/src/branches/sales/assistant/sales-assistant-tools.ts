@@ -464,6 +464,7 @@ export class SalesAssistantTools implements AssistantToolSource {
         opportunities: this.opportunities,
         leadSteps: this.leadSteps,
         dealSteps: this.dealSteps,
+        contracts: this.contracts,
         modules: this.modules,
         mayReach: (who) => this.mayReach(who),
         refOf: (who, kind, code, label) => refOf(kind, code, label, this.mayReach(who)),

@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, type Type } from '@nestjs/common'
 import { PATH_METADATA } from '@nestjs/common/constants'
 import { Reflector } from '@nestjs/core'
-import type { AssistantRef, AssistantToolOutcome } from '@pv/contracts'
+import type { AssistantRef, AssistantToolOutcome, MyWorkSection } from '@pv/contracts'
 import type { AccessControl, Actor, DenyReason, Permission } from '@pv/engines'
 import { z, type ZodType } from 'zod'
 import { NEED_KEY, PUBLIC_KEY, type RouteNeed } from '../access/need.decorator'
@@ -31,6 +31,10 @@ export const door = <C>(controller: Type<C>, handler: keyof C & string): ToolDoo
   handler,
 ]
 
+/** One row of today's work. A null code counts but has no chip: its door gives no record code
+ *  by design (approval links keep kind and label only; the meeting door gives a time). */
+export type WorkItem = { section: MyWorkSection; code: string | null }
+
 /** What a door answered, already projected. `data` splits each record into
  *  `trusted` (only values whose zod type is a whitelisted code, enum, id, date or
  *  number, D5) and `untrusted`. `hidden` is the door's own count, null when it
@@ -42,6 +46,11 @@ export type ToolRead = {
   rowCount: number
   hidden: number | null
   refs?: readonly AssistantRef[]
+  /** The rows that count as today's work, for the card and the brief; like `refs` it
+   *  never reaches a model and is not stored. */
+  workItems?: readonly WorkItem[]
+  /** Sections whose `workItems` are known to be incomplete: the door gave less than it holds. */
+  workCut?: readonly MyWorkSection[]
   /** Text a reader needs `ToolSpec.reveals` to see went into `data`: the stored
    *  answer is then withheld from a reader without it. */
   revealsContent?: boolean
@@ -196,6 +205,9 @@ export type ToolVerdict = {
   skipped: readonly { door: string; reason: DenyReason }[]
   latencyMs: number | null
   refs: readonly AssistantRef[]
+  /** Empty when the tool gave none or the call was refused or failed. */
+  workItems: readonly WorkItem[]
+  workCut: readonly MyWorkSection[]
   reads: FooterReads
   counted: RefsCounted
   revealsContent: boolean
@@ -216,6 +228,8 @@ export const notRun = (
   skipped: [],
   latencyMs: null,
   refs: [],
+  workItems: [],
+  workCut: [],
   reads: {},
   counted: 'all',
   revealsContent: false,
@@ -401,6 +415,9 @@ export class AssistantToolGate {
       return {
         ...notRun('ok', output),
         ...counts,
+        /* Written after the spread: a tool that leaves it undefined must not blank the default. */
+        workItems: counts.workItems ?? [],
+        workCut: counts.workCut ?? [],
         reads: entry.tool.readsOf?.(call.input, counts) ?? {},
         counted: entry.tool.refsCounted?.(call.input) ?? 'all',
         revealsContent: counts.revealsContent === true,

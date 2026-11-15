@@ -71,6 +71,24 @@ const agoHours = (h) => new Date(Date.now() - h * 3_600_000).toISOString()
 
 const SAMPLES = [
   {
+    slug: 'assistant-brief',
+    title: 'Bản tin sáng · trợ lý CRM',
+    note: 'Chỉ có số đếm và một liên kết; không tên khách, không mã, không chữ của AI.',
+    render: (m, assetBaseUrl) =>
+      m.renderAssistantBrief({
+        rows: [
+          { label: 'Bước tiếp theo đến hạn', count: 4 },
+          { label: 'Chờ bạn duyệt', count: 2 },
+          { label: 'Cuộc họp hôm nay', count: 1 },
+          { label: 'Cơ hội lâu chưa có hoạt động', count: 3 },
+        ],
+        total: 10,
+        atLeast: true,
+        openUrl: `${ORIGIN}/`,
+        assetBaseUrl,
+      }),
+  },
+  {
     slug: 'password-reset-invite',
     title: 'Đặt mật khẩu · lời mời',
     note: 'Vé 7 ngày. Người nhận chưa từng thấy PV One bao giờ.',

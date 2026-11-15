@@ -237,7 +237,15 @@ async function askOne(
  *  into a quiet gap in every cell. `optionalDrift` names where the two differ. */
 export const OPTIONAL_DOORS: Readonly<Record<string, readonly string[]>> = {
   get_history: ['comms', 'leadMeetings', 'dealMeetings'],
-  list_my_work: ['approvalRaised', 'approvalWaiting', 'hold', 'meeting'],
+  list_my_work: [
+    'approvalRaised',
+    'approvalWaiting',
+    'hold',
+    'meeting',
+    'staleDeal',
+    'lateDebrief',
+    'overdueContract',
+  ],
 }
 
 export function optionalDrift(tools: readonly { name: string; optional: readonly string[] }[]) {

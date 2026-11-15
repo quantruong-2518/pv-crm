@@ -216,6 +216,7 @@ const KIND: Record<NotificationKind, { en: string; ko: string }> = {
   },
   'customer-recare-due': { en: 'A customer follow-up is due', ko: '구매 고객 후속 관리일입니다' },
   'kpi-digest': { en: 'Morning KPI summary', ko: '오늘 아침 KPI 요약' },
+  'assistant-brief': { en: 'Morning brief', ko: '아침 브리핑' },
   'fx-rate-missing': {
     en: 'Exchange rate not updated',
     ko: '환율이 갱신되지 않았습니다',

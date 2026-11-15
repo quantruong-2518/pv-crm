@@ -26,6 +26,7 @@ import { LeadScanSweeper } from './branches/sales/lead/lead-scan.sweeper'
 import { OpportunityModule } from './branches/sales/opportunity/opportunity.module'
 import { OpportunityMailComposer } from './branches/sales/opportunity/opportunity-mail.composer'
 import { OpportunityMailSentHook } from './branches/sales/opportunity/opportunity-mail-sent.hook'
+import { AssistantBriefSweeper } from './platform/assistant/assistant-brief.sweeper'
 import { NotificationDigestSweeper } from './platform/notification/notification-digest.sweeper'
 import { FxRateSweeper } from './platform/fx/fx-rate.sweeper'
 import { SessionSweeper } from './platform/auth/session.sweeper'
@@ -222,6 +223,8 @@ function startSweeps(app: INestApplicationContext, log: Logger, env: Env): NodeJ
   const sweepSessions = pass('Session sweep failed', () => sessions.sweep())
   // Same: the morning bell digest, every 5 minutes from Vietnam 08:00 (ADR 0145).
   const sweepDigest = pass('Digest sweep failed', () => app.get(NotificationDigestSweeper).sweep())
+  // Same: the assistant's morning brief, from Vietnam 08:00 on weekdays (ADR 0154).
+  const sweepBrief = pass('Brief sweep failed', () => app.get(AssistantBriefSweeper).sweep())
   const sweepFx = pass('FX rate sweep failed', () => app.get(FxRateSweeper).sweep())
   const sweep = setInterval(() => {
     sweepRelay()
@@ -239,6 +242,7 @@ function startSweeps(app: INestApplicationContext, log: Logger, env: Env): NodeJ
     sweepCommAiJobs()
     sweepSessions()
     sweepDigest()
+    sweepBrief()
     // Vietcombank rate fetch from 09:00 VN, stale alert hourly (ADR 0149).
     sweepFx()
   }, env.PV_QUEUE_POLL_SECONDS * 1_000)

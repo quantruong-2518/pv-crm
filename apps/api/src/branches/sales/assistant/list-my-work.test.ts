@@ -146,6 +146,13 @@ describe('list_my_work: approvals, parked and meetings', () => {
     expect(verdict.codes).toEqual([])
     expect(JSON.stringify(out.approvals?.waitingOnMe.rows[0]?.trusted)).not.toMatch(/OP-0301/)
     expect(verdict.rowCount).toBe(2)
+    expect(verdict.workItems).toEqual([{ section: 'approval', code: null }])
+  })
+
+  it('counts nothing for approvals the asker only raised', async () => {
+    const s = setup(director)
+    s.approvals.pendingFor.mockResolvedValue({ rows: [] })
+    expect((await s.call({ kind: 'approval' })).workItems).toEqual([])
   })
 
   it('answers the asker holds only, and the next meeting, each counted by its rows', async () => {
@@ -161,6 +168,7 @@ describe('list_my_work: approvals, parked and meetings', () => {
     })
     expect(JSON.stringify(meeting.output)).not.toContain('OP-0301')
     expect(meeting.rowCount).toBe(1)
+    expect(meeting.workItems).toEqual(Array(3).fill({ section: 'meeting', code: null }))
   })
 
   it('never carries a meeting title, link or contact, and masks text without data.export', async () => {
@@ -216,6 +224,14 @@ describe('list_my_work: approvals, parked and meetings', () => {
     for (const read of [s.holds.list, s.meetings.today, s.leads.book, s.deals.book]) {
       expect(read).not.toHaveBeenCalled()
     }
+  })
+
+  it('marks next-step cut when some of its four doors were shut and some read', async () => {
+    const who = actor('director', ['opportunity.view'])
+    const verdict = await setup(who).call({ kind: 'next-step' })
+    expect(verdict.outcome).toBe('ok')
+    expect(verdict.workCut).toEqual(['next-step'])
+    expect((await setup(director).call({ kind: 'next-step' })).workCut).toEqual([])
   })
 
   it('leaves the new sections out of the desk kinds', async () => {

@@ -3,6 +3,7 @@ import { useI18n } from '@/app/i18n'
 import { ASSISTANT_COPY as C } from '@/data/assistant-copy'
 import { closeAssistant, newConversation, useAssistantLive } from '@/data/assistant-live'
 import { router } from '@/routes'
+import { AssistantBriefCard } from './assistant-brief-card'
 import { AiGlyph } from './assistant-bits'
 import { AssistantComposer, AssistantThread } from './assistant-conversation'
 import { PanelHome } from './assistant-home'
@@ -84,6 +85,7 @@ function AssistantPanel() {
       }
       footer={<AssistantComposer convo={convo} focusOnOpen />}
     >
+      <AssistantBriefCard openPath={openPath} />
       <AssistantThread
         convo={convo}
         subject={subject}

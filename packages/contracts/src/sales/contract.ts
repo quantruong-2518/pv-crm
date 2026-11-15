@@ -445,6 +445,8 @@ export const ContractSortKey = z.enum(['nextDue', 'amount', 'signedAt', 'code'])
 export const ContractBookQuery = PageQuery.extend({
   status: ContractStatusFilter.default('all'),
   owner: z.string().min(1).max(512).optional(),
+  /** Comma list of actor ids: the payment PIC (`collectorId`). No `OWNER_NONE`. */
+  collector: z.string().min(1).max(512).optional(),
   signedFrom: Day.optional(),
   signedTo: Day.optional(),
   /** `ContractKind` codes joined by commas; a contract of ANY of them matches. */

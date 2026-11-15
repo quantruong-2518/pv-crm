@@ -118,6 +118,16 @@ export class NotificationRepository {
     return new Set(rows.map((r) => r.code))
   }
 
+  /** Whether this person holds the line with this event key. */
+  async lineExists(tx: Db, recipientId: string, eventKey: string): Promise<boolean> {
+    const rows = await tx
+      .select({ id: notification.id })
+      .from(notification)
+      .where(and(eq(notification.recipientId, recipientId), eq(notification.eventKey, eventKey)))
+      .limit(1)
+    return rows.length > 0
+  }
+
   /** When each person last got a line of this kind, looking back to `since` only;
    *  people not told since are absent. */
   async lastCreated(tx: Db, kind: NotificationKind, since: Date): Promise<Map<string, Date>> {

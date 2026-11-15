@@ -1,10 +1,11 @@
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { AppShell, GlassCard, ScreenHeader, ScreenLayout } from '@pv/ui'
 import { NotificationListQuery, type NotificationRow } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { useBookQuery } from '@/app/book-query'
 import { message, useI18n } from '@/app/i18n'
+import { openAssistant } from '@/data/assistant-live'
 import {
   notificationPageQuery,
   unreadIds,
@@ -27,6 +28,7 @@ export default function NotificationsPage() {
   const { t } = useI18n()
   const chrome = useAppChrome()
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const book = useBookQuery(NotificationListQuery, { filterKeys: ['unread', 'group'] })
   const { query } = book
 
@@ -43,7 +45,9 @@ export default function NotificationsPage() {
   const press = (lines: NotificationRow[], path: string | null) => {
     const ids = unreadIds(lines)
     if (ids.length) markRead.mutate({ ids })
-    if (path) navigate(path)
+    if (!path) return
+    if (lines[0]?.kind === 'assistant-brief') openAssistant(pathname)
+    else navigate(path)
   }
 
   /* `{ all: true }` is global. Under a group or a search it would clear rows

@@ -1,6 +1,7 @@
 import { createElement } from 'react'
 import { render } from '@react-email/render'
 import { BRAND } from './brand'
+import { AssistantBriefEmail, type AssistantBriefData } from './assistant-brief'
 import { LeadIntakeInternalEmail, type LeadIntakeInternalData } from './lead-intake-internal'
 import { MasShellEmail, type MasShellData } from './mas-shell'
 import { OpportunityLostEmail, type OpportunityLostData } from './opportunity-lost'
@@ -9,6 +10,7 @@ import { PasswordResetEmail, type PasswordResetData } from './password-reset'
 import { mailText } from './mail-locale'
 
 export type { LeadIntakeInternalData, LeadIntakeInternalUtm } from './lead-intake-internal'
+export type { AssistantBriefData } from './assistant-brief'
 export type { MasShellData } from './mas-shell'
 /** The body format itself is part of this package's door, not just the render:
  *  `apps/api` has to parse a body BEFORE it fills `{{key}}` into it, so that a
@@ -132,4 +134,14 @@ export async function renderPasswordReset(
   const element = createElement(PasswordResetEmail, data)
   const [html, text] = await Promise.all([render(element), render(element, { plainText: true })])
   return { subject, html, text }
+}
+
+/** The morning brief: counts only, so the subject is fixed and nothing a
+ *  person typed can reach a header. Same door shape as the letters above. */
+export async function renderAssistantBrief(
+  data: AssistantBriefData,
+): Promise<{ subject: string; html: string; text: string }> {
+  const element = createElement(AssistantBriefEmail, data)
+  const [html, text] = await Promise.all([render(element), render(element, { plainText: true })])
+  return { subject: 'Việc hôm nay của bạn', html, text }
 }

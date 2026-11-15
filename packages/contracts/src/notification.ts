@@ -81,6 +81,7 @@ export const NotificationKind = z.enum([
   'kpi-away-declared',
   'kpi-digest',
   'fx-rate-missing',
+  'assistant-brief',
 ])
 export type NotificationKind = z.infer<typeof NotificationKind>
 
@@ -179,6 +180,7 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'kpi-away-declared': 'Bạn được khai vắng việc KPI',
   'kpi-digest': 'Tóm tắt KPI buổi sáng',
   'fx-rate-missing': 'Tỷ giá chưa được cập nhật',
+  'assistant-brief': 'Việc hôm nay',
 }
 
 /** The filter chips on the bell screen. */
@@ -282,6 +284,7 @@ export const NOTIFICATION_KIND_GROUP: Record<NotificationKind, NotificationGroup
   'kpi-away-declared': 'kpi',
   'kpi-digest': 'kpi',
   'fx-rate-missing': 'account',
+  'assistant-brief': 'next-step',
 }
 
 /** Defaults of ADR 0093 §1 when no `notification_kind_policy` row exists (or
@@ -365,6 +368,7 @@ export const NOTIFICATION_KIND_POLICY: Record<
   'kpi-digest': { important: false, locked: false },
   /* Like `google-link-broken`: a system alert to `setting.manage` holders that no role may mute. */
   'fx-rate-missing': { important: false, locked: true },
+  'assistant-brief': { important: false, locked: false },
 }
 
 /** A stored `important` of `null` (or no row) follows the contract default,
@@ -416,6 +420,7 @@ export const NOTIFICATION_KINDS_RING_WITHOUT_LINK = [
   'mail-run-replied',
   /* A digest must reach the reader even when a subject link is stale. */
   'kpi-digest',
+  'assistant-brief',
 ] as const satisfies readonly NotificationKind[]
 
 /** Written already read and summed into one `kpi-digest` line each morning
@@ -504,6 +509,8 @@ export const NOTIFICATION_KIND_SUBJECTS: Record<NotificationKind, readonly Notif
     /* Any subject of the four kinds it sums up. */
     'kpi-digest': ['kpi-scorecard', 'kpi-target', 'kpi-allocation', 'kpi-team'],
     'fx-rate-missing': ['fx-rate'],
+    /* Written on the reader's own account (code = their id), which no permission gates. */
+    'assistant-brief': ['user'],
   }
 
 /** Key of the failed-letter count in `detail` on a closing `mail-run-sent` or
@@ -539,6 +546,10 @@ export const NOTIFICATION_DETAIL_AMOUNT = 'amount'
 export const NOTIFICATION_DETAIL_CURRENCY = 'currency'
 /** Distinct metrics a `kpi-about-to-miss` or `kpi-about-to-hit` line covers; the digest sums it. */
 export const NOTIFICATION_DETAIL_METRIC_COUNT = 'metricCount'
+/** The AI sentences on an `assistant-brief` line; its other keys are `MyWorkSection` counts. */
+export const NOTIFICATION_DETAIL_SUMMARY = 'summary'
+/** `1` on an `assistant-brief` line whose total is a floor: some section was cut. */
+export const NOTIFICATION_DETAIL_FLOOR = 'floor'
 
 /** `detail` holds small display facts only (a count, a reason sentence), so
  *  its values are flat strings or numbers; anything bigger belongs on the

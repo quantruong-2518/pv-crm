@@ -33,6 +33,7 @@ import { bookQueryParams } from '@/app/book-query'
 import { access, sessionIsLive, useSession } from '@/app/auth'
 import { whileLive } from '@/app/query-client'
 import { isParked } from '@/app/parked'
+import { openAssistant } from './assistant-live'
 import { overdueReasonNo } from './notification-sentence'
 import { holdNotificationStream, streamIsLive, subscribeStreamLive } from './notification-stream'
 import { snapshotNotifications, toastNewNotifications } from './notification-toasts'
@@ -88,7 +89,8 @@ export function useNotificationStream(): boolean {
       if (!path) return null
       return () => {
         if (!row.readAt) markRead({ ids: [row.id] })
-        navigate(path)
+        if (row.kind === 'assistant-brief') openAssistant(window.location.pathname)
+        else navigate(path)
       }
     }
     return holdNotificationStream(userId, (event) => onStreamSignal(client, userId, event, open))
@@ -344,6 +346,8 @@ export const notificationPath = (
   row: NotificationRow,
   may: (permission: Permission) => boolean,
 ): string | null => {
+  /* The press opens the assistant panel, not this path; the path only keeps the line pressable. */
+  if (row.kind === 'assistant-brief') return '/assistant'
   /* The record just left the reader; for some it is no longer theirs to open. */
   if (row.kind === 'lead-removed' || row.kind === 'opportunity-unassigned') return null
   const need = NOTIFICATION_SUBJECT_PERMISSION[row.subject.kind]

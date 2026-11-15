@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import { AssistantQuestion, AssistantSubject } from './assistant'
+import { AssistantQuestion, AssistantRef, AssistantSubject, MyWorkSection } from './assistant'
 import { PageQuery, paged } from './pagination'
-import { Moment } from './primitives'
+import { Day, Moment } from './primitives'
 
 /** CRM assistant chat, wave 1 — what crosses HTTP. Rows and stream events are in
  *  `./assistant`; this file only imports from there.
@@ -100,3 +100,21 @@ export type AssistantReportRow = z.infer<typeof AssistantReportRow>
 
 export const AssistantReportResponse = paged(AssistantReportRow)
 export type AssistantReportResponse = z.infer<typeof AssistantReportResponse>
+
+/** `GET /assistant/my-work` — today's work of the asker alone, no model, no query (ADR 0154).
+ *  A section the asker cannot open is absent. `more` = `count` is a floor, the read was cut;
+ *  `refs` hold only items that have a record, so they can be fewer than `count`;
+ *  `skipped` = the read failed, so the section is unknown, not empty. */
+export const MyWorkResponse = z.object({
+  day: Day,
+  sections: z.array(
+    z.object({
+      section: MyWorkSection,
+      count: z.number().int().nonnegative(),
+      more: z.boolean(),
+      skipped: z.boolean(),
+      refs: z.array(AssistantRef),
+    }),
+  ),
+})
+export type MyWorkResponse = z.infer<typeof MyWorkResponse>
