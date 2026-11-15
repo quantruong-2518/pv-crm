@@ -29,9 +29,9 @@ export function StartedOnField({
       )
     : t(
         message(
-          'Để trống nếu người này đã làm từ trước.',
-          'Leave empty if this person started earlier.',
-          '이전부터 일한 사람이면 비워 두세요.',
+          'Để trống thì nhận đủ chỉ tiêu ngay.',
+          'Leave empty to get the full target right away.',
+          '비워 두면 목표를 바로 전부 받아요.',
         ),
       )
 

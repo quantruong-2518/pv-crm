@@ -348,9 +348,13 @@ export const rampedAverage = (values: readonly number[], factor: number): number
 /** Month 2 is the one 75 % step; month 1 scales with the days left, never past 50 %. */
 export function rampWord(factor: number): string {
   if (factor === RAMP_STEPS[1])
-    return translate(message('Tháng thứ 2 · 75%', 'Month 2 · 75%', '2개월 차 · 75%'))
+    return translate(
+      message('Tháng thứ 2 · 75% chỉ tiêu', 'Month 2 · 75% of target', '2개월 차 · 목표의 75%'),
+    )
   const pct = Math.round(factor * 100)
-  return translate(message(`Mới vào · ${pct}%`, `New · ${pct}%`, `신규 · ${pct}%`))
+  return translate(
+    message(`Mới vào · ${pct}% chỉ tiêu`, `New · ${pct}% of target`, `신규 · 목표의 ${pct}%`),
+  )
 }
 
 /** The typed figures of one metric among `peers`; blank or broken boxes are skipped. */

@@ -4,7 +4,6 @@ import {
   CREDIT_TOTAL_BP,
   isSellerRole,
   splitByCredits,
-  type CreditIssue,
   type CurrencyCode,
 } from '@pv/contracts'
 import { message, useI18n, type Message } from '@/app/i18n'
@@ -14,6 +13,7 @@ import {
   shareText,
   type CreditOther,
   type CreditsDraft,
+  type CreditsIssue,
 } from '@/data/contract-credits'
 import { useSalesPeople } from '@/data/directory'
 import { moneyIn } from '@/components/deal-money/money'
@@ -23,7 +23,8 @@ import { Field } from './ops-fields'
  *  person pressing, so their row is fixed; the others come from the active
  *  sellers, the same pool the server accepts. Off sends no list at all. */
 
-const CREDIT_ISSUE_WORD: Record<CreditIssue, Message> = {
+const CREDIT_ISSUE_WORD: Record<CreditsIssue, Message> = {
+  person: message('Chọn người cùng chốt.', 'Pick the co-closer.', '공동 체결자를 선택하세요.'),
   sum: message(
     'Phần chia phải cộng đủ 100%.',
     'The shares must add up to 100%.',
@@ -79,6 +80,7 @@ export function SignCredits({
     <Field label={label} plain hint={t(TIP)}>
       <div className="flex flex-col gap-4">
         <Checkbox
+          wrap
           checked={draft.on}
           disabled={closer === null}
           onChange={(on) =>
@@ -193,7 +195,7 @@ export function SignCredits({
   )
 }
 
-function IssueLine({ issue }: { issue: CreditIssue | null }) {
+function IssueLine({ issue }: { issue: CreditsIssue | null }) {
   const { t } = useI18n()
   if (issue === null) return null
   return <p className="text-destructive-foreground text-[11.5px]">{t(CREDIT_ISSUE_WORD[issue])}</p>
@@ -238,7 +240,7 @@ function CreditRow({
         <Button
           size="sm"
           variant="ghost"
-          className="pointer-coarse:h-12"
+          className="pointer-coarse:size-12"
           aria-label={t(message('Bỏ người này', 'Remove this person', '이 담당자 제거'))}
           onClick={onRemove}
         >

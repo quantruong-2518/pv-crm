@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Avatar, Badge, Button, Icon, Modal, Plus, cn } from '@pv/ui'
+import { Avatar, Badge, Button, GlassCard, Icon, Modal, Plus, cn } from '@pv/ui'
 import type {
   KpiAssignmentLateCandidate,
   KpiAssignmentPageResponse,
@@ -155,9 +155,15 @@ export function LateJoiners({
   if (people.length === 0 || additive.length === 0) return null
 
   return (
-    <section className="flex flex-col gap-3 p-4">
+    <GlassCard variant="b" className="flex flex-col gap-3 p-4">
       <h3 className="text-[13px] font-semibold">
-        {t(message('Người vào sau khi đã gửi', 'Joined after sending', '발송 후 합류한 사람'))}
+        {t(
+          message(
+            'Người vào làm sau khi gửi chỉ tiêu',
+            'Joined after targets were sent',
+            '목표 발송 후 입사한 사람',
+          ),
+        )}
       </h3>
       <ul className="flex flex-col gap-2">
         {people.map((p) => (
@@ -199,6 +205,6 @@ export function LateJoiners({
           onClose={() => setOpen(null)}
         />
       )}
-    </section>
+    </GlassCard>
   )
 }

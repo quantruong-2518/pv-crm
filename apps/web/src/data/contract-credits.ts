@@ -38,6 +38,9 @@ export function bpOfText(text: string): number | null {
 export const shareText = (bp: number): string =>
   `${formatNumber(bp / 100, undefined, { maximumFractionDigits: 2 })}%`
 
+/** The contract's complaints plus one of the drawer's own: a row with no person yet. */
+export type CreditsIssue = CreditIssue | 'person'
+
 export type CreditsState = {
   /** The list for the body; absent while the switch is off or the boxes are not whole. */
   credits: ContractCredit[] | undefined
@@ -46,7 +49,7 @@ export type CreditsState = {
   /** What the boxes add up to, in basis points. */
   total: number
   /** The contract's own complaint beyond the total, when every box is filled. */
-  issue: CreditIssue | null
+  issue: CreditsIssue | null
 }
 
 export function creditsState(draft: CreditsDraft, closerId: string): CreditsState {
@@ -57,7 +60,13 @@ export function creditsState(draft: CreditsDraft, closerId: string): CreditsStat
   ]
   const total = rows.reduce((sum, r) => sum + (r.bp ?? 0), 0)
   const whole = rows.every((r) => r.bp !== null && r.actorId !== '')
-  if (!whole) return { credits: undefined, ready: false, total, issue: null }
+  if (!whole) {
+    const unchosen =
+      total === CREDIT_TOTAL_BP &&
+      rows.every((r) => r.bp !== null) &&
+      rows.some((r) => r.actorId === '')
+    return { credits: undefined, ready: false, total, issue: unchosen ? 'person' : null }
+  }
   const credits = rows.map((r) => ({ actorId: r.actorId, shareBp: r.bp ?? 0 }))
   const issues = creditIssues(credits)
   const ready = issues.length === 0 && credits.length >= 2

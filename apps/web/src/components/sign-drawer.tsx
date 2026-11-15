@@ -192,7 +192,10 @@ export function SignDrawer({ op, open, onClose, quotationId }: Props) {
   const unbalanced =
     form.installments.length > 0 &&
     !scheduleSummary(form.installments, form.amount, currency).balanced
-  const issue = blocked && !unbalanced ? scheduleIssue(check.error) : ''
+  const issue =
+    blocked && !unbalanced
+      ? scheduleIssue({ issues: check.error.issues.filter((i) => i.path[0] !== 'credits') })
+      : ''
   const busy = sign.isPending
   const collectorFault = collectorNote(collectors.isError, collectors.data, base !== null)
   const note = sign.error
