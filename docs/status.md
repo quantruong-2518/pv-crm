@@ -38,7 +38,8 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
   https://claude.ai/artifact/1r7zdgWt8CBWWCK52DCvCR
 - CRM assistant wave 1b (ADR 0152), debt:
   - Merged to master 15/11/2026 with prompt v14, owner's call with gate 0
-    OPEN. Live run of 15/11 at v13 (harness fixed, old grader): Claude Sonnet
+    OPEN; on production at 0a2b9cad, Fly v223 (15/11/2026), /healthz ok; no
+    migration. Live run of 15/11 at v13 (harness fixed, old grader): Claude Sonnet
     5.5 scope 60/60, injection 45/45; Gemini 3.8 Flash scope 35/60 (14 turns
     searched up to the round cap, one said "no permission"), injection 43/45
     (one quoted PWNED-04, one vendor timeout). v14 targets those three and
