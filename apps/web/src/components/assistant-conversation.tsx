@@ -1,6 +1,7 @@
 import {
   useEffect,
   useRef,
+  useState,
   type CSSProperties,
   type FormEvent,
   type KeyboardEvent,
@@ -21,7 +22,13 @@ import { AssistantQuestion, type AssistantSubject } from '@pv/contracts'
 import { useI18n } from '@/app/i18n'
 import { refPath } from '@/data/assistant'
 import { ASSISTANT_COPY as C, askingAbout, dropSubject } from '@/data/assistant-copy'
-import { composerId, focusComposer, setDraft, useAssistantLive } from '@/data/assistant-live'
+import {
+  composerId,
+  focusComposer,
+  setDraft,
+  useAssistantDeep,
+  useAssistantLive,
+} from '@/data/assistant-live'
 import type { Conversation } from '@/data/assistant-conversation'
 import { railOf } from '@/data/assistant-thread'
 import { AssistantAnswer } from './assistant-answer'
@@ -194,11 +201,13 @@ export function AssistantComposer({
   const { origin } = convo
   const page = origin === 'page'
   const text = useAssistantLive((s) => s.drafts[origin])
+  const canDeep = useAssistantDeep()
+  const [deep, setDeep] = useState(false)
   const ready = AssistantQuestion.safeParse(text).success && !convo.busy
   const submit = (e?: FormEvent) => {
     e?.preventDefault()
     if (!ready) return
-    convo.ask(text.trim())
+    convo.ask(text.trim(), canDeep && deep)
     setDraft(origin, '')
   }
   /* Enter sends, Shift+Enter breaks the line; never mid-composition (Korean, Vietnamese IME). */
@@ -206,6 +215,11 @@ export function AssistantComposer({
     const composing = e.nativeEvent.isComposing || e.keyCode === 229
     if (e.key === 'Enter' && !e.shiftKey && !composing) submit(e)
   }
+  /* Back to no chat (new chat) means a fresh choice, not the last one's. */
+  const { sessionId } = convo
+  useEffect(() => {
+    if (sessionId === null) setDeep(false)
+  }, [sessionId])
   /* A frame later: the Drawer first notes who opened it, so focus goes back there on close. */
   useEffect(() => {
     if (!focusOnOpen) return
@@ -227,6 +241,22 @@ export function AssistantComposer({
       {page && t(C.send)}
       <Icon icon={ArrowUpLong} size={16} />
     </Button>
+  )
+  const deepSwitch = canDeep && (
+    <Button
+      type="button"
+      variant="ghost"
+      size="md"
+      aria-pressed={deep}
+      title={t(C.deepHint)}
+      className={cn(TOUCH, 'shrink-0', deep && 'bg-accent text-accent-foreground hover:bg-accent')}
+      onClick={() => setDeep(!deep)}
+    >
+      {t(C.deep)}
+    </Button>
+  )
+  const deepLine = canDeep && deep && (
+    <p className="text-glass-foreground w-full text-[12px]">{t(C.deepHint)}</p>
   )
   const field = (
     <Textarea
@@ -251,11 +281,16 @@ export function AssistantComposer({
   if (!page) {
     return (
       <form
-        className={cn('bg-input flex items-end gap-2 rounded-lg py-2 pl-3 pr-2', className)}
+        className={cn(
+          'bg-input flex flex-wrap items-end gap-2 rounded-lg py-2 pl-3 pr-2',
+          className,
+        )}
         onSubmit={submit}
       >
         {field}
+        {deepSwitch}
         {send}
+        {deepLine}
       </form>
     )
   }
@@ -273,8 +308,10 @@ export function AssistantComposer({
         {subject && <SubjectChip subject={subject} />}
         <span className="flex-1" />
         <span className="text-glass-foreground hidden text-[12px] sm:inline">{t(C.keys)}</span>
+        {deepSwitch}
         {send}
       </div>
+      {deepLine}
     </form>
   )
 }

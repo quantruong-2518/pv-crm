@@ -362,10 +362,10 @@
           "query": "{cases-rival.word}",
           "kinds": ["contact"]
         },
-        "want": "bad-input"
+        "want": "ok"
       },
       {
-        "say": "Tôi không tìm được theo cách này."
+        "say": "Tôi không thấy người liên hệ nào khớp."
       }
     ],
     "expect": {
@@ -1310,10 +1310,10 @@
           "kind": "campaign",
           "code": "{cases-own.lead}"
         },
-        "want": "bad-input"
+        "want": "refused"
       },
       {
-        "say": "Tôi chưa đọc được phần chiến dịch từ đây nên không nêu con số nào."
+        "say": "Tôi không mở được chiến dịch này nên không nêu con số nào."
       }
     ],
     "expect": {
@@ -1406,7 +1406,7 @@
         "rows": 1
       },
       {
-        "say": "Vòng báo giá gần nhất của đơn này đang chờ khách phản hồi, trị giá ⟦v22⟧."
+        "say": "Vòng báo giá gần nhất của đơn này đang chờ khách phản hồi, trị giá ⟦v23⟧."
       }
     ],
     "expect": {

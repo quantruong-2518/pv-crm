@@ -26,12 +26,15 @@ import { AssistantToolGate } from '@api/platform/assistant/assistant-tools'
 import { denied, notFound } from '@api/platform/http/problem'
 import type { AccountService } from '../account/account.service'
 import type { AfterSaleService } from '../after-sale/after-sale.service'
+import type { CampaignService } from '../campaign/campaign.service'
+import type { ContactService } from '../contact/contact.service'
 import type { ContractService } from '../contract/contract.service'
 import type { LeadService } from '../lead/lead.service'
 import type { OpportunityStepService } from '../next-step/next-step-opportunity.service'
 import type { NextStepService } from '../next-step/next-step.service'
 import type { OpportunityService } from '../opportunity/opportunity.service'
 import type { SearchService } from '../search/search.service'
+import type { WorkstreamService } from '../workstream/workstream.service'
 import { HISTORY_LIST } from './get-history'
 import { SalesAssistantTools } from './sales-assistant-tools'
 
@@ -318,6 +321,9 @@ function setup() {
     accounts as unknown as AccountService,
     afterSales as unknown as AfterSaleService,
     modules,
+    {} as ContactService,
+    {} as CampaignService,
+    {} as WorkstreamService,
   )
   const gate = new AssistantToolGate(source, createAccessControl())
   return {
@@ -403,7 +409,7 @@ describe('the sales tools', () => {
     expect(verdict).toMatchObject({ codes: ['LD-0001'], rowCount: 1, hidden: 0 })
   })
 
-  it('asks search for the four kinds only and drops what matched', async () => {
+  it('asks search for the five kinds a seat without data.export may find, never the person kind', async () => {
     const { gate, searches } = setup()
     const verdict = await gate.call(actor('sale'), {
       id: 'c1',
@@ -412,12 +418,39 @@ describe('the sales tools', () => {
     })
     expect(searches.search).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'u-sale' }),
-      expect.objectContaining({ kinds: 'lead,opportunity,contract,account', limit: 5 }),
+      expect.objectContaining({ kinds: 'lead,opportunity,contract,account,campaign', limit: 5 }),
     )
     const body = JSON.stringify(verdict.output)
     expect(body).not.toContain(PHONE)
     expect(body).not.toContain('score')
     expect(verdict).toMatchObject({ codes: ['OP-0301'], rowCount: 1, hidden: null })
+    expect(verdict.output).toMatchObject({ trusted: { skipped: ['contact'] } })
+  })
+
+  it('asks search for the six kinds when the seat holds data.export', async () => {
+    const { gate, searches } = setup()
+    const verdict = await gate.call(actor('director'), {
+      id: 'c1',
+      name: 'search_records',
+      input: { query: 'sao do' },
+    })
+    expect(searches.search).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'u-director' }),
+      expect.objectContaining({ kinds: 'lead,opportunity,contract,account,contact,campaign' }),
+    )
+    expect(verdict.output).not.toHaveProperty('trusted.skipped')
+  })
+
+  it('asks the door nothing when a seat without data.export names only the person kind', async () => {
+    const { gate, searches } = setup()
+    const verdict = await gate.call(actor('sale'), {
+      id: 'c1',
+      name: 'search_records',
+      input: { query: 'sao do', kinds: ['contact'] },
+    })
+    expect(searches.search).not.toHaveBeenCalled()
+    expect(verdict).toMatchObject({ outcome: 'ok', codes: [], rowCount: 0 })
+    expect(verdict.output).toMatchObject({ trusted: { skipped: ['contact'] } })
   })
 
   it('offers the model the bounds of the search door, and no limit of its own', () => {
@@ -439,12 +472,12 @@ describe('the sales tools', () => {
     expect(searches.search).not.toHaveBeenCalled()
   })
 
-  it('takes the contact kind as bad input: it is the one that matches on phone and mail', async () => {
+  it('takes the workstream kind as bad input: the search door cannot find it', async () => {
     const { gate, searches } = setup()
     const verdict = await gate.call(actor('sale'), {
       id: 'c1',
       name: 'search_records',
-      input: { query: 'sao do', kinds: ['contact'] },
+      input: { query: 'sao do', kinds: ['workstream'] },
     })
     expect(verdict.outcome).toBe('bad-input')
     expect(searches.search).not.toHaveBeenCalled()
@@ -808,7 +841,7 @@ describe('list_my_work', () => {
       { code: 'OP-0301', due: '2026-11-03', dueLevel: 'due' },
     ])
     expect(verdict).toMatchObject({ codes: ['LD-0001', 'OP-0301', 'OP-0302'], rowCount: 5 })
-    expect(verdict.steps).toBe(2)
+    expect(verdict.reads).toEqual({ 'next-step': 2 })
     expect(verdict.refs.map((r) => [r.kind, r.code])).toEqual([
       ['lead', 'LD-0001'],
       ['opportunity', 'OP-0301'],
@@ -826,7 +859,8 @@ describe('list_my_work', () => {
     expect(trusted.leads).toEqual([])
     expect(trusted.opportunities).toEqual([])
     expect(trusted.nextSteps).toHaveLength(2)
-    expect(verdict).toMatchObject({ codes: ['LD-0001', 'OP-0301'], rowCount: 2, steps: 2 })
+    expect(verdict).toMatchObject({ codes: ['LD-0001', 'OP-0301'], rowCount: 2 })
+    expect(verdict.reads).toEqual({ 'next-step': 2 })
   })
 
   it('reads no deal door for marketing, who may not open one', async () => {
@@ -837,7 +871,7 @@ describe('list_my_work', () => {
     expect(s.opportunities.book).not.toHaveBeenCalled()
     expect(s.dealSteps.get).not.toHaveBeenCalled()
     expect(s.leadSteps.get).toHaveBeenCalledTimes(1)
-    expect(verdict).toMatchObject({ codes: ['LD-0003'], steps: 0 })
+    expect(verdict).toMatchObject({ codes: ['LD-0003'], reads: { 'next-step': 0 } })
     /* Unknown, not empty: the model reads it, the loop writes a refusal line per door. */
     expect((verdict.output as { trusted: { skipped: string[] } }).trusted.skipped).toEqual([
       'opportunity',
@@ -874,12 +908,12 @@ describe('list_my_work', () => {
     expect(trusted.more).toBe(true)
   })
 
-  it('counts back from a stored call the steps the footer showed', async () => {
+  it('counts back from a stored call the reads the footer showed', async () => {
     const s = desk()
     for (const input of [{}, { kind: 'next-step' }, { kind: 'lead' }]) {
       const live = await s.gate.call(director, call(input))
       const stored = { name: 'list_my_work', input, outcome: live.outcome, ...live }
-      expect(s.gate.stepsOf({ ...stored, codes: [...live.codes] })).toBe(live.steps)
+      expect(s.gate.readsOf({ ...stored, codes: [...live.codes] })).toEqual(live.reads)
     }
   })
 })
@@ -919,7 +953,7 @@ describe('get_record re-reads a stored code', () => {
       'LD-0002',
       'OP-0301',
       'HĐ-2711',
-      'CT-0001',
+      'PA-0001',
     ])
 
     expect(refs.get('LD-0001')).toEqual({
@@ -930,7 +964,7 @@ describe('get_record re-reads a stored code', () => {
     expect(refs.get('LD-0002')).toBeNull()
     expect(refs.get('OP-0301')).toMatchObject({ kind: 'opportunity', label: 'Triển khai MES' })
     expect(refs.get('HĐ-2711')).toMatchObject({ kind: 'contract', label: 'Sao Đỏ' })
-    expect(refs.get('CT-0001')).toBeNull()
+    expect(refs.get('PA-0001')).toBeNull()
     expect(s.leads.book).toHaveBeenCalledTimes(1)
     expect(s.leads.book).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'u-sale' }),
@@ -1500,7 +1534,6 @@ describe('list_customers', () => {
 
     expect(verdict.outcome).toBe('ok')
     expect(out.customers.rows[0]?.trusted).toEqual({
-      code: 'WS-1001',
       leadCode: 'LD-2001',
       temperature: { value: 'hot', at: '2026-10-01T00:00:00.000Z' },
       lastContactAt: '2026-10-15T00:00:00.000Z',

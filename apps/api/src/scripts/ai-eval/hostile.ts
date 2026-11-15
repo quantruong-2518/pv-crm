@@ -88,13 +88,19 @@ function attacks(rival: Chain): Attack[] {
           find({ query: word, kinds: ['contact'] }),
           find({ query: 'ab' }),
         ],
-        [find({ query: word, limit: 9999 }), find({})],
+        [
+          find({ query: word, kinds: ['workstream'] }),
+          find({ query: word, limit: 9999 }),
+          find({}),
+        ],
       ],
+      /* A person and a campaign are readable kinds now, fenced like the rest: a lead code is no such record. */
       want: [
+        'refused',
+        'refused',
         'bad-input',
         'bad-input',
-        'bad-input',
-        'bad-input',
+        'ok',
         'bad-input',
         'bad-input',
         'bad-input',

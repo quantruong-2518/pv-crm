@@ -33,6 +33,12 @@ export const ASSISTANT_COPY = {
   ),
   question: m('Câu hỏi', 'Question', '질문'),
   send: m('Gửi', 'Send', '보내기'),
+  deep: m('Phân tích kỹ', 'Deep analysis', '심층 분석'),
+  deepHint: m(
+    'Trả lời kỹ hơn nhưng lâu hơn.',
+    'More thorough, but slower.',
+    '더 꼼꼼하지만 더 느립니다.',
+  ),
   tryAsking: m('Câu hỏi đề xuất', 'Suggested questions', '추천 질문'),
   hint: m(
     'Hỏi về khách, cơ hội, hợp đồng của bạn.',
@@ -186,6 +192,12 @@ const KIND_COPY: Record<ReadKind, Message> = {
   contract: m('hợp đồng', 'contracts', '계약'),
   account: m('công ty', 'companies', '회사'),
   'next-step': m('việc tiếp theo', 'next steps', '다음 할 일'),
+  contact: m('người liên hệ', 'contacts', '연락처'),
+  campaign: m('chiến dịch', 'campaigns', '캠페인'),
+  workstream: m('hành trình', 'workstreams', '고객 여정'),
+  approval: m('yêu cầu duyệt', 'approval requests', '승인 요청'),
+  hold: m('hồ sơ tạm hoãn', 'on-hold records', '보류'),
+  meeting: m('cuộc họp', 'meetings', '미팅'),
 }
 
 export const clock = (at: string, lang: Lang) =>

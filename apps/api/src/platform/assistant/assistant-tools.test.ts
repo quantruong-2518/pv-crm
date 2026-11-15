@@ -334,3 +334,79 @@ describe('content a tool reveals', () => {
     })
   })
 })
+
+describe('footer reads', () => {
+  const doors = { lead: door(FakeDoors, 'lead'), contract: door(FakeDoors, 'contract') }
+  const readsTool = (readsOf: (kind: 'lead' | 'contract', n: number) => object) =>
+    defineTool({
+      name: 'read_x',
+      description: 'Fake.',
+      input: Input,
+      doors,
+      doorFor: (input) => input.kind,
+      readsOf: ({ kind }, { rowCount }) => readsOf(kind, rowCount),
+      run: async () => ({ ...READ, rowCount: 3 }),
+    })
+  const stored = (outcome: string, rowCount: number | null) => ({
+    name: 'read_x',
+    input: { kind: 'lead' },
+    outcome,
+    rowCount,
+    codes: ['LD-0001'],
+  })
+
+  it('gives a replayed ok call the reads its live call had', async () => {
+    const gate = gateOf(readsTool((_kind, n) => ({ 'next-step': n, approval: 1, meeting: 2 })))
+    const live = await gate.call(marketing, call({ kind: 'lead' }))
+    const replay = gate.readsOf(stored('ok', live.rowCount))
+
+    expect(live.reads).toEqual({ 'next-step': 3, approval: 1, meeting: 2 })
+    expect(replay).toEqual(live.reads)
+  })
+
+  it('reads nothing for a stored call that is not ok, has no count, or whose tool is gone', () => {
+    const gate = gateOf(readsTool(() => ({ hold: 1 })))
+
+    expect(gate.readsOf(stored('refused', 3))).toEqual({})
+    expect(gate.readsOf(stored('ok', null))).toEqual({})
+    expect(gate.readsOf({ ...stored('ok', 3), name: 'gone' })).toEqual({})
+    expect(gate.readsOf({ ...stored('ok', 3), input: { kind: 'nope' } })).toEqual({})
+  })
+})
+
+describe('which refs a tool counts', () => {
+  const doors = { lead: door(FakeDoors, 'lead'), contract: door(FakeDoors, 'contract') }
+  const countTool = defineTool({
+    name: 'read_x',
+    description: 'Fake.',
+    input: Input,
+    doors,
+    doorFor: (input) => input.kind,
+    refsCounted: ({ kind }) => (kind === 'lead' ? 'first' : 'none'),
+    run: async () => ({ ...READ, codes: ['LD-0001', 'LD-0002'] }),
+  })
+  const stored = (kind: string, outcome = 'ok') => ({
+    name: 'read_x',
+    input: { kind },
+    outcome,
+    codes: ['LD-0001', 'LD-0002'],
+  })
+
+  it('gives a replayed call the same rule its live call had', async () => {
+    const gate = gateOf(countTool)
+    const live = await gate.call(marketing, call({ kind: 'lead' }))
+
+    expect(live.counted).toBe('first')
+    expect(gate.countedCodes(stored('lead'))).toEqual(['LD-0001'])
+    expect(gate.countedCodes(stored('contract'))).toEqual([])
+  })
+
+  it('counts every code when the tool has no rule, the input does not parse or the tool is gone', () => {
+    const gate = gateOf(countTool, toolOf(doors, undefined, 'read_y'))
+
+    expect(gate.countedCodes({ ...stored('lead'), name: 'read_y' })).toEqual(['LD-0001', 'LD-0002'])
+    expect(gate.countedCodes(stored('nope'))).toEqual(['LD-0001', 'LD-0002'])
+    expect(gate.countedCodes({ ...stored('lead'), name: 'gone' })).toEqual(['LD-0001', 'LD-0002'])
+    expect(gate.countedCodes(stored('lead', 'refused'))).toEqual([])
+  })
+})

@@ -4,7 +4,7 @@ import { Badge, ChevronRight, DataTable, GlassCard, Icon, cn } from '@pv/ui'
 import type { AssistantRef } from '@pv/contracts'
 import { useSession, access } from '@/app/auth'
 import { formatDate, message, useI18n } from '@/app/i18n'
-import { refPath } from '@/data/assistant'
+import { refKindLabel, refPath } from '@/data/assistant'
 import { ASSISTANT_COPY as C } from '@/data/assistant-copy'
 import { compactMoney } from '@/components/deal-money/money'
 import {
@@ -14,7 +14,6 @@ import {
   standingLabel,
 } from '@/data/opportunities'
 import { salesLabel } from '@/data/sales-labels-i18n'
-import { SEARCH_KIND_FACTS } from '@/data/search-rows'
 import { CodeChip, HAIRLINE } from './assistant-bits'
 
 /** The records an answer names (owner, 03/11 design): one or two become cards
@@ -63,7 +62,7 @@ export function RefCard({
         <span className="flex items-center gap-2">
           <CodeChip code={refItem.code} />
           <Badge tone="draft" className="text-[12px]">
-            {t(SEARCH_KIND_FACTS[refItem.kind].label)}
+            {t(refKindLabel(refItem.kind))}
           </Badge>
         </span>
         <span className="text-foreground truncate text-[14px] font-semibold">{name}</span>

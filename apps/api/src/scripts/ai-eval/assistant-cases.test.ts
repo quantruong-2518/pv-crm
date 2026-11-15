@@ -22,6 +22,7 @@ import {
   FIRST_LEAD,
   FIRST_OPPORTUNITY,
   HISTORY_CELLS,
+  KINDS_CELLS,
   HISTORY_CHAINS,
   MATRIX_CELLS,
   NAMED_SEATS,
@@ -90,6 +91,7 @@ describe('the seed', () => {
     expect(ACCOUNT_CELLS).toBe(21)
     expect(HISTORY_CELLS).toBe(63)
     expect(CUSTOMER_CELLS).toBe(21)
+    expect(KINDS_CELLS).toBe(24)
     expect(QUOTE_LATEST_AMOUNT).toBe(465_000_000)
     const quoted = cases.find((c) => c.id === 'coverage-05')?.expect.mustContain
     expect(quoted).toEqual([new Intl.NumberFormat('vi-VN').format(QUOTE_LATEST_AMOUNT)])

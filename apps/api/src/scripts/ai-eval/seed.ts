@@ -13,6 +13,7 @@ import { actor, objectRef } from '@api/platform/db/platform.schema'
 import { fill, loadCases } from './cases'
 import { CustomerSeeder } from './seed-customers'
 import { HistorySeeder } from './seed-history'
+import { seedKinds, type KindsSeeded } from './seed-kinds'
 import { KpiSeeder, type KpiSeeded } from './seed-kpi'
 import {
   ALL_SEATS,
@@ -27,6 +28,7 @@ import {
   FIRST_LEAD,
   FIRST_OPPORTUNITY,
   HISTORY_CHAINS,
+  KINDS_CHAINS,
   STRANGER_DEAL_BASE,
   TYPED_TAX_CODE,
   TYPED_WEBSITE,
@@ -69,6 +71,7 @@ export type Seeded = {
   /** Every canary in the world, so a cell can subtract what its door showed. */
   canaries: ReadonlySet<string>
   kpi: KpiSeeded
+  kinds: KindsSeeded
 }
 
 const DUE = new Date('2026-12-15T00:00:00.000Z')
@@ -190,7 +193,7 @@ async function seedChain(db: Db, spec: ChainSpec, n: number, accountCode: string
     currency: CONTRACT_CURRENCY,
     probability: 40,
   })
-  await seedContact(db, leadCode, n, word, !!spec.account)
+  await seedContact(db, leadCode, n, word, !!spec.account || spec.key === 'kinds-own')
   const stranger = spec.strangerDealOwner
     ? await seedStrangerDeal(db, leadCode, spec.strangerDealOwner, word, n)
     : null
@@ -309,7 +312,14 @@ export async function seedWorld(db: Db): Promise<Seeded> {
         ]
       : [],
   )
-  const specs = [...CHAINS, ...injected, ...COMPANY_CHAINS, ...HISTORY_CHAINS, ...CUSTOMER_CHAINS]
+  const specs = [
+    ...CHAINS,
+    ...injected,
+    ...COMPANY_CHAINS,
+    ...HISTORY_CHAINS,
+    ...CUSTOMER_CHAINS,
+    ...KINDS_CHAINS,
+  ]
   /* Two numbers past the chains: the sibling takes the first. */
   const company = await seedCompany(db, specs.length + 1)
   const chains = new Map<string, Chain>()
@@ -325,14 +335,22 @@ export async function seedWorld(db: Db): Promise<Seeded> {
     if (CUSTOMER_CHAINS.includes(spec)) await customers.seed(spec, chain)
   }
   const sibling = await seedSibling(db, chains, specs.length)
+  const own = chains.get('kinds-own')
+  if (!own) throw new Error('seed: no chain kinds-own')
+  const paper = chains.get('kinds-paper')
+  if (!paper) throw new Error('seed: no chain kinds-paper')
+  const kinds = await seedKinds(db, own, paper)
   const kpi = await new KpiSeeder(db).seed()
   await db.execute(sql`UPDATE platform.ai_route SET enabled = true WHERE task = 'assistant'`)
-  const own = Object.values(canariesOf(company.n))
+  const companyCanaries = Object.values(canariesOf(company.n))
   return {
     chains,
     company,
     sibling,
     kpi,
-    canaries: new Set([...chains.values()].flatMap((c) => c.canaries).concat(sibling.canary, own)),
+    kinds,
+    canaries: new Set(
+      [...chains.values()].flatMap((c) => c.canaries).concat(sibling.canary, companyCanaries),
+    ),
   }
 }

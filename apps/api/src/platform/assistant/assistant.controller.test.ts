@@ -250,7 +250,9 @@ function doors(client: Scripted) {
 async function ask(
   client: Scripted,
   who: Actor = director,
-  body: { question: string; sessionId?: string } = { question: 'Lead LD-0001 thế nào?' },
+  body: { question: string; sessionId?: string; deep?: boolean } = {
+    question: 'Lead LD-0001 thế nào?',
+  },
 ) {
   const { turns } = doors(client)
   const events: AssistantEvent[] = []
@@ -309,6 +311,31 @@ describe('availability', () => {
     expect(await enabled(director)).toBe(false)
   })
 
+  it('offers deep only while the assistant-deep route is on', async () => {
+    const deepOf = async (who: Actor) =>
+      (await doors(new Scripted([])).service.availability(who)).deep
+    const setDeep = (on: boolean) =>
+      db.execute(sql`UPDATE platform.ai_route SET enabled = ${on} WHERE task = 'assistant-deep'`)
+
+    await setDeep(false)
+    expect(await deepOf(director)).toBe(false)
+    await setDeep(true)
+    expect(await deepOf(director)).toBe(true)
+    expect(await deepOf(unticked)).toBe(false)
+    await setDeep(false)
+  })
+
+  it('offers no deep while the assistant route is off, even with assistant-deep on', async () => {
+    await db.execute(sql`UPDATE platform.ai_route SET enabled = true WHERE task = 'assistant-deep'`)
+    await route(false)
+    const seen = await doors(new Scripted([])).service.availability(director)
+    await db.execute(
+      sql`UPDATE platform.ai_route SET enabled = false WHERE task = 'assistant-deep'`,
+    )
+
+    expect(seen).toEqual({ enabled: false, deep: false })
+  })
+
   it('is off for a role without the permission, and off the Sales branch', async () => {
     expect(await enabled(unticked)).toBe(false)
     expect(await enabled({ ...director, branches: [] })).toBe(false)
@@ -357,6 +384,39 @@ describe('a turn', () => {
     expect(done.footer.at).toMatch(/^\d{4}-\d{2}-\d{2}T.+Z$/)
     expect(JSON.stringify(client.requests)).not.toContain(COMPANY)
     expect(turn).toMatchObject({ state: 'done', body: 'Lead đang được chăm sóc.' })
+  })
+
+  it('runs a deep turn on the assistant-deep route, and a plain one on assistant', async () => {
+    await db.execute(sql`UPDATE platform.ai_route SET enabled = true WHERE task = 'assistant-deep'`)
+    const taskOf = async (deep: boolean) => {
+      const client = new Scripted([{ text: 'Xong.' }])
+      const { turn } = await ask(client, head, { question: 'Hỏi sâu', deep })
+      const rows = await db.select().from(aiCall).where(eq(aiCall.turnId, turn!.id))
+      return rows.map((r) => r.task)
+    }
+    const deep = await taskOf(true)
+    const plain = await taskOf(false)
+    await db.execute(
+      sql`UPDATE platform.ai_route SET enabled = false WHERE task = 'assistant-deep'`,
+    )
+
+    expect(deep).toEqual(['assistant-deep'])
+    expect(plain).toEqual(['assistant'])
+  })
+
+  it('refuses a deep turn while the assistant route is off, though assistant-deep is on', async () => {
+    await db.execute(sql`UPDATE platform.ai_route SET enabled = true WHERE task = 'assistant-deep'`)
+    await route(false)
+    const client = new Scripted([{ text: 'never asked' }])
+    const before = await db.select().from(assistantSession)
+    const { events } = await ask(client, director, { question: 'Hỏi sâu', deep: true })
+    await db.execute(
+      sql`UPDATE platform.ai_route SET enabled = false WHERE task = 'assistant-deep'`,
+    )
+
+    expect(events).toEqual([{ type: 'error', code: 'off', message: 'Trợ lý đang tắt.' }])
+    expect(client.requests).toEqual([])
+    expect(await db.select().from(assistantSession)).toHaveLength(before.length)
   })
 
   it('gives an `off` event with the route off, calls no vendor and opens no session', async () => {

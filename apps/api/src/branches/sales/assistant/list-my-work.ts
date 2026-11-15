@@ -1,3 +1,4 @@
+import type { ModuleRef } from '@nestjs/core'
 import {
   LeadBookQuery,
   LeadRow,
@@ -15,6 +16,8 @@ import {
   door,
   inPool,
   type AssistantTool,
+  type FooterReads,
+  type ToolDoor,
   type ToolRead,
 } from '@api/platform/assistant/assistant-tools'
 import { PvError } from '@api/platform/http/problem'
@@ -27,32 +30,70 @@ import { NextStepController } from '../next-step/next-step.controller'
 import type { NextStepService } from '../next-step/next-step.service'
 import { OpportunityController } from '../opportunity/opportunity.controller'
 import type { OpportunityService } from '../opportunity/opportunity.service'
+import {
+  EXTRA_DOORS,
+  LIST_SIZE,
+  readExtra,
+  SECTION_OF_DOOR,
+  type ExtraDoor,
+  type ExtraSection,
+} from './list-my-work-extra'
+import { shrinkRows } from './shrink-rows'
 
 /** `list_my_work`: the asker's own open leads, open deals and next steps, never
  *  all a role may read, so a director gets their own desk and not the company.
+ *  Approvals, holds and today's meetings are three more sections in
+ *  `list-my-work-extra.ts`, each behind its own door and read only when its kind is named.
  *
  *  Leads: the lead book with `owner` = the asker. Deals: the deal book once per
  *  lane, `sale` and `bd` = the asker, the book's own "my deals" filters. Steps:
  *  each listed record's step through its own door, kept where the asker is the
  *  doer. No door lists steps by doer, so a step the asker does on someone else's
  *  record is missed. Trusted fields only (D5): no name, no text, never phone or
- *  email; the screen shows names from `refs`, which never reach the model. */
+ *  email; the screen shows names from `refs`, which never reach the model. The extra
+ *  sections are the one place free text appears, in an `untrusted` block. */
 
-/** Rows per book: a desk longer than this says `more` and the model asks narrower. */
-const LIST_SIZE = 20
 /** Step doors read per call, each a few queries. */
 const STEP_READS = 20
 const STEP_PARALLEL = 4
 
-type Door = 'lead' | 'opportunity' | 'lead-step' | 'opportunity-step'
+type Door = 'lead' | 'opportunity' | 'lead-step' | 'opportunity-step' | ExtraDoor
 type Kind = NonNullable<ListMyWorkInput['kind']>
 
+const DESK: readonly Door[] = ['lead', 'opportunity', 'lead-step', 'opportunity-step']
 const DOORS: Record<Kind | 'all', readonly Door[]> = {
   lead: ['lead'],
   opportunity: ['opportunity'],
   'next-step': ['lead', 'lead-step', 'opportunity', 'opportunity-step'],
-  all: ['lead', 'opportunity', 'lead-step', 'opportunity-step'],
+  approval: ['approvalWaiting', 'approvalRaised'],
+  parked: ['hold'],
+  meeting: ['meeting'],
+  /* The extra sections are named, never defaulted: a plain call keeps the desk's size. */
+  all: DESK,
 }
+
+/** Every row list `list_my_work` prints, for `shrink`; a kind not read leaves its path empty. */
+const WORK_LISTS = [
+  ['trusted', 'leads'],
+  ['trusted', 'opportunities'],
+  ['trusted', 'nextSteps'],
+  ['approvals', 'waitingOnMe', 'rows'],
+  ['approvals', 'raisedByMe', 'rows'],
+  ['holds', 'rows'],
+] as const
+
+/** What the model is told was not read: a step door is a lead or deal part. */
+const SECTION_OF: Record<Door, 'lead' | 'opportunity' | ExtraSection> = {
+  lead: 'lead',
+  'lead-step': 'lead',
+  opportunity: 'opportunity',
+  'opportunity-step': 'opportunity',
+  ...SECTION_OF_DOOR,
+}
+
+/** The kinds that read the lead and deal books; the others read none of them. */
+const onDesk = (kind: ListMyWorkInput['kind']): boolean =>
+  kind === undefined || kind === 'lead' || kind === 'opportunity' || kind === 'next-step'
 
 /** Exported for the company read, which keeps the same fields of the same books. */
 export const LeadTrusted = LeadRow.pick({
@@ -92,6 +133,9 @@ export type WorkDoors = {
   opportunities: OpportunityService
   leadSteps: NextStepService
   dealSteps: OpportunityStepService
+  /** The approval, hold and meeting services are fetched through it, per section. */
+  modules: ModuleRef
+  mayReach: (who: Actor) => boolean
   /** A chip as `get_record` makes it, masked by the live `data.export` grant. */
   refOf: (who: Actor, kind: AssistantRef['kind'], code: string, label: string) => AssistantRef
 }
@@ -134,11 +178,26 @@ async function mySteps(who: Actor, leads: readonly Step[], deals: readonly Step[
   return { steps: read.filter((s) => s !== null), cut: all.length > STEP_READS }
 }
 
-/** `run`'s counts read backwards: with every kind, the books' rows each carry one
- *  distinct code and the steps none; with `next-step`, every row is a step. */
-function stepsOf(kind: ListMyWorkInput['kind'], rowCount: number, codes: number): number {
-  if (kind === 'next-step') return rowCount
-  return kind === undefined ? Math.max(0, rowCount - codes) : 0
+/** `run`'s counts read backwards: with every desk kind, the books' rows each carry one
+ *  distinct code and the steps none; every row of a named section or step list is one read. */
+const readsOf = (
+  { kind }: ListMyWorkInput,
+  { rowCount, codes }: { rowCount: number; codes: readonly string[] },
+): FooterReads => {
+  switch (kind) {
+    case undefined:
+      return { 'next-step': Math.max(0, rowCount - codes.length) }
+    case 'next-step':
+      return { 'next-step': rowCount }
+    case 'approval':
+      return { approval: rowCount }
+    case 'parked':
+      return { hold: rowCount }
+    case 'meeting':
+      return { meeting: rowCount }
+    default:
+      return {}
+  }
 }
 
 async function run(
@@ -154,7 +213,7 @@ async function run(
   const leadRefs = leads.rows.map((r) => d.refOf(who, 'lead', r.code, r.company))
   const dealRefs = deals.rows.map((r) => d.refOf(who, 'opportunity', r.code, r.name))
   const { steps, cut } =
-    kind === 'lead' || kind === 'opportunity'
+    kind === 'lead' || kind === 'opportunity' || !onDesk(kind)
       ? { steps: [], cut: false }
       : await mySteps(
           who,
@@ -167,42 +226,56 @@ async function run(
             read: () => d.dealSteps.get(who, ref.code),
           })),
         )
-  const books = kind === 'next-step' ? [] : [leads, deals]
-  const refs = kind === 'next-step' ? steps.map((s) => s.ref) : [...leadRefs, ...dealRefs]
+  const extra = await readExtra(d, who, kind, open)
+  const books = onDesk(kind) && kind !== 'next-step' ? [leads, deals] : []
+  const deskRefs = kind === 'next-step' ? steps.map((s) => s.ref) : [...leadRefs, ...dealRefs]
+  const refs = [...(onDesk(kind) ? deskRefs : []), ...extra.refs]
   /* A kind behind a refused door is unknown, not empty: the model must say so. */
-  const shut = DOORS[kind ?? 'all'].filter((door) => !open.has(door))
-  const trusted = {
-    skipped: [...new Set(shut.map((door) => (door.startsWith('lead') ? 'lead' : 'opportunity')))],
+  const shut = DOORS[kind ?? 'all']
+    .filter((door) => !open.has(door))
+    .map((door) => SECTION_OF[door])
+  const skipped = [...new Set([...shut, ...extra.refused])]
+  const desk = {
     leads: books.length > 0 ? leads.rows.map((r) => LeadTrusted.parse(r)) : [],
     opportunities: books.length > 0 ? deals.rows.map((r) => DealTrusted.parse(r)) : [],
     nextSteps: steps.map(({ ref, step }) => StepTrusted.parse({ ...step, code: ref.code })),
     /* A step list is cut when its books were, or when the step budget ran out. */
     more: leads.more || deals.more || cut,
   }
-  const rowCount = trusted.leads.length + trusted.opportunities.length + steps.length
+  const rowCount = desk.leads.length + desk.opportunities.length + steps.length + extra.rowCount
   return {
-    data: { trusted },
+    data: { trusted: onDesk(kind) ? { skipped, ...desk } : { skipped }, ...extra.data },
     codes: [...new Set(refs.map((r) => r.code))],
     rowCount,
     hidden: books.length > 0 ? leads.hidden + deals.hidden : null,
     refs,
-    steps: steps.length,
   }
+}
+
+const DOOR_MAP: Record<Door, ToolDoor> = {
+  lead: door(LeadController, 'book'),
+  opportunity: door(OpportunityController, 'book'),
+  'lead-step': door(NextStepController, 'get'),
+  'opportunity-step': door(OpportunityStepController, 'get'),
+  ...EXTRA_DOORS,
 }
 
 export const listMyWork = (d: WorkDoors): AssistantTool =>
   defineTool({
     name: 'list_my_work',
     description:
-      "The asker's own open leads, open opportunities and next steps they must do, as codes, states and dates. No names: read one with get_record.",
+      "The asker's own open leads, open opportunities and next steps they must do, as codes, states and dates. No names on those rows: read one with get_record. Approval, parked and meeting are read only when named: approval = requests waiting for their decision and ones they raised; parked = their own holds; meeting = their next meeting today and how many follow.",
     input: ListMyWorkInput,
-    doors: {
-      lead: door(LeadController, 'book'),
-      opportunity: door(OpportunityController, 'book'),
-      'lead-step': door(NextStepController, 'get'),
-      'opportunity-step': door(OpportunityStepController, 'get'),
-    },
+    doors: DOOR_MAP,
+    /* A service-level refusal of a section is reported in `skipped`, not as a failed call. */
+    optional: Object.keys(EXTRA_DOORS) as ExtraDoor[],
     doorFor: (input) => DOORS[input.kind ?? 'all'],
     run: (who, input, open) => run(d, who, input, open),
-    stepsOf: ({ kind }, { rowCount, codes }) => stepsOf(kind, rowCount, codes.length),
+    readsOf,
+    /* These sections are counted by `readsOf`; their refs must not count a second time. */
+    refsCounted: (input) =>
+      input.kind === 'approval' || input.kind === 'parked' || input.kind === 'meeting'
+        ? 'none'
+        : 'all',
+    shrink: (output, fits) => shrinkRows(output, WORK_LISTS, fits),
   })

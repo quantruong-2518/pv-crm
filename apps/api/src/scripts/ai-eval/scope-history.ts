@@ -372,7 +372,7 @@ async function richCut(world: World, tally: Tally): Promise<void> {
 }
 
 /** Twenty full summaries against the loop's 40k-token ceiling: the realistic read fits,
- *  the widest possible one goes over, and what goes over reaches the model as nothing. */
+ *  the widest possible one is shrunk by the tool (summaries cut, then rows from the end). */
 async function ceiling(world: World, tally: Tally): Promise<void> {
   const who = seatOf(wideSeatId('account-executive'))
   await tally.run(GROUP, 'twenty long summaries still fit under the token ceiling', async (c) => {
@@ -386,15 +386,20 @@ async function ceiling(world: World, tally: Tally): Promise<void> {
     c.ok((row?.toolTokens ?? TOKEN_CAP) < TOKEN_CAP, `${row?.toolTokens} tokens is over the cap`)
     c.eq(trail.turn?.endedBy, 'answer', 'the turn ends normally')
   })
-  await tally.run(GROUP, 'the widest summaries go over the ceiling and leak nothing', async (c) => {
+  await tally.run(GROUP, 'the widest summaries are cut to fit and leak nothing else', async (c) => {
     const chain = chainOf(world, 'hist-wide')
     const call = { name: CALL, input: { kind: 'lead', code: chain.lead } }
     const trail = await runTurn(world, { who, script: [{ calls: [call] }, parrot] })
     const [row] = trail.toolRows
-    c.eq(row?.outcome, 'over-cap', 'the read is dropped whole')
+    c.eq(row?.outcome, 'ok', 'the read is answered, shrunk')
     c.eq(row?.truncated, true, 'and marked cut')
-    c.eq(trail.turn?.endedBy, 'cap-tokens', 'the turn says why')
-    c.eq(canariesIn(trailText(trail)), [], 'nothing of it went along')
+    c.ok((row?.toolTokens ?? TOKEN_CAP) < TOKEN_CAP, `${row?.toolTokens} tokens is over the cap`)
+    c.eq(trail.turn?.endedBy, 'answer', 'the turn ends normally')
+    c.eq(
+      [...new Set(canariesIn(trailText(trail)))],
+      [canariesOf(chain.n).summary],
+      "only this record's summary went along",
+    )
   })
 }
 

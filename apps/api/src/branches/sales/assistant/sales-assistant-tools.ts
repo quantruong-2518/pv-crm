@@ -5,6 +5,7 @@ import {
   AccountProfile,
   AccountRow,
   AssistantReadKind,
+  AssistantSearchKind,
   ContractBookQuery,
   ContractCode,
   ContractDetailResponse,
@@ -19,29 +20,27 @@ import {
   OpportunityRow,
   SearchQuery,
   SearchRecordsInput,
-  type AssistantRef,
   type LeadBookResponse,
   type OpportunityBookResponse,
-  type SearchHit,
-  type SearchResult,
 } from '@pv/contracts'
-import { z } from 'zod'
 import {
   defineTool,
   door,
-  inPool,
   type AssistantTool,
   type AssistantToolSource,
   type ToolRead,
 } from '@api/platform/assistant/assistant-tools'
-import { maskContact } from '@api/platform/assistant/assistant-contact'
 import { DebriefService } from '@api/platform/comms/debrief.service'
 import { ACCESS } from '@api/platform/engines/tokens'
-import { denied, PvError } from '@api/platform/http/problem'
+import { denied } from '@api/platform/http/problem'
 import { zod } from '@api/platform/http/zod.pipe'
 import { AccountController } from '../account/account.controller'
 import { AccountService } from '../account/account.service'
 import { AfterSaleService } from '../after-sale/after-sale.service'
+import { CampaignController } from '../campaign/campaign.controller'
+import { CampaignService } from '../campaign/campaign.service'
+import { LeadContactController } from '../lead/lead-contact.controller'
+import { ContactService } from '../contact/contact.service'
 import { ContractController } from '../contract/contract.controller'
 import { ContractService } from '../contract/contract.service'
 import { LeadController } from '../lead/lead.controller'
@@ -52,6 +51,8 @@ import { OpportunityController } from '../opportunity/opportunity.controller'
 import { OpportunityService } from '../opportunity/opportunity.service'
 import { SearchController } from '../search/search.controller'
 import { SearchService } from '../search/search.service'
+import { WorkstreamController } from '../workstream/workstream.controller'
+import { WorkstreamService } from '../workstream/workstream.service'
 import { getHistory } from './get-history'
 import { getMyKpi } from './get-my-kpi'
 import { getTeamKpi } from './get-team-kpi'
@@ -63,6 +64,10 @@ import {
   listMyWork,
 } from './list-my-work'
 import { withMoney } from './opportunity-money-read'
+import { searchRead } from './search-read'
+import { shrinkRows } from './shrink-rows'
+import { profilesOf, readProfile, rereadProfiles, type ProfileAsk } from './record-kinds-read'
+import { kindOfCode, oneRecord, reachOf, refOf, shownText } from './record-read-kit'
 
 /** The Sales branch's tools (ADR 0133 D2): door methods taking the `Actor` first and
  *  fencing rows themselves, never a sub-service. One exception: the company profile
@@ -81,7 +86,6 @@ import { withMoney } from './opportunity-money-read'
 
 const LeadTrusted = LeadProfile.pick({
   code: true,
-  workstreamCode: true,
   state: true,
   tier: true,
   sizeBand: true,
@@ -139,7 +143,6 @@ const CompanyDealTrusted = BookDealTrusted.extend(
 export const ACCOUNT_LIST = 20
 /** Codes sent to a book, under the 4000 characters its `codes` filter takes. */
 const ACCOUNT_CODES = 200
-const RECHECK_PARALLEL = 4
 
 /** A lead's deals read with it: search matches a deal by its own name, not its
  *  lead's company, so "what deals does AIT have" had no other way to an answer. */
@@ -168,66 +171,15 @@ const ContractTrusted = ContractDetailResponse.pick({
   }).nullable(),
 })
 
-/** A hit's `code` is a bare string in the contract: re-checked here to earn `trusted`. */
-const HitTrusted = z.object({ kind: AssistantReadKind, code: ContractCode.or(ObjectCode) })
-
 const DOORS_OF = {
   lead: ['lead', 'leadDeals'],
   opportunity: 'opportunity',
   contract: 'contract',
   account: ['account', 'accountLeads', 'accountDeals'],
+  contact: 'contact',
+  campaign: 'campaign',
+  workstream: 'workstream',
 } as const satisfies Record<AssistantReadKind, string | readonly string[]>
-
-/** The prefixes the code sequences print (`seqCodes` in each repository). */
-const KIND_OF_PREFIX: readonly (readonly [string, AssistantReadKind])[] = [
-  ['AC-', 'account'],
-  ['LD-', 'lead'],
-  ['OP-', 'opportunity'],
-  ['HĐ-', 'contract'],
-]
-
-const kindOfCode = (code: string): AssistantReadKind | null =>
-  KIND_OF_PREFIX.find(([prefix]) => code.startsWith(prefix))?.[1] ?? null
-
-const shownText = (text: string, mayReach: boolean): string =>
-  mayReach ? text : (maskContact(text) as string)
-
-type Reach = { phone?: string | null; email?: string | null }
-
-/** Keys left out rather than nulled: a null tells the model the record has none. */
-const reachOf = ({ phone, email }: Reach, mayReach: boolean): Reach =>
-  mayReach ? { phone, email } : {}
-
-/** The chip on screen; the model never reads a label (D5). It is still the
- *  assistant speaking, so a phone typed into a name is masked like the rest (0134 §4). */
-function refOf(
-  kind: AssistantReadKind,
-  code: string,
-  label: string,
-  mayReach: boolean,
-): AssistantRef {
-  return { kind, code, label: shownText(label, mayReach).trim() || code }
-}
-
-const oneRecord = (
-  ref: AssistantRef,
-  trusted: object,
-  untrusted: object,
-  mayReach: boolean,
-  people: readonly Reach[] = [],
-): ToolRead => {
-  const shown = mayReach ? untrusted : maskContact(untrusted)
-  const contactInfoWithheld =
-    !mayReach &&
-    (people.some((c) => c.phone || c.email) || JSON.stringify(shown) !== JSON.stringify(untrusted))
-  return {
-    data: { trusted, untrusted: shown, ...(contactInfoWithheld && { contactInfoWithheld }) },
-    codes: [ref.code],
-    rowCount: 1,
-    hidden: null,
-    refs: [ref],
-  }
-}
 
 const leadRead = (p: LeadProfile, mayReach: boolean): ToolRead =>
   oneRecord(
@@ -353,7 +305,8 @@ function childList<R extends { code: string }>(
 
 /** The company's own fields, and the leads, deals and people the book doors gave back.
  *  `hidden` stays null: a count of what was cut would say the company has rows the
- *  asker cannot open (0134 §4). A contact is kept only when its lead was read. */
+ *  asker cannot open (0134 §4). A contact is kept only when its lead was read, and
+ *  carries no code: the contact door is narrower than the lead book (own leads only). */
 function accountRead(
   p: AccountProfile,
   found: {
@@ -428,27 +381,6 @@ function accountRead(
   }
 }
 
-/** `matched` and `score` stay behind: `matched.text` is the phone or email on a
- *  contact hit, and a deal's contact name on a deal hit. */
-function searchRead(result: SearchResult, mayReach: boolean): ToolRead {
-  const hits = result.groups.flatMap((g) => g.hits)
-  const text = (h: SearchHit) => ({ title: h.title, subtitle: h.subtitle })
-  const trusted = hits.map((h) => HitTrusted.parse(h))
-  return {
-    data: {
-      trusted: { more: result.groups.filter((g) => g.more).map((g) => g.kind) },
-      hits: hits.map((h, i) => ({
-        trusted: trusted[i],
-        untrusted: mayReach ? text(h) : maskContact(text(h)),
-      })),
-    },
-    codes: hits.map((h) => h.code),
-    rowCount: hits.length,
-    hidden: null,
-    refs: trusted.map((t, i) => refOf(t.kind, t.code, hits[i]?.title ?? '', mayReach)),
-  }
-}
-
 @Injectable()
 export class SalesAssistantTools implements AssistantToolSource {
   constructor(
@@ -462,6 +394,9 @@ export class SalesAssistantTools implements AssistantToolSource {
     private readonly accounts: AccountService,
     private readonly afterSales: AfterSaleService,
     private readonly modules: ModuleRef,
+    private readonly contacts: ContactService,
+    private readonly campaigns: CampaignService,
+    private readonly workstreams: WorkstreamService,
   ) {}
 
   tools(): readonly AssistantTool[] {
@@ -470,16 +405,17 @@ export class SalesAssistantTools implements AssistantToolSource {
       defineTool({
         name: 'search_records',
         description:
-          'Find leads, opportunities, contracts and companies by name, code or tax code. Returns codes and names; read one with get_record.',
+          'Find leads, opportunities, contracts, companies, people (contacts) and campaigns by name, code or tax code. Returns codes and names; read one with get_record.',
         input: SearchRecordsInput,
         doors: { find: door(SearchController, 'find') },
         doorFor: () => 'find',
         run: (who, input) => this.search(who, input),
+        shrink: (output, fits) => shrinkRows(output, [['hits']], fits),
       }),
       defineTool({
         name: 'get_record',
         description:
-          "Read one lead, opportunity, contract or company by its code. A lead comes with its opportunities: use it, not search_records, for a lead's opportunities. An opportunity comes with its quotation rounds and money: the contracts signed on it, and where the asker may see payments, what was collected and the installments. A company comes with the leads, opportunities and people the asker may see.",
+          "Read one lead, opportunity, contract or company by its code. A lead comes with its opportunities: use it, not search_records, for a lead's opportunities. An opportunity comes with its quotation rounds and money: the contracts signed on it, and where the asker may see payments, what was collected and the installments. A company comes with the leads, opportunities and people the asker may see. A contact is one person with the lead it belongs to, opened by its CT- code when the person gives one. A campaign comes with its state, dates and counts, never its members. A workstream (WS- code) is a customer's journey: where its lead and each opportunity stand by rung, outcome and date, and each contract by kind and signing date, without their codes.",
         input: GetRecordInput,
         doors: {
           lead: door(LeadController, 'profile'),
@@ -487,11 +423,17 @@ export class SalesAssistantTools implements AssistantToolSource {
           opportunity: door(OpportunityController, 'profile'),
           contract: door(ContractController, 'profile'),
           account: door(AccountController, 'profile'),
+          contact: door(LeadContactController, 'profile'),
+          campaign: door(CampaignController, 'profile'),
+          workstream: door(WorkstreamController, 'profile'),
           accountLeads: door(LeadController, 'book'),
           accountDeals: door(OpportunityController, 'book'),
         },
         doorFor: (input) => DOORS_OF[input.kind],
         run: (who, input, open) => this.read(who, input, open),
+        /* The footer counts the one record asked for, not the lists that ride on a company or journey. */
+        refsCounted: (input) =>
+          input.kind === 'account' || input.kind === 'workstream' ? 'first' : 'all',
         recheck: {
           kindOf: kindOfCode,
           doors: {
@@ -499,6 +441,9 @@ export class SalesAssistantTools implements AssistantToolSource {
             opportunity: door(OpportunityController, 'book'),
             contract: door(ContractController, 'book'),
             account: door(AccountController, 'profile'),
+            contact: door(LeadContactController, 'profile'),
+            campaign: door(CampaignController, 'profile'),
+            workstream: door(WorkstreamController, 'profile'),
           },
           read: (who, kind, codes) => this.reread(who, kind, codes),
           one: (code) => {
@@ -519,6 +464,8 @@ export class SalesAssistantTools implements AssistantToolSource {
         opportunities: this.opportunities,
         leadSteps: this.leadSteps,
         dealSteps: this.dealSteps,
+        modules: this.modules,
+        mayReach: (who) => this.mayReach(who),
         refOf: (who, kind, code, label) => refOf(kind, code, label, this.mayReach(who)),
       }),
       getHistory({
@@ -533,14 +480,28 @@ export class SalesAssistantTools implements AssistantToolSource {
     ]
   }
 
-  /** The kinds go in every time: the door reads an absent `kinds` as all seven,
-   *  and the `contact` kind matches on phone and email. */
+  /** The kinds go in every time: the door reads an absent `kinds` as all seven, and
+   *  `workstream` is one it cannot find. `contact` is asked only of a holder of
+   *  `data.export`: it matches on phone and email, and a hit cannot be told from a name
+   *  hit after the fact. A seat left with no kind asks nothing: `''` is a 400, not "all". */
   private async search(who: Actor, input: SearchRecordsInput): Promise<ToolRead> {
-    const q = zod(SearchQuery).transform({
-      q: input.query,
-      kinds: (input.kinds ?? AssistantReadKind.options).join(','),
-    })
-    return searchRead(await this.searches.search(who, q), this.mayReach(who))
+    const mayReach = this.mayReach(who)
+    const kinds = (input.kinds ?? AssistantSearchKind.options).filter(
+      (k) => mayReach || k !== 'contact',
+    )
+    /* Said aloud, so the model reports "may not search people", not "no such person". */
+    const skipped = !mayReach && (input.kinds ?? ['contact']).includes('contact') ? ['contact'] : []
+    const found =
+      kinds.length === 0
+        ? { groups: [] }
+        : await this.searches.search(
+            who,
+            zod(SearchQuery).transform({ q: input.query, kinds: kinds.join(',') }),
+          )
+    const read = searchRead(found, mayReach)
+    if (skipped.length === 0) return read
+    const data = read.data as { trusted: object }
+    return { ...read, data: { ...read.data, trusted: { ...data.trusted, skipped } } }
   }
 
   /** `allows` asks `who.permissions`, the grant resolved from the database for this
@@ -561,13 +522,19 @@ export class SalesAssistantTools implements AssistantToolSource {
   }
 
   /** The book doors with `codes`, in the person's scope now, fenced like the profile
-   *  door. A company has no book with `codes`, so its profile door is read per code. */
+   *  door. A company, person, campaign or journey has no book with `codes`, so its
+   *  profile door is read per code. */
   private async reread(who: Actor, kind: string, codes: readonly string[]) {
     const mayReach = this.mayReach(who)
     const asked = { codes: codes.join(','), size: codes.length }
     const ref = (k: AssistantReadKind) => (r: { code: string }, label: string) =>
       refOf(k, r.code, label, mayReach)
-    switch (AssistantReadKind.parse(kind)) {
+    const readKind = AssistantReadKind.parse(kind)
+    switch (readKind) {
+      case 'contact':
+      case 'campaign':
+      case 'workstream':
+        return rereadProfiles(who, readKind, codes, this.ask(mayReach))
       case 'lead':
         return (await this.bookLeads(who, asked)).rows.map((r) => ref('lead')(r, r.company))
       case 'opportunity': {
@@ -581,13 +548,10 @@ export class SalesAssistantTools implements AssistantToolSource {
         return (await this.contracts.book(who, q)).rows.map((r) => ref('contract')(r, r.customer))
       }
       case 'account': {
-        const read = await inPool(codes, RECHECK_PARALLEL, (code) =>
-          this.accounts.profile(zod(ObjectCode).transform(code)).catch((error: unknown) => {
-            if (error instanceof PvError && error.getStatus() === 404) return null
-            throw error
-          }),
+        const read = await profilesOf(codes, (code) =>
+          this.accounts.profile(zod(ObjectCode).transform(code)),
         )
-        return read.filter((p) => p !== null).map((p) => ref('account')(p, p.name))
+        return read.map((p) => ref('account')(p, p.name))
       }
     }
   }
@@ -599,6 +563,10 @@ export class SalesAssistantTools implements AssistantToolSource {
   ): Promise<ToolRead> {
     const mayReach = this.mayReach(who)
     switch (kind) {
+      case 'contact':
+      case 'campaign':
+      case 'workstream':
+        return readProfile(who, kind, code, this.ask(mayReach))
       case 'lead': {
         /* The deals door alone open must not read the lead past its own door. */
         if (!open.has('lead')) throw denied('permission-denied')
@@ -621,6 +589,15 @@ export class SalesAssistantTools implements AssistantToolSource {
           mayReach,
         )
     }
+  }
+
+  private ask(mayReach: boolean): ProfileAsk {
+    const doors = {
+      contacts: this.contacts,
+      campaigns: this.campaigns,
+      workstreams: this.workstreams,
+    }
+    return { doors, mayReach, list: ACCOUNT_LIST }
   }
 
   /** The company door fences nothing, so only its own fields and the child CODES are

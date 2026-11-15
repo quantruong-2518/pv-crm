@@ -36,6 +36,25 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
   0137 are on master; the 01/11 handover said migration 0162 had to reach Neon
   before the API deploy — whether it did is **not recorded here**. Full plan:
   https://claude.ai/artifact/1r7zdgWt8CBWWCK52DCvCR
+- CRM assistant wave 1b (ADR 0152), debt:
+  - Built on branch `assistant-wave-1b`; not merged, not shipped; no migration.
+  - Owed: gate 0 live runs; eye check of the composer "Phân tích kỹ" toggle
+    (law 13, narrow panel at 320px); owner call on the deep route's cost (seeded
+    OFF, Opus primary).
+  - Known limits are listed in the ADR.
+  - Printable codes not in `codes` (pre-existing on master, found by the
+    15/11/2026 review): deal `leadCode`/`contractCodes`, contract
+    `opportunityCode`/`leadCode` and the company deal rows carry codes under
+    `trusted` that the model can print but the call does not store, so a reload
+    does not re-check them. One fix covers all: `TurnBinding.keep`
+    (`apps/api/src/platform/assistant/assistant-bind.ts`) vouches only for codes
+    in that call's stored `codes`.
+  - Re-check budget: CT-, CP-, WS- codes refused by the per-code profile re-read
+    go into `omitted`, and `recheckOne` reads them again through the same door,
+    spending the shared `RECHECK_SINGLES` budget
+    (`apps/api/src/platform/assistant/assistant-tools.ts`); fails closed (an
+    older answer may show as unchecked). Fix: do not push codes of kinds whose
+    re-check already is the profile door into `omitted`.
 - Company profile door is unfenced (debt, found 10/11 by reading code; owner:
   fix in its own turn, not now). `GET /accounts/:code` (`profile` in
   `apps/api/src/branches/sales/account/account.controller.ts`) calls

@@ -15,8 +15,10 @@ import { Moment } from './primitives'
  *  row carries the reported answer and the one question before it, nothing else
  *  of the session, because managers never read chats (ADR 0133 §2). */
 
-/** True only when the `assistant` route is on AND the person holds `assistant.use`. */
-export const AssistantAvailability = z.object({ enabled: z.boolean() })
+/** `enabled` is true only when the `assistant` route is on AND the person holds `assistant.use`.
+ *  `deep` says whether the `assistant-deep` route is on (seeded off), so the screen offers
+ *  the deep-analysis switch only when it can run. */
+export const AssistantAvailability = z.object({ enabled: z.boolean(), deep: z.boolean() })
 export type AssistantAvailability = z.infer<typeof AssistantAvailability>
 
 /** Absent `sessionId` opens a new session. `screen` may reach the prompt, so it is held to a path shape. */
@@ -24,6 +26,8 @@ export const AssistantTurnBody = z
   .object({
     sessionId: z.uuid().optional(),
     question: AssistantQuestion,
+    /** The person chose the slower, deeper answer route (`assistant-deep`); absent = normal route. */
+    deep: z.boolean().optional(),
     screen: z
       .string()
       .max(200)

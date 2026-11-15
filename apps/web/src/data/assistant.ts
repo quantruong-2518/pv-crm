@@ -10,6 +10,7 @@ import {
   AssistantReportResponse,
   AssistantSessionDetail,
   AssistantSessionList,
+  type AssistantReadKind,
   type AssistantRecordKind,
   type AssistantRef,
   type AssistantReportBody,
@@ -17,6 +18,7 @@ import {
   type AssistantSubject,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { message, type Message } from '@/app/i18n'
 import { cacheTier } from '@/app/query-client'
 import { SEARCH_KIND_FACTS } from './search-rows'
 
@@ -116,9 +118,27 @@ export function useStopTurn() {
   })
 }
 
-/** A record's profile route, from the same table the header search opens hits with. */
+type RefFacts = { label: Message; detail: string }
+
+/** Search kinds open their own profile, except a contact (the search opens its lead) and a workstream (not searchable). */
+const REF_KIND_FACTS: Record<AssistantReadKind, RefFacts> = {
+  lead: SEARCH_KIND_FACTS.lead,
+  opportunity: SEARCH_KIND_FACTS.opportunity,
+  contract: SEARCH_KIND_FACTS.contract,
+  account: SEARCH_KIND_FACTS.account,
+  campaign: SEARCH_KIND_FACTS.campaign,
+  contact: { label: SEARCH_KIND_FACTS.contact.label, detail: '/sales/contacts' },
+  workstream: {
+    label: message('Hành trình', 'Workstream', '고객 여정'),
+    detail: '/sales/workstreams',
+  },
+}
+
+export const refKindLabel = (kind: AssistantReadKind) => REF_KIND_FACTS[kind].label
+
+/** A record's profile route; a record the assistant read may be of a kind the header search cannot open. */
 export const refPath = (ref: Pick<AssistantRef, 'kind' | 'code'>) =>
-  `${SEARCH_KIND_FACTS[ref.kind].detail}/${encodeURIComponent(ref.code)}`
+  `${REF_KIND_FACTS[ref.kind].detail}/${encodeURIComponent(ref.code)}`
 
 /** The browser keeps the path percent-encoded; a contract code is not ASCII. */
 function decoded(segment: string | undefined) {

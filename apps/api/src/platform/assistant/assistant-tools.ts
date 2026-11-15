@@ -35,15 +35,13 @@ export const door = <C>(controller: Type<C>, handler: keyof C & string): ToolDoo
  *  `trusted` (only values whose zod type is a whitelisted code, enum, id, date or
  *  number, D5) and `untrusted`. `hidden` is the door's own count, null when it
  *  gives none, plus only the rows the tool dropped itself. `refs` name the records
- *  for the screen and never reach a model; `steps` counts next steps, which have no
- *  code. */
+ *  for the screen and never reach a model. */
 export type ToolRead = {
   data: object
   codes: readonly string[]
   rowCount: number
   hidden: number | null
   refs?: readonly AssistantRef[]
-  steps?: number
   /** Text a reader needs `ToolSpec.reveals` to see went into `data`: the stored
    *  answer is then withheld from a reader without it. */
   revealsContent?: boolean
@@ -64,8 +62,11 @@ type ToolSpec<I, K extends string> = {
   /** `open` holds only the doors whose need passed: read nothing behind another. */
   run: (who: Actor, input: I, open: ReadonlySet<K>) => Promise<ToolRead>
   recheck?: ToolRecheck
-  /** Next steps a stored call read: they have no code, and no column keeps the count. */
-  stepsOf?: (input: I, stored: Stored) => number
+  /** What a stored call read that has no code, per footer kind: no column keeps the
+   *  count, so the live turn and the reloaded one both derive it from this. */
+  readsOf?: (input: I, stored: Stored) => FooterReads
+  /** Absent = `all`. Live and replay both apply it, so it reads the input alone. */
+  refsCounted?: (input: I) => RefsCounted
   /** The permission the text behind `revealsContent` is gated by: the tool names it,
    *  because platform knows no branch permission. */
   reveals?: Permission
@@ -74,6 +75,8 @@ type ToolSpec<I, K extends string> = {
    *  `@Need` must hold too, since an edited role matrix can split the two. `read`
    *  reads no text and writes no audit line, since nothing here reaches a model. */
   revealReach?: { door: K; read: RevealReach }
+  /** For a result that would pass the turn's token cap: a partial one beats none. */
+  shrink?: ToolShrink
 }
 
 export type RevealReach = (who: Actor, codes: readonly string[]) => Promise<ReadonlySet<string>>
@@ -90,8 +93,20 @@ export type ToolRecheck = {
   one: (code: string) => AiToolCall['input'] | null
 }
 
+/** Gives back a smaller output that `fits` the turn's remaining token budget, or null
+ *  when the tool cannot. `fits` counts exactly what the turn would, so a tool can try
+ *  cuts from the cheapest down; the loop adds `truncated: true` itself. */
+export type ToolShrink = (output: object, fits: (candidate: object) => boolean) => object | null
+
 /** What `assistant_tool_call` keeps of an `ok` call. */
 type Stored = { rowCount: number; codes: readonly string[] }
+
+/** Which of a call's refs the footer and the suggestions count: a record that lists
+ *  others as refs (a company and its deals) counts only itself, the first. */
+export type RefsCounted = 'all' | 'first' | 'none'
+
+/** Footer reads that are not record refs, by kind: they have no code to count. */
+export type FooterReads = Partial<Record<'next-step' | 'approval' | 'hold' | 'meeting', number>>
 
 type Prepared =
   | {
@@ -109,9 +124,11 @@ export type AssistantTool = {
   optional: readonly string[]
   prepare: (raw: unknown) => Prepared
   recheck?: ToolRecheck
-  stepsOf?: (raw: unknown, stored: Stored) => number
+  readsOf?: (raw: unknown, stored: Stored) => FooterReads
+  refsCounted?: (raw: unknown) => RefsCounted
   reveals?: Permission
   revealReach?: { door: string; read: RevealReach }
+  shrink?: ToolShrink
 }
 
 /** Closes over `I` so the registry holds tools of different inputs in one map. */
@@ -127,9 +144,15 @@ export function defineTool<I, K extends string>(spec: ToolSpec<I, K>): Assistant
     recheck: spec.recheck,
     reveals: spec.reveals,
     revealReach: spec.revealReach,
-    stepsOf: (raw, stored) => {
+    shrink: spec.shrink,
+    readsOf: (raw, stored) => {
       const parsed = spec.input.safeParse(raw)
-      return parsed.success && spec.stepsOf ? spec.stepsOf(parsed.data, stored) : 0
+      return parsed.success && spec.readsOf ? spec.readsOf(parsed.data, stored) : {}
+    },
+    /* An input that does not parse counts everything: the safe side is the larger footer. */
+    refsCounted: (raw) => {
+      const parsed = spec.input.safeParse(raw)
+      return parsed.success && spec.refsCounted ? spec.refsCounted(parsed.data) : 'all'
     },
     prepare(raw) {
       const parsed = spec.input.safeParse(raw)
@@ -173,7 +196,8 @@ export type ToolVerdict = {
   skipped: readonly { door: string; reason: DenyReason }[]
   latencyMs: number | null
   refs: readonly AssistantRef[]
-  steps: number
+  reads: FooterReads
+  counted: RefsCounted
   revealsContent: boolean
 }
 
@@ -192,7 +216,8 @@ export const notRun = (
   skipped: [],
   latencyMs: null,
   refs: [],
-  steps: 0,
+  reads: {},
+  counted: 'all',
   revealsContent: false,
 })
 
@@ -205,7 +230,7 @@ const RECHECK_BATCH = 200
 /** Codes a book left out, read one by one: a few, since a book and its profile door
  *  disagree only at their edges (a co-owner on a signed deal). Each is a door read. */
 const RECHECK_SINGLES = 20
-const RECHECK_PARALLEL = 4
+export const RECHECK_PARALLEL = 4
 
 const errorName = (error: unknown): string => (error instanceof Error ? error.name : 'unknown')
 
@@ -338,6 +363,11 @@ export class AssistantToolGate {
     return this.registered.get(name)?.tool.revealReach !== undefined
   }
 
+  /** The tool's own way to cut an over-cap result; undefined when it has none. */
+  shrinkOf(name: string): ToolShrink | undefined {
+    return this.registered.get(name)?.tool.shrink
+  }
+
   declarations(): AiToolDecl[] {
     return [...this.registered.values()].map(({ tool }) => ({
       name: tool.name,
@@ -371,6 +401,8 @@ export class AssistantToolGate {
       return {
         ...notRun('ok', output),
         ...counts,
+        reads: entry.tool.readsOf?.(call.input, counts) ?? {},
+        counted: entry.tool.refsCounted?.(call.input) ?? 'all',
         revealsContent: counts.revealsContent === true,
         skipped,
         latencyMs: Date.now() - started,
@@ -434,17 +466,29 @@ export class AssistantToolGate {
     for (const code of codes.slice(RECHECK_SINGLES)) found.delete(code)
   }
 
-  /** Next steps an `ok` stored call read, as its tool counts them; 0 for any other. */
-  stepsOf(call: {
+  /** What an `ok` stored call read beyond record refs, as its tool counts it; none for any other. */
+  readsOf(call: {
     name: string
     input: unknown
     outcome: string
     rowCount: number | null
     codes: readonly string[]
-  }): number {
+  }): FooterReads {
     const { outcome, rowCount, codes } = call
-    if (outcome !== 'ok' || rowCount === null) return 0
-    return this.registered.get(call.name)?.tool.stepsOf?.(call.input, { rowCount, codes }) ?? 0
+    if (outcome !== 'ok' || rowCount === null) return {}
+    return this.registered.get(call.name)?.tool.readsOf?.(call.input, { rowCount, codes }) ?? {}
+  }
+
+  /** The stored codes of an `ok` call that the footer counts, by its tool's rule. */
+  countedCodes(call: {
+    name: string
+    input: unknown
+    outcome: string
+    codes: readonly string[]
+  }): readonly string[] {
+    if (call.outcome !== 'ok') return []
+    const mode = this.registered.get(call.name)?.tool.refsCounted?.(call.input) ?? 'all'
+    return mode === 'all' ? call.codes : mode === 'first' ? call.codes.slice(0, 1) : []
   }
 
   /** 403 and 404 read the same to the model: the lead door tells them apart, the

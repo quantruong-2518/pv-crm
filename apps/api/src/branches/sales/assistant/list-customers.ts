@@ -20,6 +20,7 @@ import { zod } from '@api/platform/http/zod.pipe'
 import { AfterSaleController } from '../after-sale/after-sale.controller'
 import type { AfterSaleService } from '../after-sale/after-sale.service'
 import { LeadController } from '../lead/lead.controller'
+import { shrinkRows } from './shrink-rows'
 
 /** `list_customers`: the bought customers the asker may see in the after-sale book.
  *
@@ -29,8 +30,8 @@ import { LeadController } from '../lead/lead.controller'
  *  holder (ADR 0121 §6-7). A row no door returns is dropped and counted in `hidden`.
  *  No `collected`: the door sums every contract of the lead, past an ownOnly scope.
  *
- *  `codes` are the kept rows' lead codes, which `get_record` re-checks: a run code maps
- *  to no kind. No `count` in `trusted`: the door's total counts rows this re-check may
+ *  `codes` are the kept rows' lead codes, which `get_record` re-checks; a row's own WS-
+ *  code is not stored, so it is not in `trusted`. No `count` in `trusted`: the door's total counts rows this re-check may
  *  drop, so `rows` and `hidden` give the counts and `more` says only that a page follows.
  *  `hidden` and `more` come from the `contract.view` book, so any page with a row is
  *  withheld from a reader who loses that permission, even if every row was dropped. */
@@ -41,7 +42,6 @@ const LIST_SIZE = 20
 const READ_PARALLEL = 4
 
 const CustomerTrusted = AfterSaleRow.pick({
-  code: true,
   leadCode: true,
   lastContactAt: true,
   nextCareOn: true,
@@ -159,4 +159,5 @@ export const listCustomers = (d: CustomerDoors): AssistantTool =>
     doorFor: () => ['customers', 'leads', 'profile'],
     reveals: 'contract.view',
     run: (who, input, open) => run(d, who, input, open),
+    shrink: (output, fits) => shrinkRows(output, [['customers', 'rows']], fits),
   })

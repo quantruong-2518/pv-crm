@@ -136,7 +136,12 @@ export function agreeOnAnswer(
      `rows` is the binder's count, held to the door's own. */
   const { rows, ...parsed } = JSON.parse(body ?? '{}') as { rows?: unknown }
   c.eq(unbound(rows), door.rows, 'the rows the model may cite')
-  const handed = leaves(unbound({ ...parsed, contactInfoWithheld: null }))
+  /* `trusted.skipped` is the tool's word too: it names the kind it never asked. */
+  const { trusted, ...rest } = parsed as { trusted?: { skipped?: unknown } }
+  const { skipped: _skipped, ...kept } = trusted ?? {}
+  const handed = leaves(
+    unbound({ ...rest, ...(trusted && { trusted: kept }), contactInfoWithheld: null }),
+  )
   const extra = handed.filter((leaf) => !allowed.has(leaf))
   c.eq(extra, [], 'the tool hands over nothing the door did not')
 

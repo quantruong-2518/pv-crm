@@ -5,7 +5,7 @@ import {
   type AssistantSuggestion,
   type AssistantSuggestionKey,
 } from '@pv/contracts'
-import type { ToolVerdict } from './assistant-tools'
+import type { FooterReads, ToolVerdict } from './assistant-tools'
 
 /** What a turn's tools read, for the screen alone: the ref chips, the footer under
  *  the answer, and the suggestion chips. None of it enters a model request.
@@ -19,18 +19,45 @@ import type { ToolVerdict } from './assistant-tools'
 type FooterKind = AssistantFooter['read'][number]['kind']
 
 export type TurnReads = {
-  /** By code: a search hit opened later is one record read, not two. */
+  /** Every ref the calls returned, by code, for the chips. */
   refs: Map<string, AssistantRef>
-  steps: number
+  /** The refs the footer counts: a search hit opened later is one record read, not two. */
+  counted: Map<string, AssistantRef>
+  /** Reads with no record ref (next steps, approvals, holds, meetings), summed. */
+  steps: FooterReads
   /** `tool` and `tool kind` pairs that came back, e.g. `get_record contract`, each
    *  with the first code it returned. */
   seen: Map<string, string | null>
 }
 
-export const newReads = (): TurnReads => ({ refs: new Map(), steps: 0, seen: new Map() })
+export const newReads = (): TurnReads => ({
+  refs: new Map(),
+  counted: new Map(),
+  steps: {},
+  seen: new Map(),
+})
 
 const see = (reads: TurnReads, pair: string, code: string | null): void => {
   if (!reads.seen.has(pair)) reads.seen.set(pair, code)
+}
+
+/** The order the footer lists them in, after the record kinds. */
+const READ_KEYS = [
+  'next-step',
+  'approval',
+  'hold',
+  'meeting',
+] as const satisfies readonly (keyof FooterReads)[]
+
+function addReads(into: FooterReads, from: FooterReads): void {
+  for (const key of READ_KEYS) if (from[key]) into[key] = (into[key] ?? 0) + from[key]
+}
+
+/** Per-call reads of one answer, summed: the reloaded footer's side of `noteReads`. */
+export function sumReads(list: readonly FooterReads[]): FooterReads {
+  const total: FooterReads = {}
+  for (const reads of list) addReads(total, reads)
+  return total
 }
 
 export function noteReads(
@@ -40,26 +67,25 @@ export function noteReads(
   for (const c of calls) {
     if (c.outcome !== 'ok') continue
     const tool = c.call.name
-    /* A company read lists its leads and deals as refs; only the company is the record read. */
-    const only = tool === 'get_record' && c.refs[0]?.kind === 'account' ? c.refs[0] : null
-    for (const ref of c.refs) {
-      if (!reads.refs.has(ref.code)) reads.refs.set(ref.code, ref)
-      if (only && ref !== only) continue
+    for (const ref of c.refs) if (!reads.refs.has(ref.code)) reads.refs.set(ref.code, ref)
+    const counted = c.counted === 'first' ? c.refs.slice(0, 1) : c.counted === 'none' ? [] : c.refs
+    for (const ref of counted) {
+      if (!reads.counted.has(ref.code)) reads.counted.set(ref.code, ref)
       see(reads, tool, ref.code)
       see(reads, `${tool} ${ref.kind}`, ref.code)
     }
-    reads.steps += c.steps
-    if (c.steps > 0) see(reads, `${tool} next-step`, null)
+    addReads(reads.steps, c.reads)
+    for (const key of READ_KEYS) if ((c.reads[key] ?? 0) > 0) see(reads, `${tool} ${key}`, null)
   }
 }
 
 const KINDS: readonly FooterKind[] = AssistantReadKind.options
 
 /** Kinds with nothing read are left out: the contract counts are positive. */
-export function footerOf(reads: Pick<TurnReads, 'refs' | 'steps'>, at: Date): AssistantFooter {
-  const refs = [...reads.refs.values()]
+export function footerOf(reads: Pick<TurnReads, 'counted' | 'steps'>, at: Date): AssistantFooter {
+  const refs = [...reads.counted.values()]
   const counted = KINDS.map((kind) => ({ kind, count: refs.filter((r) => r.kind === kind).length }))
-  const read = [...counted, { kind: 'next-step' as const, count: reads.steps }]
+  const read = [...counted, ...READ_KEYS.map((kind) => ({ kind, count: reads.steps[kind] ?? 0 }))]
   return { read: read.filter((r) => r.count > 0), at: at.toISOString() }
 }
 

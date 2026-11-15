@@ -49,7 +49,18 @@ export type AssistantRecordKind = z.infer<typeof AssistantRecordKind>
 
 /** Kinds the tools can read. Wider than `AssistantRecordKind` on purpose: that one is the session subject,
  *  bound by the `assistant_session.subject_kind` CHECK, and widening it needs a migration and a company-screen entry. */
-export const AssistantReadKind = SearchKind.extract(['lead', 'opportunity', 'contract', 'account'])
+export const AssistantSearchKind = SearchKind.extract([
+  'lead',
+  'opportunity',
+  'contract',
+  'account',
+  'contact',
+  'campaign',
+])
+export type AssistantSearchKind = z.infer<typeof AssistantSearchKind>
+
+/** Search kinds plus `workstream`, which the search door cannot find but `get_record` can open by code. */
+export const AssistantReadKind = z.enum([...AssistantSearchKind.options, 'workstream'])
 export type AssistantReadKind = z.infer<typeof AssistantReadKind>
 
 const RecordCode = z.string().trim().min(1).max(64)
@@ -85,7 +96,13 @@ export type AssistantRef = z.infer<typeof AssistantRef>
 export const AssistantFooter = z.object({
   read: z.array(
     z.object({
-      kind: z.union([AssistantReadKind, z.literal('next-step')]),
+      kind: z.union([
+        AssistantReadKind,
+        z.literal('next-step'),
+        z.literal('approval'),
+        z.literal('hold'),
+        z.literal('meeting'),
+      ]),
       count: z.number().int().positive(),
     }),
   ),
@@ -195,7 +212,7 @@ export type AssistantEvent = z.infer<typeof AssistantEvent>
 export const SearchRecordsInput = z
   .object({
     query: z.string().trim().min(SEARCH_MIN_CHARS).max(SEARCH_MAX_CHARS),
-    kinds: z.array(AssistantReadKind).min(1).max(4).optional(),
+    kinds: z.array(AssistantSearchKind).min(1).max(6).optional(),
   })
   .strict()
 export type SearchRecordsInput = z.infer<typeof SearchRecordsInput>
@@ -210,9 +227,15 @@ export type AssistantHistoryKind = z.infer<typeof AssistantHistoryKind>
 export const GetHistoryInput = z.object({ kind: AssistantHistoryKind, code: RecordCode }).strict()
 export type GetHistoryInput = z.infer<typeof GetHistoryInput>
 
-/** Absent `kind` lists all three. Always the asker's own work: there is no field to name anyone else. */
+/** Always the asker's own work: there is no field to name anyone else.
+ *  Absent `kind` reads the desk only (lead, opportunity, next-step); `approval`, `parked` and
+ *  `meeting` are read only when named, so a stored call's counts can be rebuilt from its kind
+ *  and row count (no column keeps them). `parked` = the asker's own holds: nurturing leads are
+ *  a shared pool with no holder and deals have no nurturing state, so neither is "mine". */
 export const ListMyWorkInput = z
-  .object({ kind: z.enum(['lead', 'opportunity', 'next-step']).optional() })
+  .object({
+    kind: z.enum(['lead', 'opportunity', 'next-step', 'approval', 'parked', 'meeting']).optional(),
+  })
   .strict()
 export type ListMyWorkInput = z.infer<typeof ListMyWorkInput>
 

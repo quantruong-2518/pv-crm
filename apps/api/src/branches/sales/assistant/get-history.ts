@@ -30,6 +30,7 @@ import { LeadController } from '../lead/lead.controller'
 import type { LeadService } from '../lead/lead.service'
 import { OpportunityController } from '../opportunity/opportunity.controller'
 import type { OpportunityService } from '../opportunity/opportunity.service'
+import { shrinkRows } from './shrink-rows'
 
 /** `get_history`: what happened with one lead or deal, from three doors: the
  *  touches (primary), the contact records and the meetings.
@@ -83,6 +84,18 @@ const MeetingTrusted = MeetingRow.pick({
   durationMinutes: true,
   isFirst: true,
 })
+
+/** Cut before any row goes: a long summary costs more than the row it sits in. */
+const SUMMARY_CUT = 300
+
+const cutSummaries = (output: object): void => {
+  const rows = (output as { comms?: { rows?: { untrusted?: { summary?: unknown } }[] } }).comms
+    ?.rows
+  for (const { untrusted } of rows ?? []) {
+    if (typeof untrusted?.summary === 'string')
+      untrusted.summary = untrusted.summary.slice(0, SUMMARY_CUT)
+  }
+}
 
 export type HistoryDoors = {
   leads: LeadService
@@ -235,4 +248,15 @@ export const getHistory = (d: HistoryDoors): AssistantTool =>
     revealReach: { door: 'comms', read: (who, codes) => d.debriefs().reachable(who, codes) },
     doorFor: ({ kind }) => [KEYS[kind].touches, 'comms', KEYS[kind].meetings],
     run: (who, input, open) => run(d, who, input, open),
+    shrink: (output, fits) =>
+      shrinkRows(
+        output,
+        [
+          ['touches', 'rows'],
+          ['comms', 'rows'],
+          ['meetings', 'rows'],
+        ],
+        fits,
+        cutSummaries,
+      ),
   })

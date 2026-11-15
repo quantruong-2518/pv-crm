@@ -186,6 +186,7 @@ export function sendTurn(
   sessionId: string | null,
   question: string,
   context: TurnContext,
+  deep = false,
 ) {
   const key = ++seq
   const turn: LiveTurn = {
@@ -211,7 +212,7 @@ export function sendTurn(
   useAssistantLive.setState((s) => ({ turns: [...s.turns, turn] }))
   const abort = new AbortController()
   controllers.set(key, abort)
-  const body = { question, ...(sessionId ? { sessionId } : {}), ...context }
+  const body = { question, ...(sessionId ? { sessionId } : {}), ...context, ...(deep && { deep }) }
   streamTurn(body, (event) => onEvent(key, event), abort.signal)
     .then(() => {
       if (turnOf(key)?.phase === 'running') fail(key, { code: 'interrupted' })
@@ -242,6 +243,14 @@ export function useAssistantShown(): boolean {
   const allowed = access.check(actor, USE_NEED).ok
   const { data } = useQuery({ ...availabilityQuery, enabled: allowed })
   return allowed && data?.enabled === true
+}
+
+/** The deep-analysis toggle shows only while the server has the `assistant-deep` route on. */
+export function useAssistantDeep(): boolean {
+  const actor = useSession((s) => s.actor)
+  const allowed = access.check(actor, USE_NEED).ok
+  const { data } = useQuery({ ...availabilityQuery, enabled: allowed })
+  return allowed && data?.deep === true
 }
 
 export function useAssistantEntry(): (() => void) | undefined {

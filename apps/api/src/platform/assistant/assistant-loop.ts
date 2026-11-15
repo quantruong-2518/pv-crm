@@ -21,10 +21,16 @@ import {
   requestOf,
   tokensOf,
 } from './assistant-context'
-import { TurnBinding } from './assistant-bind'
+import { TurnBinding, type Draft } from './assistant-bind'
 import { checkChat } from './assistant-refs'
 import { AssistantSummarizer } from './assistant-summary'
-import { AssistantToolGate, inPool, notRun, type ToolVerdict } from './assistant-tools'
+import {
+  AssistantToolGate,
+  inPool,
+  notRun,
+  type ToolShrink,
+  type ToolVerdict,
+} from './assistant-tools'
 import { footerOf, newReads, noteReads, suggestionsOf, type TurnReads } from './assistant-turn-read'
 import {
   AssistantRepository,
@@ -160,15 +166,43 @@ const storableJson = (value: unknown): unknown => {
   )
 }
 
-/** The token cap, in call order: an over-cap result reaches neither the model nor
- *  the audit, because nothing of it was read. */
+/** Below this a partial result is not worth a model round of its own. */
+const MIN_SHRINK_TOKENS = 1_000
+
+/** A result cut to fit what is left of the turn's budget, or null. Measured as the
+ *  binder draft, the same count `capped` charges; a draft that is not kept binds no
+ *  id, so only the accepted candidate is kept by the caller. */
+function shrunk(
+  turn: Turn,
+  verdict: ToolVerdict,
+  shrink: ToolShrink | undefined,
+): { draft: Draft; tokens: number } | null {
+  if (!shrink || TOOL_TOKEN_CAP - turn.toolTokens < MIN_SHRINK_TOKENS) return null
+  const measure = (candidate: object) => {
+    const draft = turn.binding.draft({ ...candidate, truncated: true }, verdict.rowCount)
+    return { draft, tokens: tokensOf(draft.output) }
+  }
+  const within = (tokens: number): boolean => turn.toolTokens + tokens <= TOOL_TOKEN_CAP
+  const out = shrink(verdict.output, (candidate) => within(measure(candidate).tokens))
+  if (typeof out !== 'object' || out === null) return null
+  const result = measure(out)
+  return within(result.tokens) ? result : null
+}
+
+/** The token cap, in call order. A result past it goes to its tool's `shrink`; one
+ *  that stays over is replaced by `{ truncated: true }`, so the model never reads it
+ *  and no audit line is written for it. A shrunk result is a subset of what the audit
+ *  counts: `codes` stay whole, so the trail over-counts and the stored-answer
+ *  re-check is stricter, the safe direction. */
 function capped(
   turn: Turn,
   calls: readonly AiToolCall[],
   verdicts: readonly ToolVerdict[],
+  shrinkOf: (name: string) => ToolShrink | undefined,
 ): RoundCall[] {
   return verdicts.map((verdict, i) => {
-    const base = { ...verdict, id: randomUUID(), call: calls[i] as AiToolCall }
+    const call = calls[i] as AiToolCall
+    const base = { ...verdict, id: randomUUID(), call }
     const ok = verdict.outcome === 'ok'
     const draft = ok ? turn.binding.draft(verdict.output, verdict.rowCount) : null
     const tokens = tokensOf(draft?.output ?? verdict.output)
@@ -176,6 +210,12 @@ function capped(
       turn.toolTokens += tokens
       if (draft) turn.binding.keep(draft)
       return { ...base, output: draft?.output ?? verdict.output, tokens, truncated: false }
+    }
+    const small = ok ? shrunk(turn, verdict, shrinkOf(call.name)) : null
+    if (small) {
+      turn.toolTokens += small.tokens
+      turn.binding.keep(small.draft)
+      return { ...base, output: small.draft.output, tokens: small.tokens, truncated: true }
     }
     turn.cap ??= 'cap-tokens'
     const output = { truncated: true }
@@ -434,7 +474,7 @@ export class AssistantRunner {
       turn.emit({ type: 'step', round: turn.rounds, tool: storableName(call.name) })
       return this.tools.call(turn.who, call)
     })
-    const calls = capped(turn, round.calls, verdicts)
+    const calls = capped(turn, round.calls, verdicts, (name) => this.tools.shrinkOf(name))
     await this.audit.writeMany(auditLines(turn, calls))
     await this.repo.recordToolCalls(calls.map((c, i) => toolCallRow(turn, c, i)))
     if (turn.rounds + 1 >= MAX_ROUNDS) turn.cap ??= 'cap-rounds'

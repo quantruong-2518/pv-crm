@@ -21,8 +21,8 @@ export function useConversation(origin: Origin, sessionId: string | null, contex
   const saved = sessionId ? detail.data?.messages : undefined
   const items = useMemo(() => threadOf(saved ?? [], mine), [saved, mine])
   const busy = items.some((i) => i.kind === 'answer' && i.answer.state === 'running')
-  const ask = (question: string) => {
-    if (!busy) sendTurn(origin, sessionId, question, context)
+  const ask = (question: string, deep = false) => {
+    if (!busy) sendTurn(origin, sessionId, question, context, deep)
   }
   return { origin, sessionId, detail, items, busy, ask }
 }

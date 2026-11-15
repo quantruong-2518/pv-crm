@@ -1,4 +1,5 @@
 import {
+  AssistantSearchKind,
   ContractCode,
   DebriefListQuery,
   GetHistoryInput,
@@ -19,6 +20,7 @@ import type { ToolDoor } from '@api/platform/assistant/assistant-tools'
 import { PvError } from '@api/platform/http/problem'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CUSTOMER_ASK } from './scope-customers-door'
+import { KINDS_ASK } from './scope-kinds-door'
 import { KPI_ASK } from './scope-kpi-door'
 import { CANARY } from './seed-data'
 import type { Chain, Company } from './seed'
@@ -107,10 +109,17 @@ const ASK: Record<string, Ask> = {
     /* The same query the HTTP layer parses from `?q=&kinds=`, spelled out here. */
     const q = zod(SearchQuery).transform({
       q: chainOf(on).word,
-      kinds: 'lead,opportunity,contract,account',
+      kinds: AssistantSearchKind.options.join(','),
     })
     const body = await world.searches.search(who, q)
-    return { body, codes: body.groups.flatMap((g) => g.hits).map((h) => h.code) }
+    /* A contact hit carries its lead's code and is read as that lead: one record, counted once. */
+    const records = body.groups
+      .flatMap((g) => g.hits)
+      .map((h) => ({ kind: h.kind === 'contact' ? 'lead' : h.kind, code: h.code }))
+    const distinct = records.filter(
+      (r, i) => records.findIndex((o) => o.kind === r.kind && o.code === r.code) === i,
+    )
+    return { body, codes: distinct.map((r) => r.code) }
   },
   lead: async (world, who, on) => {
     const body = await world.leads.profile(who, zod(ObjectCode).transform(chainOf(on).lead))
@@ -191,6 +200,7 @@ const ASK: Record<string, Ask> = {
     return { body, codes: body.rows.map((r) => r.code) }
   },
   ...CUSTOMER_ASK,
+  ...KINDS_ASK,
   ...KPI_ASK,
 }
 
@@ -227,6 +237,7 @@ async function askOne(
  *  into a quiet gap in every cell. `optionalDrift` names where the two differ. */
 export const OPTIONAL_DOORS: Readonly<Record<string, readonly string[]>> = {
   get_history: ['comms', 'leadMeetings', 'dealMeetings'],
+  list_my_work: ['approvalRaised', 'approvalWaiting', 'hold', 'meeting'],
 }
 
 export function optionalDrift(tools: readonly { name: string; optional: readonly string[] }[]) {

@@ -161,10 +161,12 @@ export async function trailOf(
     .from(assistantToolCall)
     .where(eq(assistantToolCall.messageId, turnId))
     .orderBy(assistantToolCall.round, assistantToolCall.position)
+  /* `audit` has no insertion counter, so the heap order a bare read gives moves with earlier writes. */
   const audits = await db
     .select()
     .from(audit)
     .where(sql`${audit.note} LIKE ${`%turn ${turnId}%`}`)
+    .orderBy(audit.code, audit.note)
   const ledger = await db
     .select()
     .from(aiCall)

@@ -145,8 +145,8 @@ function agreeOnAnswer(
   const shown = (dig(out, 'customers', 'rows') ?? []) as Json[]
   c.eq(
     shown.map((r) => dig(r, 'trusted', 'code')),
-    want.kept.map((r) => r.code),
-    'the rows, in the door order',
+    want.kept.map(() => undefined),
+    'no row carries its run code: it is not stored, so no door could re-check it',
   )
   c.eq(
     shown.map((r) => dig(r, 'trusted', 'leadCode')),

@@ -103,6 +103,31 @@ const reveal = (name: string, pad: string) =>
 const shows = reveal('shows_x', 'summary')
 const huge = reveal('huge_x', 'x'.repeat(200_000))
 
+/* Over the cap whole; `shrink` hands back a small result, or null for `stubborn_x`. */
+const bulky = (name: string, shrink: (() => object | null) | undefined) =>
+  defineTool({
+    name,
+    description: 'Fake.',
+    input: Input,
+    doors: { lead: door(FakeDoors, 'lead'), contract: door(FakeDoors, 'contract') },
+    doorFor: (input) => input.kind,
+    run: async () => ({
+      data: { untrusted: { pad: 'x'.repeat(200_000) } },
+      codes: ['LD-0001'],
+      rowCount: 1,
+      hidden: null,
+    }),
+    shrink:
+      shrink &&
+      ((_output, fits) => {
+        const small = shrink()
+        return small && fits(small) ? small : null
+      }),
+  })
+const trims = bulky('trim_x', () => ({ untrusted: { pad: 'short pad' } }))
+const stubborn = bulky('stubborn_x', () => null)
+const slim = bulky('slim_x', () => ({ untrusted: { pad: 'y'.repeat(200_000) } }))
+
 /* Two doors in one call: marketing passes the lead one and not the contract one. */
 const both = defineTool({
   name: 'both_x',
@@ -179,7 +204,7 @@ function runnerWith(client: Scripted, audits = auditRepo()) {
   const routes = new AiRouteRepository(db)
   const gateway = new AiGateway(routes, new AiLedger(), { gemini: client, anthropic: client }, db)
   const gate = new AssistantToolGate(
-    { tools: () => [tool, skim, both, shows, huge] },
+    { tools: () => [tool, skim, both, shows, huge, trims, stubborn, slim] },
     createAccessControl(),
   )
   return new AssistantRunner(gateway, new AssistantRepository(db), audits, gate)
@@ -248,7 +273,7 @@ describe('a round', () => {
     expect(seen).toEqual({ audits: 1, calls: 1 })
     expect(turn).toMatchObject({ state: 'done', endedBy: 'answer', rounds: 2 })
     expect(turn.body).toBe('Lead đang được chăm sóc.')
-    expect(turn.promptVersion).toBe('assistant@12')
+    expect(turn.promptVersion).toBe('assistant@13')
     expect(rows[0]).toMatchObject({ role: 'user', state: 'done' })
     expect(rows[0]!.finishedAt).not.toBeNull()
     /* The sink threw on every event and the turn still ran to its end. */
@@ -300,6 +325,44 @@ describe('a round', () => {
     expect(flag('read_x')).toMatchObject({ outcome: 'ok', revealsContent: false })
     expect(flag('shows_x')).toMatchObject({ outcome: 'ok', revealsContent: true })
     expect(flag('huge_x')).toMatchObject({ outcome: 'over-cap', revealsContent: false })
+  })
+
+  it('hands the model a shrunk result, marked truncated, and keeps the call ok', async () => {
+    const client = new Scripted([toolRound('lead', 'trim_x'), { text: 'Một phần.' }])
+    const { turn } = await ask(client)
+
+    const [row] = await db
+      .select()
+      .from(assistantToolCall)
+      .where(eq(assistantToolCall.messageId, turn.id))
+    expect(row).toMatchObject({ outcome: 'ok', truncated: true, codes: ['LD-0001'] })
+    expect(row!.toolTokens).toBeGreaterThan(0)
+    expect(turn).toMatchObject({ state: 'done', endedBy: 'answer' })
+    const tools = client.requests[1]!.messages.at(-1)
+    if (tools?.role !== 'tool') throw new Error('no tool message')
+    expect(tools.note).toBeUndefined()
+    const seen = JSON.parse((tools.results[0]!.output as string).split('\n')[1]!)
+    expect(seen).toMatchObject({ truncated: true, untrusted: { pad: 'short pad' } })
+    expect(tools.results[0]!.isError).toBe(false)
+    expect(await auditOf(turn.id)).toHaveLength(1)
+  })
+
+  it('keeps the over-cap path when shrink returns null or still does not fit', async () => {
+    for (const name of ['stubborn_x', 'slim_x']) {
+      const client = new Scripted([toolRound('lead', name), { text: 'Không đọc được.' }])
+      const { turn } = await ask(client)
+
+      const [row] = await db
+        .select()
+        .from(assistantToolCall)
+        .where(eq(assistantToolCall.messageId, turn.id))
+      expect(row).toMatchObject({ outcome: 'over-cap', truncated: true, codes: [], toolTokens: 0 })
+      expect(turn.endedBy).toBe('cap-tokens')
+      const tools = client.requests[1]!.messages.at(-1)
+      if (tools?.role !== 'tool') throw new Error('no tool message')
+      expect(tools.note).toBeDefined()
+      expect(await auditOf(turn.id)).toHaveLength(0)
+    }
   })
 
   it('ends the turn with nothing sent when the audit write fails', async () => {

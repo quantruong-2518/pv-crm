@@ -11,6 +11,7 @@ import { runnerCaps } from './runner-caps'
 import { runnerGateway } from './runner-gateway'
 import { runnerSummary } from './runner-summary'
 import { customerMatrix } from './scope-customers'
+import { kindsMatrix } from './scope-kinds'
 import { kpiMatrix } from './scope-kpi'
 import { scopeMatrix } from './scope-matrix'
 import { businessChecksum, moved, openWorld, type World } from './world'
@@ -39,6 +40,7 @@ async function scripted(
   await scopeMatrix(world, tally)
   await customerMatrix(world, tally)
   await kpiMatrix(world, tally)
+  await kindsMatrix(world, tally)
   await hostileModel(world, tally)
   await runnerCaps(world, tally)
   await runnerGateway(world, tally)

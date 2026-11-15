@@ -18,7 +18,7 @@ import { AuditRepository, type AuditEntry } from '../audit/audit.repository'
 import { ACCESS } from '../engines/tokens'
 import { invalid, notFound } from '../http/problem'
 import { chatOf, recheck, recheckChats, revealedCodes, type Recheck } from './assistant-refs'
-import { footerOf } from './assistant-turn-read'
+import { footerOf, sumReads } from './assistant-turn-read'
 import { AssistantSessionRepository, type SessionCursor } from './assistant-session.repository'
 import { AssistantToolGate } from './assistant-tools'
 import { ASSISTANT_NEED, AssistantTurns } from './assistant-turns'
@@ -84,9 +84,13 @@ export class AssistantService {
 
   /** The turn door's own need, so the button never shows to someone it would refuse. */
   async availability(who: Actor): Promise<AssistantAvailability> {
-    if (!this.access.check(who, ASSISTANT_NEED).ok) return { enabled: false }
-    const route = await this.routes.get('assistant')
-    return { enabled: route?.enabled === true }
+    if (!this.access.check(who, ASSISTANT_NEED).ok) return { enabled: false, deep: false }
+    const [plain, deep] = await Promise.all([
+      this.routes.get('assistant'),
+      this.routes.get('assistant-deep'),
+    ])
+    const enabled = plain?.enabled === true
+    return { enabled, deep: enabled && deep?.enabled === true }
   }
 
   async list(who: Actor, q: AssistantSessionListQuery): Promise<AssistantSessionList> {
@@ -124,8 +128,10 @@ export class AssistantService {
     const messageOf = (row: AssistantMessageRowDb): AssistantMessage => {
       const shut = check.shut.get(row.id)
       const read = shut ? [] : [...(check.refs.get(row.id) ?? [])]
-      const steps = (calls.get(row.id) ?? []).reduce((n, c) => n + this.gate.stepsOf(c), 0)
-      const reads = { refs: new Map(read.map((r) => [r.code, r])), steps }
+      const steps = sumReads((calls.get(row.id) ?? []).map((c) => this.gate.readsOf(c)))
+      const counts = new Set((calls.get(row.id) ?? []).flatMap((c) => this.gate.countedCodes(c)))
+      const counted = new Map(read.filter((r) => counts.has(r.code)).map((r) => [r.code, r]))
+      const reads = { counted, steps }
       return {
         id: row.id,
         seq: row.seq,

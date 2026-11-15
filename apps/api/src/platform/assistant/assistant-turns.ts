@@ -53,6 +53,21 @@ export class AssistantTurns {
     return session
   }
 
+  /** The first task that refuses; its event is what the caller sends. */
+  private async refusal(tasks: readonly ('assistant' | 'assistant-deep')[], whoId: string) {
+    for (const task of tasks) {
+      const refused = await this.gateway.check(task, whoId).then(
+        () => null,
+        (error: unknown) => {
+          if (error instanceof AiUnavailableError) return UNAVAILABLE[error.reason]
+          throw error
+        },
+      )
+      if (refused) return refused
+    }
+    return null
+  }
+
   /** Never rejects: after the stream opens every refusal is an event. */
   async run(
     who: Actor,
@@ -64,13 +79,9 @@ export class AssistantTurns {
     let opened: string | null = null
     let turnId: string | null = null
     try {
-      const refused = await this.gateway.check('assistant', who.id).then(
-        () => null,
-        (error: unknown) => {
-          if (error instanceof AiUnavailableError) return UNAVAILABLE[error.reason]
-          throw error
-        },
-      )
+      const task = body.deep ? ('assistant-deep' as const) : ('assistant' as const)
+      /* `assistant` is the feature switch and its limits; deep needs its own route on top. */
+      const refused = await this.refusal(body.deep ? ['assistant', task] : [task], who.id)
       if (refused) return send({ type: 'error', ...refused })
       const subject = body.subject ?? null
       const row = session ?? (await this.sessions.open(who.id, titleOf(body.question), subject))
@@ -81,7 +92,7 @@ export class AssistantTurns {
         send({ type: 'session', sessionId: row.id, messageId: id, title: row.title })
       }
       const { question, screen = null } = body
-      const ctx = { who, sessionId: row.id, question, screen, task: 'assistant' as const, onBegun }
+      const ctx = { who, sessionId: row.id, question, screen, task, onBegun }
       await this.runner.runTurn(ctx, send, controller.signal)
     } catch (error) {
       this.log.error(`turn did not open: ${error instanceof Error ? error.name : 'unknown'}`)

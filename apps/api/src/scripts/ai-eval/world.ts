@@ -11,6 +11,13 @@ import { AfterSaleService } from '@api/branches/sales/after-sale/after-sale.serv
 import { ContractService } from '@api/branches/sales/contract/contract.service'
 import { LeadService } from '@api/branches/sales/lead/lead.service'
 import { OpportunityService } from '@api/branches/sales/opportunity/opportunity.service'
+import { CampaignService } from '@api/branches/sales/campaign/campaign.service'
+import { ContactService } from '@api/branches/sales/contact/contact.service'
+import { HoldService } from '@api/branches/sales/hold/hold.service'
+import { MeetingService } from '@api/branches/sales/meeting/meeting.service'
+import { WorkstreamService } from '@api/branches/sales/workstream/workstream.service'
+import { ApprovalService } from '@api/platform/approval/approval.service'
+import { HoldModule } from '@api/branches/sales/hold/hold.module'
 import { KpiForecastService } from '@api/branches/sales/kpi/kpi-forecast.service'
 import { KpiModule } from '@api/branches/sales/kpi/kpi.module'
 import { KpiQuarterService } from '@api/branches/sales/kpi/kpi-quarter.service'
@@ -77,6 +84,8 @@ class EvalRootModule {
         SalesAssistantModule,
         /* The KPI doors are not reached by the module above yet; their services are asked for by type. */
         KpiModule,
+        /* `list_my_work` asks ModuleRef for the hold service; no other module here brings it. */
+        HoldModule,
         /* The same wiring `app.module.ts` gives comms: the history tool asks ModuleRef for
            this service, and a world without it would pass on a lookup that fails in production. */
         CommsModule.withHook({
@@ -109,6 +118,12 @@ export type World = {
   kpiForecasts: KpiForecastService
   kpiTeams: KpiTeamService
   kpiTeamViews: KpiTeamViewService
+  contacts: ContactService
+  campaigns: CampaignService
+  workstreams: WorkstreamService
+  approvals: ApprovalService
+  holds: HoldService
+  meetings: MeetingService
   close: () => Promise<void>
 }
 
@@ -144,6 +159,12 @@ export async function openWorld(): Promise<World> {
     kpiForecasts: app.get(KpiForecastService, { strict: false }),
     kpiTeams: app.get(KpiTeamService, { strict: false }),
     kpiTeamViews: app.get(KpiTeamViewService, { strict: false }),
+    contacts: app.get(ContactService, { strict: false }),
+    campaigns: app.get(CampaignService, { strict: false }),
+    workstreams: app.get(WorkstreamService, { strict: false }),
+    approvals: app.get(ApprovalService, { strict: false }),
+    holds: app.get(HoldService, { strict: false }),
+    meetings: app.get(MeetingService, { strict: false }),
     close: async () => {
       await app.close()
       await handle.close()

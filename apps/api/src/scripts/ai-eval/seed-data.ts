@@ -40,6 +40,11 @@ export const HISTORY_CELLS = 63
  *  was cut) and 6 of the money of a deal. Typed by hand. */
 export const CUSTOMER_CELLS = 21
 
+/** The contact, campaign and journey kinds and the approval, parked and meeting lists: 12
+ *  asks of the three records (owner, another seller, director, director with the grant cut)
+ *  and 12 of the lists (one an approver who cannot open the linked lead). Typed by hand. */
+export const KINDS_CELLS = 24
+
 /** The KPI read: 13 asks of `get_my_kpi` (9 of the month, 4 of the quarter) and 9 of
  *  `get_team_kpi` (2 reading everyone, 3 asking for a team, 4 shut out). Typed by hand. */
 export const KPI_CELLS = 22
@@ -206,6 +211,8 @@ export const NAMED_SEATS = {
   kpiLead: seat('kpi-lead', 'sale', true),
   kpiAhead: seat('kpi-ahead', 'sale', true),
   kpiBehind: seat('kpi-behind', 'sale', true),
+  /* Owns `kinds-own` alone: the one chain with a journey, a campaign, a hold, an approval and a meeting. */
+  kinds: seat('kinds-sale', 'sale', true),
   /* Owns `hist-reach` alone, so a lead moved away from it hits no other seat's cells. */
   reach: seat('reach-sale', 'sale', true),
   /* The one seat whose grants are NOT its role's (see assistant-cases.test.ts): it opens
@@ -341,6 +348,19 @@ export const HISTORY_CHAINS: readonly ChainSpec[] = [
   { key: 'hist-rich', ...signed('sale-a'), history: 'rich' },
   { key: 'hist-wide', ...signed('sale-a'), history: 'wide' },
   { key: 'hist-reach', ...signed('reach-sale') },
+]
+
+/** Seeded after the customer chains, for the same reason. */
+export const KINDS_CHAINS: readonly ChainSpec[] = [
+  { key: 'kinds-own', ...signed('kinds-sale'), contract: null },
+  /* A journey whose lead and deal are the rival's, with a contract the kinds seat closed and
+     `collector` collects: two own-only seats that open the paper and own neither parent. */
+  {
+    key: 'kinds-paper',
+    leadOwner: 'rival',
+    dealOwners: [{ id: 'rival', lane: 'SALE' }],
+    contract: { owner: 'kinds-sale', collector: 'collector' },
+  },
 ]
 
 /** Seeded last, so no earlier chain changes its number. `care-own` is a customer
