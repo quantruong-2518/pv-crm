@@ -57,6 +57,8 @@ const ROUTE_COPY: Record<string, Message> = {
   'KPI công ty': message('KPI công ty', 'Company KPIs', '회사 KPI'),
   'Chỉ tiêu tháng': message('Chỉ tiêu tháng', 'Monthly targets', '월간 목표'),
   'KPI nhóm': message('KPI nhóm', 'Team KPIs', '팀 KPI'),
+  'KPI đơn vị': message('KPI đơn vị', 'Unit KPIs', '단위 KPI'),
+  '1:1 KPI': message('1:1 KPI', 'KPI 1:1', 'KPI 1:1 면담'),
   'KPI nhân sự': message('KPI nhân sự', 'Individual KPIs', '개인 KPI'),
   'Số liệu & kế hoạch': message('Số liệu & kế hoạch', 'Results & plans', '실적 및 계획'),
   'Giao chỉ tiêu': message('Giao chỉ tiêu', 'Assign targets', '목표 배정'),

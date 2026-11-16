@@ -4,6 +4,7 @@ import {
   KpiLayer,
   KpiPeriodKey,
   RoleId,
+  stepSalesPeriod,
   type KpiAdjustmentCause,
   type KpiContribution,
   type KpiContributionKind,
@@ -17,6 +18,7 @@ import {
 import { primaryOf, type KpiCatalog } from '@/data/kpi-catalog'
 import { kpiVerdictText } from '@/data/kpi-i18n'
 import { dmhm } from '@/lib/date'
+import { COMPANY_PATH, ME_PATH, MONTH_PARAM } from '@/lib/kpi-paths'
 import {
   formatCurrency,
   formatNumber,
@@ -48,10 +50,6 @@ export const DESCRIPTION = message(
 /** KPI is agreed per month, so the overview's picker is pinned to that grain. */
 export const monthPick = (): PeriodPick => ({ ...currentPick(), grain: 'month' })
 
-/** The one name every KPI address carries its month under, so a screen
- *  opened from another lands on the month it was opened from. */
-export const MONTH_PARAM = 'month'
-
 export function pickFromUrl(month: string | null): PeriodPick {
   const pick = monthPick()
   return month && KpiPeriodKey.safeParse(month).success ? { ...pick, month } : pick
@@ -74,17 +72,10 @@ export function useMonthParam(): [PeriodPick, (p: PeriodPick) => void] {
   return [pick, setPick]
 }
 
-export const COMPANY_PATH = '/sales/kpi/company'
-export const ME_PATH = '/sales/kpi/me'
+export { COMPANY_PATH, ME_PATH, MONTH_PARAM }
 
 export const personHref = (actorId: string, period: string) =>
   `${COMPANY_PATH}/${encodeURIComponent(actorId)}?${MONTH_PARAM}=${period}`
-
-const monthAfter = (key: string) => {
-  const year = Number(key.slice(0, 4))
-  const month = Number(key.slice(5))
-  return month === 12 ? `${year + 1}-01` : `${year}-${String(month + 1).padStart(2, '0')}`
-}
 
 /** The month is over in Vietnam time: only then may a head close it. */
 export const monthEnded = (period: string, today = new Date()) => period < currentPick(today).month
@@ -135,7 +126,7 @@ export function dayOfMonth(period: string, today = new Date()): string | null {
 export function stepMonth(pick: PeriodPick, by: -1 | 1): PeriodPick | null {
   const running = currentPick().month
   if (by === -1 || pick.month < running) return stepPick(pick, by)
-  return pick.month === running ? { ...pick, month: monthAfter(running) } : null
+  return pick.month === running ? { ...pick, month: stepSalesPeriod(running, 1) } : null
 }
 
 /** A reading beside the catalog row that says how to group and print it. */

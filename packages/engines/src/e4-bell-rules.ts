@@ -61,6 +61,8 @@ export const KPI_AWAY_DECLARED = 'sales.kpi.away-declared'
 /** A tiered set was sent, by its head or by the deadline sweep, or a level missed its day (ADR 0120). */
 export const KPI_ASSIGNMENT_SENT = 'sales.kpi.assignment-sent'
 export const KPI_ASSIGNMENT_LATE = 'sales.kpi.assignment-late'
+/** A month's 1:1 was first written for a person (ADR 0158 §5); a rewrite rings nothing. */
+export const KPI_ONE_ON_ONE_WRITTEN = 'sales.kpi.one-on-one-written'
 /** An overdue installment's reason was sent, or decided (ADR 0100). */
 export const OVERDUE_REASON_SENT = 'sales.contract.overdue-reason-sent'
 export const OVERDUE_REASON_DECIDED = 'sales.contract.overdue-reason-decided'
@@ -194,6 +196,7 @@ export const NOTIFICATION_RULES: readonly NotificationRule[] = [
   bell('kpi-away-declared', KPI_AWAY_DECLARED, 'absent'),
   bell('kpi-assignment-received', KPI_ASSIGNMENT_SENT, 'receivers'),
   bell('kpi-assignment-late', KPI_ASSIGNMENT_LATE, 'above'),
+  bell('kpi-one-on-one', KPI_ONE_ON_ONE_WRITTEN, 'person'),
   bell('kpi-about-to-miss', KPI_FORECAST_FLAGGED, 'holder', (p) => p.data?.flag === 'slip'),
   bell('kpi-about-to-hit', KPI_FORECAST_FLAGGED, 'holder', (p) => p.data?.flag === 'hit'),
   bell('kpi-digest', NOTIFICATION_DIGEST, 'recipient'),

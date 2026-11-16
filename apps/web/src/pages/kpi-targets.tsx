@@ -6,12 +6,13 @@ import { isTieredPeriod, type RoleId } from '@pv/contracts'
 import { useCan, useSession } from '@/app/auth'
 import { message, useI18n } from '@/app/i18n'
 import { useAppChrome } from '@/app/chrome'
+import { KpiTabs } from '@/components/kpi-tabs'
 import { kpiPeopleQuery, kpiTargetsQuery } from '@/data/kpi'
 import { kpiAllocationsQuery, kpiCountersQuery } from '@/data/kpi-allocation'
 import { kpiCatalogQuery } from '@/data/kpi-catalog'
 import { waitingReasonsQuery } from '@/data/kpi-close'
 import { kpiTeamRosterQuery } from '@/data/kpi-team-roster'
-import { keyOf } from './home-model'
+import { keyOf, type PeriodPick } from './home-model'
 import { landsOnStep } from './kpi-allocate-model'
 import { NOTE } from './home-tiles'
 import { TieredNote } from './kpi-assign-confirm'
@@ -20,7 +21,7 @@ import { CounterDrawer, type CounterOwner } from './kpi-counter-detail'
 import { MonthCloseBar } from './kpi-month-close'
 import { monthPick, useMonthParam } from './kpi-model'
 import { MonthPicker, QueryBlock } from './kpi-parts'
-import { allOf, closingOf, landingOf, waitingOf } from './kpi-targets-model'
+import { allOf, closingOf, landingOf, waitingCount, waitingOf } from './kpi-targets-model'
 import { WaitingList } from './kpi-targets-queue'
 import { RoleSteps } from './kpi-targets-role'
 
@@ -82,32 +83,26 @@ const TEXT = {
 /** "Needs your attention": the queue once its reads settled, a placeholder until then. */
 function WaitingSection({
   ready,
-  tiered,
-  waiting,
   ...list
-}: ComponentProps<typeof WaitingList> & { ready: boolean; tiered: boolean }) {
+}: ComponentProps<typeof WaitingList> & { ready: boolean }) {
   const { t } = useI18n()
   return (
     <section className="flex flex-col gap-3">
       <SectionTitle size="lg">
         {t(message('Chờ bạn xử lý', 'Needs your attention', '처리할 항목'))}
       </SectionTitle>
-      {ready ? (
-        <WaitingList {...list} waiting={tiered ? { ...waiting, items: [] } : waiting} />
-      ) : (
-        <Skeleton className="h-24 w-full" />
-      )}
+      {ready ? <WaitingList {...list} /> : <Skeleton className="h-24 w-full" />}
     </section>
   )
 }
 
-export function KpiTargetsPage() {
+/** Old-model reads, so a tiered month never mounts this body. */
+function OldTargets({ pick, setPick }: { pick: PeriodPick; setPick: (p: PeriodPick) => void }) {
   const { t: tx } = useI18n()
   const chrome = useAppChrome()
   const canSet = useCan('kpi.set-target')
   const canApprove = useCan('contract.approve-overdue-reason')
   const me = useSession((s) => s.actor?.id)
-  const [pick, setPick] = useMonthParam()
   const [params, setParams] = useSearchParams()
   const period = keyOf(pick)
   const running = monthPick()
@@ -168,6 +163,7 @@ export function KpiTargetsPage() {
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
+        <KpiTabs period={period} active="company" />
         <ScreenHeader
           title={tx(message('Chỉ tiêu tháng', 'Monthly targets', '월간 목표'))}
           description={canSet ? undefined : tx(TEXT.youHaveViewOnlyAccess)}
@@ -193,14 +189,11 @@ export function KpiTargetsPage() {
               closing,
               closingClose: toClose.data?.monthClose,
             })
-            /* A tiered month refuses every old door; the close and the reasons are not doors of it. */
-            const tiered = isTieredPeriod(t.period)
             return (
               <>
-                {(canSet || canApprove) && (
+                {(canSet || canApprove) && !(waitReady && waitingCount(waiting) === 0) && (
                   <WaitingSection
                     ready={waitReady}
-                    tiered={tiered}
                     catalog={defs}
                     waiting={waiting}
                     reasonsFailed={reasons.isError}
@@ -217,14 +210,7 @@ export function KpiTargetsPage() {
                   t.closed && <p className={NOTE}>{tx(TEXT.thisMonthIsClosedTargets)}</p>
                 )}
 
-                {tiered ? (
-                  <TieredNote
-                    to={statusHref(t.period)}
-                    label={tx(
-                      message('Mở Tình trạng giao', 'Open assignment status', '배정 현황 열기'),
-                    )}
-                  />
-                ) : shown ? (
+                {shown ? (
                   <RoleSteps
                     catalog={defs}
                     targets={t}
@@ -244,22 +230,44 @@ export function KpiTargetsPage() {
                   <p className={NOTE}>{tx(TEXT.noRolesHaveKPITargets)}</p>
                 )}
 
-                {!tiered && (
-                  <CounterDrawer
-                    who={owner}
-                    onClose={() => setOwner(null)}
-                    period={t.period}
-                    counters={c.counters}
-                    packages={a.allocations}
-                    closed={t.closed}
-                    canSet={canSet}
-                    me={me}
-                  />
-                )}
+                <CounterDrawer
+                  who={owner}
+                  onClose={() => setOwner(null)}
+                  period={t.period}
+                  counters={c.counters}
+                  packages={a.allocations}
+                  closed={t.closed}
+                  canSet={canSet}
+                  me={me}
+                />
               </>
             )
           }}
         </QueryBlock>
+      </ScreenLayout>
+    </AppShell>
+  )
+}
+
+/** From the cutover month the targets are handed down the tree: no old read, only the way there. */
+export function KpiTargetsPage() {
+  const { t } = useI18n()
+  const chrome = useAppChrome()
+  const [pick, setPick] = useMonthParam()
+  const period = keyOf(pick)
+  if (!isTieredPeriod(period)) return <OldTargets pick={pick} setPick={setPick} />
+  return (
+    <AppShell {...chrome.shell}>
+      <ScreenLayout>
+        <KpiTabs period={period} active="company" />
+        <ScreenHeader
+          title={t(message('Chỉ tiêu tháng', 'Monthly targets', '월간 목표'))}
+          actions={<MonthPicker pick={pick} onPick={setPick} />}
+        />
+        <TieredNote
+          to={statusHref(period)}
+          label={t(message('Mở Tình trạng giao', 'Open assignment status', '배정 현황 열기'))}
+        />
       </ScreenLayout>
     </AppShell>
   )

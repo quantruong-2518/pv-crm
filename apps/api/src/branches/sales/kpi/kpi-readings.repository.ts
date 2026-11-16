@@ -397,6 +397,10 @@ export function metricSql(seat: KpiSeat): KpiMetricSql {
   return found
 }
 
+/** Whether a metric has a reading in that scope, for the config door. */
+export const hasMetricSql = (key: KpiMetricKey, scope: KpiScope): boolean =>
+  METRICS[scope][key] !== undefined
+
 const idsOf = (actors?: Actors): readonly string[] | undefined =>
   typeof actors === 'string' ? (actors ? [actors] : undefined) : actors
 
@@ -733,7 +737,7 @@ export class KpiReadingsRepository {
                        WHERE w.opportunity_code = k.code AND w.role = 'SALE' AND w.is_primary) AS owner_id
                 FROM sales.opportunity k ${LIVE}
                WHERE ${dealOpen(sql`k.code`, sql`k.state`)} AND k.probability IS NOT NULL
-                 AND k.expected_close >= (SELECT as_of FROM span) AND k.expected_close < ${span.to}::date
+                 AND k.expected_close >= GREATEST((SELECT as_of FROM span), ${span.from}::date) AND k.expected_close < ${span.to}::date
             ) p
             WHERE p.v IS NOT NULL
             GROUP BY GROUPING SETS ((p.owner_id), ())

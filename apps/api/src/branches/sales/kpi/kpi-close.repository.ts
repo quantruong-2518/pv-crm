@@ -7,6 +7,7 @@ import type { PeriodSpan } from '../performance/performance-period'
 import { kpiMonthClose, kpiMonthValue, type KpiMonthValueValues } from './kpi-close.schema'
 import { metricSql, onlyFor, seriesKey, spanned, type KpiSeat } from './kpi-readings.repository'
 import { holdReconcileLock } from './kpi-reconcile.repository'
+import { KpiScoreBasis } from './kpi-score-basis'
 
 /** SQL of the month-close tables: who closed a month, its frozen figures and
  *  its frozen basis. Decides nothing — whether a month may close is the service's. */
@@ -49,6 +50,20 @@ export class KpiCloseRepository {
     return null
   }
 
+  /** The basis a month's score was frozen with; `null` for a month closed before it existed
+   *  (or an unreadable one, logged), which the score reads off the current config. */
+  async scoreBasisOf(period: string, handle: Db = this.db): Promise<KpiScoreBasis | null> {
+    const [row] = await handle
+      .select({ basis: kpiMonthClose.scoreBasis })
+      .from(kpiMonthClose)
+      .where(eq(kpiMonthClose.period, period))
+    if (!row || row.basis === null) return null
+    const parsed = KpiScoreBasis.safeParse(row.basis)
+    if (parsed.success) return parsed.data
+    this.log.error(`KPI score basis of ${period} unreadable: ${parsed.error.message}`)
+    return null
+  }
+
   /** A savepoint inside `tx`: a failure in `work` rolls back to it and is
    *  thrown, while `tx` itself stays usable. */
   nested<T>(tx: Db, work: (inner: Db) => Promise<T>): Promise<T> {
@@ -61,10 +76,11 @@ export class KpiCloseRepository {
     period: string,
     closedById: string,
     gate: KpiCloseGateSnapshot | null,
+    scoreBasis: KpiScoreBasis,
   ): Promise<boolean> {
     const made = await tx
       .insert(kpiMonthClose)
-      .values({ period, closedById, basisFrozen: true, gate })
+      .values({ period, closedById, basisFrozen: true, gate, scoreBasis })
       .onConflictDoNothing()
       .returning({ period: kpiMonthClose.period })
     return made.length === 1

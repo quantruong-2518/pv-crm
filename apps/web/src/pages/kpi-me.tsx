@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import type { ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AppShell, Button, GlassCard, ScreenHeader, ScreenLayout, SectionTitle, cn } from '@pv/ui'
 import {
@@ -6,6 +7,7 @@ import {
   isTieredPeriod,
   quarterMonths,
   quarterOf,
+  stepSalesPeriod,
   type KpiAllocation,
   type KpiForecastResponse,
   type KpiScorecard,
@@ -14,6 +16,8 @@ import { userMessage } from '@/app/api'
 import { useSession } from '@/app/auth'
 import { message, useI18n } from '@/app/i18n'
 import { kpiRoleText } from '@/data/kpi-i18n'
+import { KpiTabs } from '@/components/kpi-tabs'
+import { kpiPlanQuery } from '@/data/kpi-plan'
 import { useAppChrome } from '@/app/chrome'
 import { toastDone, toastFail } from '@/app/toast'
 import { kpiMeQuery, useAcknowledgeKpi } from '@/data/kpi'
@@ -36,29 +40,38 @@ import {
   ThresholdNote,
 } from './kpi-me-parts'
 import { MonthPicker, QueryBlock } from './kpi-parts'
-import { QuarterPicker, QuarterView, ViewSwitch } from './kpi-me-quarter'
+import {
+  QuarterPicker,
+  QuarterView,
+  ViewSwitch,
+  YearPicker,
+  YearView,
+  type MeView,
+} from './kpi-me-quarter'
+import { ForecastForm } from './kpi-me-commit'
+import { PlanSection } from './kpi-me-plan'
+import { ScoreCard } from './kpi-me-score'
+import { confirmAnchor } from './kpi-me-model'
+import { TodayStrip } from './kpi-me-today'
 import { ReceivePackage } from './kpi-receive-parts'
 import { teamsActedFor } from './kpi-team-model'
 
-/** The personal KPI screen: what the reader is short of per role, read live from
- *  `GET /sales/kpi/:period/me`, with the ADR 0098 reads beside it (allocation
- *  lines, slip / hit flags, weekly chart). No fixture; every figure and verdict is the server's.
+/** The personal KPI screen, "mine" (ADR 0159 §3): KPI tabs, a Month / Quarter /
+ *  Year switch, today's actions, the role board, the last closed month's score,
+ *  and for `signed-value` holders the plan, coverage and weekly forecast form.
  *
  *  The month lives in the address, so a bell line opens the month it counted.
- *  Lines still to confirm put the assigned-targets section first. The side reads
- *  never block the board: their failure is one line. A role with a package is
- *  answered in the assigned-targets section; the role-target button is for a role
- *  without one, only while an agreed target is unreceived, never on a closed month.
- *  The Month / Quarter switch opens the read-only quarter view (ADR 0146); the
- *  month reads sit in `MonthBody` so that view never fires them.
+ *  Month reads sit in `MonthBody`, so the quarter and year views never fire them.
+ *  From `TIERED_FROM` the old allocation and team reads are not called; the
+ *  assigned-targets card answers there. Each side read fails on its own line.
  *
  *  No ContextRail (law 10 debt, as on the overview): a scorecard is a sum over
  *  many records and opens no single object a chain could be anchored on. */
 
-const QUARTER_DESCRIPTION = message(
-  'Tổng ba tháng của quý. Trạng thái so với mức cần đạt đến hôm nay.',
-  'The three months of the quarter added up, against the pace needed by today.',
-  '분기 3개월의 합계입니다. 상태는 오늘까지 필요한 수준 기준입니다.',
+const SPAN_DESCRIPTION = message(
+  'Tổng các tháng của kỳ. Trạng thái so với mức cần đạt đến hôm nay.',
+  'The months of the period added up, against the pace needed by today.',
+  '기간 내 월 합계입니다. 상태는 오늘까지 필요한 수준 기준입니다.',
 )
 
 function RoleBoard({
@@ -68,6 +81,7 @@ function RoleBoard({
   card,
   allocated,
   forecast,
+  between,
 }: {
   catalog: KpiCatalog
   period: string
@@ -76,6 +90,8 @@ function RoleBoard({
   /** The reader holds lines of a package for this role. */
   allocated: boolean
   forecast: KpiForecastResponse | undefined
+  /** Drawn between the primary metric and the other cards. */
+  between?: ReactNode
 }) {
   const { t, lang } = useI18n()
   const acknowledge = useAcknowledgeKpi(period, card.role)
@@ -113,7 +129,13 @@ function RoleBoard({
       {!closed && forecast && (
         <ForecastFlags catalog={catalog} role={card.role} forecast={forecast} />
       )}
-      <PersonalBoard catalog={catalog} period={period} role={card.role} readings={card.readings} />
+      <PersonalBoard
+        catalog={catalog}
+        period={period}
+        role={card.role}
+        readings={card.readings}
+        between={between}
+      />
     </section>
   )
 }
@@ -162,10 +184,15 @@ function MonthBody({ pick }: { pick: PeriodPick }) {
   const period = keyOf(pick)
   const me = useQuery(kpiMeQuery(period))
   const catalog = useQuery(kpiCatalogQuery)
-  const allocations = useQuery(kpiAllocationsQuery(period))
+  const tiered = isTieredPeriod(period)
+  /* The old allocations read answers 409 from the tiered months on. */
+  const allocations = useQuery({ ...kpiAllocationsQuery(period), enabled: !tiered })
   const forecast = useQuery(kpiForecastMeQuery(period))
-  const roster = useQuery(kpiTeamRosterQuery(period))
+  const roster = useQuery({ ...kpiTeamRosterQuery(period), enabled: !tiered })
   const actorId = useSession((s) => s.actor?.id)
+  const plan = useQuery({ ...kpiPlanQuery(period, actorId ?? ''), enabled: actorId !== undefined })
+  const lastClosed = stepSalesPeriod(currentPick().month, -1)
+  const holder = !!plan.data && (plan.data.plan !== null || plan.data.leading !== null)
 
   const packs =
     allocations.data && catalog.data ? myPackages(catalog.data, allocations.data, actorId) : []
@@ -184,7 +211,7 @@ function MonthBody({ pick }: { pick: PeriodPick }) {
         <TeamLeadLink key={team.id} team={team} period={period} />
       ))}
       {/* Any role's page read finds the unit the reader heads. */}
-      {isTieredPeriod(period) && <AssignLink period={period} role={RoleId.enum.sale} />}
+      {tiered && <AssignLink period={period} role={RoleId.enum.sale} />}
       {actorId && <AbsenceBlock me={actorId} />}
 
       <QueryBlock
@@ -210,6 +237,14 @@ function MonthBody({ pick }: { pick: PeriodPick }) {
           const first = !data.closed && pending > 0
           return (
             <>
+              <TodayStrip
+                period={data.period}
+                lastClosed={lastClosed}
+                actorId={actorId}
+                holder={holder}
+                roles={data.scorecards.map((c) => c.role)}
+                closed={data.closed}
+              />
               {data.closed && (
                 <p className={NOTE}>
                   {t(
@@ -237,15 +272,20 @@ function MonthBody({ pick }: { pick: PeriodPick }) {
                 />
               )}
               {first && assigned}
-              {isTieredPeriod(data.period) &&
+              {tiered &&
                 data.scorecards.map((card) => (
-                  <ConfirmCard
+                  <div
                     key={`confirm/${card.role}`}
-                    catalog={defs}
-                    period={data.period}
-                    role={card.role}
-                    closed={data.closed}
-                  />
+                    id={confirmAnchor(card.role)}
+                    className="scroll-mt-4 empty:hidden"
+                  >
+                    <ConfirmCard
+                      catalog={defs}
+                      period={data.period}
+                      role={card.role}
+                      closed={data.closed}
+                    />
+                  </div>
                 ))}
               {legend && seen && <ThresholdNote thresholds={seen.thresholds} />}
               {data.scorecards.length === 0 && packs.length === 0 && (
@@ -259,7 +299,7 @@ function MonthBody({ pick }: { pick: PeriodPick }) {
                   )}
                 </GlassCard>
               )}
-              {data.scorecards.map((card) => (
+              {data.scorecards.map((card, i) => (
                 <RoleBoard
                   key={card.role}
                   catalog={defs}
@@ -268,8 +308,13 @@ function MonthBody({ pick }: { pick: PeriodPick }) {
                   card={card}
                   allocated={allocatedRoles.has(card.role)}
                   forecast={forecast.data}
+                  between={
+                    i === 0 ? <ScoreCard period={lastClosed} actorId={actorId} /> : undefined
+                  }
                 />
               ))}
+              <PlanSection read={plan} />
+              {tiered && holder && <ForecastForm period={data.period} />}
               {!first && assigned}
               {actorId && data.scorecards.length > 0 && (
                 <ContributionsPanel catalog={defs} period={data.period} actorId={actorId} />
@@ -291,21 +336,31 @@ export function KpiMePage() {
   const chrome = useAppChrome()
   const [pick, setPick] = useMonthParam()
   const [params, setParams] = useSearchParams()
-  const isQuarter = params.get(VIEW_PARAM) === 'quarter'
+  const view: MeView =
+    params.get(VIEW_PARAM) === 'quarter'
+      ? 'quarter'
+      : params.get(VIEW_PARAM) === 'year'
+        ? 'year'
+        : 'month'
   const quarter = quarterOf(pick.month)
+  const year = pick.month.slice(0, 4)
   /* Landing on the running quarter keeps the running month, so the month view reopens on it. */
   const monthOfQuarter = (q: string) => {
     const months = quarterMonths(q)
     const now = currentPick().month
     return months.find((m) => m === now) ?? months[0]
   }
-  const setView = (view: 'month' | 'quarter') =>
+  const pickYear = (y: string) => {
+    const now = currentPick().month
+    setPick({ ...pick, month: y === now.slice(0, 4) ? now : `${y}-01` })
+  }
+  const setView = (next: MeView) =>
     setParams(
       (prev) => {
-        const next = new URLSearchParams(prev)
-        if (view === 'quarter') next.set(VIEW_PARAM, view)
-        else next.delete(VIEW_PARAM)
-        return next
+        const out = new URLSearchParams(prev)
+        if (next === 'month') out.delete(VIEW_PARAM)
+        else out.set(VIEW_PARAM, next)
+        return out
       },
       { replace: true },
     )
@@ -313,28 +368,29 @@ export function KpiMePage() {
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
+        <KpiTabs period={pick.month} active="me" />
         <ScreenHeader
           title={t(message('KPI của tôi', 'My KPIs', '내 KPI'))}
-          description={t(isQuarter ? QUARTER_DESCRIPTION : DESCRIPTION)}
+          description={t(view === 'month' ? DESCRIPTION : SPAN_DESCRIPTION)}
           actions={
             <div className="flex flex-wrap items-center gap-3">
-              <ViewSwitch value={isQuarter ? 'quarter' : 'month'} onChange={setView} />
-              {isQuarter ? (
+              <ViewSwitch value={view} onChange={setView} />
+              {view === 'quarter' && (
                 <QuarterPicker
                   quarter={quarter}
                   onPick={(q) => setPick({ ...pick, month: monthOfQuarter(q) })}
                 />
-              ) : (
-                <MonthPicker pick={pick} onPick={setPick} />
               )}
+              {view === 'year' && <YearPicker year={year} onPick={pickYear} />}
+              {view === 'month' && <MonthPicker pick={pick} onPick={setPick} />}
             </div>
           }
         />
-        {isQuarter ? (
+        {view === 'quarter' && (
           <QuarterView quarter={quarter} onMonthView={() => setView('month')} />
-        ) : (
-          <MonthBody pick={pick} />
         )}
+        {view === 'year' && <YearView year={year} onMonthView={() => setView('month')} />}
+        {view === 'month' && <MonthBody pick={pick} />}
       </ScreenLayout>
     </AppShell>
   )

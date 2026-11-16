@@ -1,268 +1,221 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import {
-  AppShell,
-  ArrowRight,
-  Button,
-  ClipboardList,
-  GlassCard,
-  Icon,
-  ScreenHeader,
-  ScreenLayout,
-  SectionTitle,
-  cn,
-} from '@pv/ui'
-import { isTieredPeriod, type KpiPeopleResponse } from '@pv/contracts'
-import { useCan, useSession } from '@/app/auth'
+import { AppShell, ScreenHeader, ScreenLayout } from '@pv/ui'
+import { isTieredPeriod, stepSalesPeriod, type KpiCloseGateResponse } from '@pv/contracts'
+import { useCan } from '@/app/auth'
 import { message, useI18n, type Message } from '@/app/i18n'
 import { useAppChrome } from '@/app/chrome'
-import { kpiCompanyQuery, kpiPeopleQuery, kpiTargetsQuery } from '@/data/kpi'
-import { kpiAllocationsQuery, kpiCountersQuery } from '@/data/kpi-allocation'
-import { kpiCatalogQuery, withCatalog, type BlockQuery, type KpiCatalog } from '@/data/kpi-catalog'
-import { waitingReasonsQuery } from '@/data/kpi-close'
-import { kpiForecastQuery } from '@/data/kpi-forecast'
-import { kpiTeamRosterQuery } from '@/data/kpi-team-roster'
+import { KpiTabs } from '@/components/kpi-tabs'
+import { kpiCompanyQuery } from '@/data/kpi'
+import { kpiAssignmentTreeQuery } from '@/data/kpi-assignment'
+import { kpiCatalogQuery, withCatalog } from '@/data/kpi-catalog'
+import { kpiCloseGateQuery } from '@/data/kpi-close'
+import { kpiCompanyDeskQuery } from '@/data/kpi-desk'
+import { dm } from '@/lib/date'
+import { scrollToId } from '@/lib/scroll'
 import { keyOf, num } from './home-model'
-import { NOTE, TILE } from './home-tiles'
 import { TARGETS_PATH, monthQuery } from './kpi-allocate-model'
-import { TieredNote } from './kpi-assign-confirm'
-import { statusHref } from './kpi-assign-model'
-import { KpiForecastBlock } from './kpi-company-forecast'
-import { AttentionBlock, RankedHeatmap, type TeamOf } from './kpi-company-people'
-import { RolesBlock } from './kpi-company-roles'
+import { assignHref, statusHref } from './kpi-assign-model'
+import { CommittedTile, LinkButton } from './kpi-company-parts'
+import { CompanyTodo, type CompanyTodoItem } from './kpi-company-todo'
+import { SlippingTable, TableCard, UnitsTable } from './kpi-company-units'
 import { MonthCloseBar } from './kpi-month-close'
-import { dayOfMonth, monthPick, roomPeople, useMonthParam } from './kpi-model'
-import { CompanyStrip, MonthPicker, QueryBlock } from './kpi-parts'
-import { closingOf, waitingCount, waitingOf } from './kpi-targets-model'
-import { NOTHING_WAITING } from './kpi-targets-queue'
+import { boardOf, dayOfMonth, monthEnded, monthPick, monthText, useMonthParam } from './kpi-model'
+import { CompanyStrip, MonthPicker, QueryBlock, ReadingTile } from './kpi-parts'
 
-/** The company KPI screen, read live from `/sales/kpi/:period/…`. No fixture
- *  and no scenario. It answers "how is the room doing, who needs coaching".
+/** The company tab, read live from `/sales/kpi/:period/…` (ADR 0159 §2, §5).
  *
- *  Figures before words: the month close, the room's strip, who is about to miss
- *  or hit, the roles, who is behind target, every person as a heat map heaviest
- *  first, then the door to the targets desk. The people lists leave the director's
- *  card out (`roomPeople`): it is the room's own card, already on the strip.
- *  The route asks for `kpi.view-all`, and every ungated read here needs no more
- *  than that. The month lives in the address.
+ *  What the caller can do today first, then the main metric with the heads'
+ *  committed forecast, the other room metrics, one row per unit and the people
+ *  who are slipping. The per-person table lives on the unit tab. The scorecard
+ *  read needs `kpi.view-all`; a company seat without it keeps the desk cards.
  *
  *  No ContextRail (law 10 debt, as on the overview): a scorecard is a sum over
  *  many records and opens no single object a chain could be anchored on. */
 
-const COPY = {
-  title: message('KPI công ty', 'Company KPIs', '회사 KPI'),
-  strip: message('Chỉ số phòng Kinh doanh', 'Sales department metrics', '영업 부서 지표'),
-  forecast: message('Dự báo cuối tháng', 'Month-end forecast', '월말 예상'),
-  forecastWhat: message('dự báo cuối tháng', 'month-end forecast', '월말 예상'),
-  roles: message('Theo vai trò', 'By role', '역할별'),
-  rolesWhat: message('KPI theo vai trò', 'KPIs by role', '역할별 KPI'),
-  behind: message('Đang hụt chỉ tiêu', 'Behind target', '목표 미달'),
-  behindWhat: message(
-    'danh sách đang hụt chỉ tiêu',
-    'the list of people behind target',
-    '목표 미달 인원 목록',
-  ),
-  people: message('Chi tiết từng người', 'Details by person', '개인별 상세'),
-  peopleWhat: message('KPI từng người', 'KPIs by person', '개인별 KPI'),
-  assignStatus: message('Mở Tình trạng giao', 'Open assignment status', '배정 현황 열기'),
-}
+const CLOSE_ID = 'month-close'
 
-/** The door to the targets desk. Its count is `waitingOf` over the desk's own
- *  reads, so it is the length of the desk's waiting list; no count until
- *  they land, and none for a reader with nothing to decide there. */
-function TargetsDoor({ period, waiting }: { period: string; waiting: number | undefined }) {
-  const { t } = useI18n()
-  const navigate = useNavigate()
-  return (
-    <GlassCard className={cn(TILE, 'sm:flex-row sm:items-center')}>
-      <Icon icon={ClipboardList} size={20} className="text-accent-foreground shrink-0" />
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <h2 className="text-[13px] font-semibold leading-5">
-          {t(message('Chỉ tiêu tháng', 'Monthly targets', '월간 목표'))}
-        </h2>
-        {waiting !== undefined && (
-          <p className={cn(NOTE, 'tnum font-num')}>
-            {waiting > 0
-              ? t(
-                  message(
-                    `${num(waiting)} mục chờ bạn xử lý.`,
-                    `${num(waiting)} items need your attention.`,
-                    `처리할 항목 ${num(waiting)}개.`,
-                  ),
-                )
-              : t(NOTHING_WAITING)}
-          </p>
-        )}
-      </div>
-      <Button
-        variant="secondary"
-        className="pointer-coarse:h-12 shrink-0 self-start sm:self-center"
-        onClick={() => navigate(`${TARGETS_PATH}${monthQuery(period)}`)}
-      >
-        {t(message('Mở Chỉ tiêu tháng', 'Open monthly targets', '월간 목표 열기'))}
-        <Icon icon={ArrowRight} size={16} />
-      </Button>
-    </GlassCard>
-  )
-}
-
-/** One quiet people block under the roles table: a title over the same read, drawn by `View`. */
-function PeopleSection({
-  title,
-  what,
-  query,
-  teamOf,
-  View,
-}: {
-  title: Message
-  what: Message
-  query: BlockQuery<[KpiPeopleResponse, KpiCatalog]>
-  teamOf: TeamOf
-  View: typeof AttentionBlock
-}) {
-  const { t } = useI18n()
-  return (
-    <section className="flex flex-col gap-3">
-      <SectionTitle size="lg">{t(title)}</SectionTitle>
-      <QueryBlock query={query} what={what} variant="b" quiet>
-        {([data, defs]) => (
-          <View
-            catalog={defs}
-            people={roomPeople(data.people)}
-            period={data.period}
-            teamOf={teamOf}
-          />
-        )}
-      </QueryBlock>
-    </section>
+/** The close line of the todo strip, from what the gate counts for this reader. */
+function closeSentence(
+  period: string,
+  gate: KpiCloseGateResponse | undefined,
+  t: (copy: Message) => string,
+): string {
+  const month = monthText(period)
+  const reasons = gate?.counts.overdueReasons ?? 0
+  const big = gate?.flags.bigContracts.length ?? 0
+  const parts = [
+    reasons > 0 &&
+      message(
+        `${num(reasons)} lý do quá hạn chờ duyệt`,
+        `${num(reasons)} overdue reasons awaiting approval`,
+        `승인 대기 연체 사유 ${num(reasons)}건`,
+      ),
+    big > 0 &&
+      message(
+        `${num(big)} hợp đồng lớn cần xem`,
+        `${num(big)} large contracts to review`,
+        `확인할 대형 계약 ${num(big)}건`,
+      ),
+  ].flatMap((p) => (p ? [t(p)] : []))
+  const and = t(message(' và ', ' and ', ' 및 '))
+  return t(
+    parts.length === 0
+      ? message(`Tháng ${month} chưa chốt.`, `Month ${month} is not closed.`, `${month}월 미마감.`)
+      : message(
+          `Chốt tháng ${month}: còn ${parts.join(and)}.`,
+          `Closing month ${month}: ${parts.join(and)} left.`,
+          `${month}월 마감: ${parts.join(and)} 남음.`,
+        ),
   )
 }
 
 export function KpiCompanyPage() {
   const { t } = useI18n()
   const chrome = useAppChrome()
+  const navigate = useNavigate()
   const canSet = useCan('kpi.set-target')
-  const canApprove = useCan('contract.approve-overdue-reason')
-  const me = useSession((s) => s.actor?.id)
-
+  const seesAll = useCan('kpi.view-all')
   const [pick, setPick] = useMonthParam()
   const period = keyOf(pick)
   const day = dayOfMonth(period)
 
   const catalog = useQuery(kpiCatalogQuery)
-  const company = useQuery(kpiCompanyQuery(period))
-  const targets = useQuery(kpiTargetsQuery(period))
-  const people = useQuery(kpiPeopleQuery(period))
-  const forecast = useQuery(kpiForecastQuery(period))
-  const allocations = useQuery(kpiAllocationsQuery(period))
-  const counters = useQuery(kpiCountersQuery(period))
-  /* Optional: without the roster the tables still read, only the team line goes. */
-  const roster = useQuery(kpiTeamRosterQuery(period))
-  const closing = closingOf(period)
-  const reasons = useQuery(waitingReasonsQuery(monthPick().month, canApprove))
-  const toClose = useQuery({ ...kpiAllocationsQuery(closing), enabled: canSet })
-  const teams = roster.data?.teams ?? []
-  const teamByActor = new Map(teams.flatMap((t) => t.members.map((m) => [m.actorId, t] as const)))
-  const teamOf: TeamOf = (actorId) => teamByActor.get(actorId)
-  /* Nobody holds a KPI role: the role table says so once; an empty
-     exceptions block would read as an all-clear. */
-  const nobody = people.data !== undefined && roomPeople(people.data.people).length === 0
-  /* The targets desk's own readiness: a count that lands early would jump. */
-  const settled =
-    !roster.isPending && (!canApprove || !reasons.isPending) && (!canSet || !toClose.isPending)
-  const waiting =
-    (canSet || canApprove) &&
-    settled &&
-    catalog.data &&
-    targets.data &&
-    allocations.data &&
-    counters.data
-      ? waitingCount(
-          waitingOf({
-            catalog: catalog.data,
-            targets: targets.data,
-            packages: allocations.data.allocations,
-            counters: counters.data.counters,
-            teams,
-            me,
-            canSet,
-            reasons: reasons.data?.reasons ?? [],
-            closing,
-            closingClose: toClose.data?.monthClose,
-          }),
-        )
-      : undefined
+  const company = useQuery({ ...kpiCompanyQuery(period), enabled: seesAll })
+  const desk = useQuery(kpiCompanyDeskQuery(period))
+  const role = company.data?.scorecard.role
+
+  const unclosed = company.data !== undefined && company.data.monthClose === null
+  const closable = canSet && monthEnded(period) && unclosed
+  const gate = useQuery(kpiCloseGateQuery(period, closable))
+  const showClose = company.data !== undefined && (!unclosed || closable)
+
+  /* The company's own set for the month after: only while it is still running. */
+  const next = stepSalesPeriod(period, 1)
+  const tree = useQuery({
+    ...kpiAssignmentTreeQuery(next, role ?? 'director'),
+    enabled: role !== undefined && isTieredPeriod(next) && period === monthPick().month,
+  })
+  const companyStep = tree.data?.steps.find((s) => s.level === 'company')
+  const unsent = (companyStep?.units?.notSent ?? 0) > 0
+
+  const todo: CompanyTodoItem[] = []
+  if (closable) {
+    todo.push({
+      id: 'close',
+      text: closeSentence(period, gate.data, t),
+      action: t(message('Xem trước khi chốt', 'Review before closing', '마감 전 확인')),
+      onAct: () => scrollToId(CLOSE_ID),
+    })
+  }
+  if (role && companyStep && unsent) {
+    todo.push({
+      id: 'assign',
+      text: t(
+        message(
+          `Giao chỉ tiêu tháng ${monthText(next)} cho công ty: hạn ${dm(companyStep.due)}.`,
+          `Assign targets for month ${monthText(next)} to the company: due ${dm(companyStep.due)}.`,
+          `${monthText(next)}월 회사 목표 배정: 기한 ${dm(companyStep.due)}.`,
+        ),
+      ),
+      action: t(message('Giao chỉ tiêu', 'Assign targets', '목표 배정')),
+      onAct: () => void navigate(assignHref(next, role)),
+    })
+  }
 
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
+        <KpiTabs period={period} active="company" counts={{ company: todo.length }} />
         <ScreenHeader
-          title={t(COPY.title)}
+          title={t(message('KPI công ty', 'Company KPIs', '회사 KPI'))}
           description={day && <span className="tnum font-num">{day}</span>}
           actions={<MonthPicker pick={pick} onPick={setPick} />}
         />
 
-        {/* Closing is a task on the targets desk; here only the closed line shows. */}
-        {company.data?.monthClose && (
-          <MonthCloseBar period={period} monthClose={company.data.monthClose} />
-        )}
+        <CompanyTodo items={todo} />
 
-        <section className="flex flex-col gap-3">
-          <SectionTitle size="lg">{t(COPY.strip)}</SectionTitle>
+        {seesAll ? (
           <QueryBlock
             query={withCatalog(company, catalog)}
-            what={message('chỉ số phòng Kinh doanh', 'Sales department metrics', '영업 부서 지표')}
+            what={message('chỉ số công ty', 'company metrics', '회사 지표')}
+          >
+            {([data, defs]) => {
+              const { hero } = boardOf(defs, data.scorecard.role, data.scorecard.readings)
+              const rest = data.scorecard.readings.filter((r) => r.key !== hero?.def.key)
+              return (
+                <div className="flex flex-col gap-4">
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                    {hero && <ReadingTile item={hero} hero />}
+                    <CommittedTile desk={desk} />
+                  </div>
+                  <CompanyStrip catalog={defs} role={data.scorecard.role} readings={rest} />
+                </div>
+              )
+            }}
+          </QueryBlock>
+        ) : (
+          <CommittedTile desk={desk} />
+        )}
+
+        {showClose && (
+          <div id={CLOSE_ID}>
+            <MonthCloseBar period={period} monthClose={company.data?.monthClose} />
+          </div>
+        )}
+
+        <section className="flex flex-col gap-3">
+          <QueryBlock
+            query={withCatalog(desk, catalog)}
+            what={message('danh sách đơn vị', 'the list of units', '조직 목록')}
+            variant="b"
           >
             {([data, defs]) => (
-              <CompanyStrip
-                catalog={defs}
-                role={data.scorecard.role}
-                readings={data.scorecard.readings}
-              />
+              <TableCard
+                title={t(message('Đơn vị', 'Units', '조직'))}
+                note={t(
+                  message(
+                    'Bấm để mở đơn vị như trưởng đơn vị đó thấy.',
+                    'Open a unit as its head sees it.',
+                    '책임자가 보는 화면으로 조직을 엽니다.',
+                  ),
+                )}
+              >
+                <UnitsTable catalog={defs} period={period} units={data.units} />
+              </TableCard>
             )}
           </QueryBlock>
         </section>
 
-        <section className="flex flex-col gap-3">
-          <SectionTitle size="lg">{t(COPY.forecast)}</SectionTitle>
-          <QueryBlock query={withCatalog(forecast, catalog)} what={COPY.forecastWhat} variant="b">
-            {([data, defs]) => <KpiForecastBlock catalog={defs} data={data} />}
-          </QueryBlock>
-        </section>
+        {desk.data && desk.data.slipping.length > 0 && (
+          <section className="flex flex-col gap-3">
+            <TableCard
+              title={t(message('Người đang trượt', 'People slipping', '미달 인원'))}
+              note={t(
+                message(
+                  'Người chậm nhịp hoặc đã trượt ở chỉ số chính, sắp xếp theo phần thiếu.',
+                  'People behind pace or already missed on the main metric, widest gap first.',
+                  '주요 지표가 지연되었거나 미달한 사람, 부족분이 큰 순서로 표시합니다.',
+                ),
+              )}
+            >
+              <SlippingTable period={period} slipping={desk.data.slipping} />
+            </TableCard>
+          </section>
+        )}
 
-        <section className="flex flex-col gap-3">
-          <SectionTitle size="lg">{t(COPY.roles)}</SectionTitle>
-          <QueryBlock query={withCatalog(people, catalog)} what={COPY.rolesWhat} variant="b">
-            {([data, defs]) => (
-              <RolesBlock catalog={defs} people={data.people} room={company.data?.scorecard} />
-            )}
-          </QueryBlock>
-        </section>
-
-        {!nobody && (
-          <PeopleSection
-            title={COPY.behind}
-            what={COPY.behindWhat}
-            query={withCatalog(people, catalog)}
-            teamOf={teamOf}
-            View={AttentionBlock}
+        <div className="flex flex-wrap gap-4">
+          <LinkButton
+            label={t(message('Tình trạng giao', 'Assignment status', '배정 현황'))}
+            to={statusHref(period)}
           />
-        )}
-
-        {!nobody && (
-          <PeopleSection
-            title={COPY.people}
-            what={COPY.peopleWhat}
-            query={withCatalog(people, catalog)}
-            teamOf={teamOf}
-            View={RankedHeatmap}
-          />
-        )}
-
-        {isTieredPeriod(period) && (
-          <TieredNote to={statusHref(period)} label={t(COPY.assignStatus)} />
-        )}
-        <TargetsDoor period={period} waiting={waiting} />
+          {!isTieredPeriod(period) && (
+            <LinkButton
+              label={t(message('Chỉ tiêu tháng', 'Monthly targets', '월간 목표'))}
+              to={`${TARGETS_PATH}${monthQuery(period)}`}
+            />
+          )}
+        </div>
       </ScreenLayout>
     </AppShell>
   )

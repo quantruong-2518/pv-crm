@@ -13,6 +13,7 @@ import { sql, type SQL } from 'drizzle-orm'
 import type { KpiCloseGateSnapshot, KpiMetricKey, RoleId } from '@pv/contracts'
 import { actor } from '@api/platform/db/platform.schema'
 import { sales } from '../sales.schema'
+import type { KpiScoreBasis } from './kpi-score-basis'
 
 /** Month close: a frozen copy of every reading a month's cards showed.
  *
@@ -53,6 +54,9 @@ export const kpiMonthClose = sales.table(
      *  counts and flagged codes, frozen with the close and never rewritten.
      *  NULL = closed before 0137. */
     gate: jsonb('gate').$type<KpiCloseGateSnapshot>(),
+    /** The catalog and grade bands the month's score is judged by, frozen at close
+     *  (ADR 0158). NULL = closed before 0170: the score reads the current config. */
+    scoreBasis: jsonb('score_basis').$type<KpiScoreBasis>(),
   },
   () => [check('kpi_month_close_period_shape', periodShape())],
 )

@@ -3,9 +3,13 @@ import type { Actor } from '@pv/engines'
 import {
   isCumulative,
   KpiQuarterMeResponse,
+  KpiYearMeResponse,
+  salesBucketsOf,
   quarterMonths,
   type KpiMeResponse,
+  type KpiPeriodKey,
   type KpiQuarterKey,
+  type KpiYearKey,
   type KpiQuarterMonthReading,
   type KpiQuarterReading,
   type KpiQuarterScorecard,
@@ -19,7 +23,8 @@ import { KpiService } from './kpi.service'
 
 const DAY_MS = 86_400_000
 
-/** A quarter is read as the sum of its three monthly readings (ADR 0146).
+/** A quarter is read as the sum of its three monthly readings (ADR 0146); a
+ *  year (ADR 0158 §6) as the sum of twelve, through the same code.
  *
  *  Nothing is recomputed: a month frozen by month close carries its frozen
  *  value, any other month its live value (with the adjustments of ADR 0115),
@@ -34,7 +39,17 @@ export class KpiQuarterService {
   ) {}
 
   async me(who: Actor, quarter: KpiQuarterKey): Promise<KpiQuarterMeResponse> {
-    const keys = quarterMonths(quarter)
+    const { months, ...rest } = await this.summed(who, quarter, quarterMonths(quarter))
+    return KpiQuarterMeResponse.parse({ quarter, months, ...rest })
+  }
+
+  async year(who: Actor, year: KpiYearKey): Promise<KpiYearMeResponse> {
+    const keys = salesBucketsOf(year).map((b) => b.key as KpiPeriodKey)
+    const { months, ...rest } = await this.summed(who, year, keys)
+    return KpiYearMeResponse.parse({ year, months, ...rest })
+  }
+
+  private async summed(who: Actor, grain: string, keys: readonly KpiPeriodKey[]) {
     const today = vietnamToday()
     /* One connection under PGlite: the months are read in turn, not together. */
     const months: KpiMeResponse[] = []
@@ -43,7 +58,7 @@ export class KpiQuarterService {
       this.config.effectiveCatalog(),
       this.config.tolerance(),
     ])
-    const { from, to } = spansOf(quarter).current
+    const { from, to } = spansOf(grain).current
     const elapsed = elapsedOf(from, to, today)
     const days = (Date.parse(to) - Date.parse(from)) / DAY_MS
 
@@ -65,8 +80,7 @@ export class KpiQuarterService {
       }
     })
 
-    return KpiQuarterMeResponse.parse({
-      quarter,
+    return {
       months: keys.map((period) => {
         const span = spansOf(period).current
         return { period, phase: phaseOf(span.from, span.to, today) }
@@ -74,7 +88,7 @@ export class KpiQuarterService {
       daysGone: Math.round(elapsed * days),
       days,
       scorecards,
-    })
+    }
   }
 
   /** The quarter target stays unset unless all three months agreed one: a

@@ -58,6 +58,9 @@ export const SettingKey = z.enum([
   'kpi.alert.slip-percent',
   'kpi.alert.hit-percent',
   'kpi.pace.tolerance-percent',
+  'kpi.score.grade-a',
+  'kpi.score.grade-b',
+  'kpi.score.grade-c',
   'sales.after-sale.hot-days',
   'sales.after-sale.warm-days',
   'sales.after-sale.cold-days',
@@ -190,6 +193,29 @@ export const SETTING_REGISTRY: Record<SettingKey, SettingDefinition> = {
     max: 99,
     description: 'Thiếu bao nhiêu so với số cần có tới hôm nay vẫn tính Đúng tiến độ (%).',
   },
+  /* ADR 0158 §3, owner's bands 15/11/2026. Written only through `KpiAlertPatch`,
+     never `SettingPatch`. */
+  'kpi.score.grade-a': {
+    unit: 'percent',
+    defaultValue: 100,
+    min: 1,
+    max: 200,
+    description: 'Điểm tháng từ mức này trở lên xếp loại A (%).',
+  },
+  'kpi.score.grade-b': {
+    unit: 'percent',
+    defaultValue: 85,
+    min: 1,
+    max: 200,
+    description: 'Điểm tháng từ mức này trở lên xếp loại B (%).',
+  },
+  'kpi.score.grade-c': {
+    unit: 'percent',
+    defaultValue: 70,
+    min: 1,
+    max: 200,
+    description: 'Điểm tháng từ mức này trở lên xếp loại C, thấp hơn là D (%).',
+  },
   /* Owner's defaults 22/10/2026. Written only as a trio through `RecareCycles`
      (`./sales/config`), the sales-config approval path, never `SettingPatch`. */
   'sales.after-sale.hot-days': {
@@ -318,10 +344,17 @@ export const KpiAlertPatch = z
     slipPercent: boundedValue('kpi.alert.slip-percent'),
     hitPercent: boundedValue('kpi.alert.hit-percent'),
     tolerancePercent: boundedValue('kpi.pace.tolerance-percent'),
+    gradeA: boundedValue('kpi.score.grade-a'),
+    gradeB: boundedValue('kpi.score.grade-b'),
+    gradeC: boundedValue('kpi.score.grade-c'),
   })
   .refine((v) => v.hitPercent > v.slipPercent, {
     error: 'Ngưỡng sắp đạt phải lớn hơn ngưỡng sắp trượt.',
     path: ['hitPercent'],
+  })
+  .refine((v) => v.gradeA > v.gradeB && v.gradeB > v.gradeC, {
+    error: 'Mức loại A phải cao hơn loại B, loại B cao hơn loại C.',
+    path: ['gradeA'],
   })
 
 export type KpiAlertPatch = z.infer<typeof KpiAlertPatch>

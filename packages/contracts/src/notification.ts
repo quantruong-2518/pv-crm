@@ -80,6 +80,7 @@ export const NotificationKind = z.enum([
   'kpi-assignment-late',
   'kpi-away-declared',
   'kpi-digest',
+  'kpi-one-on-one',
   'fx-rate-missing',
   'assistant-brief',
 ])
@@ -179,6 +180,7 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'kpi-assignment-late': 'Cấp dưới chưa giao chỉ tiêu đúng hạn, đã lấy mức tháng trước',
   'kpi-away-declared': 'Bạn được khai vắng việc KPI',
   'kpi-digest': 'Tóm tắt KPI buổi sáng',
+  'kpi-one-on-one': 'Có buổi 1:1 KPI mới',
   'fx-rate-missing': 'Tỷ giá chưa được cập nhật',
   'assistant-brief': 'Việc hôm nay',
 }
@@ -283,6 +285,7 @@ export const NOTIFICATION_KIND_GROUP: Record<NotificationKind, NotificationGroup
   'kpi-assignment-late': 'kpi',
   'kpi-away-declared': 'kpi',
   'kpi-digest': 'kpi',
+  'kpi-one-on-one': 'kpi',
   'fx-rate-missing': 'account',
   'assistant-brief': 'next-step',
 }
@@ -366,6 +369,8 @@ export const NOTIFICATION_KIND_POLICY: Record<
   /* ADR 0120 §7: someone else now holds your seat; you must hear it at once. */
   'kpi-away-declared': { important: true, locked: false },
   'kpi-digest': { important: false, locked: false },
+  /* ADR 0158 §5: reaches the person through the morning digest, so it is never a popup. */
+  'kpi-one-on-one': { important: false, locked: false },
   /* Like `google-link-broken`: a system alert to `setting.manage` holders that no role may mute. */
   'fx-rate-missing': { important: false, locked: true },
   'assistant-brief': { important: false, locked: false },
@@ -430,6 +435,7 @@ export const NOTIFICATION_KINDS_DIGESTED: ReadonlySet<NotificationKind> = new Se
   'kpi-about-to-hit',
   'kpi-counter-proposed',
   'kpi-counter-resolved',
+  'kpi-one-on-one',
 ])
 
 /** Every subject each kind is written with, read off the emitters' `announce`
@@ -506,8 +512,10 @@ export const NOTIFICATION_KIND_SUBJECTS: Record<NotificationKind, readonly Notif
     'kpi-assignment-late': ['kpi-assignment'],
     /* The person's own KPI page of the month the absence starts in. */
     'kpi-away-declared': ['kpi-scorecard'],
-    /* Any subject of the four kinds it sums up. */
+    /* Any subject of the kinds it sums up. */
     'kpi-digest': ['kpi-scorecard', 'kpi-target', 'kpi-allocation', 'kpi-team'],
+    /* The person's own scorecard of the month the 1:1 is about. */
+    'kpi-one-on-one': ['kpi-scorecard'],
     'fx-rate-missing': ['fx-rate'],
     /* Written on the reader's own account (code = their id), which no permission gates. */
     'assistant-brief': ['user'],
@@ -540,6 +548,7 @@ export const NOTIFICATION_DETAIL_SLIP = 'slip'
 export const NOTIFICATION_DETAIL_HIT = 'hit'
 export const NOTIFICATION_DETAIL_PROPOSED = 'proposed'
 export const NOTIFICATION_DETAIL_RESOLVED = 'resolved'
+export const NOTIFICATION_DETAIL_ONE_ON_ONE = 'oneOnOne'
 /** Amount and currency code on a `contract-installment-overdue` line: the
  *  contract's own currency, never dong, so the banner prints it as it is. */
 export const NOTIFICATION_DETAIL_AMOUNT = 'amount'
@@ -595,6 +604,7 @@ export function notificationSentence(
       [n(NOTIFICATION_DETAIL_HIT), 'chỉ số sắp đạt'],
       [n(NOTIFICATION_DETAIL_PROPOSED), 'đề xuất đổi chỉ tiêu chờ xử lý'],
       [n(NOTIFICATION_DETAIL_RESOLVED), 'đề xuất đổi chỉ tiêu đã xử lý'],
+      [n(NOTIFICATION_DETAIL_ONE_ON_ONE), 'buổi 1:1 mới'],
     ] as const
     const said = parts.filter(([v]) => v > 0).map(([v, unit]) => `${num(v)} ${unit}`)
     return said.length > 0 ? said.join(' · ') : null

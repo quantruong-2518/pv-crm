@@ -18,6 +18,7 @@ import { ContributionsPanel, FrozenNote } from './kpi-contributions'
 import { COMPANY_PATH, ME_PATH, acknowledgementOf, dayOfMonth, useMonthParam } from './kpi-model'
 import { MonthPicker, QueryBlock, Scoreboard } from './kpi-parts'
 import { PersonForecast } from './kpi-person-forecast'
+import { PersonScorePlan } from './kpi-unit-person'
 import { teamsActedFor } from './kpi-team-model'
 import { AbsenceBlock } from './kpi-absence'
 
@@ -75,6 +76,7 @@ function PersonBody({
           <Scoreboard catalog={catalog} role={card.role} readings={card.readings} />
         </section>
       ))}
+      <PersonScorePlan period={period} actorId={person.actorId} />
       <section className="flex flex-col gap-3">
         <SectionTitle size="lg">
           {t(message('Dự báo cuối tháng', 'Month-end forecast', '월말 예상'))}

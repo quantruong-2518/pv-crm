@@ -10,6 +10,7 @@ import {
   NOTIFICATION_DETAIL_FLOOR,
   NOTIFICATION_DETAIL_SUMMARY,
   NOTIFICATION_DETAIL_RESOLVED,
+  NOTIFICATION_DETAIL_ONE_ON_ONE,
   NOTIFICATION_DETAIL_SLIP,
   NOTIFICATION_DETAIL_STEPS,
   NOTIFICATION_DETAIL_TITLE,
@@ -125,6 +126,7 @@ function digestSentence(row: NotificationRow, lang: Lang): string | null {
       count(NOTIFICATION_DETAIL_RESOLVED),
       message('', 'target change requests decided', '처리된 목표 변경 요청'),
     ],
+    [count(NOTIFICATION_DETAIL_ONE_ON_ONE), message('', 'new 1:1 notes', '새 1:1 면담 기록')],
   ] as const
   const said = parts
     .filter(([value]) => value > 0)

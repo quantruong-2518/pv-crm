@@ -9,11 +9,13 @@ import {
   type KpiAlertPatch,
   type KpiRoleMetricsPatch,
 } from '@pv/contracts'
+import type { SettingKey } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import { SettingService } from '@api/platform/setting/setting.service'
 import { SalesConfigService } from '../config/config.service'
 import { KpiConfigRepository } from './kpi-config.repository'
-import type { KpiConfigChange } from './kpi-config.approval'
+import { assertMeasurable, type KpiConfigChange } from './kpi-config.approval'
+import type { ScoreSettings } from './kpi-score'
 import { catalogOf, resolvedMetrics, type KpiCatalog } from './kpi-config.overlay'
 
 /** KPI configuration (ADR 0099 §1–3): the metric overlay per role and the
@@ -53,6 +55,7 @@ export class KpiConfigService {
   /** The contract already holds "every catalog metric, one enabled primary".
    *  `wasOn` is read here so the approver's sentence names only what flips. */
   async proposeMetrics(who: Actor, body: KpiRoleMetricsPatch): Promise<ConfigProposalReceipt> {
+    assertMeasurable(body)
     const now = resolvedMetrics(await this.repo.overrides())[body.role]
     const wasOn = now.filter((m) => m.enabled).map((m) => m.metricKey)
     const change: KpiConfigChange = { kind: 'kpi-metrics', value: body, wasOn }
@@ -64,13 +67,27 @@ export class KpiConfigService {
     return (await this.settings.value('kpi.pace.tolerance-percent')).value / 100
   }
 
+  /** The three grade bands, in the shape the calculator takes. */
+  async scoreSettings(): Promise<ScoreSettings> {
+    const read = async (key: SettingKey) => (await this.settings.value(key)).value
+    const [gradeA, gradeB, gradeC] = await Promise.all([
+      read('kpi.score.grade-a'),
+      read('kpi.score.grade-b'),
+      read('kpi.score.grade-c'),
+    ])
+    return { gradeA, gradeB, gradeC }
+  }
+
   /** `isDefault` = no key has a row; otherwise the latest of the writes. */
   async alert(): Promise<KpiAlertSettingResponse> {
     const { rows } = await this.settings.list()
     const slip = rows.find((r) => r.key === 'kpi.alert.slip-percent')
     const hit = rows.find((r) => r.key === 'kpi.alert.hit-percent')
     const tolerance = rows.find((r) => r.key === 'kpi.pace.tolerance-percent')
-    const written = [slip, hit, tolerance].filter((r) => r && !r.isDefault)
+    const [gradeA, gradeB, gradeC] = ['a', 'b', 'c'].map((g) =>
+      rows.find((r) => r.key === `kpi.score.grade-${g}`),
+    )
+    const written = [slip, hit, tolerance, gradeA, gradeB, gradeC].filter((r) => r && !r.isDefault)
     const last = written.sort((a, b) => (b?.updatedAt ?? '').localeCompare(a?.updatedAt ?? ''))[0]
     const names = await this.repo.names(last?.updatedBy ? [last.updatedBy] : [])
     const by = last?.updatedBy
@@ -78,6 +95,9 @@ export class KpiConfigService {
       slipPercent: slip?.value,
       hitPercent: hit?.value,
       tolerancePercent: tolerance?.value,
+      gradeA: gradeA?.value,
+      gradeB: gradeB?.value,
+      gradeC: gradeC?.value,
       isDefault: !last,
       updatedBy: by ? { actorId: by, name: names.get(by) ?? by } : null,
       updatedAt: last?.updatedAt ?? null,

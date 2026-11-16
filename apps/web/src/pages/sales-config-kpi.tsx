@@ -20,15 +20,19 @@ import { approvalStateCopy, sentCopy } from './sales-config-copy'
  *  keep the stored values until the change is approved. The org section (5.18)
  *  below them (ADR 0118) is the exception: tree edits apply directly. */
 
-type Field = { axis: keyof KpiAlertPatch; hint?: true }
+type Axis = keyof KpiAlertPatch
+type Field = { axis: Axis; hint?: true }
 
 const FIELDS: readonly Field[] = [
   { axis: 'slipPercent' },
   { axis: 'hitPercent' },
   { axis: 'tolerancePercent', hint: true },
+  { axis: 'gradeA' },
+  { axis: 'gradeB' },
+  { axis: 'gradeC', hint: true },
 ]
 
-const fieldCopy = (axis: keyof KpiAlertPatch) => {
+const fieldCopy = (axis: Axis) => {
   if (axis === 'slipPercent')
     return {
       label: message(
@@ -47,6 +51,26 @@ const fieldCopy = (axis: keyof KpiAlertPatch) => {
       ),
       short: message('Ngưỡng sắp đạt', 'On-track threshold', '정상 기준'),
     }
+  if (axis === 'gradeA')
+    return {
+      label: message('Loại A từ (%)', 'Grade A from (%)', 'A등급 기준 (%)'),
+      short: message('Mức loại A', 'Grade A level', 'A등급 기준'),
+    }
+  if (axis === 'gradeB')
+    return {
+      label: message('Loại B từ (%)', 'Grade B from (%)', 'B등급 기준 (%)'),
+      short: message('Mức loại B', 'Grade B level', 'B등급 기준'),
+    }
+  if (axis === 'gradeC')
+    return {
+      label: message('Loại C từ (%)', 'Grade C from (%)', 'C등급 기준 (%)'),
+      short: message('Mức loại C', 'Grade C level', 'C등급 기준'),
+      hint: message(
+        'Dưới mức loại C là loại D.',
+        'Below grade C is grade D.',
+        'C등급 기준 미만은 D등급입니다.',
+      ),
+    }
   return {
     label: message(
       'Thiếu bao nhiêu vẫn tính Đúng tiến độ',
@@ -62,7 +86,27 @@ const fieldCopy = (axis: keyof KpiAlertPatch) => {
   }
 }
 
-type Typed = Record<keyof KpiAlertPatch, string>
+type Typed = Record<Axis, string>
+
+/** What a submitted change says, for the boxes it moved only. */
+const SENT_PHRASE: Record<Axis, (n: number) => Message> = {
+  slipPercent: (n) => message(`sắp trượt dưới ${n}%`, `at risk below ${n}%`, `${n}% 미만은 위험`),
+  hitPercent: (n) => message(`sắp đạt từ ${n}%`, `on track from ${n}%`, `${n}%부터 정상`),
+  tolerancePercent: (n) =>
+    message(
+      `thiếu ${n}% vẫn tính Đúng tiến độ`,
+      `up to ${n}% behind still counts as on track`,
+      `${n}%까지 미달해도 정상으로 계산`,
+    ),
+  gradeA: (n) => message(`loại A từ ${n}%`, `grade A from ${n}%`, `A등급 ${n}% 이상`),
+  gradeB: (n) => message(`loại B từ ${n}%`, `grade B from ${n}%`, `B등급 ${n}% 이상`),
+  gradeC: (n) => message(`loại C từ ${n}%`, `grade C from ${n}%`, `C등급 ${n}% 이상`),
+}
+
+const sentList = (
+  sent: { patch: KpiAlertPatch; changed: readonly Axis[] },
+  lang: 'vi' | 'en' | 'ko',
+) => sent.changed.map((a) => translate(SENT_PHRASE[a](sent.patch[a]), lang)).join(', ')
 
 const LABEL = 'text-muted-foreground text-[11px]'
 const NOTE = 'text-muted-foreground m-0 text-[11.5px] leading-[1.5]'
@@ -84,14 +128,29 @@ function issueOf(
     : `${t(fieldCopy(field.axis).short)}: ${lowerFirst(issue.message)}`
 }
 
+function useFieldIds() {
+  return {
+    slipPercent: useId(),
+    hitPercent: useId(),
+    tolerancePercent: useId(),
+    gradeA: useId(),
+    gradeB: useId(),
+    gradeC: useId(),
+  }
+}
+
 function KpiAlertConfig() {
   const { t } = useI18n()
   const { data, error, refetch } = useQuery(kpiAlertQuery)
   const canPropose = useCan('config.propose')
   const propose = useProposeKpiAlert()
   const [typed, setTyped] = useState<Typed | null>(null)
-  const [sent, setSent] = useState<(KpiAlertPatch & { state: ApprovalState }) | null>(null)
-  const ids = { slipPercent: useId(), hitPercent: useId(), tolerancePercent: useId() }
+  const [sent, setSent] = useState<{
+    patch: KpiAlertPatch
+    changed: Axis[]
+    state: ApprovalState
+  } | null>(null)
+  const ids = useFieldIds()
   const issueId = useId()
 
   if (error && !data) {
@@ -125,24 +184,22 @@ function KpiAlertConfig() {
     slipPercent: String(data.slipPercent),
     hitPercent: String(data.hitPercent),
     tolerancePercent: String(data.tolerancePercent),
+    gradeA: String(data.gradeA),
+    gradeB: String(data.gradeB),
+    gradeC: String(data.gradeC),
   }
-  const parsed = KpiAlertPatch.safeParse({
-    slipPercent: toPercent(shown.slipPercent),
-    hitPercent: toPercent(shown.hitPercent),
-    tolerancePercent: toPercent(shown.tolerancePercent),
-  })
+  const parsed = KpiAlertPatch.safeParse(
+    Object.fromEntries(FIELDS.map((f) => [f.axis, toPercent(shown[f.axis])])),
+  )
   const issue = typed && !parsed.success ? parsed.error.issues[0] : undefined
-  const unchanged =
-    !parsed.success ||
-    (data.slipPercent === parsed.data.slipPercent &&
-      data.hitPercent === parsed.data.hitPercent &&
-      data.tolerancePercent === parsed.data.tolerancePercent)
+  const unchanged = !parsed.success || FIELDS.every((f) => data[f.axis] === parsed.data[f.axis])
 
   const send = () => {
     if (!parsed.success) return
+    const changed = FIELDS.map((f) => f.axis).filter((a) => data[a] !== parsed.data[a])
     propose.mutate(parsed.data, {
       onSuccess: (receipt) => {
-        setSent({ ...parsed.data, state: receipt.state })
+        setSent({ patch: parsed.data, changed, state: receipt.state })
         setTyped(null)
         toastDone(sentCopy())
       },
@@ -212,9 +269,9 @@ function KpiAlertConfig() {
         <p className={cn(NOTE, 'tnum font-num')}>
           {t(
             message(
-              `Đã gửi: sắp trượt dưới ${sent.slipPercent}%, sắp đạt từ ${sent.hitPercent}%, thiếu ${sent.tolerancePercent}% vẫn tính Đúng tiến độ. ${translate(approvalStateCopy(sent.state), 'vi')}.`,
-              `Submitted: at risk below ${sent.slipPercent}%, on track from ${sent.hitPercent}%, and up to ${sent.tolerancePercent}% behind still counts as on track. ${translate(approvalStateCopy(sent.state), 'en')}.`,
-              `제출됨: ${sent.slipPercent}% 미만은 위험, ${sent.hitPercent}%부터 정상이며 ${sent.tolerancePercent}%까지 미달해도 정상으로 계산합니다. ${translate(approvalStateCopy(sent.state), 'ko')}.`,
+              `Đã gửi: ${sentList(sent, 'vi')}. ${translate(approvalStateCopy(sent.state), 'vi')}.`,
+              `Submitted: ${sentList(sent, 'en')}. ${translate(approvalStateCopy(sent.state), 'en')}.`,
+              `제출됨: ${sentList(sent, 'ko')}. ${translate(approvalStateCopy(sent.state), 'ko')}.`,
             ),
           )}
         </p>

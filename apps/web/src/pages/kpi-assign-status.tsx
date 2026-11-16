@@ -25,6 +25,7 @@ import { kpiAssignmentTreeQuery } from '@/data/kpi-assignment'
 import { kpiCatalogQuery, type BlockQuery, type KpiCatalog } from '@/data/kpi-catalog'
 import { message, translate, useI18n, type Message } from '@/app/i18n'
 import { kpiRoleText } from '@/data/kpi-i18n'
+import { KpiCardError } from '@/components/kpi-tabs'
 import { dm } from '@/lib/date'
 import { keyOf, num } from './home-model'
 import { NOTE, TILE } from './home-tiles'
@@ -191,6 +192,10 @@ function Board({ period }: { period: string }) {
   const roles = catalog.data ? RoleId.options.filter((r) => catalog.data[r].length > 0) : []
   const trees = useQueries({ queries: roles.map((role) => kpiAssignmentTreeQuery(period, role)) })
   const all = joined(catalog, trees)
+  const failedRoles = roles.flatMap((role, i) => {
+    const tree = trees[i]
+    return tree?.error && !tree.data ? [{ role, tree }] : []
+  })
 
   if (isApiError(all.error) && all.error.kind === 'forbidden') {
     return (
@@ -247,6 +252,14 @@ function Board({ period }: { period: string }) {
               }
               className="self-start"
             />
+            {failedRoles.map(({ role, tree: failed }) => (
+              <section key={role} className="flex flex-col gap-2">
+                <span className="text-[12.5px] font-semibold">{kpiRoleText(role)}</span>
+                <GlassCard className={TILE}>
+                  <KpiCardError error={failed.error} onRetry={() => void failed.refetch()} />
+                </GlassCard>
+              </section>
+            ))}
             <Steps steps={tree.steps} />
             <GlassCard variant="b" className="p-3">
               <ul

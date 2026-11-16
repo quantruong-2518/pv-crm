@@ -120,8 +120,12 @@ export const CHROME_ENTRY_COPY: Record<string, { label: Message; description?: M
     ),
   },
   '/sales/kpi/me': {
-    label: m('KPI của tôi', 'My KPIs', '내 KPI'),
-    description: m('Tiến độ chỉ tiêu của tôi', 'My target progress', '내 목표 진행 현황'),
+    label: m('KPI', 'KPI', 'KPI'),
+    description: m(
+      'Việc KPI hôm nay của tôi và đơn vị tôi phụ trách',
+      'Today’s KPI work for me and the units I lead',
+      '오늘 나와 내가 맡은 단위의 KPI 할 일',
+    ),
   },
   '/sales/kpi/company': {
     label: m('KPI công ty', 'Company KPIs', '회사 KPI'),

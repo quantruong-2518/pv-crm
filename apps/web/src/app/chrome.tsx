@@ -5,10 +5,8 @@ import {
   BriefcaseDollar,
   Building,
   CalendarClock,
-  ChartColumn,
   CircleCheck,
   CircleCheckBig,
-  ClipboardList,
   Coins,
   Contact,
   Factory,
@@ -444,37 +442,11 @@ export const SALES_MODULES: SalesModule[] = [
   {
     no: 0,
     icon: CircleCheck,
-    label: 'KPI của tôi', // i18n-ignore
+    /* One entry for every KPI role (ADR 0159): the tabs inside decide unit and company. */
+    label: 'KPI', // i18n-ignore
     path: '/sales/kpi/me',
     permission: 'kpi.view',
-    question: 'Tôi đang thiếu gì so với chỉ tiêu tháng này', // i18n-ignore
-    group: 'manage',
-  },
-  {
-    no: 0,
-    icon: ChartColumn,
-    label: 'KPI công ty', // i18n-ignore
-    path: '/sales/kpi/company',
-    permission: 'kpi.view-all',
-    question: 'Phòng đang đạt bao nhiêu, ai đang chậm', // i18n-ignore
-    group: 'manage',
-  },
-  {
-    no: 0,
-    icon: ClipboardList,
-    label: 'Chỉ tiêu tháng', // i18n-ignore
-    path: '/sales/kpi/targets',
-    permission: 'kpi.view-all',
-    question: 'Việc nào về chỉ tiêu đang chờ tôi', // i18n-ignore
-    group: 'manage',
-  },
-  {
-    no: 0,
-    icon: ListChecks,
-    label: 'Tình trạng giao', // i18n-ignore
-    path: '/sales/kpi/assign/status',
-    permission: 'kpi.view-all',
-    question: 'Cấp nào đã giao chỉ tiêu, ai chưa xác nhận', // i18n-ignore
+    question: 'Việc KPI hôm nay của tôi và đơn vị tôi phụ trách', // i18n-ignore
     group: 'manage',
   },
   {

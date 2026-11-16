@@ -357,30 +357,6 @@ export function rampWord(factor: number): string {
   )
 }
 
-/** The typed figures of one metric among `peers`; blank or broken boxes are skipped. */
-export function typedFigures(
-  peers: readonly KpiAssignmentChild[],
-  def: KpiMetricDef,
-  { textOf }: Fields,
-): number[] {
-  return peers.flatMap((c) => {
-    const value = parseTyped(def.unit, textOf(keyOfChild(c, def.key), def))
-    return typeof value === 'number' ? [value] : []
-  })
-}
-
-/** What a ramping person's box could hold: the typed average of the people with
- *  no ramp in this table × the factor. `null` when nobody is there to average. */
-export function rampSuggestion(
-  page: KpiAssignmentPageResponse,
-  def: KpiMetricDef,
-  fields: Fields,
-  factor: number,
-): number | null {
-  const peers = page.children.filter((c) => c.kind === 'person' && rampOf(c) === null)
-  return rampedAverage(typedFigures(peers, def, fields), factor)
-}
-
 export const rampHintText = (def: KpiMetricDef, value: number): string => {
   const figure = printValue(def.unit, value, true)
   return translate(message(`Gợi ý ${figure}`, `Suggested ${figure}`, `제안 ${figure}`))

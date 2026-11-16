@@ -80,6 +80,10 @@ export function assertNotLapsed(states: readonly KpiAckState[]): void {
 export const nextMonth = (period: KpiPeriodKey): KpiPeriodKey =>
   spansOf(period).current.to.slice(0, 7)
 
+/** Today is after the month's last day. */
+export const monthEnded = (period: KpiPeriodKey, today: string): boolean =>
+  today >= `${nextMonth(period)}-01`
+
 /** Where a month stands today; shared with the allocation doors so both read one clock. */
 export function monthClock(period: KpiPeriodKey): {
   elapsed: number
@@ -118,6 +122,11 @@ export function assertTargetValues(
     throw invalid({ [field]: [`Chỉ tiêu dạng tỷ lệ không vượt quá 100%: ${names(over)}.`] })
   }
 }
+
+/** The one rule for who is judged on signed value: an own `signed-value` seat. The forecast
+ *  commit, the 1:1, the desk and the plan all ask it of a def, so they cannot disagree. */
+export const holdsSigned = (def: KpiMetricDef): boolean =>
+  def.key === 'signed-value' && def.scope === 'own'
 
 /** An away setter drops out of the pool and its doors (ADR 0117 §5). */
 export const awayRefusal = () => conflict('Bạn đang trong kỳ vắng nên việc này do người khác làm.')

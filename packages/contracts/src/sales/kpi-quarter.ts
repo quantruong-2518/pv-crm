@@ -28,30 +28,57 @@ export const KpiQuarterMonthReading = z.object({
   target: z.number().nonnegative().nullable(),
 })
 
-export const KpiQuarterReading = z.object({
-  key: KpiMetricKey,
-  /** Sum of the month values; a month without one counts 0. */
-  value: z.number(),
-  /** `null` when any of the three months has no target: the quarter target is then unset. */
-  target: z.number().nonnegative().nullable(),
-  expected: z.number().nonnegative().nullable(),
-  verdict: KpiVerdict,
-  months: z.array(KpiQuarterMonthReading).length(3),
-})
+// The year view (ADR 0158 §6) is the same sum over twelve months, so both grains share these builders.
+const readingOf = (months: number) =>
+  z.object({
+    key: KpiMetricKey,
+    /** Sum of the month values; a month without one counts 0. */
+    value: z.number(),
+    /** `null` when any month has no target: the quarter or year target is then unset. */
+    target: z.number().nonnegative().nullable(),
+    expected: z.number().nonnegative().nullable(),
+    verdict: KpiVerdict,
+    months: z.array(KpiQuarterMonthReading).length(months),
+  })
 
-export const KpiQuarterScorecard = z.object({
-  role: RoleId,
-  readings: z.array(KpiQuarterReading),
-  /** The role's metrics with no quarter figure, i.e. those `isCumulative` (kpi.ts) rejects. */
-  monthOnly: z.array(KpiMetricKey),
-})
+const scorecardOf = (months: number) =>
+  z.object({
+    role: RoleId,
+    readings: z.array(readingOf(months)),
+    /** The role's metrics with no summed figure, i.e. those `isCumulative` (kpi.ts) rejects. */
+    monthOnly: z.array(KpiMetricKey),
+  })
+
+const spanOf = {
+  daysGone: z.number().int().nonnegative(),
+  days: z.number().int().positive(),
+}
+
+export const KpiQuarterReading = readingOf(3)
+export const KpiQuarterScorecard = scorecardOf(3)
 
 export const KpiQuarterMeResponse = z.object({
   quarter: KpiQuarterKey,
   months: z.array(KpiQuarterMonth).length(3),
-  daysGone: z.number().int().nonnegative(),
-  days: z.number().int().positive(),
+  ...spanOf,
   scorecards: z.array(KpiQuarterScorecard),
+})
+
+/** `GET /sales/kpi/years/:year/me` — `2026`; twelve months where the quarter has three. */
+export const KpiYearKey = z
+  .string()
+  .refine((k) => isSalesPeriodKey(k) && salesGrainOf(k) === 'year')
+
+export const KpiYearParams = z.object({ year: KpiYearKey })
+
+export const KpiYearReading = readingOf(12)
+export const KpiYearScorecard = scorecardOf(12)
+
+export const KpiYearMeResponse = z.object({
+  year: KpiYearKey,
+  months: z.array(KpiQuarterMonth).length(12),
+  ...spanOf,
+  scorecards: z.array(KpiYearScorecard),
 })
 
 export type KpiQuarterKey = z.infer<typeof KpiQuarterKey>
@@ -62,6 +89,11 @@ export type KpiQuarterMonthReading = z.infer<typeof KpiQuarterMonthReading>
 export type KpiQuarterReading = z.infer<typeof KpiQuarterReading>
 export type KpiQuarterScorecard = z.infer<typeof KpiQuarterScorecard>
 export type KpiQuarterMeResponse = z.infer<typeof KpiQuarterMeResponse>
+export type KpiYearKey = z.infer<typeof KpiYearKey>
+export type KpiYearParams = z.infer<typeof KpiYearParams>
+export type KpiYearReading = z.infer<typeof KpiYearReading>
+export type KpiYearScorecard = z.infer<typeof KpiYearScorecard>
+export type KpiYearMeResponse = z.infer<typeof KpiYearMeResponse>
 
 /** The three month keys of a quarter, in order: `2026-Q4` -> `2026-10 … 2026-12`. */
 export const quarterMonths = (

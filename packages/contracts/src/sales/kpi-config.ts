@@ -84,6 +84,7 @@ export const KpiEffectiveCatalogResponse = z.object({
 const slipDef = SETTING_REGISTRY['kpi.alert.slip-percent']
 const hitDef = SETTING_REGISTRY['kpi.alert.hit-percent']
 const toleranceDef = SETTING_REGISTRY['kpi.pace.tolerance-percent']
+const gradeDef = SETTING_REGISTRY['kpi.score.grade-a']
 
 /** The three keys as stored in `platform.setting`. `isDefault` means none has
  *  a row; otherwise `updatedBy`/`updatedAt` name the latest write of them. */
@@ -92,6 +93,9 @@ export const KpiAlertSettingResponse = z
     slipPercent: z.number().int().min(slipDef.min).max(slipDef.max),
     hitPercent: z.number().int().min(hitDef.min).max(hitDef.max),
     tolerancePercent: z.number().int().min(toleranceDef.min).max(toleranceDef.max),
+    gradeA: z.number().int().min(gradeDef.min).max(gradeDef.max),
+    gradeB: z.number().int().min(gradeDef.min).max(gradeDef.max),
+    gradeC: z.number().int().min(gradeDef.min).max(gradeDef.max),
     isDefault: z.boolean(),
     updatedBy: KpiTargetActor.nullable(),
     updatedAt: Moment.nullable(),

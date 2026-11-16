@@ -1156,6 +1156,13 @@
       "when": 1795773820000,
       "tag": "0168_actor_started_on_and_kpi_transfer",
       "breakpoints": true
+    },
+    {
+      "idx": 170,
+      "version": "7",
+      "when": 1795946620000,
+      "tag": "0170_kpi_forecast_commit_and_one_on_one",
+      "breakpoints": true
     }
   ]
 }

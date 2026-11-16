@@ -504,7 +504,8 @@ export const SCREENS: ScreenDef[] = [
     path: '/sales/kpi/company',
     name: 'KPI công ty', // i18n-ignore: route key, translated in route-copy
     branch: 'Sales',
-    permission: 'kpi.view-all',
+    /* The desk read decides who sees this tab, not the permission (ADR 0159 hole 1). */
+    permission: 'kpi.view',
     load: () => import('@/pages/kpi-company'),
   },
   {
@@ -513,6 +514,22 @@ export const SCREENS: ScreenDef[] = [
     branch: 'Sales',
     permission: 'kpi.view-all',
     load: () => import('@/pages/kpi-targets'),
+  },
+  {
+    /* A tab of the one KPI entry (ADR 0159); the API decides which units the caller holds. */
+    path: '/sales/kpi/unit',
+    name: 'KPI đơn vị', // i18n-ignore: route key, translated in route-copy
+    branch: 'Sales',
+    permission: 'kpi.view',
+    load: () => import('@/pages/kpi-unit'),
+  },
+  {
+    /* Opened from the unit tab or the today strip; the API checks writer and person. */
+    path: '/sales/kpi/one-on-one',
+    name: '1:1 KPI', // i18n-ignore: route key, translated in route-copy
+    branch: 'Sales',
+    permission: 'kpi.view',
+    load: () => import('@/pages/kpi-one-on-one'),
   },
   {
     /* Not in the nav: a team lead holds `kpi.view` only, and the door checks the lead. */

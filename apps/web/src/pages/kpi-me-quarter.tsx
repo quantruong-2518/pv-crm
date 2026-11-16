@@ -17,24 +17,32 @@ import {
   type KpiQuarterKey,
   type KpiQuarterMeResponse,
   type KpiQuarterReading,
+  type KpiYearKey,
+  type KpiYearMeResponse,
 } from '@pv/contracts'
 import { message, translate, useI18n, type Lang } from '@/app/i18n'
 import { kpiMetricText, kpiRoleText } from '@/data/kpi-i18n'
 import { defOf, kpiCatalogQuery, withCatalog, type KpiCatalog } from '@/data/kpi-catalog'
-import { kpiQuarterMeQuery } from '@/data/kpi-personal'
+import { kpiQuarterMeQuery, kpiYearMeQuery } from '@/data/kpi-personal'
 import { GROW_WIDTH } from '@/components/period-picker-style'
 import { currentPick, periodLabel, stepPick, type PeriodPick } from './home-model'
 import { NOTE, TILE } from './home-tiles'
 import { printShort, printTile, printValue } from './kpi-model'
 import { QueryBlock, VerdictBadge } from './kpi-parts'
 
-/** The quarter view of the personal KPI screen (ADR 0146): each metric as the
- *  sum of its three months, read-only. Nothing is judged here; the verdict, the
- *  quarter target and the pace figure all arrive from the server.
+/** The quarter and year views of the personal KPI screen (ADR 0146, 0159): each
+ *  metric as the sum of its months, read-only. Nothing is judged here; the verdict,
+ *  the target and the pace figure all arrive from the server.
  *
  *  The bar has one segment per month, as wide as that month's target and as
- *  full as its own value against it; the tick sits at the share of the quarter's
+ *  full as its own value against it; the tick sits at the share of the span's
  *  days gone. A month is named by words, never by the segment colour alone. */
+
+/** The year response is the quarter's over twelve months, so one body draws both. */
+type Span = Pick<KpiQuarterMeResponse, 'months' | 'daysGone' | 'days'> & {
+  scorecards: KpiQuarterMeResponse['scorecards'] | KpiYearMeResponse['scorecards']
+}
+type SpanGrain = 'quarter' | 'year'
 
 const PHASE: Record<KpiMonthPhase, ReturnType<typeof message>> = {
   closed: message('Đã kết thúc', 'Ended', '종료'),
@@ -99,13 +107,52 @@ export function QuarterPicker({
   )
 }
 
-export function ViewSwitch({
-  value,
-  onChange,
+/** The year the picker moves by, as the key `kpiYearMeQuery` takes. */
+export function YearPicker({
+  year,
+  onPick,
 }: {
-  value: 'month' | 'quarter'
-  onChange: (v: 'month' | 'quarter') => void
+  year: KpiYearKey
+  onPick: (y: KpiYearKey) => void
 }) {
+  const { t } = useI18n()
+  const last = currentPick().month.slice(0, 4)
+  const step = (by: -1 | 1) => String(Number(year) + by)
+  return (
+    <div
+      role="group"
+      aria-label={t(message('Chọn năm', 'Choose year', '연도 선택'))}
+      className="flex items-center gap-1"
+    >
+      <Button
+        variant="ghost"
+        size="sm"
+        className={STEP}
+        aria-label={t(message('Năm trước', 'Previous year', '이전 연도'))}
+        onClick={() => onPick(step(-1))}
+      >
+        <Icon icon={ChevronLeft} size={16} />
+      </Button>
+      <span aria-live="polite" className="tnum min-w-32 text-center text-[12.5px] font-semibold">
+        {t(message(`Năm ${year}`, `Year ${year}`, `${year}년`))}
+      </span>
+      <Button
+        variant="ghost"
+        size="sm"
+        className={STEP}
+        aria-label={t(message('Năm sau', 'Next year', '다음 연도'))}
+        disabled={year >= last}
+        onClick={() => onPick(step(1))}
+      >
+        <Icon icon={ChevronRight} size={16} />
+      </Button>
+    </div>
+  )
+}
+
+export type MeView = 'month' | 'quarter' | 'year'
+
+export function ViewSwitch({ value, onChange }: { value: MeView; onChange: (v: MeView) => void }) {
   const { t } = useI18n()
   return (
     <SegmentedControl
@@ -117,8 +164,9 @@ export function ViewSwitch({
       options={[
         { value: 'month', label: t(message('Tháng', 'Month', '월')) },
         { value: 'quarter', label: t(message('Quý', 'Quarter', '분기')) },
+        { value: 'year', label: t(message('Năm', 'Year', '연')) },
       ]}
-      onChange={(v) => onChange(v === 'quarter' ? 'quarter' : 'month')}
+      onChange={(v) => onChange(v === 'quarter' || v === 'year' ? v : 'month')}
     />
   )
 }
@@ -217,7 +265,7 @@ function QuarterCard({
           />
         )}
       </div>
-      <div className="grid grid-cols-3 gap-1">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(4.5rem,1fr))] gap-x-2 gap-y-2">
         {months.map((m) => (
           <div key={m.period} className="flex min-w-0 flex-col gap-1">
             <span className={NOTE}>
@@ -238,7 +286,7 @@ function MonthOnly({
   keys,
   onMonthView,
 }: {
-  keys: KpiQuarterMeResponse['scorecards'][number]['monthOnly']
+  keys: Span['scorecards'][number]['monthOnly']
   onMonthView: () => void
 }) {
   const { t, lang } = useI18n()
@@ -262,12 +310,14 @@ function MonthOnly({
   )
 }
 
-function QuarterBody({
+function SpanBody({
   data,
+  grain,
   catalog,
   onMonthView,
 }: {
-  data: KpiQuarterMeResponse
+  data: Span
+  grain: SpanGrain
   catalog: KpiCatalog
   onMonthView: () => void
 }) {
@@ -288,9 +338,9 @@ function QuarterBody({
         <span className="tnum font-num">
           {t(
             message(
-              `Đã qua ${data.daysGone}/${data.days} ngày của quý (${percent(daysShare)})`,
-              `${data.daysGone} of ${data.days} days of the quarter gone (${percent(daysShare)})`,
-              `분기 ${data.days}일 중 ${data.daysGone}일 경과 (${percent(daysShare)})`,
+              `Đã qua ${data.daysGone}/${data.days} ngày của ${grain === 'year' ? 'năm' : 'quý'} (${percent(daysShare)})`,
+              `${data.daysGone} of ${data.days} days of the ${grain} gone (${percent(daysShare)})`,
+              `${grain === 'year' ? '연' : '분기'} ${data.days}일 중 ${data.daysGone}일 경과 (${percent(daysShare)})`,
             ),
           )}
         </span>
@@ -346,7 +396,22 @@ export function QuarterView({
       query={withCatalog(data, catalog)}
       what={message('KPI theo quý', 'your quarterly KPIs', '분기 KPI')}
     >
-      {([d, defs]) => <QuarterBody data={d} catalog={defs} onMonthView={onMonthView} />}
+      {([d, defs]) => (
+        <SpanBody data={d} grain="quarter" catalog={defs} onMonthView={onMonthView} />
+      )}
+    </QueryBlock>
+  )
+}
+
+export function YearView({ year, onMonthView }: { year: KpiYearKey; onMonthView: () => void }) {
+  const data = useQuery(kpiYearMeQuery(year))
+  const catalog = useQuery(kpiCatalogQuery)
+  return (
+    <QueryBlock
+      query={withCatalog(data, catalog)}
+      what={message('KPI theo năm', 'your yearly KPIs', '연간 KPI')}
+    >
+      {([d, defs]) => <SpanBody data={d} grain="year" catalog={defs} onMonthView={onMonthView} />}
     </QueryBlock>
   )
 }

@@ -289,12 +289,12 @@ export const setting = platform.table(
        at most eight rows and so a scan whatever an index says. An index on
        `updated_by` would answer a question nobody asks and cost every write. */
 
-    /** The fifteen members of `SettingKey`, copied out by hand rather than
+    /** The eighteen members of `SettingKey`, copied out by hand rather than
      *  generated, character for character from the contract's enum
-     *  (the three `kpi.*` keys joined in 0113 and 0117, `sales.after-sale.*` in 0143). */
+     *  (the three `kpi.*` keys joined in 0113 and 0117, `sales.after-sale.*` in 0143, `kpi.score.*` in 0170). */
     check(
       'setting_key_known',
-      sql`"key" IN ('comms.reply.silence-days', 'comms.unmatched.retention-days', 'comms.blob.retention-days', 'sequence.step.default-wait-days', 'sequence.max-steps', 'content.share.expires-days', 'sales.activity.warn-days', 'sales.activity.alert-days', 'auth.session.remembered-days', 'kpi.alert.slip-percent', 'kpi.alert.hit-percent', 'kpi.pace.tolerance-percent', 'sales.after-sale.hot-days', 'sales.after-sale.warm-days', 'sales.after-sale.cold-days')`,
+      sql`"key" IN ('comms.reply.silence-days', 'comms.unmatched.retention-days', 'comms.blob.retention-days', 'sequence.step.default-wait-days', 'sequence.max-steps', 'content.share.expires-days', 'sales.activity.warn-days', 'sales.activity.alert-days', 'auth.session.remembered-days', 'kpi.alert.slip-percent', 'kpi.alert.hit-percent', 'kpi.pace.tolerance-percent', 'sales.after-sale.hot-days', 'sales.after-sale.warm-days', 'sales.after-sale.cold-days', 'kpi.score.grade-a', 'kpi.score.grade-b', 'kpi.score.grade-c')`,
     ),
     /** A non-positive constant is one the reading code cannot act on; the pace
      *  tolerance is the exception (0117): 0 % is its default, so an override

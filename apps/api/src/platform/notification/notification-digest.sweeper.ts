@@ -3,6 +3,7 @@ import {
   effectiveImportant,
   NOTIFICATION_DETAIL_HIT,
   NOTIFICATION_DETAIL_METRIC_COUNT,
+  NOTIFICATION_DETAIL_ONE_ON_ONE,
   NOTIFICATION_DETAIL_PROPOSED,
   NOTIFICATION_DETAIL_RESOLVED,
   NOTIFICATION_DETAIL_SLIP,
@@ -30,12 +31,17 @@ const COUNT_KEY: Partial<Record<NotificationKind, string>> = {
   'kpi-about-to-hit': NOTIFICATION_DETAIL_HIT,
   'kpi-counter-proposed': NOTIFICATION_DETAIL_PROPOSED,
   'kpi-counter-resolved': NOTIFICATION_DETAIL_RESOLVED,
+  'kpi-one-on-one': NOTIFICATION_DETAIL_ONE_ON_ONE,
 }
 
 /** Lower wins the digest's link: something to decide beats something decided
- *  beats a forecast (ADR 0145 §3). */
+ *  beats a forecast (ADR 0145 §3); a 1:1 to read ranks with the decided. */
 const rank = (kind: NotificationKind): number =>
-  kind === 'kpi-counter-proposed' ? 0 : kind === 'kpi-counter-resolved' ? 1 : 2
+  kind === 'kpi-counter-proposed'
+    ? 0
+    : kind === 'kpi-counter-resolved' || kind === 'kpi-one-on-one'
+      ? 1
+      : 2
 
 /** A forecast line covers several metrics and says how many; a line written
  *  before that key existed counts as one. */
@@ -128,6 +134,7 @@ export class NotificationDigestSweeper {
       [NOTIFICATION_DETAIL_HIT]: 0,
       [NOTIFICATION_DETAIL_PROPOSED]: 0,
       [NOTIFICATION_DETAIL_RESOLVED]: 0,
+      [NOTIFICATION_DETAIL_ONE_ON_ONE]: 0,
     }
     for (const line of lines) {
       const key = COUNT_KEY[line.kind]

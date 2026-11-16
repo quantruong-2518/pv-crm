@@ -29,7 +29,9 @@ import {
   useSendKpiAssignment,
 } from '@/data/kpi-assignment'
 import { kpiCatalogQuery, type BlockQuery, type KpiCatalog } from '@/data/kpi-catalog'
+import { kpiDeskQuery } from '@/data/kpi-desk'
 import { kpiRoleText } from '@/data/kpi-i18n'
+import { KpiCardError, KpiTabs, type KpiTab } from '@/components/kpi-tabs'
 import { keyOf, type PeriodPick } from './home-model'
 import { NOTE, TILE } from './home-tiles'
 import {
@@ -81,24 +83,30 @@ function Head({
   onPick,
   meta,
   actions,
+  tab = 'unit',
 }: {
   pick: PeriodPick
   onPick: (p: PeriodPick) => void
   meta?: ReactNode
   actions?: ReactNode
+  /** The company level is assigned from the company tab, every other unit from its own. */
+  tab?: KpiTab
 }) {
   const { t } = useI18n()
   return (
-    <ScreenHeader
-      title={t(message('Giao chỉ tiêu', 'Assign targets', '목표 배정'))}
-      meta={meta}
-      actions={
-        <>
-          {actions}
-          <MonthPicker pick={pick} onPick={onPick} />
-        </>
-      }
-    />
+    <>
+      <KpiTabs period={keyOf(pick)} active={tab} />
+      <ScreenHeader
+        title={t(message('Giao chỉ tiêu', 'Assign targets', '목표 배정'))}
+        meta={meta}
+        actions={
+          <>
+            {actions}
+            <MonthPicker pick={pick} onPick={onPick} />
+          </>
+        }
+      />
+    </>
   )
 }
 
@@ -145,6 +153,31 @@ function RoleMeta({
   )
 }
 
+/** A head above, or a reader with the company view, opens a desk that is not theirs to act on. */
+function ReadOnlyLine({ page }: { page: KpiAssignmentPageResponse }) {
+  const { t } = useI18n()
+  const head = page.unit.head?.name
+  return (
+    <p className={NOTE}>
+      {head
+        ? t(
+            message(
+              `${head} giao chỉ tiêu cho đơn vị này. Bạn chỉ xem.`,
+              `${head} assigns targets for this unit. You can only view.`,
+              `${head}님이 이 단위의 목표를 배정합니다. 보기만 가능합니다.`,
+            ),
+          )
+        : t(
+            message(
+              'Đơn vị này chưa có trưởng đơn vị. Bạn chỉ xem.',
+              'This unit has no head yet. You can only view.',
+              '이 단위에는 책임자가 아직 없습니다. 보기만 가능합니다.',
+            ),
+          )}
+    </p>
+  )
+}
+
 /** One role of the unit: header chips and buttons, the received card, the table. */
 function RoleDesk({
   catalog,
@@ -153,6 +186,7 @@ function RoleDesk({
   edits,
   setEdits,
   tabs,
+  failed,
   pick,
   onPick,
 }: {
@@ -162,6 +196,8 @@ function RoleDesk({
   edits: Edits
   setEdits: (next: Edits) => void
   tabs: ReactNode
+  /** Roles whose own read failed: each says so beside the roles that loaded. */
+  failed: ReactNode
   pick: PeriodPick
   onPick: (p: PeriodPick) => void
 }) {
@@ -262,8 +298,16 @@ function RoleDesk({
 
   return (
     <>
-      <Head pick={pick} onPick={onPick} meta={meta} actions={actions} />
+      <Head
+        pick={pick}
+        onPick={onPick}
+        meta={meta}
+        actions={actions}
+        tab={company ? 'company' : 'unit'}
+      />
       {tabs}
+      {failed}
+      {!page.canAct && <ReadOnlyLine page={page} />}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,4fr)_minmax(0,9fr)]">
         <ReceivedCard
           page={page}
@@ -338,6 +382,10 @@ function Desk({
   const roles = catalog.data ? RoleId.options.filter((r) => catalog.data[r].length > 0) : []
   const pages = useQueries({
     queries: roles.map((role) => kpiAssignmentPageQuery(period, role, unitParam)),
+  })
+  const failedRoles = roles.flatMap((role, i) => {
+    const page = pages[i]
+    return page?.error && !page.data ? [{ role, page }] : []
   })
   const all = joined(
     catalog,
@@ -424,6 +472,17 @@ function Desk({
               edits={edits[entry.role] ?? {}}
               setEdits={(next) => setEdits({ ...edits, [entry.role]: next })}
               tabs={tabs}
+              failed={
+                entries.length > 0 &&
+                failedRoles.map(({ role, page }) => (
+                  <section key={role} className="flex flex-col gap-2">
+                    <span className="text-[12.5px] font-semibold">{kpiRoleText(role)}</span>
+                    <GlassCard className={TILE}>
+                      <KpiCardError error={page.error} onRetry={() => void page.refetch()} />
+                    </GlassCard>
+                  </section>
+                ))
+              }
               pick={pick}
               onPick={onPick}
             />
@@ -431,6 +490,45 @@ function Desk({
         }}
       </QueryBlock>
     </>
+  )
+}
+
+/** No `unit` in the URL: the server only knows the unit the caller heads, so a stand-in
+ *  would get a 404. The desk read lists every unit the caller holds or stands in for. */
+function OwnUnitDesk({
+  period,
+  pick,
+  onPick,
+}: {
+  period: string
+  pick: PeriodPick
+  onPick: (p: PeriodPick) => void
+}) {
+  const desk = useQuery(kpiDeskQuery(period))
+  if (desk.isPending) {
+    return (
+      <>
+        <Head pick={pick} onPick={onPick} />
+        <QueryBlock
+          query={{ data: undefined, error: null, isRefetchError: false, refetch: desk.refetch }}
+          what={message('chỉ tiêu cần giao', 'targets to assign', '배정할 목표')}
+          variant="b"
+        >
+          {() => null}
+        </QueryBlock>
+      </>
+    )
+  }
+  /* A failed desk read falls back to the server's own pick rather than blocking the page. */
+  const seat = desk.data?.units.find((u) => u.seat !== 'above')
+  return (
+    <Desk
+      key={`${period}/${seat?.unitId ?? ''}`}
+      period={period}
+      unitParam={seat?.unitId ?? null}
+      pick={pick}
+      onPick={onPick}
+    />
   )
 }
 
@@ -445,7 +543,9 @@ export function KpiAssignPage() {
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
-        {isTieredPeriod(period) ? (
+        {isTieredPeriod(period) && !unitParam ? (
+          <OwnUnitDesk key={period} period={period} pick={pick} onPick={setPick} />
+        ) : isTieredPeriod(period) ? (
           <Desk
             key={`${period}/${unitParam ?? ''}`}
             period={period}

@@ -2,7 +2,6 @@ import { Link } from 'react-router-dom'
 import { Avatar, Badge, GlassCard, cn } from '@pv/ui'
 import {
   kpiAssignmentDeadline,
-  kpiMetricShare,
   type KpiAssignmentChild,
   type KpiAssignmentPageResponse,
   type KpiAssignmentSum,
@@ -15,6 +14,7 @@ import { kpiMetricText } from '@/data/kpi-i18n'
 import { FIELD_EDGE, StackTable, type StackColumn } from '@/components/stack-table'
 import { dm } from '@/lib/date'
 import { NOTE } from './home-tiles'
+import { SuggestionNote } from './kpi-assign-suggestion'
 import { FailLine } from './kpi-allocate-parts'
 import { ValueCell } from './kpi-allocate-teams'
 import {
@@ -25,9 +25,7 @@ import {
   childId,
   keyOfChild,
   lastReading,
-  rampHintText,
   rampOf,
-  rampSuggestion,
   rampWord,
   receivedWord,
   sumFigures,
@@ -173,26 +171,25 @@ export function ChildrenTable({
     const key = keyOfChild(child, def.key)
     const text = fields.textOf(key, def)
     const name = child.kind === 'unit' ? child.unit.name : child.person.name
-    const ramp = editable && kpiMetricShare(def) === 'additive' ? rampOf(child) : null
-    const hint = ramp === null ? null : rampSuggestion(page, def, fields, ramp)
     return (
-      <ValueCell
-        key={def.key}
-        def={def}
-        label={t(
-          message(
-            `${kpiMetricText(def.key)} giao ${name}`,
-            `${kpiMetricText(def.key)} assigned to ${name}`,
-            `${name}에게 배정된 ${kpiMetricText(def.key)}`,
-          ),
-        )}
-        editable={editable}
-        text={text}
-        saved={saved.get(key) ?? null}
-        hint={hint === null ? undefined : rampHintText(def, hint)}
-        {...lastReading(page.lastActualPeriod, child.lastActuals, def.key)}
-        onChange={(typed) => onEdit(key, typed)}
-      />
+      <span key={def.key} className="flex min-w-0 flex-col items-end gap-1">
+        <ValueCell
+          def={def}
+          label={t(
+            message(
+              `${kpiMetricText(def.key)} giao ${name}`,
+              `${kpiMetricText(def.key)} assigned to ${name}`,
+              `${name}에게 배정된 ${kpiMetricText(def.key)}`,
+            ),
+          )}
+          editable={editable}
+          text={text}
+          saved={saved.get(key) ?? null}
+          {...lastReading(page.lastActualPeriod, child.lastActuals, def.key)}
+          onChange={(typed) => onEdit(key, typed)}
+        />
+        {editable && <SuggestionNote child={child} def={def} />}
+      </span>
     )
   }
   const sumCell = (def: KpiMetricDef) => {

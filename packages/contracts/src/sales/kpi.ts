@@ -182,6 +182,35 @@ export const KPI_METRIC_LABEL: Record<KpiMetricKey, string> = {
   'sales-cycle-days': 'Thời gian chốt cơ hội',
 }
 
+/** How each metric is counted, one sentence in product words (ADR 0157 §1). Shown
+ *  on every KPI card and in the KPI config; read off the SQL of the readings. */
+export const KPI_METRIC_HOW: Record<KpiMetricKey, string> = {
+  'leads-sourced': 'Số lead mới tạo trong tháng mà bạn là người đưa về.',
+  'lead-to-opportunity-rate': 'Trong các lead bạn đưa về trong tháng, tỷ lệ đã thành cơ hội.',
+  'sourced-signed-value': 'Giá trị hợp đồng đã ký từ các lead bạn đưa về, tính theo tháng ký.',
+  'opportunities-opened': 'Số cơ hội bạn mở trong tháng.',
+  'first-response-hours':
+    'Số giờ từ lúc lead về tay bạn đến lần trao đổi đầu tiên với khách; lead chưa trả lời vẫn tính.',
+  'opportunity-accept-rate': 'Trong các cơ hội bạn mở trong tháng, tỷ lệ đã được nhận.',
+  'demos-joined': 'Số buổi demo bạn có mặt trong tháng.',
+  'signed-value':
+    'Tổng giá trị hợp đồng bạn ký trong tháng, theo phần được chia nếu hợp đồng chia công.',
+  'win-rate':
+    'Trong các cơ hội đã chốt trong tháng, tỷ lệ ký được hợp đồng; hợp đồng đã chấm dứt không tính là thắng.',
+  'debriefs-closed':
+    'Số cuộc trao đổi bạn ghi nhận xong trong tháng; cuộc không liên lạc được hoặc đã huỷ không tính.',
+  'overdue-receivables':
+    'Tổng tiền các đợt thanh toán đã quá hạn mà chưa thu, tính tại ngày đang xem.',
+  'accept-lag-days':
+    'Số ngày từ lúc cơ hội được mở đến lúc bạn nhận, cho các cơ hội bạn nhận trong tháng.',
+  'collected-value': 'Tổng tiền đã thu trong tháng, trừ tiền hoàn lại khi hợp đồng chấm dứt.',
+  'approval-turnaround-hours':
+    'Số giờ từ lúc có yêu cầu đến lúc được duyệt hoặc từ chối, cho các yêu cầu xử lý trong tháng.',
+  'quotes-sent': 'Số báo giá bạn đã gửi trong tháng; mỗi lần gửi tính một báo giá.',
+  'sales-cycle-days':
+    'Số ngày từ lúc mở cơ hội đến lúc ký hợp đồng đầu tiên, cho các hợp đồng ký trong tháng.',
+}
+
 export const KPI_LAYER_LABEL: Record<KpiLayer, string> = {
   activity: 'Hành động',
   conversion: 'Chuyển đổi',

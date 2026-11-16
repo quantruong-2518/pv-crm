@@ -74,8 +74,9 @@ export const notification = platform.table(
     index('notification_read_purge_idx')
       .on(t.readAt)
       .where(sql`"read_at" IS NOT NULL`),
-    /** The sixty-seven `NotificationKind` values, copied out for
-     *  `touch_kind_known`'s reason: a new kind must be a migration somebody reads. */
+    /** The `NotificationKind` values, copied out for `touch_kind_known`'s reason: a new
+     *  kind must be a migration somebody reads. 'assistant-brief' is listed ahead of its
+     *  sibling-branch migration (0169) so either merge order keeps the CHECK whole. */
     check(
       'notification_kind_known',
       sql`"kind" IN ('lead-pooled', 'lead-received', 'lead-removed', 'lead-re-entered',
@@ -104,7 +105,7 @@ export const notification = platform.table(
                      'customer-recare-due', 'contract-penalty-changed',
                      'kpi-assignment-received', 'kpi-assignment-late',
                      'kpi-away-declared', 'kpi-digest', 'fx-rate-missing',
-                     'assistant-brief')`,
+                     'assistant-brief', 'kpi-one-on-one')`,
     ),
     /** The `NotificationSubject` values, copied out for the same reason. */
     check(
@@ -182,7 +183,7 @@ export const notificationKindPolicy = platform.table(
                      'customer-recare-due', 'contract-penalty-changed',
                      'kpi-assignment-received', 'kpi-assignment-late',
                      'kpi-away-declared', 'kpi-digest', 'fx-rate-missing',
-                     'assistant-brief')`,
+                     'assistant-brief', 'kpi-one-on-one')`,
     ),
     /** `actor_role_ids_known`'s list: a typo'd role would mute nobody, silently. */
     check(

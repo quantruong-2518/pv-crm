@@ -136,8 +136,22 @@ export const KpiAssignmentActual = z.object({ metricKey: KpiMetricKey, value: z.
 
 const lastActuals = z.array(KpiAssignmentActual).default([])
 
-/** A newcomer's ramp (ADR 0156). The web works out the suggestion from the page's own lines. */
+/** A newcomer's ramp (ADR 0156); the suggestion below already multiplies it in. */
 export const KpiAssignmentRamp = z.object({ factor: z.number().min(0).max(1) })
+
+/** Beside one additive box (ADR 0157 §3), never written into it. With fewer than
+ *  three closed months `enough` is false and `ramped` is last month's figure.
+ *  `pipeline` is `null` when the sight rule hides it; it and `low` read only on
+ *  `signed-value`. */
+export const KpiAssignmentSuggestion = z.object({
+  metricKey: KpiMetricKey,
+  enough: z.boolean(),
+  average: z.number().nullable(),
+  last: z.number().nullable(),
+  ramped: z.number().nonnegative().nullable(),
+  pipeline: z.number().nonnegative().nullable(),
+  low: z.boolean(),
+})
 
 /** One person the acting seat may still give a late line (ADR 0156 §5). */
 export const KpiAssignmentLateCandidate = z.object({
@@ -160,6 +174,8 @@ export const KpiAssignmentChild = z.discriminatedUnion('kind', [
     state: KpiAssignmentPersonState,
     lastActuals,
     ramp: KpiAssignmentRamp.nullable().optional(),
+    /** One per additive metric of the role; none for copied or total lines. */
+    suggestions: z.array(KpiAssignmentSuggestion).default([]),
   }),
 ])
 
@@ -365,5 +381,6 @@ export type KpiAssignmentTreeResponse = z.infer<typeof KpiAssignmentTreeResponse
 export type KpiAssignmentDraftBody = z.infer<typeof KpiAssignmentDraftBody>
 export type KpiAssignmentSendBody = z.infer<typeof KpiAssignmentSendBody>
 export type KpiAssignmentRamp = z.infer<typeof KpiAssignmentRamp>
+export type KpiAssignmentSuggestion = z.infer<typeof KpiAssignmentSuggestion>
 export type KpiAssignmentLateCandidate = z.infer<typeof KpiAssignmentLateCandidate>
 export type KpiAssignmentLateLineBody = z.infer<typeof KpiAssignmentLateLineBody>

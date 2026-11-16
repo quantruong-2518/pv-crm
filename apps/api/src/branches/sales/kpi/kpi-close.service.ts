@@ -18,6 +18,7 @@ import type { KpiMonthValueValues } from './kpi-close.schema'
 import { KpiConfigService } from './kpi-config.service'
 import { KpiReadingsRepository, type KpiPerson, type KpiValues } from './kpi-readings.repository'
 import { KpiReconcileService } from './kpi-reconcile.service'
+import { scoreBasisOf } from './kpi-score-basis'
 import { awayRefusal, monthClock } from './kpi-rules'
 import { KpiSeatService } from './kpi-seat.service'
 import { toReadings, type ScoreContext } from './kpi.mapper'
@@ -55,15 +56,17 @@ export class KpiCloseService {
     const already = conflict('Tháng này đã được chốt.')
     if (await this.closes.of(period)) throw already
 
-    const [catalog, people] = await Promise.all([
+    const [catalog, people, bands] = await Promise.all([
       this.config.effectiveCatalog(),
       this.readings.people(),
+      this.config.scoreSettings(),
     ])
     const seats = RoleId.options.flatMap((role) => catalog[role].map((def) => ({ role, def })))
     const span = spansOf(period).current
     await this.closes.run(async (tx) => {
       const gate = await this.gateAtClose(tx, period)
-      if (!(await this.closes.insertClose(tx, period, who.id, gate))) throw already
+      const basis = scoreBasisOf(catalog, bands)
+      if (!(await this.closes.insertClose(tx, period, who.id, gate, basis))) throw already
       await this.closes.insertBasis(tx, seats, span)
       const values = await this.readings.closingValues(tx, seats, span)
       await this.closes.insertValues(tx, frozenRows(period, catalog, people, values))

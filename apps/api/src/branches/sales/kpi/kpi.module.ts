@@ -20,6 +20,7 @@ import { KpiAssignmentReader } from './kpi-assignment-read.service'
 import { KpiAssignmentRepository } from './kpi-assignment.repository'
 import { KpiAssignmentService } from './kpi-assignment.service'
 import { KpiAssignmentSweeper } from './kpi-assignment-sweep'
+import { KpiAssignmentSuggester } from './kpi-assignment-suggest'
 import { KpiAssignmentTargets } from './kpi-assignment-targets'
 import { KpiCloseRepository } from './kpi-close.repository'
 import { KpiCloseGateService } from './kpi-close-gate.service'
@@ -27,19 +28,34 @@ import { KpiCloseService } from './kpi-close.service'
 import { KpiConfigController } from './kpi-config.controller'
 import { KpiConfigRepository } from './kpi-config.repository'
 import { KpiConfigService } from './kpi-config.service'
+import { KpiCompanyDeskService } from './kpi-company-desk.service'
 import { KpiContributionsController } from './kpi-contributions.controller'
 import { KpiContributionsRepository } from './kpi-contributions.repository'
 import { KpiContributionsService } from './kpi-contributions.service'
 import { KpiController } from './kpi.controller'
+import { KpiDeskController } from './kpi-desk.controller'
+import { KpiDeskRepository } from './kpi-desk.repository'
+import { KpiDeskService } from './kpi-desk.service'
 import { KpiForecastController } from './kpi-forecast.controller'
 import { KpiForecastService } from './kpi-forecast.service'
+import { KpiForecastCommitController } from './kpi-forecast-commit.controller'
+import { KpiForecastCommitRepository } from './kpi-forecast-commit.repository'
+import { KpiForecastCommitService } from './kpi-forecast-commit.service'
 import { KpiHistoryController } from './kpi-history.controller'
 import { KpiHistoryService } from './kpi-history.service'
 import { KpiQuarterController } from './kpi-quarter.controller'
+import { KpiOneOnOneController } from './kpi-one-on-one.controller'
+import { KpiOneOnOneRepository } from './kpi-one-on-one.repository'
+import { KpiOneOnOneService } from './kpi-one-on-one.service'
+import { KpiPlanController } from './kpi-plan.controller'
+import { KpiPlanRepository } from './kpi-plan.repository'
+import { KpiPlanService } from './kpi-plan.service'
 import { KpiQuarterService } from './kpi-quarter.service'
 import { KpiReadingsRepository } from './kpi-readings.repository'
 import { KpiReconcileRepository } from './kpi-reconcile.repository'
 import { KpiReconcileService } from './kpi-reconcile.service'
+import { KpiScoreController } from './kpi-score.controller'
+import { KpiScoreReader } from './kpi-score.reader'
 import { KpiSeatModule } from './kpi-seat.module'
 import { KpiService } from './kpi.service'
 import { KpiTargetsRepository } from './kpi-targets.repository'
@@ -47,6 +63,7 @@ import { KpiTeamController } from './kpi-team.controller'
 import { KpiTeamService } from './kpi-team.service'
 import { KpiTeamViewController } from './kpi-team-view.controller'
 import { KpiTeamViewService } from './kpi-team-view.service'
+import { KpiYearController } from './kpi-year.controller'
 
 /** KPI by role — scorecards computed on read, the agreed targets, and their
  *  per-person split (ADR 0098), in two tiers through team rosters (ADR 0101).
@@ -76,6 +93,12 @@ import { KpiTeamViewService } from './kpi-team-view.service'
   controllers: [
     KpiController,
     KpiQuarterController,
+    KpiYearController,
+    KpiForecastCommitController,
+    KpiPlanController,
+    KpiScoreController,
+    KpiOneOnOneController,
+    KpiDeskController,
     KpiAllocationController,
     KpiForecastController,
     KpiConfigController,
@@ -117,6 +140,17 @@ import { KpiTeamViewService } from './kpi-team-view.service'
     KpiAssignmentTargets,
     KpiAssignmentBells,
     KpiAssignmentSweeper,
+    KpiForecastCommitService,
+    KpiForecastCommitRepository,
+    KpiScoreReader,
+    KpiPlanService,
+    KpiPlanRepository,
+    KpiAssignmentSuggester,
+    KpiOneOnOneService,
+    KpiOneOnOneRepository,
+    KpiDeskService,
+    KpiCompanyDeskService,
+    KpiDeskRepository,
   ],
   exports: [KpiReconcileService],
 })

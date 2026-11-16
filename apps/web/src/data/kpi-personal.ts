@@ -3,6 +3,7 @@ import {
   KpiAllocationResponse,
   KpiForecastResponse,
   KpiQuarterMeResponse,
+  KpiYearMeResponse,
   KpiWeeklyResponse,
   type Day,
   type KpiAcknowledgeBody,
@@ -12,6 +13,7 @@ import {
   type KpiMetricDef,
   type KpiMetricKey,
   type KpiQuarterKey,
+  type KpiYearKey,
   type RoleId,
   isCumulative,
 } from '@pv/contracts'
@@ -56,6 +58,19 @@ export const kpiQuarterMeQuery = (quarter: KpiQuarterKey) =>
       api.read<KpiQuarterMeResponse>(`/sales/kpi/quarters/${quarter}/me`, {
         need,
         schema: KpiQuarterMeResponse,
+        signal,
+      }),
+  })
+
+/** The year read: twelve months summed, same shape as the quarter's. */
+export const kpiYearMeQuery = (year: KpiYearKey) =>
+  queryOptions({
+    queryKey: ['sales', 'kpi', year, 'me'] as const,
+    ...cacheTier.aggregate,
+    queryFn: ({ signal }) =>
+      api.read<KpiYearMeResponse>(`/sales/kpi/years/${year}/me`, {
+        need,
+        schema: KpiYearMeResponse,
         signal,
       }),
   })

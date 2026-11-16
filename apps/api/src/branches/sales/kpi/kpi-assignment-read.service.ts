@@ -28,6 +28,7 @@ import { KpiAbsenceRepository } from './kpi-absence.repository'
 import { KpiAllocationRepository } from './kpi-allocation.repository'
 import { KpiAllocationService } from './kpi-allocation.service'
 import { KpiAssignmentRepository, type KpiSetRow } from './kpi-assignment.repository'
+import { KpiAssignmentSuggester } from './kpi-assignment-suggest'
 import {
   actualsOver,
   changedSince,
@@ -118,6 +119,7 @@ export class KpiAssignmentReader {
     @Inject(ACCESS) private readonly access: AccessControl,
     private readonly absences: KpiAbsenceRepository,
     private readonly packages: KpiAllocationService,
+    private readonly suggest?: KpiAssignmentSuggester,
   ) {}
 
   /** Sequential reads: on a transaction handle they share one connection. */
@@ -217,6 +219,7 @@ export class KpiAssignmentReader {
     const due = deadlineOf(period, 'person')
     const last = await this.lastMonth(who, book, catalog, role, unitId, today)
     const started = period >= RAMP_FROM ? await this.repo.startedOnOf(to.people) : new Map()
+    const hints = await this.suggest?.forPeople(who, period, role, defs, to.people, started)
     const late =
       period >= RAMP_FROM && inForce && acting.includes(who.id)
         ? await this.lateCandidates(book, role, unitId, inForce)
@@ -259,6 +262,7 @@ export class KpiAssignmentReader {
           ),
           lastActuals: last.of([p]),
           ramp: rampOf(started.get(p) ?? null, period),
+          suggestions: hints?.get(p) ?? [],
         })),
       ],
       lateCandidates: late,
