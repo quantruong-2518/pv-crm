@@ -1,6 +1,7 @@
 import type {
   AssistantEndedBy,
   AssistantMessage,
+  AssistantProposal,
   AssistantRef,
   AssistantSubject,
   AssistantSuggestion,
@@ -21,6 +22,7 @@ export type AnswerView = {
   state: 'running' | 'done' | 'failed' | 'stopped'
   body: string
   refs: AssistantRef[]
+  proposals: AssistantProposal[]
   withheld: boolean
   at: string
   footer: LiveTurn['footer']
@@ -62,6 +64,7 @@ function liveAnswer(turn: LiveTurn): AnswerView {
             : 'done',
     body: turn.text,
     refs: turn.refs,
+    proposals: turn.proposals,
     withheld: false,
     unchecked: false,
     at: turn.at,
@@ -88,6 +91,8 @@ function savedAnswer(msg: AssistantMessage, question: string, extra?: LiveTurn):
     state: failed ? 'failed' : msg.state,
     body: msg.body,
     refs: msg.refs,
+    /* The saved row holds the true state; the live turn only stands in until it settles. */
+    proposals: msg.proposals,
     withheld: msg.withheld,
     unchecked: msg.unchecked,
     at: msg.finishedAt ?? msg.createdAt,

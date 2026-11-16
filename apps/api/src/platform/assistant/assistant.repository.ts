@@ -18,10 +18,13 @@ import type { AssistantEndedBy, AssistantMessageState, AssistantRecordKind } fro
 import { aiCall } from '../ai/ai-cost.schema'
 import { DB, type Db } from '../db/db.module'
 import { CUT_SHORT } from './assistant-context'
+import type { ProposalView } from './assistant-proposal'
 import {
   assistantMessage,
+  assistantProposal,
   assistantSession,
   assistantToolCall,
+  type AssistantProposalValues,
   type AssistantToolCallRowDb,
   type AssistantToolCallValues,
 } from './assistant.schema'
@@ -37,6 +40,23 @@ const LAST_HOUR = sql`now() - interval '1 hour'`
 const REPLAY_TURNS = 10
 /* Two rows a turn, doubled: a turn that died with no text takes rows and replays nothing. */
 const HISTORY_ROWS = REPLAY_TURNS * 4
+
+/** A card as every reader shows it. `expired` reads the database clock, the one the
+ *  press's claim compares against, so the chip and the press never disagree. */
+export const PROPOSAL_VIEW = {
+  id: assistantProposal.id,
+  subjectKind: assistantProposal.subjectKind,
+  subjectCode: assistantProposal.subjectCode,
+  action: assistantProposal.action,
+  before: assistantProposal.before,
+  after: assistantProposal.after,
+  reason: assistantProposal.reason,
+  state: assistantProposal.state,
+  expiresAt: assistantProposal.expiresAt,
+  expired: sql<boolean>`${assistantProposal.expiresAt} <= now()`,
+  actorId: assistantProposal.actorId,
+  tool: assistantToolCall.name,
+}
 
 /** `turnId`: the assistant row of the exchange, on both of its lines, so the
  *  replay drops a withheld exchange whole and the roles keep alternating. */
@@ -213,6 +233,24 @@ export class AssistantRepository {
   /** After the tools return: `outcome` is NOT NULL, so a call has no row before. */
   async recordToolCalls(rows: readonly AssistantToolCallValues[]): Promise<void> {
     if (rows.length > 0) await this.db.insert(assistantToolCall).values([...rows])
+  }
+
+  /** After `recordToolCalls`: each card names its call row. */
+  async recordProposals(rows: readonly AssistantProposalValues[]): Promise<void> {
+    if (rows.length > 0) await this.db.insert(assistantProposal).values([...rows])
+  }
+
+  /** The cards under these answers, oldest first, each with the tool that made it. */
+  async proposalsOf(
+    messageIds: readonly string[],
+  ): Promise<(ProposalView & { messageId: string; actorId: string; tool: string })[]> {
+    if (messageIds.length === 0) return []
+    return this.db
+      .select({ ...PROPOSAL_VIEW, messageId: assistantProposal.messageId })
+      .from(assistantProposal)
+      .innerJoin(assistantToolCall, eq(assistantToolCall.id, assistantProposal.toolCallId))
+      .where(inArray(assistantProposal.messageId, [...messageIds]))
+      .orderBy(asc(assistantProposal.createdAt), asc(assistantToolCall.position))
   }
 
   /** Oldest first, and `limit` counts whole turns, not rows: a run of dead turns holds

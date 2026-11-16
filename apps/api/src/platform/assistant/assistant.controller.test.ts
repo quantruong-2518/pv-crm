@@ -34,6 +34,8 @@ import { CrossSiteGuard } from '../http/cross-site.guard'
 import { zod } from '../http/zod.pipe'
 import { AssistantBootSweeper } from './assistant-boot.sweeper'
 import { AssistantRunner } from './assistant-loop'
+import { AssistantProposalRepository } from './assistant-proposal.repository'
+import { AssistantProposals } from './assistant-proposals.service'
 import { AssistantSessionRepository } from './assistant-session.repository'
 import { openTurnStream } from './assistant-stream'
 import { AssistantToolGate, defineTool, door } from './assistant-tools'
@@ -233,10 +235,8 @@ let close: () => Promise<void>
 function doors(client: Scripted) {
   const routes = new AiRouteRepository(db)
   const gateway = new AiGateway(routes, new AiLedger(), { gemini: client, anthropic: client }, db)
-  const gate = new AssistantToolGate(
-    { tools: () => [readLead, readNote, listCustomers] },
-    createAccessControl(),
-  )
+  const source = { tools: () => [readLead, readNote, listCustomers] }
+  const gate = new AssistantToolGate(source, createAccessControl())
   const repo = new AssistantRepository(db)
   const audits = new AuditRepository(db)
   const runner = new AssistantRunner(gateway, repo, audits, gate)
@@ -247,7 +247,12 @@ function doors(client: Scripted) {
   return {
     turns,
     service,
-    controller: new AssistantController(service, turns, new MyWorkService(gate)),
+    controller: new AssistantController(
+      service,
+      turns,
+      new MyWorkService(gate),
+      new AssistantProposals(new AssistantProposalRepository(db), gate, routes, audits, source),
+    ),
   }
 }
 

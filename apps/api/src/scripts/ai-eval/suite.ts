@@ -16,6 +16,7 @@ import { figuresMatrix } from './scope-figures'
 import { kindsMatrix } from './scope-kinds'
 import { kpiMatrix } from './scope-kpi'
 import { scopeMatrix } from './scope-matrix'
+import { proposalPress } from './scope-proposals'
 import { businessChecksum, moved, openWorld, type World } from './world'
 
 /** The scripted run, and the optional live run after it. A business table that
@@ -57,6 +58,8 @@ async function scripted(
   await tally.run('no-write', 'no business table moved in the scripted run', async (c) => {
     c.eq(moved(before, await businessChecksum(world.db)), [], 'tables that moved')
   })
+  /* After `no-write`: a press writes a step, which is its point. */
+  await proposalPress(world, tally)
   await tally.run('no-network', 'the tripwire stayed quiet', async (c) => {
     c.eq(options.blocked, [], 'blocked attempts')
   })

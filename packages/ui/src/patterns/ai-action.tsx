@@ -35,6 +35,13 @@ export type AiActionProps = {
   done?: boolean
   /** What pressing did, when it did not finish the work: a filled form is not saved yet. */
   doneLabel?: string
+  /** `muted` for an end that is not success: dismissed, out of date, expired. */
+  doneTone?: 'success' | 'muted'
+  /** A second way out: the proposal is dropped and nothing is written. */
+  onDismiss?: () => void
+  dismissLabel?: string
+  /** While the press is on its way: both buttons wait, so one press writes once. */
+  pending?: boolean
   className?: string
 }
 
@@ -59,6 +66,10 @@ export function AiAction({
   variant = 'strip',
   done = false,
   doneLabel = 'Đã thực hiện',
+  doneTone = 'success',
+  onDismiss,
+  dismissLabel = 'Bỏ',
+  pending = false,
   className,
 }: AiActionProps) {
   return (
@@ -84,16 +95,46 @@ export function AiAction({
 
         <div className="flex shrink-0 gap-2.5">
           {done ? (
-            <span className="text-on-tint-success-strong self-center text-[12.5px] font-semibold">
+            <span
+              className={cn(
+                'self-center text-[12.5px] font-semibold',
+                doneTone === 'success'
+                  ? 'text-on-tint-success-strong'
+                  : 'text-on-tint-primary-muted',
+              )}
+            >
               {doneLabel}
             </span>
           ) : (
-            <Button type="button" onClick={onConfirm}>
-              {confirmLabel}
-            </Button>
+            <>
+              <Button
+                type="button"
+                className="pointer-coarse:h-12"
+                onClick={onConfirm}
+                disabled={pending}
+              >
+                {confirmLabel}
+              </Button>
+              {onDismiss && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="pointer-coarse:h-12"
+                  onClick={onDismiss}
+                  disabled={pending}
+                >
+                  {dismissLabel}
+                </Button>
+              )}
+            </>
           )}
           {onInspect && (
-            <Button type="button" variant="ghost" onClick={onInspect}>
+            <Button
+              type="button"
+              variant="ghost"
+              className="pointer-coarse:h-12"
+              onClick={onInspect}
+            >
               {inspectLabel}
             </Button>
           )}

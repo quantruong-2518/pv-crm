@@ -18,7 +18,7 @@ import { byOf, TouchService } from '../touch/touch.service'
 import { dropStep, ringDoer } from './next-step.handover'
 import { doneNote, toContract } from './next-step.mapper'
 import { NextStepRepository } from './next-step.repository'
-import { assertNextDiffers, dealAddress, liveKind } from './next-step.rules'
+import { assertNextDiffers, dealAddress, liveKind, standsAs, StepMoved } from './next-step.rules'
 import type { StepWrite } from './next-step.service'
 import { OpportunityStepRepository, type DealSlot } from './next-step-opportunity.repository'
 
@@ -45,6 +45,12 @@ export class OpportunityStepService {
     const slot = await this.deals.slot(who, code)
     if (!slot?.inScope) throw notFound('cơ hội', code)
     return answer(slot)
+  }
+
+  /** Whether the deal still takes a step: a stopped or signed deal is refused by every
+   *  write, while an open deal off the board (no stage, no frame) is not. */
+  async isOpen(who: Actor, code: ObjectCode): Promise<boolean> {
+    return (await this.deals.slot(who, code))?.open ?? false
   }
 
   /** The picker's list for the stage the deal stands in now (ADR 0080 §4);
@@ -86,11 +92,13 @@ export class OpportunityStepService {
     prefix = '',
   ): Promise<void> {
     const deal = await this.lockOpen(tx, who, code)
-    if (op.closing) {
-      const current = (await this.deals.slot(who, code, tx))?.step
-      if (!current || current.text !== op.closing.text || current.due !== op.closing.due) {
-        throw conflict(`Việc tiếp theo của cơ hội ${code} đã xong hoặc đã đổi. Tải lại để xem.`)
-      }
+    const current =
+      op.closing || op.expect !== undefined ? (await this.deals.slot(who, code, tx))?.step : null
+    const expected = op.expect === undefined || standsAs(current, op.expect)
+    if (!expected || (op.closing && !standsAs(current, op.closing))) {
+      throw new StepMoved(`Việc tiếp theo của cơ hội ${code} đã xong hoặc đã đổi. Tải lại để xem.`)
+    }
+    if (op.closing && current) {
       const [touchId] = await this.touch.record(tx, [
         {
           subjectCode: code,

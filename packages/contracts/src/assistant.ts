@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { AssistantProposal } from './assistant-proposal'
 import { COMM_CONFIRM_WITHIN_HOURS } from './comms/thread'
 import { Day, Moment } from './primitives'
 import { AfterSaleCareStatus, AfterSaleTemperatureFilter } from './sales/after-sale'
@@ -117,9 +118,11 @@ export const AssistantMessage = z.object({
   id: z.string().uuid(),
   seq: z.number().int().nonnegative(),
   role: AssistantRole,
-  /** Empty, with no refs and no footer, when `withheld` or `unchecked`. */
+  /** Empty, with no refs, no proposals and no footer, when `withheld` or `unchecked`. */
   body: z.string(),
   refs: z.array(AssistantRef),
+  /** Cards under the answer; empty on user rows. */
+  proposals: z.array(AssistantProposal),
   /** It, or an earlier answer of the chat, names a record the person can no longer read. */
   withheld: z.boolean(),
   /** Past the re-check's cap, or its read failed, so not known to be readable. */
@@ -197,6 +200,7 @@ export const AssistantEvent = z.discriminatedUnion('type', [
   z.object({ type: z.literal('text'), delta: z.string() }),
   z.object({ type: z.literal('tool-result'), result: AssistantToolResult }),
   z.object({ type: z.literal('refs'), refs: z.array(AssistantRef) }),
+  z.object({ type: z.literal('proposal'), proposal: AssistantProposal }),
   /** Template keys from the server, so no tool prose or model text reaches a chip (D5). */
   z.object({ type: z.literal('suggestions'), items: z.array(AssistantSuggestion).max(3) }),
   z.object({

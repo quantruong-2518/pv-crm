@@ -942,3 +942,17 @@ Raised by ADR 0161 and the earlier assistant waves.
 200. **Should notifications, configuration and administration stay out of the
      assistant's scope? Recommended: yes.**
      **Open.**
+
+## CRM assistant wave 4 (added 16/11/2026)
+
+Raised by ADR 0162.
+
+201. **Should the assistant propose a card unasked (an overdue step → "move it to
+     Friday?")?** _(see ADR 0162)_ Prompt v17 proposes only when the person asks
+     for a change. Recommended: keep it so until cards are measured.
+     **Open.**
+
+202. **Which writes come after the next step: approval-bound ones through the
+     approval inbox (move a lead, change a deal's value) or bulk cards (≤ 20
+     rows)?** _(see ADR 0162)_
+     **Open.**

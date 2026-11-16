@@ -109,6 +109,16 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
     bounded by count, not by bytes.
   - The web wait-line labels for `list_customers` are not added; it falls back to
     the generic line, as `get_history` does.
+- CRM assistant wave 4, next-step cards (ADR 0162), debt:
+  - Built 16/11/2026 on branch `assistant-wave-4`, migration 0174; not shipped.
+    Prompt v17 never run live; gate 0 OPEN.
+  - No screen has seen a card: states, narrow panel, tablet press, three themes.
+    Korean copy unreviewed.
+  - No web screen draws the touch timeline, so the `assistant-applied` mark is
+    read only through `get_history`.
+  - `canPress` asks the permission only, not the record's scope: a lead handed
+    to someone else keeps "Làm" until the press is refused.
+  - The stale check compares text and due only, not the doer or kind.
 - CRM assistant KPI tools (ADR 0151), debt:
   - On production at 18307063, Fly v220 (11/11/2026), /healthz ok; no migration.
   - ADR 0151 amendment of 11/11/2026 (no room-scope readings in `get_my_kpi`,

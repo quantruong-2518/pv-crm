@@ -22,6 +22,7 @@ import {
   tokensOf,
 } from './assistant-context'
 import { TurnBinding, type Draft } from './assistant-bind'
+import { cardRows, freshCard, limitCards } from './assistant-proposal'
 import { checkChat } from './assistant-refs'
 import { AssistantSummarizer } from './assistant-summary'
 import {
@@ -130,6 +131,8 @@ type Turn = {
    *  opened record are two lines, so the trail tells a skim from a read of contacts. */
   audited: Set<string>
   reads: TurnReads
+  /** `kind code` of each record carded this turn, for the card caps. */
+  cards: Set<string>
   /** D3: what the model writes reaches `text` and the wire only through this. */
   binding: TurnBinding
   /** Characters the model wrote, round breaks included; `text` lags it by a held word. */
@@ -379,6 +382,7 @@ export class AssistantRunner {
       fence: null,
       audited: new Set(),
       reads: newReads(),
+      cards: new Set(),
     }
   }
 
@@ -467,16 +471,19 @@ export class AssistantRunner {
     /* A slow model can return past the mark: its calls still need results. */
     this.noteLate(turn)
     const late = turn.cap !== null
-    const verdicts = await inPool(round.calls, PARALLEL_TOOLS, (call, index) => {
+    const ran = await inPool(round.calls, PARALLEL_TOOLS, (call, index) => {
       if (late || index >= CALLS_PER_ROUND) {
         return Promise.resolve(notRun('over-cap', { error: 'over-cap' }))
       }
       turn.emit({ type: 'step', round: turn.rounds, tool: storableName(call.name) })
       return this.tools.call(turn.who, call)
     })
+    const verdicts = limitCards(turn.cards, ran)
     const calls = capped(turn, round.calls, verdicts, (name) => this.tools.shrinkOf(name))
     await this.audit.writeMany(auditLines(turn, calls))
     await this.repo.recordToolCalls(calls.map((c, i) => toolCallRow(turn, c, i)))
+    const cards = cardRows(calls, { id: turn.id, actorId: turn.who.id, now: this.now() })
+    await this.repo.recordProposals(cards)
     if (turn.rounds + 1 >= MAX_ROUNDS) turn.cap ??= 'cap-rounds'
     appendRound(turn, round, calls)
     noteReads(turn.reads, calls)
@@ -491,6 +498,10 @@ export class AssistantRunner {
           truncated: c.truncated,
         },
       })
+    }
+    for (const card of cards) {
+      const label = turn.reads.refs.get(card.subjectCode)?.label ?? card.subjectCode
+      turn.emit({ type: 'proposal', proposal: freshCard(card, label) })
     }
   }
 

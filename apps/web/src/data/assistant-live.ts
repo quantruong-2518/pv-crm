@@ -6,6 +6,7 @@ import type {
   AssistantErrorCode,
   AssistantEvent,
   AssistantFooter,
+  AssistantProposal,
   AssistantRef,
   AssistantSubject,
   AssistantSuggestion,
@@ -40,6 +41,8 @@ export type LiveTurn = {
   past: string[]
   text: string
   refs: AssistantRef[]
+  /** Cards the answer proposes; the saved message holds their state once it settles. */
+  proposals: AssistantProposal[]
   suggestions: AssistantSuggestion[]
   footer: AssistantFooter | null
   messageId: string | null
@@ -121,6 +124,23 @@ export function forgetSession(id: string) {
   if (useAssistantLive.getState().panel.sessionId === id) setPanel({ sessionId: null })
 }
 
+/** A card with this id is replaced in place, so a re-sent event never doubles it. */
+const withProposal = (list: AssistantProposal[], next: AssistantProposal) =>
+  list.some((p) => p.id === next.id)
+    ? list.map((p) => (p.id === next.id ? next : p))
+    : [...list, next]
+
+/** Until the saved row settles the answer is drawn from the turn, so a press must reach it too. */
+export function replaceTurnProposal(proposal: AssistantProposal) {
+  useAssistantLive.setState((s) => ({
+    turns: s.turns.map((t) =>
+      t.proposals.some((p) => p.id === proposal.id)
+        ? { ...t, proposals: withProposal(t.proposals, proposal) }
+        : t,
+    ),
+  }))
+}
+
 function onEvent(key: number, event: AssistantEvent) {
   switch (event.type) {
     case 'session': {
@@ -142,6 +162,8 @@ function onEvent(key: number, event: AssistantEvent) {
       return patchTurn(key, (t) => ({ text: t.text + event.delta }))
     case 'refs':
       return patchTurn(key, () => ({ refs: event.refs }))
+    case 'proposal':
+      return patchTurn(key, (t) => ({ proposals: withProposal(t.proposals, event.proposal) }))
     case 'suggestions':
       return patchTurn(key, () => ({ suggestions: event.items }))
     case 'done':
@@ -200,6 +222,7 @@ export function sendTurn(
     past: [],
     text: '',
     refs: [],
+    proposals: [],
     suggestions: [],
     footer: null,
     messageId: null,

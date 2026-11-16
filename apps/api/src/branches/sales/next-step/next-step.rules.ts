@@ -8,13 +8,29 @@ import {
   type StateAddress,
 } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
-import { invalid } from '@api/platform/http/problem'
+import { invalid, PvError } from '@api/platform/http/problem'
 import type { NextStepRepository } from './next-step.repository'
 
 /** Rules every next-step writer asks — the lead door, the deal door and the
  *  comm close-out (ADR 0074) — kept as one copy so the three cannot drift.
  *  Plain functions over a handle: the close-out asks them before its
  *  transaction, the doors inside theirs. */
+
+type Step = Pick<NextStepSetBody, 'text' | 'due'>
+
+/** Whether the step under the lock is `want`, null meaning none stands: the closing
+ *  check of "done", and an assistant card's `before` (ADR 0162). */
+export const standsAs = (current: Step | null | undefined, want: Step | null): boolean =>
+  want === null ? !current : !!current && current.text === want.text && current.due === want.due
+
+/** The 409 of a step that is no longer the one the write expected (`closing` or a
+ *  card's `before`). Typed, so a card press marks stale on this refusal only, and
+ *  any other door refusal leaves the card pending (ADR 0162 §3.4). */
+export class StepMoved extends PvError {
+  constructor(title: string) {
+    super({ kind: 'conflict', status: 409, title })
+  }
+}
 
 /** A `next` equal to `closing` would pass the closing check on a replay. */
 export function assertNextDiffers(

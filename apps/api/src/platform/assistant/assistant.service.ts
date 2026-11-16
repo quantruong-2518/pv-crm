@@ -17,6 +17,7 @@ import { AiRouteRepository } from '../ai/ai-route.repository'
 import { AuditRepository, type AuditEntry } from '../audit/audit.repository'
 import { ACCESS } from '../engines/tokens'
 import { invalid, notFound } from '../http/problem'
+import { cardOf } from './assistant-proposal'
 import { chatOf, recheck, recheckChats, revealedCodes, type Recheck } from './assistant-refs'
 import { footerOf, sumReads } from './assistant-turn-read'
 import { AssistantSessionRepository, type SessionCursor } from './assistant-session.repository'
@@ -112,6 +113,7 @@ export class AssistantService {
     const session = running ? found : ((await this.sessions.touch(who.id, id)) ?? found)
     const answers = rows.filter((r) => r.role === 'assistant')
     const calls = await this.turnsRepo.callsOf(answers.map((r) => r.id))
+    const cards = await this.turnsRepo.proposalsOf(answers.map((r) => r.id))
     const chat = chatOf(
       this.gate,
       answers.map((r) => r.id),
@@ -132,6 +134,17 @@ export class AssistantService {
       const counts = new Set((calls.get(row.id) ?? []).flatMap((c) => this.gate.countedCodes(c)))
       const counted = new Map(read.filter((r) => counts.has(r.code)).map((r) => [r.code, r]))
       const reads = { counted, steps }
+      /* A card goes with its answer: a shut answer shows none. Pressable only by the
+         asker, and only while they hold the door the card's tool named. */
+      const proposals = shut
+        ? []
+        : cards
+            .filter((c) => c.messageId === row.id)
+            .map((c) => {
+              const label = read.find((r) => r.code === c.subjectCode)?.label ?? c.subjectCode
+              const mine = c.actorId === who.id
+              return cardOf(c, label, mine && this.gate.opens(who, c.tool, c.subjectKind) === null)
+            })
       return {
         id: row.id,
         seq: row.seq,
@@ -142,6 +155,7 @@ export class AssistantService {
             ? this.gate.contactText(who, row.body)
             : row.body,
         refs: read,
+        proposals,
         withheld: shut === 'withheld',
         unchecked: shut === 'unchecked',
         state: row.state,

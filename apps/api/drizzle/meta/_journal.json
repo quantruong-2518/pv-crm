@@ -1170,6 +1170,13 @@
       "when": 1796033260000,
       "tag": "0173_kpi_v2_metrics_presales_lane",
       "breakpoints": true
+    },
+    {
+      "idx": 174,
+      "version": "7",
+      "when": 1796033320000,
+      "tag": "0174_assistant_proposal",
+      "breakpoints": true
     }
   ]
 }

@@ -24,10 +24,14 @@ import { byOf, TouchService } from '../touch/touch.service'
 import { dropStep, ringDoer } from './next-step.handover'
 import { doneNote, toContract } from './next-step.mapper'
 import { NextStepRepository, type NextStepSlot } from './next-step.repository'
-import { assertNextDiffers, leadAddress, liveKind } from './next-step.rules'
+import { assertNextDiffers, leadAddress, liveKind, standsAs, StepMoved } from './next-step.rules'
 
-/** One write on a step: `closing` set = "done" (touch, then `next` or clear). */
-export type StepWrite = Partial<Pick<NextStepDoneBody, 'closing' | 'next'>>
+/** One write on a step: `closing` set = "done" (touch, then `next` or clear).
+ *  `expect` set = the step that must stand under the lock, null for none: a card
+ *  pressed after the step moved is refused like a doubled "done" (ADR 0162). */
+export type StepWrite = Partial<Pick<NextStepDoneBody, 'closing' | 'next'>> & {
+  expect?: Pick<NextStepSetBody, 'text' | 'due'> | null
+}
 
 /** A bought customer's close-out (ADR 0121 §5): the lead's run is in `growth`,
  *  the frame state is the temperature just read, and any carer may write. */
@@ -118,11 +122,13 @@ export class NextStepService {
     const held = customer
       ? await this.lockCustomer(tx, who, code, customer)
       : await this.lockOpen(tx, who, code)
-    if (op.closing) {
-      const current = (await this.repo.slot(code, tx))?.step
-      if (!current || current.text !== op.closing.text || current.due !== op.closing.due) {
-        throw conflict(`Việc tiếp theo của lead ${code} đã xong hoặc đã đổi. Tải lại để xem.`)
-      }
+    const current =
+      op.closing || op.expect !== undefined ? (await this.repo.slot(code, tx))?.step : null
+    const expected = op.expect === undefined || standsAs(current, op.expect)
+    if (!expected || (op.closing && !standsAs(current, op.closing))) {
+      throw new StepMoved(`Việc tiếp theo của lead ${code} đã xong hoặc đã đổi. Tải lại để xem.`)
+    }
+    if (op.closing && current) {
       const [touchId] = await this.touch.record(tx, [
         {
           subjectCode: code,

@@ -8,6 +8,7 @@ import { NEED_KEY, PUBLIC_KEY, type RouteNeed } from '../access/need.decorator'
 import type { AiToolCall, AiToolDecl } from '../ai/ai-client'
 import { ACCESS } from '../engines/tokens'
 import { maskContact } from './assistant-contact'
+import type { ProposalDraft, ProposalWriter } from './assistant-proposal'
 import { PvError } from '../http/problem'
 
 /** A tool is a gate, not a function (ADR 0133 D2).
@@ -54,6 +55,8 @@ export type ToolRead = {
   /** Text a reader needs `ToolSpec.reveals` to see went into `data`: the stored
    *  answer is then withheld from a reader without it. */
   revealsContent?: boolean
+  /** A card for the asker to press (ADR 0162); like `refs` it never reaches a model. */
+  proposal?: ProposalDraft
 }
 
 type ToolSpec<I, K extends string> = {
@@ -215,6 +218,8 @@ export function defineTool<I, K extends string>(spec: ToolSpec<I, K>): Assistant
 export const ASSISTANT_TOOLS = Symbol('pv.assistant.tools')
 export interface AssistantToolSource {
   tools(): readonly AssistantTool[]
+  /** The press of a card a tool proposed; absent = the source proposes none. */
+  proposals?(): ProposalWriter
 }
 
 /** One call's result as the loop needs it. `denied` is E2's reason when the gate
@@ -236,6 +241,7 @@ export type ToolVerdict = {
   reads: FooterReads
   counted: RefsCounted
   revealsContent: boolean
+  proposal?: ProposalDraft | null
 }
 
 /** A call that read nothing; the loop uses it for the calls its caps turn away. */
@@ -414,6 +420,14 @@ export class AssistantToolGate {
     return this.registered.get(name)?.tool.revealReach !== undefined
   }
 
+  /** E2 on one door of a tool, as `call` asks it: a card is pressed through the
+   *  door its tool named, so the press and the chip read the same need. */
+  opens(who: Actor, tool: string, key: string): DenyReason | null {
+    const need = this.registered.get(tool)?.needs[key]
+    const verdict = need ? this.access.check(who, need) : DENIED
+    return verdict.ok ? null : verdict.reason
+  }
+
   /** The tool's own way to cut an over-cap result; undefined when it has none. */
   shrinkOf(name: string): ToolShrink | undefined {
     return this.registered.get(name)?.tool.shrink
@@ -458,6 +472,7 @@ export class AssistantToolGate {
         reads: entry.tool.readsOf?.(call.input, counts) ?? {},
         counted: entry.tool.refsCounted?.(call.input) ?? 'all',
         revealsContent: counts.revealsContent === true,
+        proposal: counts.proposal ?? null,
         skipped,
         latencyMs: Date.now() - started,
       }

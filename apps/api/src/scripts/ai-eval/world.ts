@@ -37,6 +37,7 @@ import { LeadModule } from '@api/branches/sales/lead/lead.module'
 import { OpportunityModule } from '@api/branches/sales/opportunity/opportunity.module'
 import { SalesCommsHook } from '@api/branches/sales/opportunity/opportunity-comms.hook'
 import { SearchService } from '@api/branches/sales/search/search.service'
+import type { ProposalWriter } from '@api/platform/assistant/assistant-proposal'
 import type { AssistantTool } from '@api/platform/assistant/assistant-tools'
 import { AuditRepository } from '@api/platform/audit/audit.repository'
 import { CommsModule } from '@api/platform/comms/comms.module'
@@ -63,6 +64,7 @@ const TURN_TABLES = new Set([
   'assistant_session',
   'assistant_message',
   'assistant_tool_call',
+  'assistant_proposal',
 ])
 
 @Global()
@@ -116,6 +118,8 @@ export type World = {
   gateAccess: AccessControl
   doorAccess: AccessControl
   tools: readonly AssistantTool[]
+  /** The step hook the press runs; the world has no platform module to inject it. */
+  proposals: ProposalWriter
   audits: AuditRepository
   accounts: AccountService
   afterSales: AfterSaleService
@@ -161,6 +165,7 @@ export async function openWorld(): Promise<World> {
     gateAccess: createAccessControl(),
     doorAccess: createAccessControl(),
     tools: source.tools(),
+    proposals: source.proposals(),
     audits: new AuditRepository(handle.db),
     accounts: app.get(AccountService, { strict: false }),
     afterSales: app.get(AfterSaleService, { strict: false }),

@@ -15,6 +15,8 @@ import { sql } from 'drizzle-orm'
 import type {
   AssistantEndedBy,
   AssistantMessageState,
+  AssistantProposalAction,
+  AssistantProposalState,
   AssistantRecordKind,
   AssistantReportReason,
   AssistantRole,
@@ -212,6 +214,75 @@ export const assistantReport = platform.table(
   ],
 )
 
+/** One card the assistant proposed, waiting for the asker's press (ADR 0162 §2).
+ *
+ *  The press, not the model, writes the record: this row is what the press
+ *  checks (`before`), what it writes (`body`) and what a reloaded chat shows.
+ *  The step door is reached through the branch, so the row holds a copy, not a
+ *  reference into `sales`. */
+export const assistantProposal = platform.table(
+  'assistant_proposal',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** A purged session takes its cards with it. */
+    messageId: uuid('message_id')
+      .notNull()
+      .references(() => assistantMessage.id, { onDelete: 'cascade' }),
+    /** One card per tool call. The call row carries the record code in `codes`,
+     *  which is how a re-check hides this card with its answer (ADR 0136). */
+    toolCallId: uuid('tool_call_id')
+      .notNull()
+      .unique('assistant_proposal_tool_call_uq')
+      .references(() => assistantToolCall.id, { onDelete: 'cascade' }),
+    /** The asker, who alone may press. Cascades for `assistant_message.actor_id`'s reason. */
+    actorId: text('actor_id')
+      .notNull()
+      .references(() => actor.id, { onDelete: 'cascade' }),
+
+    /** The record the step belongs to. No FK, for `assistant_session.subject_kind`'s reason. */
+    subjectKind: text('subject_kind').$type<'lead' | 'opportunity'>().notNull(),
+    subjectCode: text('subject_code').notNull(),
+    action: text('action').$type<AssistantProposalAction>().notNull(),
+
+    /** The step standing when the card was made, or NULL for none. The press compares
+     *  the live step against it: a copy of record text, so it is hidden with its answer. */
+    before: jsonb('before'),
+    /** The step the press will write, or NULL when the press only closes one. */
+    after: jsonb('after'),
+    /** The step door's own body, kept whole so the press replays exactly what was shown. */
+    body: jsonb('body').notNull(),
+    /** The model's one-line basis, shown on the card (`AiAction.basis`, law 9). */
+    reason: text('reason').notNull(),
+
+    /** `expired` is never stored: it is `pending` past `expires_at`, read at query time,
+     *  because no job would run to flip it and a stored value would go stale. */
+    state: text('state')
+      .$type<Exclude<AssistantProposalState, 'expired'>>()
+      .notNull()
+      .default('pending'),
+    /** Created + 30 min (ADR 0162 §2). */
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    /** NULL exactly while `pending`. */
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    /** "Which cards sit under these answers": the chat reload. */
+    index('assistant_proposal_message_idx').on(t.messageId),
+    /** The contract's enums, copied by hand for `assistant_message_role_known`'s reason. */
+    check('assistant_proposal_subject_kind_known', sql`"subject_kind" IN ('lead', 'opportunity')`),
+    check('assistant_proposal_action_known', sql`"action" IN ('next-step-set', 'next-step-done')`),
+    check(
+      'assistant_proposal_state_known',
+      sql`"state" IN ('pending', 'applied', 'dismissed', 'stale')`,
+    ),
+    check('assistant_proposal_body_is_object', sql`jsonb_typeof("body") = 'object'`),
+    /** A model can send an empty or long reason, and the card must show a real one. */
+    check('assistant_proposal_reason_length', sql`char_length("reason") BETWEEN 1 AND 200`),
+    check('assistant_proposal_decided_pair', sql`("state" = 'pending') = ("decided_at" IS NULL)`),
+  ],
+)
+
 export type AssistantSessionRowDb = typeof assistantSession.$inferSelect
 export type AssistantSessionValues = typeof assistantSession.$inferInsert
 export type AssistantMessageRowDb = typeof assistantMessage.$inferSelect
@@ -220,3 +291,5 @@ export type AssistantToolCallRowDb = typeof assistantToolCall.$inferSelect
 export type AssistantToolCallValues = typeof assistantToolCall.$inferInsert
 export type AssistantReportRowDb = typeof assistantReport.$inferSelect
 export type AssistantReportValues = typeof assistantReport.$inferInsert
+export type AssistantProposalRowDb = typeof assistantProposal.$inferSelect
+export type AssistantProposalValues = typeof assistantProposal.$inferInsert

@@ -169,6 +169,18 @@ export function dueOnPick(
     : { due: dayAfter(template.dueDays), dueAuto: true }
 }
 
+/** A write made elsewhere (the assistant's card): drop what a record's step and history show. */
+export function nextStepWrittenElsewhere(
+  client: QueryClient,
+  subject: NextStepSubject,
+  code: string,
+) {
+  void client.invalidateQueries({ queryKey: nextStepKey(code) })
+  const { touches } = DOOR[subject]
+  if (touches) void client.invalidateQueries({ queryKey: [...touches, code] })
+  if (subject === 'opportunity') void client.invalidateQueries({ queryKey: WORKSTREAM_BOOK_KEY })
+}
+
 /** A 409 means the step on screen is no longer the stored one (another tab
  *  finished or replaced it, or the deal stopped or signed) — re-read it rather
  *  than let the form retry stale. */

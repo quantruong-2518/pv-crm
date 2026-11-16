@@ -15,6 +15,7 @@ import {
 import type { AnswerView } from '@/data/assistant-thread'
 import { AssistantAnswerText } from './assistant-answer-text'
 import { AiGlyph, BUBBLE } from './assistant-bits'
+import { ProposalCard } from './assistant-proposal-card'
 import { RefCard, RefTable } from './assistant-ref-card'
 import { ReportForm } from './assistant-report-form'
 import { RunningBubble } from './assistant-running'
@@ -163,6 +164,9 @@ function Answered({ answer, last, busy, ask, openPath, compact }: AnswerProps) {
         latest={last}
       />
       {answer.refs.length >= 3 && <RefTable refs={answer.refs} openPath={openPath} />}
+      {answer.proposals.map((proposal) => (
+        <ProposalCard key={proposal.id} proposal={proposal} compact={compact} />
+      ))}
       {suggestions.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           {!compact && (

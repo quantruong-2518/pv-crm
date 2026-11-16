@@ -31,6 +31,7 @@ import type { ContactService } from '../contact/contact.service'
 import type { ContractService } from '../contract/contract.service'
 import type { LeadService } from '../lead/lead.service'
 import type { OpportunityStepService } from '../next-step/next-step-opportunity.service'
+import type { StepProposalWriter } from '../next-step/next-step-proposal'
 import type { NextStepService } from '../next-step/next-step.service'
 import type { OpportunityService } from '../opportunity/opportunity.service'
 import type { SearchService } from '../search/search.service'
@@ -324,6 +325,7 @@ function setup() {
     {} as ContactService,
     {} as CampaignService,
     {} as WorkstreamService,
+    {} as StepProposalWriter,
   )
   const gate = new AssistantToolGate(source, createAccessControl())
   return {
@@ -382,6 +384,7 @@ describe('the sales tools', () => {
       'get_team_kpi',
       'get_performance',
       'count_records',
+      'propose_next_step',
     ])
     for (const tool of declared) {
       expect(tool.parameters).toMatchObject({ additionalProperties: false })

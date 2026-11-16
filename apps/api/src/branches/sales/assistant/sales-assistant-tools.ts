@@ -30,6 +30,7 @@ import {
   type AssistantToolSource,
   type ToolRead,
 } from '@api/platform/assistant/assistant-tools'
+import type { ProposalWriter } from '@api/platform/assistant/assistant-proposal'
 import { DebriefService } from '@api/platform/comms/debrief.service'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { denied } from '@api/platform/http/problem'
@@ -47,6 +48,7 @@ import { ContractService } from '../contract/contract.service'
 import { LeadController } from '../lead/lead.controller'
 import { LeadService } from '../lead/lead.service'
 import { OpportunityStepService } from '../next-step/next-step-opportunity.service'
+import { StepProposalWriter } from '../next-step/next-step-proposal'
 import { NextStepService } from '../next-step/next-step.service'
 import { OpportunityController } from '../opportunity/opportunity.controller'
 import { OpportunityService } from '../opportunity/opportunity.service'
@@ -67,6 +69,7 @@ import {
   listMyWork,
 } from './list-my-work'
 import { withMoney } from './opportunity-money-read'
+import { proposeNextStep } from './propose-next-step'
 import { searchRead } from './search-read'
 import { shrinkRows } from './shrink-rows'
 import { profilesOf, readProfile, rereadProfiles, type ProfileAsk } from './record-kinds-read'
@@ -400,7 +403,12 @@ export class SalesAssistantTools implements AssistantToolSource {
     private readonly contacts: ContactService,
     private readonly campaigns: CampaignService,
     private readonly workstreams: WorkstreamService,
+    private readonly stepCards: StepProposalWriter,
   ) {}
+
+  proposals(): ProposalWriter {
+    return this.stepCards
+  }
 
   tools(): readonly AssistantTool[] {
     const kpi = kpiServices(this.modules)
@@ -488,6 +496,7 @@ export class SalesAssistantTools implements AssistantToolSource {
         journeys: this.workstreams,
         sources: () => this.modules.get(LeadOriginService, { strict: false }),
       }),
+      proposeNextStep({ leads: this.leads, leadSteps: this.leadSteps, dealSteps: this.dealSteps }),
     ]
   }
 

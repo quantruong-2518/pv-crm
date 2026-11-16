@@ -608,8 +608,7 @@ export function ZoneMolecules() {
               `empty` là prop BẮT BUỘC — dòng đó không phải việc của màn, nếu không màn nào cũng
               chép lại và có màn quên.
               <br />
-              bg-gradient-to-r from-primary/22 to-primary/6 + hatch overlay · ring-0 ·
-              shadow-[0_12px_30px_theme(primary/14)]
+              glass-ai · ring-0 · shadow-[0_12px_30px_theme(primary/14)]
             </>
           }
         >
@@ -620,6 +619,35 @@ export function ZoneMolecules() {
             onConfirm={() => {}}
             onInspect={() => {}}
           />
+          {/* The assistant's proposal card: a way out, the wait while pressing, and a muted end. */}
+          <div className="mt-4 flex flex-col gap-3">
+            <AiAction
+              suggestion="Đổi hạn việc tiếp theo của Công ty Sao Đỏ."
+              basis="bạn hỏi dời sang thứ Sáu."
+              empty="Chưa lưu gì vào hồ sơ."
+              confirmLabel="Làm"
+              onConfirm={() => {}}
+              onDismiss={() => {}}
+            />
+            <AiAction
+              suggestion="Đổi hạn việc tiếp theo của Công ty Sao Đỏ."
+              basis="bạn hỏi dời sang thứ Sáu."
+              empty="Chưa lưu gì vào hồ sơ."
+              confirmLabel="Làm"
+              onConfirm={() => {}}
+              onDismiss={() => {}}
+              pending
+            />
+            <AiAction
+              suggestion="Đổi hạn việc tiếp theo của Công ty Sao Đỏ."
+              basis="bạn hỏi dời sang thứ Sáu."
+              empty="Chưa lưu gì vào hồ sơ."
+              onConfirm={() => {}}
+              done
+              doneTone="muted"
+              doneLabel="Đề xuất đã hết hạn, chưa lưu gì."
+            />
+          </div>
         </SpecCard>
 
         <AiFillCards />

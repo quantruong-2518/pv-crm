@@ -23,6 +23,7 @@ import type { Actor } from '@pv/engines'
 import { Need } from '../access/need.decorator'
 import { zod } from '../http/zod.pipe'
 import { CurrentActor } from '../session/current-actor.decorator'
+import { AssistantProposals } from './assistant-proposals.service'
 import { openTurnStream } from './assistant-stream'
 import { ASSISTANT_NEED, AssistantTurns } from './assistant-turns'
 import { AssistantService } from './assistant.service'
@@ -40,6 +41,7 @@ export class AssistantController {
     private readonly assistant: AssistantService,
     private readonly turns: AssistantTurns,
     private readonly work: MyWorkService,
+    private readonly cards: AssistantProposals,
   ) {}
 
   @Get('availability')
@@ -70,6 +72,23 @@ export class AssistantController {
   @Need(ASSISTANT_NEED)
   stop(@CurrentActor() who: Actor, @Param(zod(AssistantIdParams)) p: AssistantIdParams): void {
     this.turns.stop(who, p.id)
+  }
+
+  /** The press of a card (ADR 0162 §3): writes the step through the step door's
+   *  rules as the presser. Only the card's own asker; anyone else gets 404. */
+  @Post('proposals/:id/apply')
+  @HttpCode(200)
+  @Need(ASSISTANT_NEED)
+  apply(@CurrentActor() who: Actor, @Param(zod(AssistantIdParams)) p: AssistantIdParams) {
+    return this.cards.apply(who, p.id)
+  }
+
+  /** Drops the card and writes nothing on the record. */
+  @Post('proposals/:id/dismiss')
+  @HttpCode(200)
+  @Need(ASSISTANT_NEED)
+  dismiss(@CurrentActor() who: Actor, @Param(zod(AssistantIdParams)) p: AssistantIdParams) {
+    return this.cards.dismiss(who, p.id)
   }
 
   /** Today's work of the asker only, read live through the same doors as the chat; no model. */

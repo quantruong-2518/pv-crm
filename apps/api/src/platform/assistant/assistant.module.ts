@@ -9,6 +9,8 @@ import { SessionModule } from '../session/session.module'
 import { AssistantBootSweeper } from './assistant-boot.sweeper'
 import { AssistantBriefMailer } from './assistant-brief.mailer'
 import { AssistantBriefSweeper } from './assistant-brief.sweeper'
+import { AssistantProposalRepository } from './assistant-proposal.repository'
+import { AssistantProposals } from './assistant-proposals.service'
 import { AssistantRunner } from './assistant-loop'
 import { AssistantSessionRepository } from './assistant-session.repository'
 import { AssistantSummarizer } from './assistant-summary'
@@ -48,6 +50,8 @@ import { MyWorkService } from './my-work.service'
     MyWorkService,
     AssistantBriefMailer,
     AssistantBriefSweeper,
+    AssistantProposalRepository,
+    AssistantProposals,
   ],
 })
 export class AssistantModule {

@@ -174,7 +174,7 @@ export const touch = sales.table(
       .where(sql`"kind" = 'nurtured'`),
     check('touch_subject_kind_known', sql`"subject_kind" IN ('lead', 'opportunity')`),
     /** Every `TouchKind` value, copied out by hand: the enum changing must be a
-     *  migration somebody reads (0097 `re-entered`, 0101 `customer-replied`, 0173 `solution-sent`: thirty values). Legacy kinds
+     *  migration somebody reads (0097 `re-entered`, 0101 `customer-replied`, 0173 `solution-sent`, 0174 `assistant-applied`: thirty-one values). Legacy kinds
      *  (`first-action`, `verified`, `care-left`) stay — their rows are on disk. */
     check(
       'touch_kind_known',
@@ -185,7 +185,7 @@ export const touch = sales.table(
                      'reopened', 'sample-sent', 'poc-run', 'demo-held', 'site-visited',
                      'quotation-sent', 'care-left', 'next-step-done',
                      'mail-failed', 'mail-sync-failed', 're-entered', 'customer-replied',
-                     'solution-sent')`,
+                     'solution-sent', 'assistant-applied')`,
     ),
     /** Ba giá trị của `LeadTier`. Chép ra đây cùng lý do với `touch_kind_known`
      *  ở trên: enum dài thêm thì phải là một migration có người đọc. */

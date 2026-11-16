@@ -12,6 +12,7 @@ import { NextStepController } from './next-step.controller'
 import { OpportunityStepController } from './next-step-opportunity.controller'
 import { OpportunityStepRepository } from './next-step-opportunity.repository'
 import { OpportunityStepService } from './next-step-opportunity.service'
+import { StepProposalWriter } from './next-step-proposal'
 import { NextStepRepository } from './next-step.repository'
 import { NextStepService } from './next-step.service'
 
@@ -26,7 +27,8 @@ import { NextStepService } from './next-step.service'
  *  Exports: comms' close-out hook, bound in `app.module.ts` (ADR 0074 §7),
  *  which asks `SalesConfigModule` for the evaluation lists and `MeetingModule`
  *  to mark a meeting held on close-meeting; and the two step services the
- *  assistant's `list_my_work` reads a step through, as their doors do. */
+ *  assistant's `list_my_work` reads a step through, as their doors do; and the
+ *  press of an assistant card, which writes through those services (ADR 0162). */
 @Module({
   imports: [
     EnginesModule,
@@ -45,9 +47,10 @@ import { NextStepService } from './next-step.service'
     OpportunityStepService,
     OpportunityStepRepository,
     NextStepDebriefHook,
+    StepProposalWriter,
     /* Bare, a stateless SQL class: the close-out writes a bought customer's reading. */
     CustomerTemperatureRepository,
   ],
-  exports: [NextStepDebriefHook, NextStepService, OpportunityStepService],
+  exports: [NextStepDebriefHook, NextStepService, OpportunityStepService, StepProposalWriter],
 })
 export class NextStepModule {}
