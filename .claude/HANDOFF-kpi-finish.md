@@ -21,15 +21,44 @@ https://claude.ai/artifact/9MSHoW5uqYdFvxUU6U4jYW. Chưa ai mở màn trên dữ
 Sau đó đã sửa thẻ cao thấp lệch và nhãn biểu đồ chạm đường. Bảng "Bản ghi tính vào chỉ số" cố ý ghi tiền đủ chữ số
 (danh sách đối soát).
 
-## Trước khi ship
+## Ship: chủ dự án đã cho phép (16/11, "ship đi, nhưng ship ở phiên mới")
 
-- Đã rebase lên `origin/master` `4f4a4313` (có 0169 `assistant_brief`, đã trên Neon) và đánh số lại migration của
-  nhánh thành 0170–0173, `when` tăng dần trên 0169. Đã chạy trọn 0000→0173 trên một PGlite trống. Bản `.pglite` cũ
-  của worktree đã chạy số cũ nên sẽ báo lỗi khi migrate lại: tạo bản mới, đừng sửa tay.
-- Thứ tự: Neon migrate trước, API sau, web cuối. Giữa migrate và deploy, bản API cũ không lưu được cấu hình KPI
-  (cột `from_period` không có mặc định): tránh sửa cấu hình trong khoảng đó.
-- Không ship gì đụng cửa giao chỉ tiêu trong 20–28/11 (tháng 12 đang được giao).
-- Push và ship cần chủ dự án cho phép.
+Phải xong **trước 20/11**. Từ 20 tới 28/11 không ship gì đụng cửa giao chỉ tiêu (tháng 12 đang được giao). Lỡ hạn
+thì đợi sau 28/11 và hỏi lại chủ dự án.
+
+Đã chuẩn bị:
+
+- Nhánh đã rebase lên `origin/master` `4f4a4313`. `4f4a4313` có 0169 `assistant_brief`, đã chạy trên Neon.
+- Migration của nhánh đã đánh số lại thành 0170–0173, `when` tăng dần trên 0169.
+- Đã chạy trọn 0000→0173 trên một PGlite trống.
+- Bản `.pglite` cũ của worktree đã chạy số cũ nên sẽ báo lỗi khi migrate lại: tạo bản mới, đừng sửa tay.
+
+Các bước, theo skill `/ship` và các memory "db-migrate green proves nothing on prod", "run a real build before
+ship", "parallel sessions share one worktree":
+
+1. `git fetch`.
+   - `origin/master` đã đi tiếp thì rebase lại, chạy `pnpm check`.
+   - Nhánh có migration mới thì đánh số lại cho `when` cao hơn mọi `created_at` trên Neon.
+2. Trên Neon (chỉ đọc), lấy `max(created_at)` của `drizzle.__drizzle_migrations`. Phải bằng `when` của 0169
+   (1795860220000) hoặc thấp hơn `when` của 0170.
+3. Chạy một bản build production của web trong trình duyệt trước khi ship.
+4. Fast-forward `master` lên `kpi-finish`, rồi push `origin master`.
+   - Cây `kpi-finish` phải sạch.
+   - Deploy từ một worktree tách rời ở đúng commit, không từ cây đang có phiên khác sửa.
+5. Neon migrate 0170→0173, rồi đọc lại trên Neon:
+   - các bảng `contract_credit`, `kpi_transfer`, `kpi_forecast_commit`, `kpi_unit_commit`, `kpi_one_on_one`,
+     `kpi_funnel_target`, `kpi_marketing_budget`;
+   - cột `kpi_role_metric.from_period` và `weight`;
+   - CHECK loại chuông có `kpi-one-on-one`, CHECK touch có `solution-sent`, vai cơ hội có `PRESALES`.
+6. Deploy API lên Fly (`deploy-guardian`), kiểm `/healthz` thật và log worker ở lượt chạy đầu.
+7. Web lên Vercel từ `master`, mở màn KPI khi đã đăng nhập.
+
+Lưu ý khi chạy:
+
+- 0173 làm `kpi_role_metric.from_period` NOT NULL không có mặc định. Giữa bước 5 và 6, bản API cũ lưu cấu hình KPI
+  sẽ lỗi 500 (lỗi rõ, không hỏng dữ liệu). Chạy 5 và 6 liền nhau, báo chủ dự án đừng duyệt cấu hình KPI lúc đó.
+- Hook hay quyền chặn lệnh ghi production thì đưa chủ dự án đúng lệnh `! …`.
+- Migration bị bỏ qua thì dừng và hỏi, không chạy tay SQL.
 
 ## Còn mở
 
