@@ -171,7 +171,8 @@ export const ContractSignShape = z.object({
 
 /** A schedule, once given, must account for the whole paper — both sums. */
 export const ContractSign = ContractSignShape.superRefine((v, ctx) => {
-  for (const issue of creditIssues(v.credits ?? []))
+  /* Absent credits mean 100 % to the closer; only a given split must sum to 100 %. */
+  for (const issue of v.credits ? creditIssues(v.credits) : [])
     ctx.addIssue({ code: 'custom', message: CREDIT_ISSUE_TEXT[issue], path: ['credits'] })
   const rows = v.installments ?? []
   if (rows.length === 0) return
