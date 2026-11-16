@@ -31,10 +31,7 @@ function niceStep(top: number): number {
   return unit * power
 }
 
-/** Which side of its dot a label sits on: above or below, and running right or left of it. */
-export type DotPlace = { above: boolean; right: boolean }
-
-export type ChartDot = { x: number; y: number; code: string; amount: number; place: DotPlace }
+export type ChartDot = { x: number; y: number; code: string; amount: number }
 
 export type Chart = {
   days: number
@@ -49,6 +46,8 @@ export type Chart = {
   targetY: number | null
   todayX: number | null
   dots: ChartDot[]
+  /** Every drawn line in box units (0–100), for placing labels clear of them. */
+  lines: Pt[][]
   signedTotal: number
   /** Where the picked opportunities take the month; `null` with none picked. */
   forecastEnd: number | null
@@ -59,47 +58,113 @@ type Pt = [number, number]
 const pointsOf = (points: string | null): Pt[] =>
   points === null ? [] : points.split(' ').map((p) => p.split(',').map(Number) as Pt)
 
-/** Label box in box units, an estimate of a 110 × 18 px label on a 224 px tall plot. */
-const LABEL_W = 12
-const LABEL_H = 9
+export type Rect = { left: number; top: number; width: number; height: number }
 
-/** Lines the box sits on, counted by walking each segment: a label is never placed on a line
- *  when one of the four corners of its dot is free of them. */
-function crossings(
-  lines: readonly Pt[][],
-  box: { x0: number; x1: number; y0: number; y1: number },
-) {
-  let hits = 0
-  for (const line of lines) {
-    const touched = line.some((from, i) => {
-      const to = line[i + 1]
-      if (!to) return false
-      return Array.from({ length: 25 }, (_, k) => k / 24).some((f) => {
-        const x = from[0] + (to[0] - from[0]) * f
-        const y = from[1] + (to[1] - from[1]) * f
-        return x >= box.x0 && x <= box.x1 && y >= box.y0 && y <= box.y1
-      })
-    })
-    if (touched) hits += 1
+/** Plot height in px; labels are placed in px because their size does not stretch with the box. */
+export const PLOT_H = 224
+export const LABEL_H = 18
+/** Clear space kept between a label and any line, dot or other label. */
+const MARGIN = 6
+const DOT_R = 5
+
+/** A text label's width: a 12 px figure font plus the 4 px padding either side. */
+export const labelWidth = (text: string) => Math.ceil(text.length * 6.8) + 8
+
+/** Whether the segment touches the rect (Liang–Barsky clipping). */
+function segmentHits(a: Pt, b: Pt, r: Rect): boolean {
+  let t0 = 0
+  let t1 = 1
+  const dx = b[0] - a[0]
+  const dy = b[1] - a[1]
+  const edges: [number, number][] = [
+    [-dx, a[0] - r.left],
+    [dx, r.left + r.width - a[0]],
+    [-dy, a[1] - r.top],
+    [dy, r.top + r.height - a[1]],
+  ]
+  for (const [p, q] of edges) {
+    if (p === 0) {
+      if (q < 0) return false
+    } else {
+      const f = q / p
+      if (p < 0) t0 = Math.max(t0, f)
+      else t1 = Math.min(t1, f)
+      if (t0 > t1) return false
+    }
   }
-  const outside = box.x0 < 0 || box.x1 > 100 || box.y0 < 0 || box.y1 > 100
-  return hits + (outside ? 1 : 0)
+  return true
 }
 
-/** Right of the dot first, then left; above first, then below. The first corner with no line wins. */
-function placeOf(dot: Omit<ChartDot, 'place'>, lines: readonly Pt[][]): DotPlace {
-  const corners: DotPlace[] = [
-    { above: true, right: true },
-    { above: false, right: true },
-    { above: true, right: false },
-    { above: false, right: false },
-  ]
-  const scored = corners.map((c) => {
-    const x0 = c.right ? dot.x + 1 : dot.x - 1 - LABEL_W
-    const y0 = c.above ? dot.y - 2 - LABEL_H : dot.y + 2
-    return { c, hits: crossings(lines, { x0, x1: x0 + LABEL_W, y0, y1: y0 + LABEL_H }) }
+const grow = (r: Rect, by: number): Rect => ({
+  left: r.left - by,
+  top: r.top - by,
+  width: r.width + 2 * by,
+  height: r.height + 2 * by,
+})
+
+const overlaps = (a: Rect, b: Rect) =>
+  a.left < b.left + b.width &&
+  b.left < a.left + a.width &&
+  a.top < b.top + b.height &&
+  b.top < a.top + a.height
+
+/** Where each named dot's label goes, in px from the plot's top-left. A spot is taken only
+ *  when no drawn segment, dot, the target label or an earlier label comes within MARGIN of
+ *  it; a dot with no such spot gets no label (its tooltip and the list below name it). */
+export function placeLabels(
+  chart: Chart,
+  size: { width: number; height: number },
+  named: readonly ChartDot[],
+  texts: ReadonlyMap<ChartDot, string>,
+  blocked: readonly Rect[],
+): Map<ChartDot, Rect> {
+  const px = (p: Pt): Pt => [(p[0] / 100) * size.width, (p[1] / 100) * size.height]
+  const segments = chart.lines.flatMap((line) =>
+    line.slice(1).map((to, i) => [px(line[i]!), px(to)] as const),
+  )
+  const dots = chart.dots.map((d) => {
+    const [x, y] = px([d.x, d.y])
+    return { d, r: { left: x - DOT_R, top: y - DOT_R, width: 2 * DOT_R, height: 2 * DOT_R } }
   })
-  return scored.reduce((best, s) => (s.hits < best.hits ? s : best)).c
+  const taken: Rect[] = [...blocked]
+  const placed = new Map<ChartDot, Rect>()
+  for (const dot of named) {
+    const width = labelWidth(texts.get(dot) ?? '')
+    const [cx, cy] = px([dot.x, dot.y])
+    const spots: Rect[] = []
+    for (const lift of [8, 22, 38]) {
+      for (const right of [true, false]) {
+        for (const above of [true, false]) {
+          spots.push({
+            left: right ? cx + 8 : cx - 8 - width,
+            top: above ? cy - lift - LABEL_H : cy + lift,
+            width,
+            height: LABEL_H,
+          })
+        }
+      }
+    }
+    const clear = spots.find((r) => {
+      if (
+        r.left < 0 ||
+        r.left + r.width > size.width ||
+        r.top < 0 ||
+        r.top + r.height > size.height
+      )
+        return false
+      const wide = grow(r, MARGIN)
+      const others = dots.filter((o) => o.d !== dot).map((o) => o.r)
+      return (
+        !segments.some(([a, b]) => segmentHits(a, b, wide)) &&
+        ![...taken, ...others].some((t) => overlaps(wide, t))
+      )
+    })
+    if (clear) {
+      placed.set(dot, clear)
+      taken.push(clear)
+    }
+  }
+  return placed
 }
 
 /** Points are in a 100 × 100 box with y down, drawn with a stretched viewBox. */
@@ -146,6 +211,11 @@ export function chartOf(data: KpiSignedByDayResponse, period: string, now = new 
       [0, y(data.target)],
       [100, y(data.target)],
     ])
+  if (through > 0 && through < days)
+    lines.push([
+      [x(through), 0],
+      [x(through), 100],
+    ])
 
   return {
     days,
@@ -158,7 +228,8 @@ export function chartOf(data: KpiSignedByDayResponse, period: string, now = new 
     pace,
     targetY: data.target === null ? null : y(data.target),
     todayX: through > 0 && through < days ? x(through) : null,
-    dots: dots.map((d) => ({ ...d, place: placeOf(d, lines) })),
+    dots,
+    lines,
     signedTotal,
     forecastEnd,
   }

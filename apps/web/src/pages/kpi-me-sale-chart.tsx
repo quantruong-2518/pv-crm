@@ -1,4 +1,4 @@
-import { Fragment } from 'react'
+import { Fragment, useLayoutEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { GlassCard, Skeleton, cn, percent } from '@pv/ui'
 import type { KpiSignedByDayResponse } from '@pv/contracts'
@@ -9,14 +9,23 @@ import { dm } from '@/lib/date'
 import { NOTE, TILE } from './home-tiles'
 import { printShort, printValue } from './kpi-model'
 import * as copy from './kpi-me-sale-i18n'
-import { chartOf, type Chart } from './kpi-me-sale-model'
+import {
+  LABEL_H,
+  PLOT_H,
+  chartOf,
+  labelWidth,
+  placeLabels,
+  type Chart,
+  type Rect,
+} from './kpi-me-sale-model'
 
 /** Cumulative signed value by day (ADR 0160 §9): the signed line, the dashed line
  *  of the weekly pick, the pace line and the target. The sentence under it is a
  *  template over the same figures.
  *
  *  The lines are one stretched SVG; marks and labels are boxes over it, so a
- *  stretch never squashes a dot or a letter. The figures are in the sentence,
+ *  stretch never squashes a dot or a letter; labels are placed in px, clear of
+ *  every line. The figures are in the sentence,
  *  so the drawing is `aria-hidden` and the box carries one label. */
 
 const LINE = '[vector-effect:non-scaling-stroke] fill-none stroke-2'
@@ -80,15 +89,52 @@ function Sentence({ chart, target }: { chart: Chart; target: number | null }) {
 
 /** Dots that carry a visible label; the rest stay dots, so a busy month does not turn into text. */
 const NAMED_DOTS = 3
+/** Space kept between the target line and its label. */
+const TARGET_GAP = 4
+
+function useWidth() {
+  const ref = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(0)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    setWidth(el.clientWidth)
+    const watch = new ResizeObserver(() => setWidth(el.clientWidth))
+    watch.observe(el)
+    return () => watch.disconnect()
+  }, [])
+  return [ref, width] as const
+}
+
+/** The target's label sits above its line at the left edge, below when there is no room above. */
+function targetBox(chart: Chart, text: string): Rect | null {
+  if (chart.targetY === null) return null
+  const line = (chart.targetY / 100) * PLOT_H
+  const above = line >= LABEL_H + TARGET_GAP
+  return {
+    left: 0,
+    top: above ? line - TARGET_GAP - LABEL_H : line + TARGET_GAP,
+    width: labelWidth(text),
+    height: LABEL_H,
+  }
+}
 
 function Plot({ chart, period, target }: { chart: Chart; period: string; target: string | null }) {
   const { t } = useI18n()
-  const named = new Set([...chart.dots].sort((a, b) => b.amount - a.amount).slice(0, NAMED_DOTS))
+  const [box, width] = useWidth()
   const at = (day: number) => dm(`${period}-${String(day).padStart(2, '0')}`)
   const labelDays = [1, 8, 15, 22, chart.days]
+  const targetText = target === null ? '' : t(copy.targetOf(target))
+  const targetRect = targetBox(chart, targetText)
+  const named = [...chart.dots].sort((a, b) => b.amount - a.amount).slice(0, NAMED_DOTS)
+  const texts = new Map(named.map((d) => [d, `${d.code} · ${printShort('money', d.amount)}`]))
+  const places =
+    width > 0
+      ? placeLabels(chart, { width, height: PLOT_H }, named, texts, targetRect ? [targetRect] : [])
+      : new Map<(typeof named)[number], Rect>()
   return (
     <div className="flex flex-col gap-2 pl-12 pt-4">
-      <div className="relative h-56">
+      <div ref={box} className="relative" style={{ height: PLOT_H }}>
         {chart.ticks.map((tick) => (
           <div
             key={tick}
@@ -143,16 +189,15 @@ function Plot({ chart, period, target }: { chart: Chart; period: string; target:
             </span>
           </div>
         )}
-        {chart.targetY !== null && target !== null && (
+        {targetRect && (
           <span
             className={cn(
               NOTE,
-              'tnum font-num bg-card absolute left-0 whitespace-nowrap rounded-sm px-1',
-              chart.targetY < 12 ? 'translate-y-1' : '-translate-y-full',
+              'tnum font-num bg-card absolute whitespace-nowrap rounded-sm px-1 leading-[18px]',
             )}
-            style={{ top: `${chart.targetY}%` }}
+            style={{ left: targetRect.left, top: targetRect.top }}
           >
-            {t(copy.targetOf(target))}
+            {targetText}
           </span>
         )}
         {chart.dots.map((dot) => (
@@ -162,17 +207,15 @@ function Plot({ chart, period, target }: { chart: Chart; period: string; target:
               className="bg-primary absolute size-2 -translate-x-1/2 translate-y-1/2 rounded-full shadow-[0_0_0_2px_var(--card)]"
               style={{ left: `${dot.x}%`, bottom: `${100 - dot.y}%` }}
             />
-            {named.has(dot) && (
+            {places.has(dot) && (
               <span
                 className={cn(
                   NOTE,
-                  'tnum font-num bg-card absolute whitespace-nowrap rounded-sm px-1',
-                  dot.place.right ? 'ml-2' : '-ml-2 -translate-x-full',
-                  dot.place.above ? '-translate-y-2' : 'translate-y-[calc(100%+8px)]',
+                  'tnum font-num bg-card absolute whitespace-nowrap rounded-sm px-1 leading-[18px]',
                 )}
-                style={{ left: `${dot.x}%`, bottom: `${100 - dot.y}%` }}
+                style={{ left: places.get(dot)!.left, top: places.get(dot)!.top }}
               >
-                {`${dot.code} · ${printShort('money', dot.amount)}`}
+                {texts.get(dot)}
               </span>
             )}
           </Fragment>

@@ -166,9 +166,9 @@ function Legend({ withTarget }: { withTarget: boolean }) {
   )
 }
 
-function CoverageCard({ leading }: { leading: NonNullable<KpiPlanResponse['leading']> }) {
+function StagesCard({ leading }: { leading: NonNullable<KpiPlanResponse['leading']> }) {
   const { t, lang } = useI18n()
-  const { coverage, stages } = leading
+  const { stages } = leading
   const fact = bottleneckOf(
     stages.map((s) => ({
       rate: s.rate,
@@ -178,6 +178,35 @@ function CoverageCard({ leading }: { leading: NonNullable<KpiPlanResponse['leadi
   )
   const stuck = fact ? stages[fact.at]! : null
   const hasTarget = stages.some((s) => s.target !== null)
+  return (
+    <GlassCard className={TILE}>
+      <h3 className="text-[13px] font-semibold leading-5">
+        {t(copy.stagesTitle(KPI_PLAN_MONTHS))}
+      </h3>
+      <Legend withTarget={hasTarget} />
+      <div className="grid grid-cols-1 gap-x-8 gap-y-3 xl:grid-cols-2">
+        {stages.map((stage) => (
+          <StageRow key={stage.stage} stage={stage} />
+        ))}
+      </div>
+      {stuck && fact && (
+        <p className="tnum font-num m-0 text-[12.5px] leading-5">
+          {t(
+            copy.bottleneck(
+              kpiFunnelStepText(stuck.stage, lang),
+              percent(stuck.rate ?? 0),
+              fact.kind === 'neck' ? percent(stuck.target ?? 0) : null,
+            ),
+          )}
+        </p>
+      )}
+    </GlassCard>
+  )
+}
+
+function CoverageCard({ leading }: { leading: NonNullable<KpiPlanResponse['leading']> }) {
+  const { t } = useI18n()
+  const { coverage } = leading
   return (
     <GlassCard className={TILE}>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -230,31 +259,11 @@ function CoverageCard({ leading }: { leading: NonNullable<KpiPlanResponse['leadi
           {t(copy.gaugeScale(COVERAGE_AXIS_MAX))}
         </p>
       )}
-      <div className="flex flex-col gap-3 pt-3">
-        <span className="text-[13px] font-semibold leading-5">
-          {t(copy.stagesTitle(KPI_PLAN_MONTHS))}
-        </span>
-        <Legend withTarget={hasTarget} />
-        {stages.map((stage) => (
-          <StageRow key={stage.stage} stage={stage} />
-        ))}
-        {stuck && fact && (
-          <p className="tnum font-num m-0 text-[12.5px] leading-5">
-            {t(
-              copy.bottleneck(
-                kpiFunnelStepText(stuck.stage, lang),
-                percent(stuck.rate ?? 0),
-                fact.kind === 'neck' ? percent(stuck.target ?? 0) : null,
-              ),
-            )}
-          </p>
-        )}
-      </div>
     </GlassCard>
   )
 }
 
-/** One read, two cards; each shows its own load error (ADR 0159 §8). */
+/** One read, three cards; each shows its own load error (ADR 0159 §8). */
 export function PlanSection({
   read,
   signed,
@@ -273,9 +282,12 @@ export function PlanSection({
   const data = read.data
   if (!data || (!data.plan && !data.leading)) return null
   return (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-      {data.plan && <PlanCard plan={data.plan} signed={signed} />}
-      {data.leading && <CoverageCard leading={data.leading} />}
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
+        {data.plan && <PlanCard plan={data.plan} signed={signed} />}
+        {data.leading && <CoverageCard leading={data.leading} />}
+      </div>
+      {data.leading && <StagesCard leading={data.leading} />}
     </div>
   )
 }

@@ -28,6 +28,19 @@ import { WeeklyChart } from './kpi-weekly-chart'
  *  should grow, a tick at the limit for one that must stay under it; the words
  *  beside it say the same, so the bar is hidden from assistive tech. */
 
+/** Columns for the metric tiles, chosen by count so a row is never left with one tile
+ *  alone: three share a row, four go two by two then four across. */
+const columnsOf = (n: number) =>
+  n === 1
+    ? ''
+    : n % 3 === 0
+      ? 'md:grid-cols-3'
+      : n === 4
+        ? 'md:grid-cols-2 xl:grid-cols-4'
+        : n % 2 === 0
+          ? 'md:grid-cols-2'
+          : 'md:grid-cols-2 xl:grid-cols-3'
+
 const FIGURE = 'tnum font-num font-semibold leading-none'
 
 function Counted({ item }: { item: KpiItem }) {
@@ -232,7 +245,7 @@ export function PersonalBoard({
       {(weekly || !hero) && between}
       {chart}
       {rest.length > 0 && (
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-4">
+        <div className={cn('grid grid-cols-1 gap-4', columnsOf(rest.length))}>
           {rest.map((item) => (
             <MetricTile key={item.def.key} item={item} />
           ))}
