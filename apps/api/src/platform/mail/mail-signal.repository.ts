@@ -1,5 +1,6 @@
 import { and, eq, inArray, ne, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
+import { ENV, type Env } from '@api/platform/config/env'
 import { DB, type Db } from '@api/platform/db/db.module'
 import {
   advances,
@@ -14,6 +15,7 @@ import {
   type WebhookOutcome,
 } from './mail.contract'
 import { normalAddress, pinBlame } from './mail-address'
+import { redirectOn } from './mail-redirect'
 import type { MailSent } from './mail-sent.hook'
 import {
   emailDelivery,
@@ -29,7 +31,10 @@ import { mailRun } from './mail-run.schema'
  *  keeps the outbox/claim/settle half under the file-size cap. */
 @Injectable()
 export class MailSignalRepository implements MailSignals {
-  constructor(@Inject(DB) private readonly db: Db) {}
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    @Inject(ENV) private readonly env: Env,
+  ) {}
 
   /** Three steps, each one a possible early exit — order matters.
    *
@@ -74,7 +79,12 @@ export class MailSignalRepository implements MailSignals {
        suppressed — an archive line, not a recipient the counterparty can
        complain about; `MailConsumer` never suppression-checks it either. */
     const runCopy = delivery?.role === 'run_copy'
-    const blames = !runCopy && (event.state === 'bounced' || event.state === 'complained')
+    /* Redirect on: the provider only saw the target mailbox, so no original
+       address is blamed. The delivery's own state still advances below. */
+    const blames =
+      !runCopy &&
+      !redirectOn(this.env) &&
+      (event.state === 'bounced' || event.state === 'complained')
     const rows = delivery && blames ? await this.sentAddressesOf(delivery.id) : []
     /* A letter with no address rows (bulk, copy, one-off) blames its one
        recipient, which stands in as the sole To; a delivery we never sent can
@@ -160,7 +170,8 @@ export class MailSignalRepository implements MailSignals {
       .where(eq(emailDelivery.id, deliveryId))
       .limit(1)
     const named = [...new Set(bounce.addresses.map(normalAddress))]
-    if (!delivery || named.length === 0) return 0
+    /* Redirect on: the bounce is about the target mailbox, not these addresses. */
+    if (!delivery || named.length === 0 || redirectOn(this.env)) return 0
 
     const standing = await this.db
       .select({ address: emailDeliveryAddress.address })

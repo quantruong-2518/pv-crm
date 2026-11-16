@@ -1,4 +1,4 @@
-import { Module, type DynamicModule, type ModuleMetadata, type Type } from '@nestjs/common'
+import { Logger, Module, type DynamicModule, type ModuleMetadata, type Type } from '@nestjs/common'
 import { ENV, type Env } from '@api/platform/config/env'
 import { GoogleGmail } from '@api/platform/google/google-gmail.client'
 import { GoogleModule } from '@api/platform/google/google.module'
@@ -7,8 +7,15 @@ import { ConsoleMailDriver } from './console.driver'
 import { GmailMailDriver } from './gmail.driver'
 import { GmailSweepRepository } from './gmail-sweep.repository'
 import { GmailThreadSweeper } from './gmail-thread.sweeper'
+import { redirectOn, withRedirect } from './mail-redirect'
 import { MailBell } from './mail-bell'
-import { MAIL_ENQUEUE, MAIL_LEDGER, MAIL_PORT, type MailPort } from './mail.contract'
+import {
+  MAIL_ENQUEUE,
+  MAIL_LEDGER,
+  MAIL_PORT,
+  MAIL_PORT_DIRECT,
+  type MailPort,
+} from './mail.contract'
 import { MailHealthController, MailWebhookController } from './mail-webhook.controller'
 import { MailRepository } from './mail.repository'
 import { MailSignalRepository } from './mail-signal.repository'
@@ -28,8 +35,9 @@ import { UnsubscribeController } from './unsubscribe.controller'
  *     inside its own transaction. It cannot send.
  *   · `MAIL_LEDGER`  — the full ledger. The worker and the webhook door.
  *   · `MAIL_PORT`    — the provider. Nothing outside the worker should ask.
+ *   · `MAIL_PORT_DIRECT` — the same, minus the redirect: auth letters only.
  *
- *  Three tokens rather than one exported class is what keeps "the Sales branch
+ *  Tokens rather than one exported class is what keeps "the Sales branch
  *  may promise a mail" from quietly becoming "the Sales branch may send mail
  *  from inside a web request".
  *
@@ -86,7 +94,7 @@ import { UnsubscribeController } from './unsubscribe.controller'
     { provide: MAIL_LEDGER, useExisting: MailRepository },
     { provide: MAIL_ENQUEUE, useExisting: MailRepository },
     {
-      provide: MAIL_PORT,
+      provide: MAIL_PORT_DIRECT,
       inject: [ENV, GoogleGmail],
       /* The flag still decides first: off means NOTHING leaves, personal
          letters included. On, `flow` picks the pipe — a personal letter never
@@ -101,11 +109,33 @@ import { UnsubscribeController } from './unsubscribe.controller'
         }
       },
     },
+    {
+      provide: MAIL_PORT,
+      inject: [ENV, MAIL_PORT_DIRECT],
+      /* Flag off: the direct port is already the console, nothing to redirect. */
+      useFactory: (env: Env, direct: MailPort): MailPort => {
+        /* Once per process; never the target address, the repo and its logs are public. */
+        new Logger('mail').log(
+          redirectOn(env)
+            ? `mail redirect ON · cap ${env.PV_EMAIL_REDIRECT_DAILY_CAP}/day`
+            : 'mail redirect off',
+        )
+        return env.PV_EMAIL_ENABLED
+          ? withRedirect(
+              direct,
+              new ConsoleMailDriver(),
+              env.PV_EMAIL_REDIRECT_TO,
+              env.PV_EMAIL_REDIRECT_DAILY_CAP,
+            )
+          : direct
+      },
+    },
   ],
   exports: [
     MAIL_LEDGER,
     MAIL_ENQUEUE,
     MAIL_PORT,
+    MAIL_PORT_DIRECT,
     MailRunRepository,
     MailRunSweeper,
     MailDomainCheck,

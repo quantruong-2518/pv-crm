@@ -3,6 +3,7 @@ import 'reflect-metadata'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { GoogleCalendar } from './google-calendar.client'
 import type { GoogleAccess } from './google-access'
+import type { Env } from '../config/env'
 
 vi.mock('./google-access', () => ({ GoogleAccess: class {} }))
 vi.mock('./google-oauth.client', () => ({ GOOGLE_TIMEOUT_MS: 8_000 }))
@@ -17,7 +18,14 @@ const EVENT = {
   attendees: ['khach@example.com'],
 }
 const access = { tokenFor: async () => ({ state: 'ok', token: 't', email: 'a@b.vn' }) }
-const calendar = new GoogleCalendar(access as unknown as GoogleAccess)
+const calendarFor = (redirectTo: string) =>
+  new GoogleCalendar(
+    access as unknown as GoogleAccess,
+    {
+      PV_EMAIL_REDIRECT_TO: redirectTo,
+    } as Env,
+  )
+const calendar = calendarFor('')
 const reply = (status: number) =>
   new Response(
     status < 300 ? JSON.stringify({ id: STABLE, htmlLink: 'https://calendar.google.com/e' }) : '{}',
@@ -73,5 +81,34 @@ describe('GoogleCalendar.put', () => {
   it('reports a refused insert as failed', async () => {
     stub(500)
     expect(await calendar.put('a1', null, STABLE, EVENT)).toEqual({ state: 'failed' })
+  })
+})
+
+describe('sendUpdates', () => {
+  const urls = async (redirectTo: string): Promise<string[]> => {
+    const seen: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        seen.push(url)
+        return reply(200)
+      }),
+    )
+    const target = calendarFor(redirectTo)
+    await target.put('a1', null, STABLE, EVENT)
+    await target.remove('a1', STABLE)
+    return seen
+  }
+
+  it('mails the guests while the redirect is off', async () => {
+    const seen = await urls('')
+    expect(seen).toHaveLength(2)
+    expect(seen.every((u) => u.includes('sendUpdates=all'))).toBe(true)
+  })
+
+  it('tells Google to mail nobody while the redirect is on', async () => {
+    const seen = await urls('owner@demo.example')
+    expect(seen).toHaveLength(2)
+    expect(seen.every((u) => u.includes('sendUpdates=none'))).toBe(true)
   })
 })

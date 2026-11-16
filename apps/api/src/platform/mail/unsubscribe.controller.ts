@@ -3,6 +3,7 @@ import { Public } from '@api/platform/access/need.decorator'
 import { MachineDoor } from '@api/platform/http/cross-site.guard'
 import { ENV, type Env } from '@api/platform/config/env'
 import { MAIL_LEDGER, type MailLedger } from './mail.contract'
+import { redirectOn } from './mail-redirect'
 import { MailSignalRepository } from './mail-signal.repository'
 import { verify } from './unsubscribe-token'
 
@@ -167,7 +168,8 @@ export class UnsubscribeController {
       return false
     }
 
-    await this.ledger.suppress(recipient, 'unsubscribe', 'operator')
+    /* Redirect on: the click came from the target mailbox, not the recipient. */
+    if (!redirectOn(this.env)) await this.ledger.suppress(recipient, 'unsubscribe', 'operator')
     const recorded = await this.signals.recordEngagement({
       svixId: null,
       kind: 'UNSUBSCRIBE',

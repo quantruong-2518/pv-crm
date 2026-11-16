@@ -175,6 +175,10 @@ export interface MailPort {
 
 export const MAIL_PORT = Symbol('pv.mail.port')
 
+/** The same provider with no redirect and no daily cap. Only a letter whose
+ *  reader is the person who just asked for it (password reset, invite) may use it. */
+export const MAIL_PORT_DIRECT = Symbol('pv.mail.port.direct')
+
 // ---------------------------------------------------------------------------
 // What a branch writes inside its own transaction
 // ---------------------------------------------------------------------------

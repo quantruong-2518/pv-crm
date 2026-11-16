@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { Inject, Injectable, Logger } from '@nestjs/common'
 import { renderPasswordReset } from '@pv/mail-templates'
 import { brandAssetUrl, ENV, type Env } from '../config/env'
-import { MAIL_PORT, type MailMessage, type MailPort } from '../mail/mail.contract'
+import { MAIL_PORT_DIRECT, type MailMessage, type MailPort } from '../mail/mail.contract'
 import type { ResetMailer, ResetTicketIssued } from './reset-mailer'
 
 /** THE SET-PASSWORD LETTER — composed and posted INLINE, off the ledger.
@@ -90,7 +90,7 @@ export class PasswordResetMailer implements ResetMailer {
 
   constructor(
     @Inject(ENV) private readonly env: Env,
-    @Inject(MAIL_PORT) private readonly mail: MailPort,
+    @Inject(MAIL_PORT_DIRECT) private readonly mail: MailPort,
   ) {}
 
   async send(issued: ResetTicketIssued): Promise<void> {

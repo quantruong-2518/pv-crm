@@ -3,6 +3,7 @@ import type { JobResult, JobWithMetadata } from 'pg-boss'
 import { ENV, type Env } from '../config/env'
 import { DB, type Db } from '../db/db.module'
 import { MailBell } from '../mail/mail-bell'
+import { redirectOn } from '../mail/mail-redirect'
 import {
   EMAIL_QUEUE,
   MAIL_LEDGER,
@@ -345,6 +346,7 @@ export class MailConsumer {
     unknown: boolean,
   ): Promise<void> {
     const blamesAddress =
+      !redirectOn(this.env) &&
       failure.kind === 'permanent' &&
       failure.blamesRecipient === true &&
       delivery.role === 'recipient' &&

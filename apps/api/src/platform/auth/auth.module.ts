@@ -36,7 +36,7 @@ import { SessionSweeper } from './session.sweeper'
  *  decides who may sign in — see the long note in `reset-mailer.ts` for what
  *  an implementation must respect. That rebinding has now happened:
  *  `PasswordResetMailer` renders the real body and posts it through
- *  `MAIL_PORT`, and this line is the whole of the change it needed.
+ *  `MAIL_PORT_DIRECT`, and this line is the whole of the change it needed.
  *
  *  `LoggingResetMailer` stays in `reset-mailer.ts`, unbound. It is not dead
  *  code: it is what a test module or a machine deliberately built without a
@@ -51,7 +51,7 @@ import { SessionSweeper } from './session.sweeper'
  *  ------------------------------------------------------------------
  *  `MailModule` IS IMPORTED FOR EXACTLY ONE PROVIDER
  *  ------------------------------------------------------------------
- *  `PasswordResetMailer` injects `MAIL_PORT`, and `MailModule` is not
+ *  `PasswordResetMailer` injects `MAIL_PORT_DIRECT`, and `MailModule` is not
  *  `@Global()` — only `ConfigModule` and `DbModule` are, and `app.module.ts`
  *  explains why that list is short. So the edge has to be declared, and
  *  declaring it here rather than leaning on the fact that `AppModule` already
@@ -59,8 +59,10 @@ import { SessionSweeper } from './session.sweeper'
  *  reaching a platform module by way of a branch that happens to be in the
  *  tree.
  *
- *  `MAIL_PORT` and NOT `MAIL_ENQUEUE`, which is the token every other sender in
- *  this codebase holds. That is the deliberate exception, and its reasoning —
+ *  `MAIL_PORT_DIRECT` and NOT `MAIL_ENQUEUE`, which is the token every other sender in
+ *  this codebase holds. DIRECT and not `MAIL_PORT`: that one re-addresses every
+ *  letter while `PV_EMAIL_REDIRECT_TO` is set, and the person who asked for a
+ *  password link must be the one who receives it. That is the deliberate exception, and its reasoning —
  *  the reset token would otherwise be written in clear into
  *  `platform.email_delivery.merge`, defeating the hash in
  *  `platform.password_reset` — is written out at the top of

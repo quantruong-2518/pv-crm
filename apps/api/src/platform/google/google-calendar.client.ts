@@ -1,5 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Inject, Injectable, Logger } from '@nestjs/common'
 import { z } from 'zod'
+import { ENV, type Env } from '../config/env'
+import { redirectOn } from '../mail/mail-redirect'
 import { GoogleAccess } from './google-access'
 import { GOOGLE_TIMEOUT_MS } from './google-oauth.client'
 
@@ -45,7 +47,16 @@ const EventBody = z.object({
 export class GoogleCalendar {
   private readonly log = new Logger('google')
 
-  constructor(private readonly access: GoogleAccess) {}
+  constructor(
+    private readonly access: GoogleAccess,
+    @Inject(ENV) private readonly env: Env,
+  ) {}
+
+  /** `none` while mail is redirected: Google would otherwise mail the real
+   *  attendees itself, past every letter we re-address. */
+  private get sendUpdates(): 'all' | 'none' {
+    return redirectOn(this.env) ? 'none' : 'all'
+  }
 
   /** Patch `eventId`, or insert under `stableId` — the caller's id, so a retried
    *  insert whose first try Google took (reply lost to the deadline) cannot make a
@@ -64,7 +75,7 @@ export class GoogleCalendar {
     const token = access.token
 
     const body = eventBody(event)
-    const query = '?conferenceDataVersion=1&sendUpdates=all'
+    const query = `?conferenceDataVersion=1&sendUpdates=${this.sendUpdates}`
     const patch = (id: string, extra: object = {}) =>
       this.call(
         `${EVENTS_URL}/${encodeURIComponent(id)}${query}`,
@@ -91,15 +102,15 @@ export class GoogleCalendar {
     }
   }
 
-  /** Cancellation mailed to the guests. True = the event is gone, an event
-   *  already gone (404/410) included; false = not connected or Google refused,
-   *  so a sweeper may try again. */
+  /** Cancellation mailed to the guests, unless mail is redirected. True = the
+   *  event is gone, an event already gone (404/410) included; false = not
+   *  connected or Google refused, so a sweeper may try again. */
   async remove(ownerId: string, eventId: string): Promise<boolean> {
     const signal = AbortSignal.timeout(GOOGLE_TIMEOUT_MS)
     const access = await this.access.tokenFor(ownerId, signal)
     if (access.state !== 'ok') return false
     const response = await this.call(
-      `${EVENTS_URL}/${encodeURIComponent(eventId)}?sendUpdates=all`,
+      `${EVENTS_URL}/${encodeURIComponent(eventId)}?sendUpdates=${this.sendUpdates}`,
       'DELETE',
       access.token,
       signal,

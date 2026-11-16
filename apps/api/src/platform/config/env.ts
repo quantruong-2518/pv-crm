@@ -101,6 +101,21 @@ const Env = z
       .enum(['true', 'false'])
       .default('false')
       .transform((v) => v === 'true'),
+    /** One mailbox; non-empty = every letter goes there instead of its real
+     *  recipients (demo book on production holds real staff). Empty = off. */
+    PV_EMAIL_REDIRECT_TO: z
+      .string()
+      .trim()
+      .default('')
+      .refine((v) => v === '' || z.email().safeParse(v).success, {
+        message: 'must be empty or one email address',
+      }),
+    /** Letters per Vietnam day, per process, redirected; the rest are held.
+     *  An empty string (`KEY=` in a .env) means the default, not a crash. */
+    PV_EMAIL_REDIRECT_DAILY_CAP: z.preprocess(
+      (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+      z.coerce.number().int().min(1).default(20),
+    ),
     /** Phải thuộc domain đã verify trên Resend. Nhìn thấy được nên để trong repo. */
     PV_EMAIL_FROM: z.string().default('Pebble Vina CRM <leads@notify.pebblevina.com>'),
     PV_EMAIL_REPLY_TO: z.string().default(''),
