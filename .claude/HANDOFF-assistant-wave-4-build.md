@@ -22,4 +22,6 @@ Viết 16/11/2026. Worktree `~/workspace/pv-crm-wave4`, nhánh `assistant-wave-4
 
 - Bản build production đã mở headless 16/11: `/`, `/assistant` (phiên giả), `/kit` không pageerror; mẫu M-09 trong kit đạt tương phản ≥ 6,39:1 và nút 48px trên tablet ở cả ba theme. Chưa ai thấy một đề xuất thật trong cuộc trò chuyện; chưa gọi HTTP thật tới `/assistant/proposals/:id/apply|dismiss` (chỉ thử qua service).
 - Đã ship 16/11: master 3e709c80, Neon 0174 (ledger id 172), Fly v227, /healthz ok, api + worker started. Chưa ai bấm một đề xuất trên production.
-- Gate 0 OPEN; v15–v17 chưa chạy live. Thêm câu live cho propose (không nói "đã làm", không chép link vào bước).
+- Gate 0 OPEN; v15–v17 chưa chạy live.
+- 16/11 thêm nhóm live `propose` 7 câu (`eac1fd6a` trên origin/master, chỉ eval + docs, không cần deploy): ghế `cases-propose`, chuỗi `cases-propose` có lệnh cài trong `pain`; kiểm cố định ở `apps/api/src/scripts/ai-eval/cases-propose.ts`. Scripted 7/7. Nhóm được báo, không vào công thức gate. Chưa chạy live. Giới hạn: mỗi câu chạy 1 lần; không có câu "xong" khi đã có bước hay dời hạn (chưa seed `next_step`); propose-03 trượt nếu model thử link một lần rồi tự sửa.
+- Chạy live phải từ worktree này (cây chính đang ở prompt v14), chủ dự án chạy bằng `!` vì phiên không đọc được khoá Fly.
