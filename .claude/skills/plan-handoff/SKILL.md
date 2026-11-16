@@ -41,7 +41,7 @@ write the command instead.
 
 `<slug>` is kebab-case English, one per body of work. Existing slug: update in
 place. Body in Vietnamese (CLAUDE.md language rule); identifiers, paths and
-commands stay as they are. Take the shape from `.claude/HANDOFF-assistant-wave-2.md`
+commands stay as they are. Take the shape from `.claude/HANDOFF-assistant-wave-4.md`
 — read it before writing:
 
 ```md
