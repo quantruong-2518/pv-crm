@@ -30,7 +30,7 @@ import type { OpportunityService } from '../opportunity/opportunity.service'
 import { WorkstreamController } from '../workstream/workstream.controller'
 import type { WorkstreamService } from '../workstream/workstream.service'
 
-/** `count_records`: how many leads, deals, journeys and lead sources the asker may see now (ADR 0155).
+/** `count_records`: how many leads, deals, journeys and lead sources the asker may see now (ADR 0161).
  *
  *  Only doors that cut rows to the asker's scope (`scoped: true`) are read, each with an empty
  *  filter, so a count is the asker's whole visible book.

@@ -116,7 +116,7 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
   - Owner decided 11/11/2026: production keeps counts only, never question text.
   - Owner decided 11/11/2026: no counting tool beyond KPI is planned now (for
     example "how many leads at stage X"); revisit after gate 0 shows real users
-    ask it. Superseded by ADR 0155 (16/11/2026).
+    ask it. Superseded by ADR 0161 (16/11/2026).
   - Fly worker machine `080d706a106718` (a stopped standby of worker
     `185d01da193698`, which no longer existed; no volume) was destroyed by the
     owner on 11/11/2026. `fly machines list` then showed two started machines:
@@ -125,7 +125,7 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
     filters.
   - The eval seed covers `signed-value` only; no ratio metric is seeded.
   - Durations rely on the prompt; no binder key family or formatter yet. Period
-    labels are handled by ADR 0155.
+    labels are handled by ADR 0161.
 - A-3, finding several contacts for a lead: approved 01/11, not built (10/11: a
   grep of `apps/api/src` for a legal representative or a leadership page finds
   nothing). Sources: legal representative from the business register, "Ban lãnh

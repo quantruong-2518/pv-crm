@@ -23,7 +23,7 @@ import { PerformanceController } from '../performance/performance.controller'
 import { PerformanceService } from '../performance/performance.service'
 import { exitsRead, figuresRead, industriesRead, moneyRead } from './get-performance-shape'
 
-/** `get_performance`: the overview's room-wide figures of one period (ADR 0155).
+/** `get_performance`: the overview's room-wide figures of one period (ADR 0161).
  *
  *  One tool, four doors, and `part` picks exactly one: a call checks that door's need
  *  alone, and a stored answer replays under the same permission (`reveals` reads the

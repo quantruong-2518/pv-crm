@@ -1,4 +1,4 @@
-# 0155 · The assistant reads the overview figures through `get_performance` and counts the asker's own books through `count_records`
+# 0161 · The assistant reads the overview figures through `get_performance` and counts the asker's own books through `count_records`
 
 Status: accepted (reverses points 1 and 4 of the 11/11/2026 amendment of 0151; written before the code, built, not shipped)
 Date: 2026-11-16
@@ -10,7 +10,7 @@ The 11/11/2026 amendment of ADR 0151 said two things: the assistant reads no
 room-scope figures, and no counting tool is planned. The owner reversed both on
 16/11/2026, choosing parity with the overview screen (Tổng quan): the assistant
 shows room-wide figures exactly as that screen shows them, to whoever the
-screen's doors admit. Open question 183 (a counting tool) is answered yes, on
+screen's doors admit. Open question 198 (a counting tool; numbered 183 in the planning doc) is answered yes, on
 scoped doors only.
 
 Gate 0 is still OPEN: prompt v15 has never run live. Shipping wave 3 needs the
