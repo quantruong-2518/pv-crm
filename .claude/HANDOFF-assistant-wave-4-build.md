@@ -1,4 +1,4 @@
-# Bàn giao · Trợ lý CRM đợt 4 (làm hộ) — đã dựng, chưa ship
+# Bàn giao · Trợ lý CRM đợt 4 (làm hộ) — đã lên production
 
 Viết 16/11/2026. Worktree `~/workspace/pv-crm-wave4`, nhánh `assistant-wave-4` (nền origin/master 0a00ed6f).
 
@@ -21,5 +21,5 @@ Viết 16/11/2026. Worktree `~/workspace/pv-crm-wave4`, nhánh `assistant-wave-4
 ## Chưa làm
 
 - Bản build production đã mở headless 16/11: `/`, `/assistant` (phiên giả), `/kit` không pageerror; mẫu M-09 trong kit đạt tương phản ≥ 6,39:1 và nút 48px trên tablet ở cả ba theme. Chưa ai thấy một đề xuất thật trong cuộc trò chuyện; chưa gọi HTTP thật tới `/assistant/proposals/:id/apply|dismiss` (chỉ thử qua service).
-- Ship: migration 0174 lên Neon trước, rồi deploy API (`/ship`), web qua Vercel khi merge master. Kiểm `when` của 0174 vẫn cao nhất so với master lúc merge.
+- Đã ship 16/11: master 3e709c80, Neon 0174 (ledger id 172), Fly v227, /healthz ok, api + worker started. Chưa ai bấm một đề xuất trên production.
 - Gate 0 OPEN; v15–v17 chưa chạy live. Thêm câu live cho propose (không nói "đã làm", không chép link vào bước).

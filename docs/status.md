@@ -110,8 +110,9 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
   - The web wait-line labels for `list_customers` are not added; it falls back to
     the generic line, as `get_history` does.
 - CRM assistant wave 4, next-step cards (ADR 0162), debt:
-  - Built 16/11/2026 on branch `assistant-wave-4`, migration 0174; not shipped.
-    Prompt v17 never run live; gate 0 OPEN.
+  - On production 16/11/2026 at 3e709c80, Fly v227, /healthz ok; migration
+    0174 on Neon (ledger id 172). Owner's call with gate 0 OPEN; prompt v17
+    never run live, and no proposal has been pressed on production yet.
   - No screen has seen a card: states, narrow panel, tablet press, three themes.
     Korean copy unreviewed.
   - No web screen draws the touch timeline, so the `assistant-applied` mark is

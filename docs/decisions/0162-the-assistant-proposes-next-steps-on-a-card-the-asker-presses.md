@@ -1,6 +1,6 @@
 # 0162 · The assistant proposes next steps on a card the asker presses, and the press writes through the step door as the presser
 
-Status: accepted (built 16/11/2026 on branch `assistant-wave-4`, not shipped; prompt v17 never run live, gate 0 OPEN)
+Status: accepted (on production 16/11/2026: 3e709c80, Fly v227, Neon 0174; prompt v17 never run live, gate 0 OPEN)
 Date: 2026-11-16
 Source: wave 4 of the CRM assistant ("làm hộ"), owner answers of 16/11/2026 to the six questions of `.claude/HANDOFF-assistant-wave-4.md`; ADR 0133 §1–3
 
