@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { AppShell, GlassCard, ScreenHeader, ScreenLayout, Select } from '@pv/ui'
 import { isTieredPeriod, stepSalesPeriod, type KpiDeskResponse } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
+import { useSession } from '@/app/auth'
 import { message, useI18n } from '@/app/i18n'
 import { KpiTabs } from '@/components/kpi-tabs'
 import { kpiCatalogFor, withCatalog, type KpiCatalog } from '@/data/kpi-catalog'
@@ -73,6 +74,8 @@ function UnitBody({
   const seat = desk.units.find((u) => u.unitId === view?.unitId) ?? desk.units[0]
   const acts = seat !== undefined && seat.seat !== 'above'
   const tiered = isTieredPeriod(period)
+  /* The desk lists the unit's other people only, so a Marketing head would never see their own. */
+  const inMarketing = useSession((s) => s.actor?.roleIds?.includes('marketing') ?? false)
   const forecast = useQuery({
     ...kpiUnitForecastQuery(period, view?.unitId ?? ''),
     enabled: tiered && view !== null,
@@ -140,7 +143,7 @@ function UnitBody({
         coverageLow={view.coverageLow}
         accuracy={view.lastAccuracy}
       />
-      {view.members.some((m) => m.role === 'marketing') && (
+      {(inMarketing || view.members.some((m) => m.role === 'marketing')) && (
         <MarketingBudgetCard period={period} unitId={view.unitId} />
       )}
       <MembersCard catalog={catalog} members={view.members} period={period} scoreOf={oneMonth} />

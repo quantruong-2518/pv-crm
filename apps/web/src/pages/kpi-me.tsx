@@ -22,7 +22,7 @@ import { useAppChrome } from '@/app/chrome'
 import { toastDone, toastFail } from '@/app/toast'
 import { kpiMeQuery, useAcknowledgeKpi } from '@/data/kpi'
 import { kpiAllocationsQuery } from '@/data/kpi-allocation'
-import { kpiCatalogFor, withCatalog, type KpiCatalog } from '@/data/kpi-catalog'
+import { defOf, kpiCatalogFor, withCatalog, type KpiCatalog } from '@/data/kpi-catalog'
 import { flagsOf } from '@/data/kpi-forecast'
 import { kpiTeamRosterQuery } from '@/data/kpi-team-roster'
 import { answerable, kpiForecastMeQuery, myPackages, type MyPackage } from '@/data/kpi-personal'
@@ -137,8 +137,9 @@ function RoleBoard({
         role={card.role}
         readings={card.readings}
         between={between}
+        /* A room-scope signed value is not the person's own credit, so the chart would draw 0. */
         chart={
-          actorId && card.readings.some((r) => r.key === 'signed-value') ? (
+          actorId && defOf(catalog, card.role, 'signed-value')?.scope === 'own' ? (
             <SignedByDayChart period={period} actorId={actorId} />
           ) : undefined
         }
@@ -320,7 +321,9 @@ function MonthBody({ pick }: { pick: PeriodPick }) {
                   forecast={forecast.data}
                   actorId={actorId}
                   between={
-                    i === 0 ? <ScoreCard period={lastClosed} actorId={actorId} /> : undefined
+                    i === 0 ? (
+                      <ScoreCard period={stepSalesPeriod(data.period, -1)} actorId={actorId} />
+                    ) : undefined
                   }
                 />
               ))}

@@ -33,7 +33,8 @@ export function PersonRow({
   tag?: string | false | null | undefined
   /** A string prints as a muted line; any other node (a caption) as it is. */
   lines?: ReactNode[]
-  door?: { label: string; icon: IconGlyph; onClick: () => void } | undefined
+  /** `text` draws the door as a labelled button: an empty seat's way in must read as one. */
+  door?: { label: string; icon: IconGlyph; onClick: () => void; text?: string } | undefined
   /** An edit pencil beside the name, for a person the reader may change. */
   edit?: { label: string; onClick: () => void } | undefined
 }) {
@@ -98,12 +99,12 @@ export function PersonRow({
         <Button
           size="sm"
           variant="ghost"
-          className={QUIET}
+          className={door.text ? 'pointer-coarse:h-12 shrink-0' : QUIET}
           title={door.label}
           aria-label={door.label}
           onClick={door.onClick}
         >
-          <Icon icon={door.icon} size={16} />
+          {door.text ?? <Icon icon={door.icon} size={16} />}
         </Button>
       )}
     </li>

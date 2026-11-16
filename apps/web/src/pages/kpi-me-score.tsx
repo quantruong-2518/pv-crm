@@ -7,7 +7,6 @@ import { kpiMetricText } from '@/data/kpi-i18n'
 import { kpiScoreQuery } from '@/data/kpi-score'
 import { num } from './home-model'
 import { NOTE, TILE } from './home-tiles'
-import { monthWord } from './kpi-model'
 import { Track } from './kpi-me-sale-bars'
 import * as copy from './kpi-me-sale-i18n'
 import { SCORE_CAP, share } from './kpi-me-sale-model'
@@ -65,6 +64,8 @@ export function ScoreCard({ period, actorId }: { period: string; actorId: string
   }
   const score = read.data?.score
   if (!score) return null
+  /* Month and year always, so a month of another year is never read as this year's. */
+  const label = `${score.period.slice(5)}/${score.period.slice(0, 4)}`
 
   return (
     <GlassCard className={cn(TILE, 'p-5')}>
@@ -72,9 +73,9 @@ export function ScoreCard({ period, actorId }: { period: string; actorId: string
         <h3 className="text-[13px] font-semibold leading-5">
           {t(
             message(
-              `Điểm ${monthWord(score.period)}`,
-              `Score for ${monthWord(score.period)}`,
-              `${monthWord(score.period)} 점수`,
+              `Điểm tháng ${label}`,
+              `Score for month ${label}`,
+              `${score.period.slice(0, 4)}년 ${Number(score.period.slice(5))}월 점수`,
             ),
           )}
         </h3>

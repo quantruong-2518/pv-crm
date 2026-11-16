@@ -9,8 +9,7 @@ import { KpiCardError } from '@/components/kpi-tabs'
 import { kpiMarketingBudgetQuery, useSaveKpiMarketingBudget } from '@/data/kpi-budget'
 import { dm } from '@/lib/date'
 import { NOTE, TILE } from './home-tiles'
-import { notApplicable } from './kpi-company-i18n'
-import { printShort } from './kpi-model'
+import { grouped, printShort } from './kpi-model'
 import { Meter } from './kpi-unit-meter'
 
 /** The unit's Marketing budget for the month, beside what its members spent
@@ -18,6 +17,7 @@ import { Meter } from './kpi-unit-meter'
  *  `canEdit`; whether the write is allowed is the server's answer. */
 
 const FIGURE = 'tnum font-num'
+const NOT_SET = message('Chưa đặt', 'Not set', '미설정')
 const TITLE = message('Ngân sách Marketing tháng', 'Marketing budget this month', '월 마케팅 예산')
 
 function BudgetForm({ data }: { data: KpiMarketingBudgetResponse }) {
@@ -41,7 +41,7 @@ function BudgetForm({ data }: { data: KpiMarketingBudgetResponse }) {
         <span className={NOTE}>{t(TITLE)}</span>
         <Input
           inputMode="numeric"
-          value={text}
+          value={grouped(text)}
           suffix="₫"
           shellClassName="pointer-coarse:h-12"
           onChange={(e) => setText(e.target.value.replace(/\D/g, ''))}
@@ -77,7 +77,7 @@ export function MarketingBudgetCard({ period, unitId }: { period: string; unitId
       <h3 className="text-[13px] font-semibold leading-5">{t(TITLE)}</h3>
       <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2">
         <span className="tnum font-num text-[28px] font-semibold leading-none tracking-[-1px]">
-          {data.amount === null ? notApplicable() : printShort('money', data.amount)}
+          {data.amount === null ? t(NOT_SET) : printShort('money', data.amount)}
         </span>
         <span className={cn(NOTE, FIGURE)}>
           {t(message('Đã chi', 'Spent', '지출'))} {printShort('money', data.spent)}

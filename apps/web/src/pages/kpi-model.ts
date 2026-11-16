@@ -181,6 +181,9 @@ export function printValue(unit: KpiUnit, value: number, compact = false): strin
 
 export const DASH = '—'
 
+/** Digits typed into a money box, grouped the way the other money boxes print them. */
+export const grouped = (digits: string) => (digits === '' ? '' : num(Number(digits)))
+
 /** A tile has room for the words; a table cell has the badge beside it. */
 export const printTile = (unit: KpiUnit, value: number | null) =>
   value === null ? kpiVerdictText('no-data') : printValue(unit, value, true)

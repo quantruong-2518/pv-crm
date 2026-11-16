@@ -15,6 +15,7 @@ import { message, translate, useI18n, type Lang } from '@/app/i18n'
 import { kpiFunnelStepText, kpiLayerText, kpiMetricText, kpiRoleText } from '@/data/kpi-i18n'
 import { toastDone } from '@/app/toast'
 import { kpiRoleMetricsFor, useProposeKpiRoleMetrics } from '@/data/kpi-config'
+import { orgTreeQuery } from '@/data/org-tree'
 import { currentPick, periodLabel } from '@/data/period-pick'
 import {
   CELL_LABEL,
@@ -538,8 +539,14 @@ const MONTHS_AHEAD = 12
 
 export function KpiMetricMatrix() {
   const { t } = useI18n()
-  const next = stepSalesPeriod(currentPick().month, 1)
-  const [from, setFrom] = useState(next)
+  const canView = useCan('kpi.view')
+  const running = currentPick().month
+  const tree = useQuery({ ...orgTreeQuery(running), enabled: canView })
+  /* The server names the month a change lands on, so this picker and the org
+     section below it open on the same month whatever this device's clock says. */
+  const next = tree.data?.editableFrom ?? stepSalesPeriod(running, 1)
+  const [picked, setFrom] = useState<string | null>(null)
+  const from = picked ?? next
   const { data, error, refetch } = useQuery(kpiRoleMetricsFor(from))
   /* A change applies from next month at the earliest, so no earlier month is offered. */
   const months = monthsFrom(next, MONTHS_AHEAD)

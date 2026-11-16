@@ -42,11 +42,10 @@ function FormBody({ period, data }: { period: string; data: KpiForecastMeRespons
       return next
     })
 
+  /* The pick sits last and as an action so a tablet card opens on the deal and
+     ends on a labelled 48px target, not a tiny box in a wide band. */
+  const pickLabel = t(message('Chọn', 'Pick', '선택'))
   const columns: StackColumn[] = [
-    {
-      header: <span className="sr-only">{t(message('Chọn', 'Pick', '선택'))}</span>,
-      width: '64px',
-    },
     { header: t(message('Cơ hội', 'Opportunity', '기회')), width: 'minmax(0,1.4fr)' },
     { header: t(message('Khách', 'Customer', '고객')), width: 'minmax(0,1.4fr)' },
     { header: t(message('Giá trị', 'Value', '금액')), width: 'minmax(0,1fr)', align: 'right' },
@@ -55,18 +54,11 @@ function FormBody({ period, data }: { period: string; data: KpiForecastMeRespons
       width: 'minmax(0,1fr)',
       align: 'right',
     },
+    { header: <span className="sr-only">{pickLabel}</span>, width: '88px', stack: 'action' },
   ]
   const rows = data.candidates.map((c) => ({
     id: c.opportunityId,
     cells: [
-      <Checkbox
-        key="pick"
-        checked={picked.has(c.opportunityId)}
-        disabled={!data.editable}
-        onChange={(on) => toggle(c.opportunityId, on)}
-        label={<span className="sr-only">{`${c.opportunityId} ${c.name}`}</span>}
-        className="pointer-coarse:min-h-12 w-full justify-center gap-0 p-0"
-      />,
       <span key="code" className="flex min-w-0 flex-col">
         <span className="tnum font-mono">{c.opportunityId}</span>
         <span className={NOTE}>{c.name}</span>
@@ -78,6 +70,19 @@ function FormBody({ period, data }: { period: string; data: KpiForecastMeRespons
       <span key="close" className="tnum font-num">
         {c.expectedClose ? dm(c.expectedClose) : '—'}
       </span>,
+      <Checkbox
+        key="pick"
+        checked={picked.has(c.opportunityId)}
+        disabled={!data.editable}
+        onChange={(on) => toggle(c.opportunityId, on)}
+        label={
+          <>
+            {pickLabel}
+            <span className="sr-only">{` ${c.opportunityId} ${c.name}`}</span>
+          </>
+        }
+        className="pointer-coarse:min-h-12 gap-2 p-0"
+      />,
     ],
   }))
 
@@ -132,9 +137,9 @@ export function ForecastForm({ period }: { period: string }) {
             {data
               ? t(
                   message(
-                    `Dự báo tuần ${dm(data.week)}–${dm(end)}`,
-                    `Forecast for the week ${dm(data.week)}–${dm(end)}`,
-                    `${dm(data.week)}–${dm(end)} 주간 예측`,
+                    `Dự báo tuần ${dm(data.week)} – ${dm(end)}`,
+                    `Forecast for the week ${dm(data.week)} – ${dm(end)}`,
+                    `${dm(data.week)} – ${dm(end)} 주간 예측`,
                   ),
                 )
               : t(message('Dự báo tuần này', 'This week’s forecast', '이번 주 예측'))}

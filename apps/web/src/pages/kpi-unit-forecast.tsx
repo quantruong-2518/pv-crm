@@ -10,7 +10,7 @@ import { KpiCardError } from '@/components/kpi-tabs'
 import { useCommitKpiUnitForecast } from '@/data/kpi-forecast-commit'
 import { dm } from '@/lib/date'
 import { NOTE, TILE } from './home-tiles'
-import { DASH, printShort } from './kpi-model'
+import { DASH, grouped, printShort } from './kpi-model'
 import { FORECAST_CARD_ID } from './kpi-unit-model'
 
 /** The unit's weekly forecast: what each person saved, their sum, and the
@@ -23,7 +23,7 @@ const FIGURE = 'tnum font-num'
 function weekText(monday: string): string {
   const end = new Date(`${monday}T00:00:00Z`)
   end.setUTCDate(end.getUTCDate() + 6)
-  return `${dm(monday)}–${dm(end.toISOString().slice(0, 10))}`
+  return `${dm(monday)} – ${dm(end.toISOString().slice(0, 10))}`
 }
 
 function CommitRow({
@@ -64,7 +64,7 @@ function CommitRow({
           <span className={NOTE}>{t(message('Số của đơn vị', 'Unit figure', '조직 수치'))}</span>
           <Input
             inputMode="numeric"
-            value={text}
+            value={grouped(text)}
             suffix="₫"
             shellClassName="pointer-coarse:h-12"
             onChange={(e) => setText(e.target.value.replace(/\D/g, ''))}

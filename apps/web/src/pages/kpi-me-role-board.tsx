@@ -26,7 +26,7 @@ import { QueryBlock } from './kpi-parts'
  *  the set it was read under; a part the month has no figures for draws nothing.
  *  Each part loads and fails on its own. */
 
-const GRID = 'grid grid-cols-1 gap-4 xl:grid-cols-2'
+const GRID = 'grid grid-cols-1 items-start gap-4 xl:grid-cols-2'
 
 function MarketingPart({ period, actorId }: { period: KpiPeriodKey; actorId: string }) {
   const read = useQuery(kpiMarketingSourcesQuery(period, actorId))

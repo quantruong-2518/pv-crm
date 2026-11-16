@@ -31,7 +31,10 @@ function niceStep(top: number): number {
   return unit * power
 }
 
-export type ChartDot = { x: number; y: number; code: string; amount: number }
+/** Which side of its dot a label sits on: above or below, and running right or left of it. */
+export type DotPlace = { above: boolean; right: boolean }
+
+export type ChartDot = { x: number; y: number; code: string; amount: number; place: DotPlace }
 
 export type Chart = {
   days: number
@@ -49,6 +52,54 @@ export type Chart = {
   signedTotal: number
   /** Where the picked opportunities take the month; `null` with none picked. */
   forecastEnd: number | null
+}
+
+type Pt = [number, number]
+
+const pointsOf = (points: string | null): Pt[] =>
+  points === null ? [] : points.split(' ').map((p) => p.split(',').map(Number) as Pt)
+
+/** Label box in box units, an estimate of a 110 × 18 px label on a 224 px tall plot. */
+const LABEL_W = 12
+const LABEL_H = 9
+
+/** Lines the box sits on, counted by walking each segment: a label is never placed on a line
+ *  when one of the four corners of its dot is free of them. */
+function crossings(
+  lines: readonly Pt[][],
+  box: { x0: number; x1: number; y0: number; y1: number },
+) {
+  let hits = 0
+  for (const line of lines) {
+    const touched = line.some((from, i) => {
+      const to = line[i + 1]
+      if (!to) return false
+      return Array.from({ length: 25 }, (_, k) => k / 24).some((f) => {
+        const x = from[0] + (to[0] - from[0]) * f
+        const y = from[1] + (to[1] - from[1]) * f
+        return x >= box.x0 && x <= box.x1 && y >= box.y0 && y <= box.y1
+      })
+    })
+    if (touched) hits += 1
+  }
+  const outside = box.x0 < 0 || box.x1 > 100 || box.y0 < 0 || box.y1 > 100
+  return hits + (outside ? 1 : 0)
+}
+
+/** Right of the dot first, then left; above first, then below. The first corner with no line wins. */
+function placeOf(dot: Omit<ChartDot, 'place'>, lines: readonly Pt[][]): DotPlace {
+  const corners: DotPlace[] = [
+    { above: true, right: true },
+    { above: false, right: true },
+    { above: true, right: false },
+    { above: false, right: false },
+  ]
+  const scored = corners.map((c) => {
+    const x0 = c.right ? dot.x + 1 : dot.x - 1 - LABEL_W
+    const y0 = c.above ? dot.y - 2 - LABEL_H : dot.y + 2
+    return { c, hits: crossings(lines, { x0, x1: x0 + LABEL_W, y0, y1: y0 + LABEL_H }) }
+  })
+  return scored.reduce((best, s) => (s.hits < best.hits ? s : best)).c
 }
 
 /** Points are in a 100 × 100 box with y down, drawn with a stretched viewBox. */
@@ -82,6 +133,20 @@ export function chartOf(data: KpiSignedByDayResponse, period: string, now = new 
   }
   lift.push(at(days, level))
 
+  const dots = data.signed.map((s) => ({
+    x: x(dayOf(s.day)),
+    y: y(s.cumulative),
+    code: s.contractCode,
+    amount: s.amount,
+  }))
+  const pace = data.target === null ? null : `0,100 100,${y(data.target).toFixed(2)}`
+  const lines = [pointsOf(stairs.join(' ')), pointsOf(lift.join(' ')), pointsOf(pace)]
+  if (data.target !== null)
+    lines.push([
+      [0, y(data.target)],
+      [100, y(data.target)],
+    ])
+
   return {
     days,
     through,
@@ -90,15 +155,10 @@ export function chartOf(data: KpiSignedByDayResponse, period: string, now = new 
     signed: stairs.join(' '),
     signedArea: `${stairs.join(' ')} ${x(through).toFixed(2)},100`,
     forecast: picked.length > 0 ? lift.join(' ') : null,
-    pace: data.target === null ? null : `0,100 100,${y(data.target).toFixed(2)}`,
+    pace,
     targetY: data.target === null ? null : y(data.target),
     todayX: through > 0 && through < days ? x(through) : null,
-    dots: data.signed.map((s) => ({
-      x: x(dayOf(s.day)),
-      y: y(s.cumulative),
-      code: s.contractCode,
-      amount: s.amount,
-    })),
+    dots: dots.map((d) => ({ ...d, place: placeOf(d, lines) })),
     signedTotal,
     forecastEnd,
   }

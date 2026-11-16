@@ -147,7 +147,7 @@ function Plot({ chart, period, target }: { chart: Chart; period: string; target:
           <span
             className={cn(
               NOTE,
-              'tnum font-num absolute right-0 whitespace-nowrap',
+              'tnum font-num bg-card absolute left-0 whitespace-nowrap rounded-sm px-1',
               chart.targetY < 12 ? 'translate-y-1' : '-translate-y-full',
             )}
             style={{ top: `${chart.targetY}%` }}
@@ -166,8 +166,9 @@ function Plot({ chart, period, target }: { chart: Chart; period: string; target:
               <span
                 className={cn(
                   NOTE,
-                  'tnum font-num bg-card/70 absolute translate-y-1/2 whitespace-nowrap rounded-sm px-1',
-                  dot.x > 60 ? '-ml-2 -translate-x-full' : 'ml-2',
+                  'tnum font-num bg-card absolute whitespace-nowrap rounded-sm px-1',
+                  dot.place.right ? 'ml-2' : '-ml-2 -translate-x-full',
+                  dot.place.above ? '-translate-y-2' : 'translate-y-[calc(100%+8px)]',
                 )}
                 style={{ left: `${dot.x}%`, bottom: `${100 - dot.y}%` }}
               >

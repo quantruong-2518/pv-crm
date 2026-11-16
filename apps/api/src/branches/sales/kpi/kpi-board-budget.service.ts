@@ -9,7 +9,7 @@ import {
 import { AuditRepository } from '@api/platform/audit/audit.repository'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { conflict, denied, notFound } from '@api/platform/http/problem'
-import { membersUnder } from '@api/platform/org/org-heads'
+import { membersUnder, subtreeOf } from '@api/platform/org/org-heads'
 import { spansOf } from '../performance/performance-period'
 import { holdersUnder } from './kpi-assignment.mapper'
 import { KpiBoardRepository } from './kpi-board.repository'
@@ -25,6 +25,20 @@ function refusalOf(period: KpiPeriodKey, tree: KpiOrgTree, unitId: string): stri
   if (holdersUnder(tree, 'marketing', unitId).length === 0)
     return 'Đơn vị này không có ai làm Marketing.'
   return null
+}
+
+/** The unit a budget read lands on. The amount is set on the unit Marketing sits in, so a
+ *  head above it reads that unit's row, not its own empty one; with several such units
+ *  below, or Marketing sitting in the unit itself, the unit asked for stays. */
+function budgetUnitOf(tree: KpiOrgTree, unitId: string): string {
+  const inside = subtreeOf(tree, unitId)
+  const sits = new Set(
+    tree.members
+      .filter((m) => inside.has(m.unitId) && !m.locked && m.roleIds.includes('marketing'))
+      .map((m) => m.unitId),
+  )
+  const [only] = sits
+  return sits.size === 1 && only !== undefined ? only : unitId
 }
 
 /** Marketing budget of a unit and month (ADR 0160 §8): shown beside the spend, never scored.
@@ -45,10 +59,13 @@ export class KpiBudgetService {
   /** A reader of the unit: a `kpi.view-all` holder or a seat on its chain. */
   async of(who: Actor, period: KpiPeriodKey, unitId: string): Promise<KpiMarketingBudgetResponse> {
     const tree = await this.treeOf(period, unitId)
-    const editor = await readsInTree(this.seats, tree, who, unitId)
-    if (!editor && !this.access.allows(who, 'kpi.view-all'))
+    const reader = await readsInTree(this.seats, tree, who, unitId)
+    if (!reader && !this.access.allows(who, 'kpi.view-all'))
       throw denied('permission-denied', 'Bạn không phụ trách đơn vị này.')
-    return this.read(period, tree, unitId, editor && refusalOf(period, tree, unitId) === null)
+    /* The seat rule is asked of the unit the row sits on: a view-all reader above it may not hold it. */
+    const unit = budgetUnitOf(tree, unitId)
+    const editor = unit === unitId ? reader : await readsInTree(this.seats, tree, who, unit)
+    return this.read(period, tree, unit, editor && refusalOf(period, tree, unit) === null)
   }
 
   /** `canEdit` for a reader the caller already vetted: the seat and the month and unit rules. */

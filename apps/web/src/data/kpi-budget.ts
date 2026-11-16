@@ -7,7 +7,7 @@ import { cacheTier } from '@/app/query-client'
  *  unit and month, shown beside what its Marketing members spent (ADR 0160 §8).
  *  Never scored. The response carries `canEdit`, so the screen never guesses a seat.
  *
- *  A write answers with the refreshed read, which goes straight into the cache. */
+ *  A write refreshes the month's budget reads (see `useSaveKpiMarketingBudget`). */
 
 const need: ApiNeed = { branch: 'Sales', permission: 'kpi.view' }
 
@@ -38,6 +38,14 @@ export function useSaveKpiMarketingBudget(period: string, unitId: string) {
         need,
         schema: KpiMarketingBudgetResponse,
       }),
-    onSuccess: (fresh) => client.setQueryData(budgetKey(period, unitId), fresh),
+    /* A read made on a unit above lands on the unit Marketing sits in, so the key of the
+       answer is not the key asked: refresh the month's budget reads, and the board's. */
+    onSuccess: () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: ['sales', 'kpi', period, 'marketing-budget'] }),
+        client.invalidateQueries({
+          queryKey: ['sales', 'kpi', period, 'board', 'marketing-sources'],
+        }),
+      ]),
   })
 }

@@ -254,6 +254,7 @@ export function RunOwners({
                 door && {
                   label: door.bare ? door.label : `${door.label} · ${t(STEP[row.step])}`,
                   icon: row.who ? ArrowLeftRight : UserRoundPlus,
+                  ...(!row.who && { text: door.label }),
                   onClick: door.onClick,
                 }
               }

@@ -16,6 +16,7 @@ import {
   useConfirmKpiAssignment,
 } from '@/data/kpi-assignment'
 import type { KpiCatalog } from '@/data/kpi-catalog'
+import { kpiDeskQuery } from '@/data/kpi-desk'
 import { kpiMetricText, kpiRoleText } from '@/data/kpi-i18n'
 import { dm } from '@/lib/date'
 import { NOTE, TILE } from './home-tiles'
@@ -210,12 +211,16 @@ export function ConfirmCard({
   )
 }
 
-/** For a head: the door to the assignment page. The read answers 404 to
- *  someone who heads nothing, and the door is then simply absent. */
+/** For a head: the door to the assignment page. The desk read the tabs already make says
+ *  whether the reader acts for a unit; without one the page read would only answer 404. */
 export function AssignLink({ period, role }: { period: string; role: RoleId }) {
   const navigate = useNavigate()
   const { t } = useI18n()
-  const page = useQuery(kpiAssignmentPageQuery(period, role, null))
+  const desk = useQuery(kpiDeskQuery(period))
+  const page = useQuery({
+    ...kpiAssignmentPageQuery(period, role, null),
+    enabled: (desk.data?.units.length ?? 0) > 0,
+  })
   if (!page.data) return null
   return (
     <Button

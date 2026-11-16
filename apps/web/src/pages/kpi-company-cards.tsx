@@ -193,7 +193,7 @@ export function UnitCards({
           )}
         </span>
       </div>
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:[&>:last-child:nth-child(odd)]:col-span-2">
         {units.map((u) => (
           <UnitCard key={u.unitId} unit={u} period={period} />
         ))}

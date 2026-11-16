@@ -343,7 +343,8 @@ function StripTile({ item }: { item: KpiItem }) {
   )
 }
 
-/** The room's scorecard as one even row, in catalog order. */
+/** The room's scorecard in catalog order; auto-fit lets three tiles share the
+ *  row instead of leaving a blank fourth column. */
 export function CompanyStrip({
   catalog,
   role,
@@ -354,7 +355,7 @@ export function CompanyStrip({
   readings: readonly KpiReading[]
 }) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-4">
       {itemsOf(catalog, role, readings).map((item) => (
         <StripTile key={item.def.key} item={item} />
       ))}

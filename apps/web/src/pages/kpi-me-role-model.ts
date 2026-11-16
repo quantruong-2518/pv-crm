@@ -49,12 +49,24 @@ export type RateBar = {
   verdict: RateVerdict
 }
 
+/** Steps a printed scale may end on, as multiples of a power of ten. */
+const NICE = [1, 1.5, 2, 3, 4, 5, 6, 8, 10]
+
+/** Round up to the next readable step, so the printed scale is never "0–96,2%". */
+function niceCeil(value: number): number {
+  const mag = 10 ** Math.floor(Math.log10(value))
+  const step = NICE.find((n) => n * mag >= value * (1 - 1e-9)) ?? 10
+  return step * mag
+}
+
 /** Headroom of a quarter past the larger figure keeps the tick off the bar's end; a ratio
- *  stops at 100% unless a figure is above it, so the printed scale never hides one. */
+ *  stops at 100% unless a figure is above it, so the printed scale never hides one. The
+ *  top is then rounded up: next 10% for a ratio, a 1-1.5-2-3-5-8 step for money and days. */
 function scaleTop(def: KpiMetricDef, value: number | null, target: number | null): number {
   const high = Math.max(value ?? 0, target ?? 0)
   if (high <= 0) return 1
-  return def.unit === 'ratio' ? Math.max(Math.min(high * 1.25, 1), high) : high * 1.25
+  if (def.unit !== 'ratio') return niceCeil(high * 1.25)
+  return Math.ceil(Math.max(Math.min(high * 1.25, 1), high) * 10 - 1e-9) / 10
 }
 
 /** The metrics the rates card draws: not the headline, and without a pace (the hero's job).

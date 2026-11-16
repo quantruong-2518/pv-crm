@@ -24,7 +24,7 @@ const LABEL = {
 export type KpiTabsProps = {
   period: string
   active: KpiTab
-  /** Things to do under a tab, drawn after its name. */
+  /** Things to do under a tab, drawn after its name; a zero draws nothing. */
   counts?: Partial<Record<KpiTab, number>>
 }
 
@@ -43,7 +43,11 @@ export function KpiTabs({ period, active, counts }: KpiTabsProps) {
       hideLabel
       tone="quiet"
       value={active}
-      options={held.map((tab) => ({ value: tab, label: t(LABEL[tab]), count: counts?.[tab] }))}
+      options={held.map((tab) => ({
+        value: tab,
+        label: t(LABEL[tab]),
+        count: counts?.[tab] || undefined,
+      }))}
       onChange={(tab) => void navigate(`${PATH[tab as KpiTab]}?${MONTH_PARAM}=${period}`)}
     />
   )
