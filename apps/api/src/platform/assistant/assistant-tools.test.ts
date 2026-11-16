@@ -14,6 +14,7 @@ import {
   type ToolDoor,
   type ToolRead,
 } from './assistant-tools'
+import { chatOf, recheck } from './assistant-refs'
 
 /** The boot check and the gate, on E2 itself. Marketing is the failure the gate
  *  exists for: `lead.view` without `contract.view`. */
@@ -247,6 +248,53 @@ describe('content a tool reveals', () => {
         stored('gone', true),
       ]),
     ).toEqual(['comm.view-content', null, null])
+  })
+
+  describe('a reveal chosen by the stored input', () => {
+    const byKind = defineTool({
+      name: 'read_x',
+      description: 'Fake.',
+      input: Input,
+      doors,
+      doorFor: (input) => input.kind,
+      reveals: (input) => (input.kind === 'lead' ? 'lead.view' : 'contract.view'),
+      run: async () => ({ ...READ, revealsContent: true }),
+    })
+    const gate = gateOf(byKind)
+    const stored = (input: unknown) => ({ name: 'read_x', revealsContent: true, input })
+    const reader = { ...marketing, permissions: ['lead.view'] } as Actor
+
+    it('maps each stored input to its permission, and an input that no longer parses to null', () => {
+      expect(
+        gate.revealsOf([
+          stored({ kind: 'lead' }),
+          stored({ kind: 'contract' }),
+          stored({ kind: 'x' }),
+        ]),
+      ).toEqual(['lead.view', 'contract.view', null])
+      expect(gate.revealsOf([{ name: 'read_x', revealsContent: true }])).toEqual([null])
+    })
+
+    it('boots and runs a function form as it does a fixed permission', async () => {
+      const verdict = await gate.call(reader, call({ kind: 'lead' }))
+      expect(verdict).toMatchObject({ outcome: 'ok', revealsContent: true })
+    })
+
+    it('withholds a stored call when the reader lacks the permission its input maps to', async () => {
+      const calls = new Map([
+        ['lead', [{ ...stored({ kind: 'lead' }), outcome: 'ok', rowCount: 1, codes: [] }]],
+        ['money', [{ ...stored({ kind: 'contract' }), outcome: 'ok', rowCount: 1, codes: [] }]],
+        ['bad', [{ ...stored({ kind: 'x' }), outcome: 'ok', rowCount: 1, codes: [] }]],
+      ] as never)
+      const ids = ['lead', 'money', 'bad']
+      const shut = async (who: Actor) => (await recheck(gate, who, chatOf(gate, ids, calls))).shut
+      expect([...(await shut(reader))].map(([id, v]) => [id, v])).toEqual([
+        ['money', 'withheld'],
+        ['bad', 'withheld'],
+      ])
+      const both = { ...reader, permissions: ['lead.view', 'contract.view'] } as Actor
+      expect([...(await shut(both)).keys()]).toEqual(['bad'])
+    })
   })
 
   it('asks each tool with a reach check once for the codes of all its calls, and fails to null', async () => {

@@ -827,3 +827,18 @@ Raised by ADRs 0143 to 0146. Questions 179 to 182 come from the read-hole amendm
      one; recommended: hide (null and 0 both draw nothing).**
      _(see ADR 0143 amendment)_
      **Answered 11/11/2026: hide; see the list — ADR 0143 amendment.**
+
+## CRM assistant wave 3 (added 16/11/2026)
+
+Raised by ADR 0155 and the earlier assistant waves.
+
+183. **Should the assistant get a counting tool (`aggregate`)?**
+     _(see ADR 0155)_
+     **Answered 16/11/2026: yes, as `count_records` over scoped doors only — ADR 0155.**
+
+184. **How is the deep route chosen?** _(see ADR 0152)_
+     **Answered: the user presses "Phân tích kỹ" — ADR 0152.**
+
+185. **Should notifications, configuration and administration stay out of the
+     assistant's scope? Recommended: yes.**
+     **Open.**

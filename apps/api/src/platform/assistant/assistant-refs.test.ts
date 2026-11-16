@@ -224,3 +224,19 @@ describe('recheck', () => {
     })
   })
 })
+describe('a scope-cut answer', () => {
+  const cut = (id: string) => [{ id, codes: [], reveals: [], revealing: [], scopeCut: true }]
+
+  it('shuts out an own-only reader only in a chat that is not theirs', async () => {
+    const { gate: g } = gate()
+    const result = await recheckChats(
+      g,
+      { ...who, ownOnly: true } as Actor,
+      [cut('theirs'), cut('mine')],
+      [true, false],
+    )
+
+    expect(result.shut.get('theirs')).toBe('withheld')
+    expect(result.shut.has('mine')).toBe(false)
+  })
+})

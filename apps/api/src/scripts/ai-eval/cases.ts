@@ -29,7 +29,7 @@ export const CASE_COUNTS: Record<CaseGroup, number> = {
   injection: 15,
   'off-topic': 10,
   lookup: 5,
-  coverage: 15,
+  coverage: 22,
   linked: 6,
   history: 5,
 }

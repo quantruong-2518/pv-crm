@@ -49,6 +49,15 @@ export const KINDS_CELLS = 24
  *  `get_team_kpi` (2 reading everyone, 3 asking for a team, 4 shut out). Typed by hand. */
 export const KPI_CELLS = 22
 
+/** The figure reads: 14 role seats over 15 asks of `get_performance` (3 parts of 4 grains and
+ *  the industry report of 3), then a closed month asked 4 times, a paid year asked twice, 4 grants cut and 4 asks of a
+ *  seat that holds no contract grant or no licence. Typed by hand. */
+export const FIGURE_CELLS = 224
+
+/** The counts: 14 role seats over the 4 kinds of `count_records`, a range of lead sources
+ *  asked by 3 seats, 3 grants cut and 3 asks of a seat with no licence. Typed by hand. */
+export const COUNT_CELLS = 65
+
 /** The newest round of the open negotiation on `quote-deal`: the one figure a case
  *  answer must cite, locked by a test so a drifting seed cannot move it quietly. */
 export const QUOTE_LATEST_AMOUNT = 465_000_000

@@ -21,6 +21,7 @@ import { PvError } from '@api/platform/http/problem'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CUSTOMER_ASK } from './scope-customers-door'
 import { KINDS_ASK } from './scope-kinds-door'
+import { FIGURES_ASK } from './scope-figures-door'
 import { KPI_ASK } from './scope-kpi-door'
 import { CANARY } from './seed-data'
 import type { Chain, Company } from './seed'
@@ -98,6 +99,8 @@ const liveChains = (world: World, company: Company): Chain[] =>
 /** How each door is asked as a seat, for the records of a chain or a company. Keyed
  *  by the tool's own door key, because one controller method stands for two doors:
  *  the deals of a lead and the deals of a company are the same book asked two ways.
+ *  A key may be written `tool:key` when two tools use one key for different doors
+ *  (`list_customers` and `count_records` both have `leads`).
  *  A key missing from this table stops the run: a guess would pass a door nobody
  *  compared.
  *
@@ -202,6 +205,7 @@ const ASK: Record<string, Ask> = {
   ...CUSTOMER_ASK,
   ...KINDS_ASK,
   ...KPI_ASK,
+  ...FIGURES_ASK,
 }
 
 /** `AccessGuard`'s lookup: the handler first, then its class. */
@@ -220,8 +224,9 @@ async function askOne(
   { key, door }: Opened,
   on: Subject,
   input?: unknown,
+  tool?: string,
 ) {
-  const ask = ASK[key]
+  const ask = ASK[`${tool}:${key}`] ?? ASK[key]
   if (!ask) throw new Error(`oracle: no way to ask ${key} (${doorId(door)}) as a seat (see ASK)`)
   try {
     return { ok: true as const, ...(await ask(world, who, on, input)) }
@@ -265,7 +270,7 @@ export function optionalDrift(tools: readonly { name: string; optional: readonly
 
 /** What a tool registers beside its doors: the ones whose refusal it reports itself,
  *  and the input its call carried. */
-type Asking = { optional?: readonly string[]; input?: unknown }
+type Asking = { optional?: readonly string[]; input?: unknown; tool?: string }
 
 /** The union of what `doors` hand this seat. Refused when E2 shuts every door, or
  *  when any door E2 opened refuses at the service: the gate fails a whole call on
@@ -280,7 +285,7 @@ async function askDoors(
   who: Actor,
   doors: readonly Opened[],
   on: Subject,
-  { optional = [], input }: Asking = {},
+  { optional = [], input, tool }: Asking = {},
 ) {
   const soft = new Set(optional)
   const checks = doors.map((named) => ({
@@ -304,7 +309,7 @@ async function askDoors(
       skipped.push(named.key)
       continue
     }
-    const got = await askOne(world, who, named, on, input)
+    const got = await askOne(world, who, named, on, input, tool)
     if (!got.ok && soft.has(named.key)) {
       skipped.push(named.key)
       continue
@@ -343,7 +348,11 @@ export function askCall(
     if (!door) throw new Error(`oracle: ${call.name} names no door for ${key}`)
     return { key, door }
   })
-  return askDoors(world, who, doors, on, { optional: OPTIONAL_DOORS[call.name], input: call.input })
+  return askDoors(world, who, doors, on, {
+    optional: OPTIONAL_DOORS[call.name],
+    input: call.input,
+    tool: call.name,
+  })
 }
 
 export const canariesIn = (text: string): string[] => [...text.matchAll(CANARY)].map((m) => m[0])

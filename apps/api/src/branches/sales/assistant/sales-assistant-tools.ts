@@ -39,6 +39,7 @@ import { AccountService } from '../account/account.service'
 import { AfterSaleService } from '../after-sale/after-sale.service'
 import { CampaignController } from '../campaign/campaign.controller'
 import { CampaignService } from '../campaign/campaign.service'
+import { LeadOriginService } from '../lead-origin/lead-origin.service'
 import { LeadContactController } from '../lead/lead-contact.controller'
 import { ContactService } from '../contact/contact.service'
 import { ContractController } from '../contract/contract.controller'
@@ -53,8 +54,10 @@ import { SearchController } from '../search/search.controller'
 import { SearchService } from '../search/search.service'
 import { WorkstreamController } from '../workstream/workstream.controller'
 import { WorkstreamService } from '../workstream/workstream.service'
+import { countRecords } from './count-records'
 import { getHistory } from './get-history'
 import { getMyKpi } from './get-my-kpi'
+import { getPerformance, performanceServices } from './get-performance'
 import { getTeamKpi } from './get-team-kpi'
 import { kpiServices } from './kpi-read'
 import { listCustomers } from './list-customers'
@@ -478,6 +481,13 @@ export class SalesAssistantTools implements AssistantToolSource {
       }),
       getMyKpi(kpi),
       getTeamKpi(kpi),
+      getPerformance(performanceServices(this.modules)),
+      countRecords({
+        leads: this.leads,
+        deals: this.opportunities,
+        journeys: this.workstreams,
+        sources: () => this.modules.get(LeadOriginService, { strict: false }),
+      }),
     ]
   }
 

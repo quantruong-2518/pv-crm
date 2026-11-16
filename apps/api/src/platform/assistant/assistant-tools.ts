@@ -77,8 +77,12 @@ type ToolSpec<I, K extends string> = {
   /** Absent = `all`. Live and replay both apply it, so it reads the input alone. */
   refsCounted?: (input: I) => RefsCounted
   /** The permission the text behind `revealsContent` is gated by: the tool names it,
-   *  because platform knows no branch permission. */
-  reveals?: Permission
+   *  because platform knows no branch permission. A function maps the stored call's
+   *  input to it, for a tool whose doors differ in need (replay reads the input back). */
+  reveals?: Permission | ((input: I) => Permission)
+  /** True when what a call read depended on the asker's scope or own-only refusal, so
+   *  a stored answer must not replay to an own-only reader who is not the chat's owner. */
+  scopeCut?: (input: I) => boolean
   /** Which of `codes` the door that revealed the text still reaches for this reader:
    *  the permission alone is wider than the door's fence. `door` is the key whose
    *  `@Need` must hold too, since an edited role matrix can split the two. `read`
@@ -135,10 +139,30 @@ export type AssistantTool = {
   recheck?: ToolRecheck
   readsOf?: (raw: unknown, stored: Stored) => FooterReads
   refsCounted?: (raw: unknown) => RefsCounted
-  reveals?: Permission
+  /** Null when the stored input no longer parses: no reader passes it. */
+  reveals?: (raw: unknown) => Permission | null
+  /** True when the stored input no longer parses: fail closed. */
+  scopeCut?: (raw: unknown) => boolean
   revealReach?: { door: string; read: RevealReach }
   shrink?: ToolShrink
 }
+
+const revealsOf = <I, K extends string>(spec: ToolSpec<I, K>): AssistantTool['reveals'] => {
+  const { reveals } = spec
+  if (reveals === undefined) return undefined
+  if (typeof reveals === 'string') return () => reveals
+  return (raw) => {
+    const parsed = spec.input.safeParse(raw)
+    return parsed.success ? reveals(parsed.data) : null
+  }
+}
+
+const scopeCutOf =
+  <I, K extends string>(spec: ToolSpec<I, K>, cut: (input: I) => boolean) =>
+  (raw: unknown): boolean => {
+    const parsed = spec.input.safeParse(raw)
+    return !parsed.success || cut(parsed.data)
+  }
 
 /** Closes over `I` so the registry holds tools of different inputs in one map. */
 export function defineTool<I, K extends string>(spec: ToolSpec<I, K>): AssistantTool {
@@ -151,7 +175,8 @@ export function defineTool<I, K extends string>(spec: ToolSpec<I, K>): Assistant
     doors: spec.doors,
     optional: spec.optional ?? [],
     recheck: spec.recheck,
-    reveals: spec.reveals,
+    reveals: revealsOf(spec),
+    scopeCut: spec.scopeCut && scopeCutOf(spec, spec.scopeCut),
     revealReach: spec.revealReach,
     shrink: spec.shrink,
     readsOf: (raw, stored) => {
@@ -270,7 +295,7 @@ const reflector = new Reflector()
 
 /** `RouteAudit`'s question about one door, asked of a tool: the same fallback to
  *  the class, and a plain controller method is no door. */
-function needOf(tool: string, [controller, handler]: ToolDoor): RouteNeed {
+export function needOf(tool: string, [controller, handler]: ToolDoor): RouteNeed {
   const door = `assistant tool ${tool}: ${controller.name}.${handler}`
   const method = (controller.prototype as Record<string, unknown>)[handler]
   if (typeof method !== 'function' || Reflect.getMetadata(PATH_METADATA, method) === undefined) {
@@ -333,10 +358,22 @@ export class AssistantToolGate {
 
   /** The permission each revealing stored call needs, as its tool declares it now;
    *  null for a tool gone or naming none, which no reader passes. */
-  revealsOf(calls: readonly { name: string; revealsContent: boolean }[]): (Permission | null)[] {
+  revealsOf(
+    calls: readonly { name: string; revealsContent: boolean; input?: unknown }[],
+  ): (Permission | null)[] {
     return calls
       .filter((c) => c.revealsContent)
-      .map((c) => this.registered.get(c.name)?.tool.reveals ?? null)
+      .map((c) => this.registered.get(c.name)?.tool.reveals?.(c.input) ?? null)
+  }
+
+  /** Whether any revealing stored call read what the asker's scope decided, so the
+   *  chat's answer is not for an own-only reader who does not own it. */
+  scopeCutOf(
+    calls: readonly { name: string; revealsContent: boolean; input?: unknown }[],
+  ): boolean {
+    return calls.some(
+      (c) => c.revealsContent && this.registered.get(c.name)?.tool.scopeCut?.(c.input) === true,
+    )
   }
 
   /** Per tool that declares a reveal reach, the codes of `calls` it still reaches for

@@ -209,8 +209,13 @@ export class AssistantService {
     )
     const calls = await this.turnsRepo.callsOf([...new Set(chats.flat())])
     const chatCodes = chats.map((ids) => chatOf(this.gate, ids, calls))
-    const check = await recheckChats(this.gate, who, chatCodes)
-    const shown = rows.map(({ messageId, sessionId: _s, seq: _q, ...row }) => {
+    const check = await recheckChats(
+      this.gate,
+      who,
+      chatCodes,
+      rows.map((r) => r.reporterId !== who.id),
+    )
+    const shown = rows.map(({ messageId, sessionId: _s, seq: _q, reporterId: _r, ...row }) => {
       const shut = check.shut.get(messageId)
       const cut = (t: string) => this.gate.contactText(who, t)
       const text = shut
