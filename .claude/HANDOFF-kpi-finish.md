@@ -9,13 +9,17 @@ Worktree `/home/quantruong/workspace/pv-crm-kpi-finish`, nhánh `kpi-finish`. Ch
   migration 0167, 0168.
 - `dbda5cf7`: đợt 3, đợt 4, một mục KPI ba thẻ. ADR 0157–0159; migration 0170.
 - `8d0685e9`: KPI v2 theo canvas chủ dự án sửa ngày 16/11. ADR 0160; migration 0171. Chỉ áp từ 01/2027.
-- Commit sau `8d0685e9`: sửa các lỗi thấy khi mở màn thật lần đầu (biểu đồ giá trị ký của trưởng phòng, ngân sách
+- `7cfe3916`: sửa các lỗi thấy khi mở màn thật lần đầu (biểu đồ giá trị ký của trưởng phòng, ngân sách
   Marketing theo đơn vị, lỗi 404 lặp với BD/Presales, nhãn biểu đồ đè đường, tiêu đề điểm theo tháng đang xem).
 
 ## Màn đã được mở trên trình duyệt
 
-Trên một bản sao PGlite riêng trong scratchpad của phiên 16/11, đồng hồ máy chủ đẩy sang 14/01/2027, dữ liệu mẫu
-tự trồng. Ảnh và trang trình bày đã gửi chủ dự án. Chưa ai mở màn trên dữ liệu thật hay trên Neon.
+Trên một bản sao PGlite riêng (đã xoá cùng scratchpad), đồng hồ máy chủ đẩy sang 14/01/2027, dữ liệu mẫu tự
+trồng; ba tháng 10–12/2026 đóng bằng cửa chốt thật nên `score_basis` đã chạy thật. Ảnh từng vai ở trang trình bày
+https://claude.ai/artifact/9MSHoW5uqYdFvxUU6U4jYW. Chưa ai mở màn trên dữ liệu thật hay trên Neon.
+
+Còn chưa đẹp: vài thẻ cạnh nhau cao thấp lệch, nhãn "Chỉ tiêu" còn chạm đường trên biểu đồ Sale, bảng bản ghi ghi
+tiền đủ chữ số.
 
 ## Phải làm trước khi ship (chặn)
 

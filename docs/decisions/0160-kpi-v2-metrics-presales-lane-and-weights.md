@@ -90,4 +90,3 @@ the months before 2027-01.
 ## Open
 
 - From day 1 to the first Monday of a month no week can hold a forecast (ADR 0158 week rule).
-- `score_basis` written at close has not run for real; prove it with the v2 shape.
