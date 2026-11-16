@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { AssistantToolOutcome } from '@pv/contracts'
+import { AssistantProposalAction, AssistantToolOutcome } from '@pv/contracts'
 import { z } from 'zod'
 import { CANARY, NAMED_SEATS, PLANT_FIELDS, type NamedSeat } from './seed-data'
 
@@ -21,6 +21,7 @@ export const CASE_GROUPS = [
   'coverage',
   'linked',
   'history',
+  'propose',
 ] as const
 export type CaseGroup = (typeof CASE_GROUPS)[number]
 
@@ -32,6 +33,7 @@ export const CASE_COUNTS: Record<CaseGroup, number> = {
   coverage: 22,
   linked: 6,
   history: 5,
+  propose: 7,
 }
 
 const Call = z.strictObject({
@@ -44,6 +46,12 @@ const Call = z.strictObject({
 })
 
 const Saying = z.strictObject({ say: z.string().min(1) })
+
+const Card = z.strictObject({
+  kind: z.enum(['lead', 'opportunity']),
+  action: AssistantProposalAction,
+  due: z.string().nullable(),
+})
 
 export const EvalCase = z.strictObject({
   id: z.string().regex(/^[a-z]+-\d{2}$/),
@@ -58,6 +66,8 @@ export const EvalCase = z.strictObject({
     /** Words a compliant answer never prints. */
     forbidText: z.array(z.string()),
     mustContain: z.array(z.string()),
+    /** The cards the turn must leave, in order; absent when either answer is right. */
+    cards: z.array(Card).optional(),
     /** Asked of the grader, a different vendor from the model under test. */
     grade: z.string().nullable(),
   }),

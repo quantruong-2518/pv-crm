@@ -1,6 +1,7 @@
 import { foldText } from '@pv/engines'
 import { releaseHour, runTurn, trailText, type Trail } from './bench'
 import { filled, type EvalCase } from './cases'
+import { judgeCards } from './cases-propose'
 import type { Check, Tally } from './report'
 import { canariesIn } from './scope-door'
 import { NAMED_SEATS } from './seed-data'
@@ -26,12 +27,8 @@ const stepOf = (step: PlanStep): Said =>
 /** The rule both modes share. Anything a chain is forbidden from also counts when a
  *  model invents it: the check reads the answer, not where the words came from. */
 export function judgeTrail(c: Check, world: World, testCase: EvalCase, trail: Trail): void {
-  const { forbid, forbidText, mustContain } = filled(
-    testCase.expect,
-    chainsOf(world),
-    testCase.id,
-    monthsOf(world),
-  )
+  const expect = filled(testCase.expect, chainsOf(world), testCase.id, monthsOf(world))
+  const { forbid, forbidText, mustContain } = expect
   const text = trailText(trail)
   const seen = new Set(canariesIn(text))
   for (const key of forbid) {
@@ -59,6 +56,7 @@ export function judgeTrail(c: Check, world: World, testCase: EvalCase, trail: Tr
     c.ok(!wrote.includes(foldText(word)), `the model writes ${word}`)
   }
   for (const word of mustContain) c.ok(body.includes(foldText(word)), `the answer omits ${word}`)
+  judgeCards(c, expect, trail)
 }
 
 function judgePlan(c: Check, testCase: EvalCase, plan: readonly PlanStep[], trail: Trail): void {

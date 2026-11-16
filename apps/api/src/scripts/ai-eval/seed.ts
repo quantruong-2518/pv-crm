@@ -29,6 +29,7 @@ import {
   FIRST_OPPORTUNITY,
   HISTORY_CHAINS,
   KINDS_CHAINS,
+  PROPOSE_CHAIN,
   STRANGER_DEAL_BASE,
   TYPED_TAX_CODE,
   TYPED_WEBSITE,
@@ -319,6 +320,7 @@ export async function seedWorld(db: Db): Promise<Seeded> {
     ...HISTORY_CHAINS,
     ...CUSTOMER_CHAINS,
     ...KINDS_CHAINS,
+    PROPOSE_CHAIN,
   ]
   /* Two numbers past the chains: the sibling takes the first. */
   const company = await seedCompany(db, specs.length + 1)

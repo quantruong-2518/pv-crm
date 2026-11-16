@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { gatewayOf, type Trail } from './bench'
 import { filled, loadCases, type EvalCase } from './cases'
+import { cardEvidence } from './cases-propose'
 import type { LiveClients } from './live'
 import type { Check } from './report'
 import { toolOutputs } from './scripted-client'
@@ -53,11 +54,14 @@ export async function gradeTurn(
   if (!testCase.expect.grade) return
   const chains = world.seeded.chains
   const answer = trail.turn?.body ?? ''
+  /* A proposal case gets the card's fate, never raw output: its record carries a plant. */
   const tools = GROUNDED.has(testCase.group)
     ? toolOutputs(trail.witness.seen.at(-1)?.request.messages ?? [])
         .join('\n')
         .slice(0, EVIDENCE_CHARS)
-    : undefined
+    : testCase.group === 'propose'
+      ? cardEvidence(trail)
+      : undefined
   const verdict = await grade(world, clients, {
     rule: filled(testCase.expect.grade, chains, testCase.id),
     question: filled(testCase.question, chains, testCase.id),

@@ -25,6 +25,8 @@ import {
   FIRST_OPPORTUNITY,
   HISTORY_CELLS,
   KINDS_CELLS,
+  KINDS_CHAINS,
+  PROPOSE_CHAIN,
   HISTORY_CHAINS,
   MATRIX_CELLS,
   NAMED_SEATS,
@@ -55,8 +57,8 @@ const stand = (key: string, n: number) => ({
 })
 
 describe('the case set', () => {
-  it('is 83 cases split 20, 15, 10, 5, 22, 6 and 5', () => {
-    expect(cases).toHaveLength(83)
+  it('is 90 cases split 20, 15, 10, 5, 22, 6, 5 and 7', () => {
+    expect(cases).toHaveLength(90)
     expect(CASE_COUNTS).toEqual({
       scope: 20,
       injection: 15,
@@ -65,6 +67,7 @@ describe('the case set', () => {
       coverage: 22,
       linked: 6,
       history: 5,
+      propose: 7,
     })
     expect(caseSetFaults(cases)).toEqual([])
   })
@@ -75,7 +78,10 @@ describe('the case set', () => {
 
   it('names only chains the seed makes', () => {
     const chains = new Map(
-      [...CHAINS, ...HISTORY_CHAINS, ...CUSTOMER_CHAINS].map((c, i) => [c.key, stand(c.key, i)]),
+      [...CHAINS, ...HISTORY_CHAINS, ...CUSTOMER_CHAINS, PROPOSE_CHAIN].map((c, i) => [
+        c.key,
+        stand(c.key, i),
+      ]),
     )
     for (const c of cases) {
       const own = new Map(chains).set(c.id, stand(c.id, 99))
@@ -178,6 +184,8 @@ describe('the seed', () => {
         COMPANY_CHAINS.length +
         HISTORY_CHAINS.length +
         CUSTOMER_CHAINS.length +
+        KINDS_CHAINS.length +
+        1 +
         planted +
         1,
     ).toBeLessThan(WORDS.length)

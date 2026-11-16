@@ -113,6 +113,9 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
   - On production 16/11/2026 at 3e709c80, Fly v227, /healthz ok; migration
     0174 on Neon (ledger id 172). Owner's call with gate 0 OPEN; prompt v17
     never run live, and no proposal has been pressed on production yet.
+  - Live eval has a `propose` group (7 cases, ADR 0133 §5 amendment of
+    16/11/2026), green in the scripted run; never run live. It is reported,
+    not part of the gate formula.
   - No screen has seen a card: states, narrow panel, tablet press, three themes.
     Korean copy unreviewed.
   - No web screen draws the touch timeline, so the `assistant-applied` mark is
