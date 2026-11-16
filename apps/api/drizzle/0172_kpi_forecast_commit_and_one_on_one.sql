@@ -1,4 +1,4 @@
--- 0170 - KPI wave 4 (ADR 0158): weekly forecast commits, unit commits, the monthly 1:1 with its
+-- 0172 - KPI wave 4 (ADR 0158): weekly forecast commits, unit commits, the monthly 1:1 with its
 -- actions, one bell kind, `kpi-one-on-one`, three `kpi.score.*` setting keys (setting_key_known rebuilt
 -- from 0143's list) and `kpi_month_close.score_basis`. Every `period` is a calendar month `YYYY-MM`
 -- from 2026-12 on; a commit's `period` must equal its Monday's month. Money is whole dong.

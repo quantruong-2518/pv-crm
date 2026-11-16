@@ -56,7 +56,7 @@ export const kpiMonthClose = sales.table(
      *  NULL = closed before 0137. */
     gate: jsonb('gate').$type<KpiCloseGateSnapshot>(),
     /** The catalog and grade bands the month's score is judged by, frozen at close
-     *  (ADR 0158). NULL = closed before 0170: the score reads the current config. */
+     *  (ADR 0158). NULL = closed before 0172: the score reads the current config. */
     scoreBasis: jsonb('score_basis').$type<KpiScoreBasis>(),
   },
   () => [check('kpi_month_close_period_shape', periodShape())],

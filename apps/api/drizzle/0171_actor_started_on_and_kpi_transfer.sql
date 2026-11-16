@@ -1,4 +1,4 @@
--- 0168 - `platform.actor.started_on`, `sales.kpi_transfer` and `kpi_assignment_line.added_at` (ADR 0156). started_on is the
+-- 0171 - `platform.actor.started_on`, `sales.kpi_transfer` and `kpi_assignment_line.added_at` (ADR 0156). started_on is the
 -- first working day for the ramp; NULL = fully ramped, so no backfill and every old actor
 -- keeps today's targets. kpi_transfer hands a leaver's month to a receiver from `from_day`
 -- on; `to_actor_id` NULL = no receiver. One transfer per leaver per month (UNIQUE).

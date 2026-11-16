@@ -1,4 +1,4 @@
--- 0167 - `sales.contract_credit` (ADR 0155): who shares the KPI credit of a contract, in
+-- 0170 - `sales.contract_credit` (ADR 0155): who shares the KPI credit of a contract, in
 -- basis points. One row per (contract, person). share_bp is 1..10000, hand-written CHECK.
 -- "Rows of a contract sum to 10000, at most 3 rows" is the service's check: a CHECK cannot
 -- see sibling rows. Both FKs are real: every contract has its `sales.contract` row, and

@@ -174,7 +174,7 @@ Built through wave 2b (ADR 0112 to 0120).
   probability coverage on Neon is not measured.
 
 - 2c (ADR 0156) and 2d (ADR 0155): built 15/11/2026 on branch `kpi-finish`,
-  migrations 0167 and 0168, not merged or shipped; owner answers are questions
+  migrations 0170 and 0171, not merged or shipped; owner answers are questions
   183 to 197. Screens never seen in a browser. Ship after 28/11 so December's
   assignment window is not touched; 2c applies from 2027-01.
 - 2e: remove the old screens and flows after a month in parallel; the

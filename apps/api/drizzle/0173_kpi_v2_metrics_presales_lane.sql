@@ -1,4 +1,4 @@
--- 0171 - KPI v2 from 2027-01 (ADR 0160). Six metric keys join `KpiMetricKey` (sixteen plus six:
+-- 0173 - KPI v2 from 2027-01 (ADR 0160). Six metric keys join `KpiMetricKey` (sixteen plus six:
 -- twenty-two): mql-reached, lead-to-mql-rate, cost-per-mql, presales-signed-value,
 -- on-time-collection-rate, solution-days. Seven lists widen: kpi_target, kpi_allocation_line,
 -- kpi_allocation_share, kpi_assignment_line, kpi_month_value, kpi_role_metric, kpi_alert_sent.

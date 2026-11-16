@@ -50,7 +50,7 @@ export const kpiRoleMetric = sales.table(
   {
     role: text('role').$type<RoleId>().notNull(),
     metricKey: text('metric_key').$type<KpiMetricKey>().notNull(),
-    /** First month the set applies. Rows from before 0171 hold '2000-01',
+    /** First month the set applies. Rows from before 0173 hold '2000-01',
      *  earlier than any real month, so they keep applying to every v1 month;
      *  a v2 month never reads a set older than 2027-01. No DEFAULT: a writer
      *  that forgets the month must fail, not write a v1 set. */

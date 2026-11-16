@@ -6,9 +6,9 @@ Worktree `/home/quantruong/workspace/pv-crm-kpi-finish`, nhánh `kpi-finish`. Ch
 ## Đã commit
 
 - `0808a84c`, `27b995c1`: 2c (ngày vào làm, người vào sau, người nghỉ) và 2d (chia công hợp đồng). ADR 0155, 0156;
-  migration 0167, 0168.
-- `dbda5cf7`: đợt 3, đợt 4, một mục KPI ba thẻ. ADR 0157–0159; migration 0170.
-- `8d0685e9`: KPI v2 theo canvas chủ dự án sửa ngày 16/11. ADR 0160; migration 0171. Chỉ áp từ 01/2027.
+  migration 0170, 0171 (trước khi rebase là 0167, 0168).
+- `dbda5cf7`: đợt 3, đợt 4, một mục KPI ba thẻ. ADR 0157–0159; migration 0172.
+- `8d0685e9`: KPI v2 theo canvas chủ dự án sửa ngày 16/11. ADR 0160; migration 0173. Chỉ áp từ 01/2027.
 - `7cfe3916`: sửa các lỗi thấy khi mở màn thật lần đầu (biểu đồ giá trị ký của trưởng phòng, ngân sách
   Marketing theo đơn vị, lỗi 404 lặp với BD/Presales, nhãn biểu đồ đè đường, tiêu đề điểm theo tháng đang xem).
 
@@ -21,11 +21,11 @@ https://claude.ai/artifact/9MSHoW5uqYdFvxUU6U4jYW. Chưa ai mở màn trên dữ
 Còn chưa đẹp: vài thẻ cạnh nhau cao thấp lệch, nhãn "Chỉ tiêu" còn chạm đường trên biểu đồ Sale, bảng bản ghi ghi
 tiền đủ chữ số.
 
-## Phải làm trước khi ship (chặn)
+## Trước khi ship
 
-- Nhánh `master` đã có migration 0169 (`assistant-wave-2`) trên Neon. 0167 và 0168 của nhánh này có `when` thấp hơn
-  0169 và journal không có 0169, nên drizzle sẽ bỏ qua chúng mà không báo. Rebase lên `origin/master`, đánh số lại
-  0167/0168/0170/0171 lên trên 0169 với `when` tăng dần, rồi chứng minh lại trên bản sao PGlite.
+- Đã rebase lên `origin/master` `4f4a4313` (có 0169 `assistant_brief`, đã trên Neon) và đánh số lại migration của
+  nhánh thành 0170–0173, `when` tăng dần trên 0169. Đã chạy trọn 0000→0173 trên một PGlite trống. Bản `.pglite` cũ
+  của worktree đã chạy số cũ nên sẽ báo lỗi khi migrate lại: tạo bản mới, đừng sửa tay.
 - Thứ tự: Neon migrate trước, API sau, web cuối. Giữa migrate và deploy, bản API cũ không lưu được cấu hình KPI
   (cột `from_period` không có mặc định): tránh sửa cấu hình trong khoảng đó.
 - Không ship gì đụng cửa giao chỉ tiêu trong 20–28/11 (tháng 12 đang được giao).
