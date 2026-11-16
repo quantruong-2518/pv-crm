@@ -1,5 +1,7 @@
 # Bàn giao · Trợ lý CRM — chuẩn bị đợt 4 (làm hộ)
 
+> **16/11/2026: sáu câu ở mục 3 đã được trả lời và đợt 4 đã dựng.** Đọc `.claude/HANDOFF-assistant-wave-4-build.md` thay cho file này.
+
 Viết 16/11/2026. Thay cho `HANDOFF-assistant-wave-2.md` (đợt 2 đã ship 16/11, Fly v224).
 
 ## 0 · Trạng thái
