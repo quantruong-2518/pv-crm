@@ -95,3 +95,11 @@ Owner decisions of 11/11/2026, answering the open points of this slice.
 4. **Counting tool beyond KPI** (for example "how many leads at stage X"): not
    planned now. Revisit after gate 0 shows real users ask it.
 5. Open questions 179 to 182 are answered in the ADR 0143 amendment.
+
+## Amendment 16/11/2026 · room-wide figures and counting come back through ADR 0155
+
+Owner decision of 16/11/2026. Points 1 and 4 of the 11/11/2026 amendment above
+are reversed by ADR 0155: the assistant reads room-wide figures through
+`get_performance` and counts the asker's own books through `count_records`.
+`get_my_kpi` itself still carries no room-scope reading, and `get_team_kpi` is
+unchanged. Points 2, 3 and 5 stand.

@@ -380,6 +380,8 @@ describe('the sales tools', () => {
       'get_history',
       'get_my_kpi',
       'get_team_kpi',
+      'get_performance',
+      'count_records',
     ])
     for (const tool of declared) {
       expect(tool.parameters).toMatchObject({ additionalProperties: false })

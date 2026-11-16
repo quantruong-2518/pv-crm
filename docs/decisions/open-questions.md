@@ -927,3 +927,17 @@ asked again. All answered the same day; the ADRs of each slice cite them.
      (working-day proration with ramp, split rounding, total score)?**
      **Answered 15/11/2026: no — prove them with hand-computed acceptance
      scripts on PGlite.**
+## CRM assistant wave 3 (added 16/11/2026)
+
+Raised by ADR 0155 and the earlier assistant waves.
+
+183. **Should the assistant get a counting tool (`aggregate`)?**
+     _(see ADR 0155)_
+     **Answered 16/11/2026: yes, as `count_records` over scoped doors only — ADR 0155.**
+
+184. **How is the deep route chosen?** _(see ADR 0152)_
+     **Answered: the user presses "Phân tích kỹ" — ADR 0152.**
+
+185. **Should notifications, configuration and administration stay out of the
+     assistant's scope? Recommended: yes.**
+     **Open.**

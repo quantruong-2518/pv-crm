@@ -29,6 +29,8 @@ export type MessageCodes = {
   id: string
   codes: readonly string[]
   reveals: readonly (Permission | null)[]
+  /** A revealing call read what the asker's scope decided: an absent flag is false. */
+  scopeCut?: boolean
   revealing: readonly { tool: string; codes: readonly string[] }[]
 }
 export type Shut = 'withheld' | 'unchecked'
@@ -66,11 +68,14 @@ export const revealedCodes = (chat: readonly MessageCodes[]): string[] => [
 ]
 
 /** `chats`: each chat's answers, oldest first. One batched read covers them all,
- *  and the cap counts across them. */
+ *  and the cap counts across them. `foreign` is a reader who is not the chats' owner:
+ *  an own-only one is shut out of an answer cut by the owner's scope.
+ *  An array carries one flag per chat. */
 export async function recheckChats(
   gate: AssistantToolGate,
   who: Actor,
   chats: readonly (readonly MessageCodes[])[],
+  foreign: boolean | readonly boolean[] = false,
 ): Promise<Recheck> {
   const checked = new Set<string>()
   const past = new Set<string>()
@@ -89,10 +94,12 @@ export async function recheckChats(
     revealing.length > 0 ? await gate.reachOf(who, revealing) : new Map()
   const refs = new Map<string, AssistantRef[]>()
   const shut = new Map<string, Shut>()
-  for (const chat of chats) {
+  for (const [at, chat] of chats.entries()) {
+    const foreignChat = typeof foreign === 'boolean' ? foreign : foreign[at] === true
     let taint: Shut | null = null
-    for (const { id, codes, reveals, revealing } of chat) {
-      const lacking = reveals.some((p) => p === null || !gate.holds(who, p))
+    for (const { id, codes, reveals, revealing, scopeCut } of chat) {
+      const cutByScope = foreignChat && who.ownOnly === true && scopeCut === true
+      const lacking = cutByScope || reveals.some((p) => p === null || !gate.holds(who, p))
       const reached = revealing.reduce<Shut | null>(
         (acc, call) => worse(acc, reachVerdict(reach.get(call.tool), call.codes)),
         null,
@@ -110,8 +117,12 @@ export async function recheckChats(
   return { refs, shut }
 }
 
-export const recheck = (gate: AssistantToolGate, who: Actor, chat: readonly MessageCodes[]) =>
-  recheckChats(gate, who, [chat])
+export const recheck = (
+  gate: AssistantToolGate,
+  who: Actor,
+  chat: readonly MessageCodes[],
+  foreign = false,
+) => recheckChats(gate, who, [chat], foreign)
 
 /** The re-read sites build a chat's lines here, so none can leave `reveals` out. */
 export const chatOf = (
@@ -130,6 +141,7 @@ export const chatOf = (
       codes: stored.flatMap((c) => c.codes),
       reveals: gate.revealsOf(stored),
       revealing,
+      scopeCut: gate.scopeCutOf(stored),
     }
   })
 

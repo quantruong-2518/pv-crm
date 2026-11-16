@@ -80,6 +80,24 @@ describe('a result as the model reads it', () => {
     expect(say(bare.binding, '⟦v2⟧')).toBe('1.234.567')
   })
 
+  it('prints a `…Vnd` figure as dong in any currency and a `…Percent` figure as a percent', () => {
+    const { binding } = bound({
+      trusted: { signedVnd: 1_500_000, currency: 'USD', ratePercent: 12.5, share: 40, tally: 7 },
+    })
+    expect(say(binding, '⟦v2⟧ ⟦v3⟧ ⟦v4⟧ ⟦v5⟧')).toBe(`1.500.000${NBSP}₫ 12,5% 40% 7`)
+  })
+
+  it('prints a sales period key under `period` or `…Period` in Vietnamese, and no other text', () => {
+    const keys = ['2026-W43', '2026-11', '2026-Q4', '2026']
+    const { binding, output } = bound({
+      trusted: { period: keys, lastPeriod: '2026-W05', note: '2026-13', name: '2026-11' },
+    })
+    const cites = JSON.stringify(output).match(/⟦v\d+⟧/g) as string[]
+    expect(say(binding, cites.slice(2).join(' '))).toBe(
+      'tuần 43/2026 tháng 11/2026 quý 4/2026 năm 2026 tuần 5/2026 2026-13 2026-11',
+    )
+  })
+
   it("gives list_my_work's lists a count to cite, and leaves its `more` flag plain", () => {
     const work = {
       trusted: {

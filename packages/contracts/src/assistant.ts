@@ -1,8 +1,10 @@
 import { z } from 'zod'
 import { COMM_CONFIRM_WITHIN_HOURS } from './comms/thread'
-import { Moment } from './primitives'
+import { Day, Moment } from './primitives'
 import { AfterSaleCareStatus, AfterSaleTemperatureFilter } from './sales/after-sale'
 import { KpiPeriodKey } from './sales/kpi'
+import { SalesPeriodKey } from './sales/performance'
+import { salesGrainOf } from './sales/sales-period'
 import { SearchKind } from './sales/search'
 import { SEARCH_MAX_CHARS, SEARCH_MIN_CHARS } from './search-text'
 
@@ -307,3 +309,36 @@ export const GetTeamKpiInput = z
   .object({ at: KpiPeriodKey.optional(), team: z.string().trim().min(1).max(80).optional() })
   .strict()
 export type GetTeamKpiInput = z.infer<typeof GetTeamKpiInput>
+
+/** Room-wide figures of one period, as the overview shows them. `at` absent = the current period;
+ *  when present it must be of the same grain. Which parts allow which grain is the tool's rule. */
+export const GetPerformanceInput = z
+  .object({
+    part: z.enum(['figures', 'exits', 'money', 'industries']),
+    grain: z.enum(['week', 'month', 'quarter', 'year']),
+    at: SalesPeriodKey.optional(),
+  })
+  .strict()
+  .refine((v) => v.at === undefined || salesGrainOf(v.at) === v.grain, {
+    path: ['at'],
+    message: 'Kỳ phải cùng loại với grain.',
+  })
+export type GetPerformanceInput = z.infer<typeof GetPerformanceInput>
+
+/** Counts over doors that already cut rows to the asker's scope. The range exists only on `lead-sources`. */
+export const CountRecordsInput = z
+  .object({
+    of: z.enum(['leads', 'deals', 'journeys', 'lead-sources']),
+    from: Day.optional(),
+    to: Day.optional(),
+  })
+  .strict()
+  .refine((v) => v.of === 'lead-sources' || (v.from === undefined && v.to === undefined), {
+    path: ['of'],
+    message: 'Chỉ nguồn khách có khoảng ngày.',
+  })
+  .refine((v) => v.from === undefined || v.to === undefined || v.from <= v.to, {
+    path: ['to'],
+    message: 'Ngày kết thúc phải sau ngày bắt đầu.',
+  })
+export type CountRecordsInput = z.infer<typeof CountRecordsInput>

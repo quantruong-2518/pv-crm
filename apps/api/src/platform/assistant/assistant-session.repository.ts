@@ -29,6 +29,7 @@ export type SessionPatch = { title?: string; pinned?: boolean }
 export type ReportLine = {
   id: string
   at: Date
+  reporterId: string
   reporterName: string
   reason: AssistantReportBody['reason']
   note: string | null
@@ -160,6 +161,7 @@ export class AssistantSessionRepository {
       .select({
         id: assistantReport.id,
         at: assistantReport.createdAt,
+        reporterId: assistantReport.actorId,
         reporterName: actor.name,
         reason: assistantReport.reason,
         note: assistantReport.note,

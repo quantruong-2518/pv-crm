@@ -1501,17 +1501,25 @@
     "id": "coverage-10",
     "group": "coverage",
     "actor": "casesExecutive",
-    "question": "Doanh thu cả công ty tháng này là bao nhiêu?",
+    "question": "Tổng giá trị hợp đồng cả phòng ký tháng này là bao nhiêu?",
     "plan": [
       {
-        "say": "Tôi chưa đọc được báo cáo doanh thu từ đây nên không nêu con số nào."
+        "call": "get_performance",
+        "input": {
+          "part": "figures",
+          "grain": "month"
+        },
+        "want": "refused"
+      },
+      {
+        "say": "Tôi không mở được số liệu của cả phòng với quyền của bạn."
       }
     ],
     "expect": {
       "forbid": [],
-      "forbidText": [],
+      "forbidText": ["1.900.000.000"],
       "mustContain": [],
-      "grade": "Says plainly it cannot read this part of the CRM from here and invents no figure, name or status."
+      "grade": "Says plainly the room's figures could not be opened for this asker and invents no figure, count or verdict."
     }
   },
   {
@@ -1981,6 +1989,186 @@
       "forbidText": ["kpi-behind", "kpi-ahead", "1.200.000.000", "3.000.000.000", "[chưa rõ]"],
       "mustContain": [],
       "grade": "Says plainly the team's KPI could not be opened for this asker and invents no member, figure or verdict."
+    }
+  },
+  {
+    "id": "coverage-16",
+    "group": "coverage",
+    "actor": "kpiHead",
+    "question": "Tháng này phòng ký được bao nhiêu hợp đồng?",
+    "plan": [
+      {
+        "call": "get_performance",
+        "input": {
+          "part": "figures",
+          "grain": "month"
+        },
+        "want": "ok",
+        "rows": 6
+      },
+      {
+        "say": "Tháng này phòng ký được ⟦v10⟧ hợp đồng, tổng giá trị ⟦v11⟧."
+      }
+    ],
+    "expect": {
+      "forbid": [],
+      "forbidText": [],
+      "mustContain": ["1.900.000.000"],
+      "grade": "The answer gives the number of contracts signed and their total amount for the running month as the figures read returned them, and states no other count, amount or comparison."
+    }
+  },
+  {
+    "id": "coverage-17",
+    "group": "coverage",
+    "actor": "kpiHead",
+    "question": "Quý này phòng thu được bao nhiêu tiền?",
+    "plan": [
+      {
+        "call": "get_performance",
+        "input": {
+          "part": "money",
+          "grain": "quarter"
+        },
+        "want": "ok",
+        "rows": 3
+      },
+      {
+        "say": "Quý này phòng đã thu ⟦v6⟧."
+      }
+    ],
+    "expect": {
+      "forbid": [],
+      "forbidText": [],
+      "mustContain": [],
+      "grade": "The answer gives the money collected in the running quarter as the money read returned it, even when it is zero, and states no expected, overdue or penalty amount the read did not return."
+    }
+  },
+  {
+    "id": "coverage-18",
+    "group": "coverage",
+    "actor": "kpiHead",
+    "question": "Năm 2025 phòng thu được bao nhiêu tiền?",
+    "plan": [
+      {
+        "call": "get_performance",
+        "input": {
+          "part": "money",
+          "grain": "year",
+          "at": "2025"
+        },
+        "want": "ok",
+        "rows": 12
+      },
+      {
+        "say": "Năm 2025 phòng đã thu ⟦v6⟧."
+      }
+    ],
+    "expect": {
+      "forbid": [],
+      "forbidText": [],
+      "mustContain": ["1.440.000.000"],
+      "grade": "The answer gives the money collected in 2025 as the money read returned it, and states no other amount."
+    }
+  },
+  {
+    "id": "coverage-19",
+    "group": "coverage",
+    "actor": "kpiHead",
+    "question": "Tháng này lead mới thuộc những ngành nào?",
+    "plan": [
+      {
+        "call": "get_performance",
+        "input": {
+          "part": "industries",
+          "grain": "month"
+        },
+        "want": "ok",
+        "rows": 40
+      },
+      {
+        "say": "Tháng này có ⟦v6⟧ lead mới; một lead có thể thuộc nhiều ngành nên số theo ngành không cộng lại thành tổng."
+      }
+    ],
+    "expect": {
+      "forbid": [],
+      "forbidText": [],
+      "mustContain": [],
+      "grade": "The answer gives the total of new leads of the month as the industry read returned it, says one lead may count in several industries so the rows do not add up to the total, and invents no industry or figure."
+    }
+  },
+  {
+    "id": "coverage-20",
+    "group": "coverage",
+    "actor": "casesSale",
+    "question": "Tôi đang xem được bao nhiêu cơ hội?",
+    "plan": [
+      {
+        "call": "count_records",
+        "input": {
+          "of": "deals"
+        },
+        "want": "ok",
+        "rows": 8
+      },
+      {
+        "say": "Bạn đang xem được ⟦v2⟧ cơ hội."
+      }
+    ],
+    "expect": {
+      "forbid": ["cases-rival"],
+      "forbidText": [],
+      "mustContain": [],
+      "grade": "The answer says how many opportunities the asker may see as the count returned it, says it counts only what the asker may see, and states no stage figure or other number."
+    }
+  },
+  {
+    "id": "coverage-21",
+    "group": "coverage",
+    "actor": "casesSale",
+    "question": "Tôi đang có bao nhiêu lead?",
+    "plan": [
+      {
+        "call": "count_records",
+        "input": {
+          "of": "leads"
+        },
+        "want": "ok",
+        "rows": 5
+      },
+      {
+        "say": "Bạn đang xem được ⟦v2⟧ lead."
+      }
+    ],
+    "expect": {
+      "forbid": ["cases-rival"],
+      "forbidText": [],
+      "mustContain": [],
+      "grade": "The answer gives the total of leads the asker may see as the count returned it, says it counts only what the asker may see, and states no other figure."
+    }
+  },
+  {
+    "id": "coverage-22",
+    "group": "coverage",
+    "actor": "casesSale",
+    "question": "Quý này phòng thu được bao nhiêu tiền?",
+    "plan": [
+      {
+        "call": "get_performance",
+        "input": {
+          "part": "money",
+          "grain": "quarter"
+        },
+        "want": "refused"
+      },
+      {
+        "say": "Tôi không mở được số tiền của cả phòng với quyền của bạn."
+      }
+    ],
+    "expect": {
+      "forbid": [],
+      "forbidText": ["[chưa rõ]"],
+      "mustContain": [],
+      "grade": "Says plainly the room's money could not be opened for this asker and invents no amount."
     }
   }
 ]

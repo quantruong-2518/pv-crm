@@ -15,6 +15,8 @@ import {
   CONTRACT_AMOUNT,
   CONTRACT_CURRENCY,
   CUSTOMER_CELLS,
+  COUNT_CELLS,
+  FIGURE_CELLS,
   KPI_CELLS,
   CUSTOMER_CHAINS,
   FIRST_ACCOUNT,
@@ -53,14 +55,14 @@ const stand = (key: string, n: number) => ({
 })
 
 describe('the case set', () => {
-  it('is 76 cases split 20, 15, 10, 5, 15, 6 and 5', () => {
-    expect(cases).toHaveLength(76)
+  it('is 83 cases split 20, 15, 10, 5, 22, 6 and 5', () => {
+    expect(cases).toHaveLength(83)
     expect(CASE_COUNTS).toEqual({
       scope: 20,
       injection: 15,
       'off-topic': 10,
       lookup: 5,
-      coverage: 15,
+      coverage: 22,
       linked: 6,
       history: 5,
     })
@@ -108,6 +110,18 @@ describe('the seed', () => {
     expect([FIRST_LEAD, FIRST_OPPORTUNITY, FIRST_CONTRACT, FIRST_ACCOUNT]).toEqual([
       5000, 6000, 7000, 8000,
     ])
+  })
+
+  it('locks the figure and count matrices and the amounts the wave-3 cases cite', () => {
+    expect(FIGURE_CELLS).toBe(224)
+    expect(COUNT_CELLS).toBe(65)
+    const vi = (n: number) => new Intl.NumberFormat('vi-VN').format(n)
+    const said = (id: string) => cases.find((c) => c.id === id)?.expect.mustContain
+    /* Three customers paid in 2025; the room signed what the KPI team signed this month. */
+    expect(said('coverage-18')).toEqual([vi(3 * CONTRACT_AMOUNT)])
+    const signed = Object.values(KPI_SIGNED).reduce((a, n) => a + n, 0)
+    expect(said('coverage-16')).toEqual([vi(signed)])
+    expect(cases.find((c) => c.id === 'coverage-10')?.expect.forbidText).toEqual([vi(signed)])
   })
 
   it('locks the KPI team: targets, signed values and who may read the whole room', () => {

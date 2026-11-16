@@ -197,12 +197,12 @@ async function neverReached(world: World, c: Check, all: KpiCell[]): Promise<voi
 }
 
 /** A stored answer is served again to a reader who still holds the grant, shut for one who lost it, and either way writes no line. */
-async function reload(
+export async function reload(
   world: World,
   c: Check,
   who: Seat,
   call: KpiCall,
-  grant: 'kpi.view' | 'kpi.view-all',
+  grant: Parameters<typeof without>[1],
 ) {
   const sessionId = (await runTurn(world, { who, script: [{ calls: [call] }, parrot] })).sessionId
   const service = serviceOf(world)

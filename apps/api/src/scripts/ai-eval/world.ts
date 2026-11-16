@@ -19,6 +19,13 @@ import { WorkstreamService } from '@api/branches/sales/workstream/workstream.ser
 import { ApprovalService } from '@api/platform/approval/approval.service'
 import { HoldModule } from '@api/branches/sales/hold/hold.module'
 import { KpiForecastService } from '@api/branches/sales/kpi/kpi-forecast.service'
+import { IndustryReportModule } from '@api/branches/sales/industry-report/industry-report.module'
+import { IndustryReportService } from '@api/branches/sales/industry-report/industry-report.service'
+import { LeadOriginModule } from '@api/branches/sales/lead-origin/lead-origin.module'
+import { LeadOriginService } from '@api/branches/sales/lead-origin/lead-origin.service'
+import { PerformanceMoneyService } from '@api/branches/sales/performance/performance-money.service'
+import { PerformanceModule } from '@api/branches/sales/performance/performance.module'
+import { PerformanceService } from '@api/branches/sales/performance/performance.service'
 import { KpiModule } from '@api/branches/sales/kpi/kpi.module'
 import { KpiQuarterService } from '@api/branches/sales/kpi/kpi-quarter.service'
 import { KpiService } from '@api/branches/sales/kpi/kpi.service'
@@ -84,6 +91,10 @@ class EvalRootModule {
         SalesAssistantModule,
         /* The KPI doors are not reached by the module above yet; their services are asked for by type. */
         KpiModule,
+        /* `get_performance` and `count_records` ask ModuleRef for these services by class. */
+        PerformanceModule,
+        IndustryReportModule,
+        LeadOriginModule,
         /* `list_my_work` asks ModuleRef for the hold service; no other module here brings it. */
         HoldModule,
         /* The same wiring `app.module.ts` gives comms: the history tool asks ModuleRef for
@@ -124,6 +135,10 @@ export type World = {
   approvals: ApprovalService
   holds: HoldService
   meetings: MeetingService
+  performance: PerformanceService
+  performanceMoney: PerformanceMoneyService
+  industries: IndustryReportService
+  leadOrigins: LeadOriginService
   close: () => Promise<void>
 }
 
@@ -165,6 +180,10 @@ export async function openWorld(): Promise<World> {
     approvals: app.get(ApprovalService, { strict: false }),
     holds: app.get(HoldService, { strict: false }),
     meetings: app.get(MeetingService, { strict: false }),
+    performance: app.get(PerformanceService, { strict: false }),
+    performanceMoney: app.get(PerformanceMoneyService, { strict: false }),
+    industries: app.get(IndustryReportService, { strict: false }),
+    leadOrigins: app.get(LeadOriginService, { strict: false }),
     close: async () => {
       await app.close()
       await handle.close()

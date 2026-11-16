@@ -1,4 +1,4 @@
-import { ContractCode, CURRENCIES, ObjectCode } from '@pv/contracts'
+import { ContractCode, CURRENCIES, isSalesPeriodKey, ObjectCode, salesGrainOf } from '@pv/contracts'
 
 /** Values are bound, not checked after (ADR 0133 D3): text streams to the screen, so
  *  the model writes ids and the server writes the values.
@@ -18,7 +18,8 @@ export const UNSURE = '[chưa rõ]'
 
 /* By key, because a JSON value carries no unit: these are the trusted halves' money
    and percent fields, and a money value prints in its own record's currency. A KPI
-   figure has no fixed key, so the tool puts its unit in the name (`…Money`, `…Percent`). */
+   figure has no fixed key, so the tool puts its unit in the name: `…Percent` is a percent,
+   `…Vnd` is dong whatever the record's currency, and `period` is a sales period key. */
 const MONEY: ReadonlySet<string> = new Set([
   'amount',
   'budget',
@@ -43,6 +44,9 @@ const PERCENT: ReadonlySet<string> = new Set([
   'targetPercent',
   'valuePercent',
 ])
+
+const PERIOD_KEY = /^(?:period|.+Period)$/
+const PERIOD_UNIT = { week: 'tuần', month: 'tháng', quarter: 'quý', year: 'năm' } as const
 
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/
 const MOMENT = /^\d{4}-\d{2}-\d{2}T/
@@ -85,15 +89,25 @@ const isCode = (value: unknown): value is string =>
 
 const plain = (text: string): string => text.replaceAll('⟦', '[').replaceAll('⟧', ']')
 
+/** Prints week 43 of 2026 as `43/2026` behind its unit; a year has no number before the slash. */
+function periodLabel(key: string): string {
+  const grain = salesGrainOf(key)
+  const unit = PERIOD_UNIT[grain]
+  if (grain === 'year') return `${unit} ${key}`
+  return `${unit} ${Number(key.slice(grain === 'month' ? 5 : 6))}/${key.slice(0, 4)}`
+}
+
 /** A money value with no known currency prints bare: a wrong ₫ would be 26,400 times off. */
 function printed(key: string, value: string | number, currency: string | null): string {
   if (typeof value === 'string') {
+    if (PERIOD_KEY.test(key) && isSalesPeriodKey(value)) return periodLabel(value)
     const day = DAY.exec(value)
     if (day) return `${day[3]}/${day[2]}/${day[1]}`
     const at = MOMENT.test(value) ? new Date(value) : null
     return at && !Number.isNaN(at.getTime()) ? VN_DAY.format(at) : value
   }
-  if (PERCENT.has(key)) return `${PLAIN_NUMBER.format(value)}%`
+  if (PERCENT.has(key) || key.endsWith('Percent')) return `${PLAIN_NUMBER.format(value)}%`
+  if (key.endsWith('Vnd')) return (CASH.get('VND') ?? PLAIN_NUMBER).format(value)
   const cash = MONEY.has(key) && currency ? CASH.get(currency) : undefined
   return (cash ?? PLAIN_NUMBER).format(value)
 }
