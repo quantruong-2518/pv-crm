@@ -28,3 +28,6 @@ apps/api/.ai-eval/
 
 # A terminal tool writes its ledger under a literal "~" directory here.
 /~/
+
+# Python hooks run without -B.
+.claude/hooks/__pycache__/

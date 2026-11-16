@@ -1,4 +1,4 @@
-# Pebble Aurora — the fifteen hard laws
+# Pebble Aurora — the hard laws
 
 Source: `docs/luat-thiet-ke.md` §1, ratified 10/08; laws 1, 2, 3, 6, 12 and 15
 carry the values of the Pebble Aurora design system, adopted 17/09/2026, which
@@ -8,7 +8,7 @@ as it did. See `docs/design-system/index.md` for the old-section →
 new-file map.
 
 > **Two old numbering schemes.** `project/CLAUDE.md` and `AGENTS.md §1` numbered
-> these fifteen laws differently (borderless was law 4 in the first, §1.1 in the
+> these laws differently (borderless was law 4 in the first, §1.1 in the
 > second). This file keeps **`project/CLAUDE.md`'s numbering** as the standard,
 > because 36 citations in code use it. Two spots that once cited `AGENTS §1.11`
 > and `§1.13` have been switched to the standard numbers.

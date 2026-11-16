@@ -1,6 +1,6 @@
 ---
 name: aurora-reviewer
-description: Review pv-crm screens against the Aurora v2.0 design laws that no linter enforces — four background layers, contrast, glass surfaces, tablet hit targets, AI blocks that wait for a button, kit presence. Reads only; returns a findings table. Use after screen work, alongside rules-reviewer.
+description: Review pv-crm screens against the Aurora v2.0 design laws that no linter enforces — one background layer, contrast, glass surfaces, tablet hit targets, AI blocks that wait for a button, kit presence. Reads only; returns a findings table. Use after screen work, alongside rules-reviewer.
 model: opus
 effort: high
 tools: Read, Grep, Glob
@@ -20,9 +20,10 @@ English comments (`aurora/comments-in-english`).
 
 ## What only you can catch
 
-1. **Law 12 — exactly four background layers.** Aurora blobs → 32px grid → 160px
-   grid → noise. A fifth layer, or the field placed on an inner frame instead of
-   the outermost one, or missing `pointer-events: none`.
+1. **Law 12 — exactly one background layer.** The aurora glow over
+   `--background`, nothing else: no grid, no grain, no second layer. Flag any extra
+   layer, the glow placed on an inner frame instead of the outermost one, or
+   missing `pointer-events: none`.
 2. **Law 13 — contrast ≥ 4.5:1** on BOTH `.glass-a` and `.glass-b`. Compute it from
    the token values in §2; do not eyeball a token name. Tablet buttons ≥ 48px;
    mobile keeps the 34px safe area.

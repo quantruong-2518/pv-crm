@@ -32,7 +32,9 @@ agent chạy song song **không thể** giẫm lên nhau.
 `writing-for-agents` trước khi viết. Handoff đang sống do phiên chính giữ.
 
 Một đơn vị build chạy opus chỉ khi brief của nó mang dòng `Why opus:` (không có gold
-example, và đụng quyền/tiền/bất biến) — không có dòng đó thì hook từ chối. Bảng
+example, và đụng quyền/tiền/bất biến), đứng riêng một dòng — không có thì
+`.claude/hooks/guard_agent_tier.py` từ chối. `worker` và `claude` cũng là agent dựng nên bị gác
+như mọi agent dựng khác. Bảng
 model/effort nằm ở `dispatch` global, không chép lại đây.
 
 **Vùng KHÔNG ai sở hữu** — `packages/ui/**`, mọi `index.ts` barrel,

@@ -10,9 +10,10 @@
  *  if it can't, it silently skips — lint-staged and CI still gate enough. A
  *  hook that breaks things often is a hook that gets removed. */
 import { spawnSync } from 'node:child_process'
+import { appendFileSync, mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
-import { dirname, extname, relative, resolve } from 'node:path'
+import { dirname, extname, join, relative, resolve } from 'node:path'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const require = createRequire(import.meta.url)
@@ -42,12 +43,27 @@ const run = (entry, args) => {
   return spawnSync(process.execPath, [entry, ...args], { cwd: ROOT, encoding: 'utf8' })
 }
 
+/** Main-thread edits only (a subagent payload carries `agent_id`): the Stop quality gate
+ *  (.claude/hooks/quality_gate.py) reads this list and checks nothing else. An IO error never fails the hook. */
+const recordEdit = (payload, file) => {
+  const id = payload.session_id
+  if (payload.agent_id || typeof id !== 'string' || !/^[\w.-]+$/.test(id)) return
+  try {
+    const dir = join(process.env.TMPDIR || '/tmp', 'claude-pvcrm-edits')
+    mkdirSync(dir, { recursive: true })
+    appendFileSync(join(dir, `${id}.txt`), `${file}\n`)
+  } catch {
+    // the gate then has less to check; that is all
+  }
+}
+
 try {
   const payload = JSON.parse((await readStdin()) || '{}')
   const file = payload?.tool_input?.file_path
   if (!file) process.exit(0)
 
   const abs = resolve(ROOT, file)
+  recordEdit(payload, abs)
   const rel = relative(ROOT, abs)
   // Outside the repo, or inside the design source / a generated folder → leave it alone.
   if (rel.startsWith('..') || /^(project|node_modules|.*[\\/]dist)[\\/]/.test(rel)) process.exit(0)

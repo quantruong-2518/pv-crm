@@ -6,7 +6,7 @@ v2.0**. Có đủ hai đầu: `apps/web` đọc phần lớn dữ liệu thật 
 `pnpm ctx`, đừng đoán.
 
 ```
-docs/design-system/laws.md    15 luật cứng (§1) · token dùng thật (§2) · ba thiết bị (§3)
+docs/design-system/laws.md    các luật cứng (§1) · token dùng thật (§2) · ba thiết bị (§3)
 packages/tokens          globals.css — FILE MÀU DUY NHẤT + bảng token dạng dữ liệu
 packages/ui              @pv/ui — thư viện component            → packages/ui/CLAUDE.md
 packages/engines         @pv/engines — E1 đồ thị · E2 quyền · E3 duyệt · E4 thông báo
@@ -33,6 +33,8 @@ trích dẫn `luật N` trong code trỏ vào `docs/design-system/laws.md`.
 
 Hai skill hẹp, gọi thẳng khi đúng việc: `/cut` (cắt một query khỏi fixture sang
 endpoint thật) · `/split` (file phình quá ngưỡng thì tách theo đường nào).
+Skill phụ trợ, agent tự gọi khi tới đúng bước: `commit` · `plan-handoff` ·
+`i18n-add` · `scan-module` · `aurora-ds`.
 
 ## Lệnh
 

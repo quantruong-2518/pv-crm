@@ -13,7 +13,7 @@ Source: `docs/luat-thiet-ke.md` §8.
 - [ ] §8.5 — Every screen has a ContextRail → `E1.story()`
 - [ ] §8.6 — Padding/gap only from the 8 steps → `aurora/spacing-scale`
 - [ ] §8.7 — `prefers-reduced-motion` turns off all aurora animation
-- [ ] **§8.8 — Background is exactly 4 layers · contrast ≥ 4.5:1 · tablet
+- [ ] **§8.8 — Background is exactly 1 layer (the aurora glow) · contrast ≥ 4.5:1 · tablet
       buttons ≥ 48px**
 
 The first seven lines are **machine-gated** — `pnpm check` runs all of them.

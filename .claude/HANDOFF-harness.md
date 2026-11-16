@@ -6,7 +6,7 @@
 
 - **Global `~/.claude`** (không theo git; máy khác cài bằng `~/Downloads/claude-kit.tgz` →
   `node claude-kit/install.mjs`): `CLAUDE.md`, skill `dispatch`/`handoff`, agent `worker`,
-  hook gác bậc + `freshness` + `SubagentStop`, status line. Lượt dọn:
+  hook `freshness` + `SubagentStop`, status line. Lượt dọn:
   - `dispatch`: chỉ truyền `model`/`effort` khi khác frontmatter; `worker` luôn truyền.
     `CLAUDE.md`: một lần `Explore` lẻ không cần gọi `dispatch`.
   - `senera-ui` thêm `disable-model-invocation` (không tự bật ở repo không phải Senera).
@@ -29,9 +29,9 @@
 1. ~~Sửa `autoMode.environment`~~ — xong 10/11 (người dùng chạy script; sao lưu
    `~/.claude/settings.json.bak-automode`).
 2. **Người dùng chạy** `! node <scratchpad>/patch-settings.mjs` (bật
-   `CLAUDE_CODE_SUBAGENT_MODEL=sonnet` + hook `guard-main-writes`; sao lưu
-   `settings.json.bak-opus-guard`). Sau đó mở phiên mới, thử: phiên chính Edit một file repo
-   phải bị chặn; một `worker` Edit thì qua. Đóng gói lại `claude-kit.tgz` cho máy WSL.
+   `CLAUDE_CODE_SUBAGENT_MODEL=sonnet`; sao lưu
+   `settings.json.bak-opus-guard`). Sau đó mở phiên mới, thử: spawn một agent dựng với `model: opus`
+   mà không có `Why opus:` phải bị hook repo chặn. Đóng gói lại `claude-kit.tgz` cho máy WSL.
 3. **Người dùng tắt** plugin `sales`/`finance`/`marketing`/`operations`/`product-management`/
    `cowork-plugin-management` trên claude.ai — `enabledPlugins: false` ở máy không gỡ được.
 4. **Commit** lượt dọn: chỉ stage đường dẫn của lượt này (`.claude/`, `docs/`, `CLAUDE.md`,
@@ -48,8 +48,8 @@
   message và handoff tiếng Việt.
 - **Opus chỉ cho việc khó, lập luận, kế hoạch, review** (chốt 10/11). Mọi agent dựng chạy
   sonnet (haiku cho lệnh cố định, commit, push); một đơn vị dựng chạy opus chỉ khi brief có
-  dòng `Why opus:`. Phiên chính (opus) không tự ghi: hook `guard-main-writes.mjs` chặn,
-  trừ memory, handoff, scratchpad. Skill `commit` chạy fork trên haiku.
+  dòng `Why opus:`. Hook gác bậc nằm trong repo, `.claude/hooks/guard_agent_tier.py`
+  (không còn là hook global). Skill `commit` chạy fork trên haiku.
 - Plugin `vercel` tắt; xem build web bằng `vercel` CLI khi cần.
 - Cache subagent giữ TTL 5 phút; lệnh kiểm của đơn vị dưới 5 phút.
 - Neon MCP **không** xác thực: agent không chạy SQL thẳng vào production.

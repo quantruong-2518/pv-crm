@@ -19,14 +19,69 @@
     "deny": ["Bash(pnpm db:push:*)", "Bash(pnpm db:seed:*)", "Bash(pnpm db:reset:*)"]
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/handoff_reminder.py"],
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/session_cleanup.py", "--dry-run"],
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/context_guard.py"],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "node tools/scripts/guard-db.mjs",
+            "command": "node",
+            "args": ["${CLAUDE_PROJECT_DIR}/tools/scripts/guard-db.mjs"],
             "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/guard-shared-tree-git.mjs"],
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/guard_agent_tier.py"],
+            "timeout": 10,
+            "onFailure": "block"
           }
         ]
       }
@@ -37,8 +92,28 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node tools/scripts/on-edit.mjs",
+            "command": "node",
+            "args": ["${CLAUDE_PROJECT_DIR}/tools/scripts/on-edit.mjs"],
             "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/quality-gate.sh"],
+            "timeout": 180,
+            "statusMessage": "Quality gate: typecheck + eslint on files edited this session"
+          },
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/context_guard.py"],
+            "timeout": 10
           }
         ]
       }

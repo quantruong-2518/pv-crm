@@ -9,7 +9,11 @@ WSL (`Linux`) hay macOS (`Darwin`) đều gọi `pnpm`/`git` thẳng. `uname -s`
 khác là phiên đang ở Windows ngoài WSL: dừng và hỏi.
 
 Cái gì đã gác sẵn: hook `on-edit.mjs` (prettier + eslint sau mỗi lần ghi) ·
-lint-staged ở pre-commit · CI chạy `pnpm check`. Skill này lấp đúng khoảng giữa
+lint-staged ở pre-commit · CI chạy `pnpm check` · hook Stop `quality-gate.sh`
+(typecheck + eslint trên file `.ts/.tsx` đổi so với HEAD, không bao giờ chạy test hay
+build) · `guard-shared-tree-git.mjs` (subagent ghi git ở cây chính bị chặn, trừ
+`add`/`commit` theo đường dẫn có tên của `worker` hoặc fork; `add -A` và `commit -a`
+luôn bị chặn; luồng plumbing trong `parallel.md` không bị ảnh hưởng). Skill này lấp đúng khoảng giữa
 "file vừa được ghi" và "CI đỏ".
 
 ## Tầng 0 · Ai khác đang sửa cây này — LUÔN chạy, rẻ nhất
