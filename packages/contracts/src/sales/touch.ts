@@ -98,6 +98,9 @@ export const TouchKind = z.enum([
   'demo-held',
   'site-visited',
   'quotation-sent',
+  /** Presales sent the solution proposal (ADR 0160 §5), the `solution` care
+   *  activity; repeatable. `solution-days` reads the first one per deal. */
+  'solution-sent',
   /** LEGACY, rows persist, no writer: a parked deal came back (retired 29/09 —
    *  a stop is final). Migrated `care-entered` rows read `exited`. */
   'care-left',

@@ -57,7 +57,7 @@ export class KpiCloseService {
     if (await this.closes.of(period)) throw already
 
     const [catalog, people, bands] = await Promise.all([
-      this.config.effectiveCatalog(),
+      this.config.effectiveCatalog(period),
       this.readings.people(),
       this.config.scoreSettings(),
     ])

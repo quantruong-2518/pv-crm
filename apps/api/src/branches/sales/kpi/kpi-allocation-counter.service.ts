@@ -157,7 +157,7 @@ export class KpiAllocationCounterService {
     stillOpen(period)
     assertOldMonth(period)
     const proposal = { metricKey: body.metricKey, value: body.proposedValue }
-    assertTargetValues(await this.packages.roleDefs(role), [proposal], 'proposedValue')
+    assertTargetValues(await this.packages.roleDefs(period, role), [proposal], 'proposedValue')
     const already = conflict('Bạn đã có một đề xuất chờ xử lý cho chỉ tiêu này.')
     await this.repo.run(async (tx) => {
       const live = await this.holderPackage(tx, period, role, who.id)
@@ -295,7 +295,7 @@ export class KpiAllocationCounterService {
       if (c.actorId === who.id) throw conflict('Đề xuất của bạn cần quản lý khác xử lý.')
       if (body.resolution === 'counter') {
         const entry = { metricKey: c.metricKey, value: body.value }
-        assertTargetValues(await this.packages.roleDefs(c.role, tx), [entry], 'value')
+        assertTargetValues(await this.packages.roleDefs(pkg.period, c.role, tx), [entry], 'value')
       }
       const value =
         body.resolution === 'accept'

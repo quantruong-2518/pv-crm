@@ -12,7 +12,15 @@ import { spansOf } from '../performance/performance-period'
 import { additive } from './kpi-allocation.mapper'
 import { companyCommitted, personAccuracy, weekAccuracy } from './kpi-accuracy'
 import { KpiDeskRepository } from './kpi-desk.repository'
-import { coverageOver, unitPrimary, type Face } from './kpi-desk.figures'
+import {
+  coverageOver,
+  percentOf,
+  primaryOf,
+  topOf,
+  unitOthers,
+  unitPrimary,
+  type Face,
+} from './kpi-desk.figures'
 import { KpiDeskService, type DeskUnitRow, type Ground } from './kpi-desk.service'
 import { weekOfPeriod } from './kpi-forecast-commit.service'
 import { KpiScoreReader } from './kpi-score.reader'
@@ -88,12 +96,15 @@ export class KpiCompanyDeskService {
       const marks = u.members.flatMap((id) => scores.get(id)?.score ?? [])
       const here = acting.get(u.id) ?? []
       const covers = u.head !== null && !here.includes(u.head) && here[0] !== undefined
+      const primary = unitPrimary(faces, fig.elapsed, fig.tolerance)
       return {
         unitId: u.id,
         name: u.name,
         headName: u.head ? (named.get(u.head) ?? null) : null,
         standInName: covers ? (named.get(here[0]!) ?? null) : null,
-        primary: unitPrimary(faces, fig.elapsed, fig.tolerance),
+        primary,
+        others: unitOthers(faces, primary?.key, fig.elapsed, fig.tolerance),
+        top: topOf(faces),
         ...coverageOver(faces, fig.pipeline, fig.sees, monthEnded(period, today)),
         averageScore: marks.length > 0 ? marks.reduce((s, x) => s + x, 0) / marks.length : null,
         /* A week that has not started has nothing to commit yet. */
@@ -105,6 +116,7 @@ export class KpiCompanyDeskService {
     }
     return KpiCompanyDeskResponse.parse({
       units: rows.map(unitRow),
+      leaderboard: leaderboardOf(fig.faces, ground),
       slipping: slippingOf(fig.faces, ground),
       committed: await this.committedOf(period, ground, week, fig.faces),
     })
@@ -166,4 +178,25 @@ function slippingOf(faces: readonly Face[], ground: Ground) {
     })
     .sort((a, b) => b.gap - a.gap)
     .slice(0, SLIPPING_MAX)
+}
+
+/** Everyone with an agreed primary target, by % of it, highest first; a person whose value
+ *  does not read yet sits last (ADR 0160 §10). */
+function leaderboardOf(faces: readonly Face[], ground: Ground) {
+  return faces
+    .flatMap((f) => {
+      const primary = primaryOf(f.reading)
+      if (!primary || primary.target === null) return []
+      return [
+        {
+          actorId: f.actorId,
+          name: f.name,
+          unitName: ground.home.get(f.actorId)?.name ?? null,
+          role: f.role,
+          primary,
+          percent: percentOf(f),
+        },
+      ]
+    })
+    .sort((a, b) => (b.percent ?? -1) - (a.percent ?? -1) || a.name.localeCompare(b.name, 'vi'))
 }

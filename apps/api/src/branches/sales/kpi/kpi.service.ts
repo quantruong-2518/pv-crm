@@ -85,7 +85,7 @@ export class KpiService {
    *  for no actor and carries nothing to acknowledge. A tiered month reads the
    *  company set's room totals (ADR 0120 §8), not the role targets. */
   async company(period: KpiPeriodKey): Promise<KpiCompanyResponse> {
-    const catalog = await this.config.effectiveCatalog()
+    const catalog = await this.config.effectiveCatalog(period)
     const seats = catalog.director.map((def) => ({ role: 'director' as const, def }))
     const [monthClose, adjustments] = await Promise.all([
       this.closes.of(period),
@@ -151,7 +151,7 @@ export class KpiService {
   async targetsOf(period: KpiPeriodKey): Promise<KpiTargetsResponse> {
     const [rows, catalog] = await Promise.all([
       this.targets.ofPeriod(period),
-      this.config.effectiveCatalog(),
+      this.config.effectiveCatalog(period),
     ])
     return KpiTargetsResponse.parse({
       period,
@@ -170,7 +170,7 @@ export class KpiService {
     stillOpen(period)
     assertOldMonth(period)
     const entries = body.targets.map((t) => ({ metricKey: t.key, value: t.value }))
-    assertTargetValues((await this.config.effectiveCatalog())[role], entries, 'targets')
+    assertTargetValues((await this.config.effectiveCatalog(period))[role], entries, 'targets')
 
     const proposedAt = new Date()
     await this.targets.run(async (tx) => {
@@ -221,7 +221,7 @@ export class KpiService {
     const stale = conflict('Chỉ tiêu đang chờ duyệt đã thay đổi. Tải lại rồi duyệt lại.')
     await this.targets.run(async (tx) => {
       if (await this.seats.isAway(who.id, undefined, tx)) throw awayRefusal()
-      const live = new Set((await this.config.effectiveCatalog(tx))[role].map((d) => d.key))
+      const live = new Set((await this.config.effectiveCatalog(period, tx))[role].map((d) => d.key))
       const pending = (await this.targets.ofPeriod(period, tx)).filter(
         (r) => r.role === role && r.agreedAt === null && live.has(r.metricKey),
       )
@@ -274,7 +274,7 @@ export class KpiService {
   ): Promise<{ cards: Map<string, KpiScorecard[]>; monthClose: KpiMonthClose }> {
     const [catalog, monthClose] = loaded
       ? [loaded.catalog, loaded.monthClose]
-      : await Promise.all([this.config.effectiveCatalog(), this.closes.of(period)])
+      : await Promise.all([this.config.effectiveCatalog(period), this.closes.of(period)])
     const seats = holders.flatMap((h) =>
       h.roleIds.flatMap((role) => catalog[role].map((def) => ({ role, def }))),
     )

@@ -152,7 +152,7 @@ export class KpiForecastService {
     if (!who.roleIds.map(toContractRole).includes(role)) {
       throw denied('permission-denied', 'Bạn không giữ vai này nên không xem được tiến độ của vai.')
     }
-    const def = (await this.config.effectiveCatalog())[role].find((d) => d.key === metricKey)
+    const def = (await this.config.effectiveCatalog(period))[role].find((d) => d.key === metricKey)
     if (!def) throw invalid({ metricKey: ['Vai này không có chỉ số này.'] })
     if (!isCumulative(def)) {
       throw invalid({ metricKey: ['Chỉ số này không cộng dồn theo tuần được.'] })
@@ -219,7 +219,7 @@ export class KpiForecastService {
     only: string | undefined,
     sees: Sees,
   ): Promise<KpiForecastResponse> {
-    const catalog = await this.config.effectiveCatalog()
+    const catalog = await this.config.effectiveCatalog(period)
     const seats = holders.flatMap((h) =>
       h.roleIds.flatMap((role) => catalog[role].map((def) => ({ role, def }))),
     )

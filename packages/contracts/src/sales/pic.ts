@@ -47,7 +47,7 @@ export const PIC_RULES = {
     },
   ],
   // The stored `sales.opportunity_owner.role` values. A non-empty SALE lane has
-  // exactly one primary; BD has none.
+  // exactly one primary; BD and PRESALES have none.
   opportunity: [
     {
       role: 'SALE' satisfies OpportunityOwnerRole,
@@ -59,6 +59,13 @@ export const PIC_RULES = {
     {
       role: 'BD' satisfies OpportunityOwnerRole,
       label: 'BD mở cửa',
+      cardinality: 'many',
+      mayBeEmpty: true,
+      primary: false,
+    },
+    {
+      role: 'PRESALES' satisfies OpportunityOwnerRole,
+      label: 'Presales làm giải pháp',
       cardinality: 'many',
       mayBeEmpty: true,
       primary: false,

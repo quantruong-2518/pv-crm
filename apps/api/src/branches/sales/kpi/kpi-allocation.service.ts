@@ -295,7 +295,7 @@ export class KpiAllocationService {
     const tier = tierOf(rosterRows, people)
     const { roster } = tier
     if (teamId) await this.assertActsFor(who, roster, teamId)
-    const defs = await this.roleDefs(role)
+    const defs = await this.roleDefs(period, role)
     assertTargetValues(defs, body.lines, 'lines')
     assertTargetValues(defs, body.shares, 'shares')
     const names = new Map(people.map((p) => [p.id, p.name]))
@@ -494,7 +494,7 @@ export class KpiAllocationService {
   async periodContext(period: KpiPeriodKey): Promise<KpiPeriodContext> {
     const [tier, catalog, targetRows, shares, tolerance, monthClose] = await Promise.all([
       this.tierContext(period),
-      this.config.effectiveCatalog(),
+      this.config.effectiveCatalog(period),
       this.targets.ofPeriod(period),
       this.sharesInForce(period),
       this.config.tolerance(),
@@ -530,9 +530,9 @@ export class KpiAllocationService {
     }
   }
 
-  /** The metrics `role` takes new targets on — the effective catalog's. */
-  async roleDefs(role: RoleId, handle?: Db) {
-    return (await this.config.effectiveCatalog(handle))[role]
+  /** The metrics `role` takes new targets on in `period` — the effective catalog's. */
+  async roleDefs(period: KpiPeriodKey, role: RoleId, handle?: Db) {
+    return (await this.config.effectiveCatalog(period, handle))[role]
   }
 
   /** One month's figures for `roles`, read the way a scorecard reads them
@@ -546,7 +546,7 @@ export class KpiAllocationService {
     known?: KpiKnown,
   ): Promise<FigureOf> {
     const wanted = [...new Set(roles)]
-    const catalog = loaded ?? (await this.config.effectiveCatalog())
+    const catalog = loaded ?? (await this.config.effectiveCatalog(span.key))
     const seats = wanted.flatMap((role) => catalog[role].map((def) => ({ role, def })))
     const values = await this.readings.monthValues(seats, span, only, known)
     /* Only `.value` is read, so the verdict's tolerance is moot. The real
@@ -592,7 +592,7 @@ export class KpiAllocationService {
     }
     if (!pkg.teamId) {
       const target = await this.roleTargets(pkg.period, tx)
-      const defs = await this.roleDefs(pkg.role, tx)
+      const defs = await this.roleDefs(pkg.period, pkg.role, tx)
       const required = defs.map((d) => d.key).filter((key) => target(pkg.role, key) !== null)
       throwFaults(roomFaults({ ...input, shares, complete: true, required }), 'send')
     } else {

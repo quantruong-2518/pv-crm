@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { KpiMetricKey, RoleId, type KpiAdjustmentCause } from '@pv/contracts'
 import { spansOf } from '../performance/performance-period'
 import type { KpiAdjustmentValues } from './kpi-close.schema'
-import { catalogDef } from './kpi-config.overlay'
+import { catalogDef, codeDef } from './kpi-config.overlay'
 import { additiveMeasure, seriesKey, type KpiSeat } from './kpi-readings.repository'
 import { vietnamToday } from './kpi-rules'
 import {
@@ -11,12 +11,12 @@ import {
   type KpiWrittenTally,
 } from './kpi-reconcile.repository'
 
-/** Every seat the code catalog can name, by series: a frozen series names
+/** Every seat any catalog version can name, by series: a frozen series names
  *  its SQL through any one of them, since seats sharing a series share it. */
 const CODE_SEATS: ReadonlyMap<string, KpiSeat> = new Map(
   RoleId.options.flatMap((role) =>
     KpiMetricKey.options.flatMap((key): [string, KpiSeat][] => {
-      const def = catalogDef(role, key)
+      const def = codeDef(role, key)
       return def ? [[seriesKey({ role, def }), { role, def }]] : []
     }),
   ),
@@ -96,7 +96,7 @@ export class KpiReconcileService {
       this.repo.frozenSeats(period),
     ])
     const named = valued.flatMap(({ role, metricKey }) => {
-      const def = catalogDef(role, metricKey)
+      const def = catalogDef(period, role, metricKey)
       return def ? [seriesKey({ role, def })] : []
     })
     const seats = new Map<string, Additive>()

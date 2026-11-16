@@ -27,10 +27,16 @@ const WIDTH = {
   collected: '168px',
 } as const
 
+const LANE_WORD: Record<ContractParticipant['role'], string> = {
+  SALE: 'Sale',
+  BD: 'BD',
+  PRESALES: 'Presales',
+}
+
 const laneOf = (p: ContractParticipant) => ({
   id: p.id,
   name: p.name,
-  role: p.role === 'SALE' ? 'Sale' : 'BD',
+  role: LANE_WORD[p.role],
   primary: p.primary,
 })
 

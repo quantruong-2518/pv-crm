@@ -163,12 +163,12 @@ function OldTargets({ pick, setPick }: { pick: PeriodPick; setPick: (p: PeriodPi
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
-        <KpiTabs period={period} active="company" />
         <ScreenHeader
           title={tx(message('Chỉ tiêu tháng', 'Monthly targets', '월간 목표'))}
           description={canSet ? undefined : tx(TEXT.youHaveViewOnlyAccess)}
           actions={<MonthPicker pick={pick} onPick={setPick} />}
         />
+        <KpiTabs period={period} active="company" />
 
         <QueryBlock
           query={all}
@@ -259,11 +259,11 @@ export function KpiTargetsPage() {
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
-        <KpiTabs period={period} active="company" />
         <ScreenHeader
           title={t(message('Chỉ tiêu tháng', 'Monthly targets', '월간 목표'))}
           actions={<MonthPicker pick={pick} onPick={setPick} />}
         />
+        <KpiTabs period={period} active="company" />
         <TieredNote
           to={statusHref(period)}
           label={t(message('Mở Tình trạng giao', 'Open assignment status', '배정 현황 열기'))}

@@ -142,7 +142,7 @@ export class KpiAlertSweeper {
       isTieredPeriod(period) ? this.assigned.sources(period) : null,
     ])
     const flagged = items.flatMap((i): KpiAlertKey[] =>
-      i.flag && judgedOnOwnLine(i, lines, tiered)
+      i.flag && judgedOnOwnLine(period, i, lines, tiered)
         ? [{ period, actorId: i.actorId, role: i.role, metricKey: i.metricKey, flag: i.flag }]
         : [],
     )
@@ -186,11 +186,12 @@ export class KpiAlertSweeper {
  *  flag; only the bell waits. Room figures and unsummable metrics keep the
  *  role target, which is theirs. A tiered month asks its own lines (ADR 0120 §8). */
 function judgedOnOwnLine(
+  period: KpiPeriodKey,
   item: KpiForecast,
   lines: readonly KpiAgreedLine[],
   tiered: TargetSources | null,
 ): boolean {
-  const def = catalogDef(item.role, item.metricKey)
+  const def = catalogDef(period, item.role, item.metricKey)
   if (!def) return true
   if (tiered) {
     if (kpiMetricShare(def) !== 'additive') return true

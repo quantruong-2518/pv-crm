@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Avatar, Button, Icon, Modal, Textarea, cn, type IconGlyph } from '@pv/ui'
-import { OPPORTUNITY_SALE_PRIMARY_REASON_MAX, isSellerRole } from '@pv/contracts'
+import { OPPORTUNITY_SALE_PRIMARY_REASON_MAX, isSellerRole, type RoleId } from '@pv/contracts'
 import { userMessage, type ApiError } from '@/app/api'
 import { message, useI18n } from '@/app/i18n'
 import { useSalesPeople } from '@/data/directory'
@@ -43,6 +43,8 @@ export function SellerModal({
   onChange,
   names,
   primary,
+  pool = isSellerRole,
+  noMore,
   pending,
   note,
   error,
@@ -63,8 +65,13 @@ export function SellerModal({
   onChange: (next: string[]) => void
   /** Names for ids the directory may not know any more (locked-out owners). */
   names?: ReadonlyMap<string, string>
-  /** The people the primary is chosen from: those the server accepts as one. */
-  primary: { lane: readonly string[]; value: string | undefined; onChange: (id: string) => void }
+  /** The people the primary is chosen from: those the server accepts as one.
+   *  Left out for a lane with no primary (Presales). */
+  primary?: { lane: readonly string[]; value: string | undefined; onChange: (id: string) => void }
+  /** Who may be suggested; sellers when left out. */
+  pool?: (roleIds: readonly RoleId[]) => boolean
+  /** The line in the suggestion list when nobody is left to add. */
+  noMore?: string
   /** Set while a sign request waits: the list is read-only, a reason is asked. */
   pending?: { reason: string; onReason: (reason: string) => void }
   /** The sentence under the field when nothing failed and nothing is pending. */
@@ -80,7 +87,7 @@ export function SellerModal({
 }) {
   const { t } = useI18n()
   const people = useSalesPeople()
-  const sellerPool = people.filter((a) => isSellerRole(a.roleIds))
+  const sellerPool = people.filter((a) => pool(a.roleIds))
   const toggle = (id: string) => onChange(toggled(sellers, id))
   const nameOf = (id: string) => people.find((a) => a.id === id)?.name ?? names?.get(id) ?? id
 
@@ -138,7 +145,8 @@ export function SellerModal({
                 id,
                 name: nameOf(id),
                 ...(person && { note: person.role }),
-                ...(primary.lane.length > 1 &&
+                ...(primary &&
+                  primary.lane.length > 1 &&
                   id === primary.value && { tag: t(SALE_PRIMARY_COPY) }),
               }
             })}
@@ -147,18 +155,20 @@ export function SellerModal({
               .map((a) => ({ id: a.id, name: a.name, note: a.role }))}
             onPick={toggle}
             onRemove={toggle}
-            emptyNote={t(NO_MORE_SALE)}
+            emptyNote={noMore ?? t(NO_MORE_SALE)}
           />
         )}
       </Field>
-      <div className="pt-4 empty:hidden">
-        <SalePrimaryPick
-          people={primary.lane.map((id) => ({ id, name: nameOf(id) }))}
-          value={primary.value}
-          errors={error?.errors?.salePrimary}
-          onChange={primary.onChange}
-        />
-      </div>
+      {primary && (
+        <div className="pt-4 empty:hidden">
+          <SalePrimaryPick
+            people={primary.lane.map((id) => ({ id, name: nameOf(id) }))}
+            value={primary.value}
+            errors={error?.errors?.salePrimary}
+            onChange={primary.onChange}
+          />
+        </div>
+      )}
       {pending && (
         <div className="pt-4">
           <Field label={t(REASON_LABEL)} required errors={error?.errors?.reason}>

@@ -2,6 +2,7 @@ import { queryOptions } from '@tanstack/react-query'
 import {
   KpiEffectiveCatalogResponse,
   type KpiMetricDef,
+  type KpiPeriodKey,
   type KpiMetricKey,
   type RoleId,
 } from '@pv/contracts'
@@ -19,6 +20,24 @@ import { cacheTier } from '@/app/query-client'
 /** Per role, the metrics in force, in display order. */
 export type KpiCatalog = KpiEffectiveCatalogResponse['roles']
 
+/** The catalog a month is read against: v1 before `KPI_V2_FROM`, v2 from it (ADR 0160 §1).
+ *  Index 3 of the key is the month, so one month's answer never serves another. */
+export const kpiCatalogFor = (period: KpiPeriodKey) =>
+  queryOptions({
+    queryKey: ['sales', 'kpi', 'catalog', period] as const,
+    ...cacheTier.reference,
+    queryFn: ({ signal }) =>
+      api
+        .read<KpiEffectiveCatalogResponse>(`/sales/kpi/catalog?period=${period}`, {
+          need: { branch: 'Sales', permission: 'kpi.view' },
+          schema: KpiEffectiveCatalogResponse,
+          signal,
+        })
+        .then((r) => r.roles),
+  })
+
+/** No period: the server reads the current month. Kept for screens that have not
+ *  moved to `kpiCatalogFor` yet; a screen showing another month must use that. */
 export const kpiCatalogQuery = queryOptions({
   queryKey: ['sales', 'kpi', 'catalog'] as const,
   ...cacheTier.reference,

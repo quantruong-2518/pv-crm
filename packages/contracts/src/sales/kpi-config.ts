@@ -4,7 +4,10 @@ import { RoleId } from '../auth'
 import { SETTING_REGISTRY } from '../setting'
 import {
   KPI_CATALOG,
+  KPI_CATALOG_V2,
   KPI_DEFAULT_OFF,
+  KPI_V2_DEFAULT_OFF,
+  isKpiV2Period,
   KpiAdjustmentCause,
   KpiMetricDef,
   KpiMetricKey,
@@ -12,6 +15,7 @@ import {
   KpiPeriodParams,
   KpiTargetActor,
 } from './kpi'
+import { OPPORTUNITY_STAGE_LABEL, StageKey } from './enums'
 
 /** KPI configuration, target history and per-person contributions.
  *
@@ -21,59 +25,166 @@ import {
  *  Config writes answer `ConfigProposalReceipt` — the approval flow every config
  *  list uses (ADR 0095 §4), no second door.
  *
- *  The metric config is an OVERLAY on `KPI_CATALOG`, not a list of its own:
- *  formulas live in code, so config may only switch a catalog metric on or off
- *  (a default-off one may be switched on) and move the primary. A metric outside
- *  the catalog has no formula to run. */
+ *  The metric config is an OVERLAY on the month's catalog (`catalogFor`), not a
+ *  list of its own: formulas live in code, so config may only switch a catalog
+ *  metric on or off, move the primary and, from `KPI_V2_FROM`, weigh metrics and
+ *  set funnel step targets. A set is versioned by its first month (ADR 0160 §2). */
 
 const actorId = z.string().min(1).max(64)
+/** Whole percent of the role's score: owners type whole numbers and 100 sums exactly. */
+const weightPercent = z.number().int().min(0).max(100)
+/** Basis points of the step before (10000 = all pass), as stored, so no rounding on the way. */
+const ratioBp = z.number().int().min(0).max(10000)
+
+/** Every step any role's funnel draws (ADR 0160 §7); Sale's are its `StageKey` columns. */
+export const KpiFunnelStep = z.enum([
+  'lead',
+  'mql',
+  'sql',
+  'opportunity',
+  'lead-received',
+  'contacted',
+  'accepted',
+  'met',
+  'solution',
+  'signed',
+  ...StageKey.options,
+])
+
+/** Vietnamese step names, declared once so the config screen, the board and the
+ *  approval sentence print the same words. Sale's steps are its stage columns. */
+export const KPI_FUNNEL_STEP_LABEL: Record<KpiFunnelStep, string> = {
+  ...OPPORTUNITY_STAGE_LABEL,
+  lead: 'Lead mới',
+  mql: 'MQL',
+  sql: 'SQL',
+  opportunity: 'Cơ hội',
+  'lead-received': 'Lead nhận',
+  contacted: 'Đã liên hệ',
+  accepted: 'Sale nhận',
+  met: 'Gặp, khảo sát',
+  solution: 'Giải pháp, demo',
+  quotation: 'Báo giá',
+  signed: 'Ký hợp đồng',
+}
+
+/** `base` is counted but has no rate; each `rated` step is ÷ the step before it.
+ *  Sale has no base: a stage's rate is the share of deals that left it forward. */
+export const KPI_FUNNEL: Record<
+  RoleId,
+  { base: KpiFunnelStep | null; rated: readonly KpiFunnelStep[] }
+> = {
+  director: { base: null, rated: [] },
+  'head-of-sales': { base: null, rated: [] },
+  marketing: { base: 'lead', rated: ['mql', 'sql', 'opportunity'] },
+  bd: { base: 'lead-received', rated: ['contacted', 'sql', 'opportunity', 'accepted'] },
+  presales: { base: 'met', rated: ['solution', 'quotation', 'signed'] },
+  sale: { base: null, rated: StageKey.options },
+  'account-executive': { base: null, rated: [] },
+}
+
+export const KpiFunnelTarget = z.object({ step: KpiFunnelStep, targetBp: ratioBp })
 
 /** One stored overlay row; a role with no rows reads as the catalog itself. */
 export const KpiRoleMetricConfig = z.object({
   role: RoleId,
+  fromPeriod: KpiPeriodKey,
   metricKey: KpiMetricKey,
   enabled: z.boolean(),
   primary: z.boolean(),
+  weight: weightPercent.nullable(),
 })
 
 /** `inCatalog` is a literal: the overlay cannot add a metric, so a row that
- *  claims otherwise is a server bug the parse should surface. */
+ *  claims otherwise is a server bug the parse should surface. `weight` null =
+ *  the default split (primary 50 %, the rest equal). */
 export const KpiRoleMetric = KpiMetricDef.omit({ key: true }).extend({
   metricKey: KpiMetricKey,
   enabled: z.boolean(),
   inCatalog: z.literal(true),
+  weight: weightPercent.nullable(),
 })
 
+/** `GET sales/config/kpi-metrics` and `GET sales/kpi/catalog`: the set in force
+ *  for `period`; absent reads the current month. */
+export const KpiConfigPeriodQuery = z.object({ period: KpiPeriodKey.optional() })
+
+/** `fromPeriod` null = no stored set applies, the month reads the code catalog. */
 export const KpiRoleMetricsResponse = z.object({
-  roles: z.array(z.object({ role: RoleId, metrics: z.array(KpiRoleMetric) })),
+  period: KpiPeriodKey,
+  roles: z.array(
+    z.object({
+      role: RoleId,
+      fromPeriod: KpiPeriodKey.nullable(),
+      metrics: z.array(KpiRoleMetric),
+      funnel: z.array(KpiFunnelTarget),
+    }),
+  ),
 })
 
-/** `PUT` replaces the role's whole overlay, so every catalog metric of the role
- *  must be listed — a missing one would be ambiguous between "off" and "as
- *  before". The role is in the body, so catalog membership is checked here. */
-export const KpiRoleMetricsPatch = z
-  .object({
-    role: RoleId,
-    metrics: z
-      .array(z.object({ metricKey: KpiMetricKey, enabled: z.boolean(), primary: z.boolean() }))
-      .min(1),
-  })
-  .superRefine(({ role, metrics }, ctx) => {
-    const fail = (message: string) => ctx.addIssue({ code: 'custom', message, path: ['metrics'] })
-    const keys = metrics.map((m) => m.metricKey)
-    const catalog = KPI_CATALOG[role].map((d) => d.key)
-    if (new Set(keys).size !== keys.length) fail('Chỉ số bị lặp.')
-    if (keys.length !== catalog.length || !catalog.every((k) => keys.includes(k))) {
-      fail('Gửi đủ các chỉ số của vai này.')
-    }
-    // An enabled primary also guarantees at least one enabled metric.
-    const primary = metrics.filter((m) => m.primary)
-    const hero = primary[0]
-    if (primary.length !== 1 || !hero) fail('Mỗi vai có đúng một chỉ số chính.')
-    else if (!hero.enabled) fail('Chỉ số chính phải đang bật.')
-    else if (KPI_DEFAULT_OFF.has(hero.metricKey))
-      fail('Chỉ số này không chọn làm chỉ số chính được.')
-  })
+const PatchShape = z.object({
+  role: RoleId,
+  from: KpiPeriodKey.optional(),
+  metrics: z
+    .array(
+      z.object({
+        metricKey: KpiMetricKey,
+        enabled: z.boolean(),
+        primary: z.boolean(),
+        weight: weightPercent.optional(),
+      }),
+    )
+    .min(1),
+  funnel: z.array(KpiFunnelTarget).optional(),
+})
+
+/** Absent `from` is a request stored before ADR 0160: judged against v1 and carries
+ *  neither weights nor funnel targets; the server dates it at approval. */
+function checkPatch(
+  { role, from, metrics, funnel }: z.infer<typeof PatchShape>,
+  fail: (message: string) => void,
+): void {
+  const v2 = from !== undefined && isKpiV2Period(from)
+  const keys = metrics.map((m) => m.metricKey)
+  const catalog = (v2 ? KPI_CATALOG_V2 : KPI_CATALOG)[role].map((d) => d.key)
+  if (new Set(keys).size !== keys.length) fail('Chỉ số bị lặp.')
+  if (keys.length !== catalog.length || !catalog.every((k) => keys.includes(k))) {
+    fail('Gửi đủ các chỉ số của vai này.')
+  }
+  // An enabled primary also guarantees at least one enabled metric.
+  const primary = metrics.filter((m) => m.primary)
+  const hero = primary[0]
+  if (primary.length !== 1 || !hero) fail('Mỗi vai có đúng một chỉ số chính.')
+  else if (!hero.enabled) fail('Chỉ số chính phải đang bật.')
+  else if ((v2 ? KPI_V2_DEFAULT_OFF[role] : KPI_DEFAULT_OFF).has(hero.metricKey))
+    fail('Chỉ số này không chọn làm chỉ số chính được.')
+
+  const weighed = metrics.filter((m) => m.weight !== undefined)
+  if (weighed.length > 0) {
+    if (!v2) fail('Trọng số chỉ áp dụng từ tháng 01/2027.')
+    else if (metrics.some((m) => m.enabled !== (m.weight !== undefined)))
+      fail('Mỗi chỉ số đang bật cần một trọng số; chỉ số đang tắt thì để trống.')
+    else if (weighed.reduce((sum, m) => sum + (m.weight ?? 0), 0) !== 100)
+      fail('Tổng trọng số phải bằng 100%.')
+  }
+
+  if (!funnel || funnel.length === 0) return
+  const steps = funnel.map((f) => f.step)
+  if (from === undefined) fail('Chọn tháng áp dụng trước khi đặt mục tiêu bước.')
+  else if (!v2) fail('Mục tiêu bước chỉ đặt được từ tháng 01/2027.')
+  if (new Set(steps).size !== steps.length) fail('Bước phễu bị lặp.')
+  if (!steps.every((s) => KPI_FUNNEL[role].rated.includes(s))) {
+    fail('Bước này không có trong phễu của vai.')
+  }
+}
+
+/** `PUT` replaces the role's whole set from month `from`, so every catalog metric
+ *  of `catalogFor(from)` must be listed — a missing one would be ambiguous between
+ *  "off" and "as before". Weights are all or none; funnel targets ride along. "No
+ *  earlier than next month" needs the clock, so the server keeps it. */
+export const KpiRoleMetricsPatch = PatchShape.superRefine((patch, ctx) =>
+  checkPatch(patch, (message) => ctx.addIssue({ code: 'custom', message, path: ['metrics'] })),
+)
 
 /** The catalog with the overlay applied — what every reading screen groups by.
  *  Keyed by every `RoleId` (zod 4 records over an enum are exhaustive). */
@@ -186,6 +297,9 @@ export const KpiContributionsResponse = z.object({
   groups: z.array(KpiPersonContributions),
 })
 
+export type KpiFunnelStep = z.infer<typeof KpiFunnelStep>
+export type KpiFunnelTarget = z.infer<typeof KpiFunnelTarget>
+export type KpiConfigPeriodQuery = z.infer<typeof KpiConfigPeriodQuery>
 export type KpiRoleMetricConfig = z.infer<typeof KpiRoleMetricConfig>
 export type KpiRoleMetric = z.infer<typeof KpiRoleMetric>
 export type KpiRoleMetricsResponse = z.infer<typeof KpiRoleMetricsResponse>

@@ -294,6 +294,7 @@ export const ownersOf = (op: OpportunityRow, role: OpportunityOwner['role']) =>
 
 export const saleOwnersOf = (op: OpportunityRow) => ownersOf(op, 'SALE')
 export const bdOwnersOf = (op: OpportunityRow) => ownersOf(op, 'BD')
+export const presalesOwnersOf = (op: OpportunityRow) => ownersOf(op, 'PRESALES')
 
 export const namesOf = (owners: OpportunityOwner[]) => owners.map((o) => o.name)
 export const idsOf = (owners: OpportunityOwner[]) => owners.map((o) => o.id)
@@ -305,6 +306,7 @@ const laneRule = (role: OpportunityOwner['role']) =>
   PIC_RULES.opportunity.find((rule) => rule.role === role)!
 export const SALE_LANE = laneRule('SALE')
 export const BD_LANE = laneRule('BD')
+export const PRESALES_LANE = laneRule('PRESALES')
 export const SALE_PRIMARY_COPY = message('Sale chính', 'Primary salesperson', '주 영업 담당자')
 export const CHANGE_SALE_PRIMARY_COPY = message(
   'Đổi Sale chính',

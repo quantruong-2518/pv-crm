@@ -191,6 +191,7 @@ export class LeadImportService {
             ...(p.row.ownerId && p.ref.owner
               ? { to: { actorId: p.row.ownerId, name: p.ref.owner } }
               : {}),
+            ...(p.row.tier ? { toTier: p.row.tier } : {}),
             ...byOf(who),
             note: LEAD_NOTE.imported(body.fileName),
           })),

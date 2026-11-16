@@ -1,6 +1,6 @@
-import { Body, Controller, Get, HttpCode, Patch, Put } from '@nestjs/common'
+import { Body, Controller, Get, HttpCode, Patch, Put, Query } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import { KpiAlertPatch, KpiRoleMetricsPatch } from '@pv/contracts'
+import { KpiAlertPatch, KpiConfigPeriodQuery, KpiRoleMetricsPatch } from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
@@ -23,17 +23,17 @@ export class KpiConfigController {
 
   @Get('kpi/catalog')
   @Need({ branch: 'Sales', permission: 'kpi.view' })
-  catalog() {
-    return this.config.catalog()
+  catalog(@Query(zod(KpiConfigPeriodQuery)) query: KpiConfigPeriodQuery) {
+    return this.config.catalog(query.period)
   }
 
   @Get('config/kpi-metrics')
   @Need({ branch: 'Sales', permission: 'config.view' })
-  metrics() {
-    return this.config.metrics()
+  metrics(@Query(zod(KpiConfigPeriodQuery)) query: KpiConfigPeriodQuery) {
+    return this.config.metrics(query.period)
   }
 
-  /** `PUT`: the body replaces the role's whole overlay. */
+  /** `PUT`: the body replaces the role's whole set from its month on. */
   @Put('config/kpi-metrics')
   @HttpCode(202)
   @Need({ branch: 'Sales', permission: 'config.propose' })

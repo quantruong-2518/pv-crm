@@ -11,13 +11,37 @@ import {
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { contract } from '../contract/contract.schema'
-import { OnDay, toVndSql } from '../money'
-import { contractTerminated, dealLost, dealOpen, dealTerminated, dealWon } from '../open-deal'
+import { toVndSql } from '../money'
+import { contractTerminated, dealOpen } from '../open-deal'
 import type { PeriodSpan } from '../performance/performance-period'
 import { CREDIT_PART, CREDIT_ROWS, creditValue, NO_CREDIT } from '../contract/contract-credit.sql'
 import { collectedMoves } from '../performance/collected-moves'
 import { realExchanges } from '../performance/real-exchange'
 import { kpiMonthClose, kpiMonthValue } from './kpi-close.schema'
+import {
+  CLOSED,
+  contractVnd,
+  COUNT,
+  flag,
+  INSTALLMENT,
+  installmentVnd,
+  KEPT,
+  LIVE,
+  MEDIAN,
+  onLane,
+  OUTCOME,
+  seconds,
+  SHARE,
+  sourced,
+  SUM,
+  tally,
+  within,
+  worth,
+  type Basis,
+  type KpiMetricSql,
+  type Only,
+} from './kpi-metric-parts.sql'
+import { OWN_V2, PRESALES_V2 } from './kpi-metric-v2.sql'
 import { adjustedByEnd, cumulativeByEnd } from './kpi-weekly.sql'
 
 /** Every KPI figure, computed on read from the books' own tables, except a
@@ -35,54 +59,9 @@ import { adjustedByEnd, cumulativeByEnd } from './kpi-weekly.sql'
  *  switched off takes its deals and contracts with it (`leadLive`), spelled
  *  `LIVE` here because the builder's `lead` cannot carry an alias. */
 
-/** Appends "and only these actors"; nothing when the whole room is read. */
-export type Only = (column: SQL) => SQL
 /** One actor (`me`), a set (a team), or `undefined` for the whole room. */
 export type Actors = string | readonly string[]
-type Basis = (only: Only) => SQL
-/** `total` folds the basis rows, aliased `b`, into the one figure. */
-export type KpiMetricSql = { basis: Basis; total: SQL }
-
-const COUNT = sql`count(*)`
-const SUM = sql`COALESCE(SUM(b.value), 0)`
-/** A share's rows carry 1 or 0, so the denominator is exactly the rows. */
-const SHARE = sql`(count(*) FILTER (WHERE b.value = 1))::float8 / NULLIF(count(*), 0)`
-const MEDIAN = sql`percentile_cont(0.5) WITHIN GROUP (ORDER BY b.value)`
-
-const within = (column: SQL): SQL =>
-  sql`${column} >= (SELECT lo FROM span) AND ${column} < (SELECT hi FROM span)`
-
-const LIVE = sql`JOIN sales.lead l ON l.code = k.lead_code AND l.disabled_at IS NULL`
-/** A terminated contract is no sale (ADR 0107): out of signed and overdue.
- *  Collected keeps its cash and books the refund instead (`collected-value`).
- *  Only live readings move; a closed month reads its frozen copy. */
-const KEPT = sql`NOT ${contractTerminated(sql`k.code`)}`
-const contractVnd = toVndSql(sql`k.amount`, sql`k.currency`, sql`k.signed_at`)
-/* A snapshot at `as_of`: a month read after its end keeps the rate of its own last day. */
-const installmentVnd = toVndSql(
-  sql`i.amount`,
-  sql`k.currency`,
-  new OnDay(sql`(SELECT as_of FROM span)`),
-)
-/** "Won" has ONE reading in KPI: the deal has a live contract. Terminated sits
- *  in the win-rate denominator beside lost (ADR 0107 §3). */
-const WON = dealWon(sql`k.code`)
-const LOST = dealLost(sql`k.code`, sql`k.state`)
-const TERMINATED = dealTerminated(sql`k.code`)
-const CLOSED = sql`(${WON} OR ${LOST} OR ${TERMINATED})`
-const seconds = (span: SQL, per: number): SQL =>
-  sql`EXTRACT(EPOCH FROM ${span}) / ${sql.raw(String(per))}`
-
-/** The `(value, tag)` tail of a basis row: a bare count, an amount, or a
- *  yes/no answer of a share. Casts, because a bare `$n` in a CASE has no type. */
-const tally = (tag: string): SQL => sql`NULL::float8 AS value, ${tag}::text AS tag`
-const worth = (value: SQL, tag: string): SQL => sql`${value} AS value, ${tag}::text AS tag`
-const flag = (yes: SQL, on: string, off: string): SQL =>
-  sql`CASE WHEN ${yes} THEN 1 ELSE 0 END::float8 AS value,
-      CASE WHEN ${yes} THEN ${on}::text ELSE ${off}::text END AS tag`
-/** A closed deal as a share row: won counts 1, lost and terminated 0. */
-const OUTCOME = sql`CASE WHEN ${WON} THEN 1 ELSE 0 END::float8 AS value,
-  CASE WHEN ${WON} THEN 'won' WHEN ${TERMINATED} THEN 'terminated' ELSE 'lost' END AS tag`
+export type { KpiMetricSql, Only } from './kpi-metric-parts.sql'
 
 /** Overdue AS OF the span's `as_of` day (`spanned`): due on a Vietnam day
  *  strictly before it (`dueLevelOf`: due today is not overdue), and not paid by
@@ -102,9 +81,6 @@ const OVERDUE = sql`FROM sales.contract_installment i
 const DEBTOR = sql`CASE WHEN (SELECT lo FROM span) >= (${TIERED_FROM + '-01'}::date)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh'
   THEN COALESCE(k.collector_id, k.owner_id) ELSE k.owner_id END`
 
-/** An installment has no code of its own; `contract/no` is its page's address. */
-const INSTALLMENT = sql`'installment' AS kind, k.code || '/' || i.no AS code`
-
 /** A meeting or debrief hangs off a lead (`LD-`), a deal (`OP-`) or, for a
  *  debrief, a contract; either way it is off when that lead is switched off. */
 const subjectLive = (subject: SQL): SQL => sql`NOT EXISTS (
@@ -112,15 +88,6 @@ const subjectLive = (subject: SQL): SQL => sql`NOT EXISTS (
    WHERE sl.disabled_at IS NOT NULL AND sl.code = COALESCE(
      (SELECT so.lead_code FROM sales.opportunity so WHERE so.code = ${subject}),
      (SELECT sk.lead_code FROM sales.contract sk WHERE sk.code = ${subject}), ${subject}))`
-
-/** The marketing cohort: leads created in the period, by who sourced them. */
-const sourced =
-  (tail: SQL): Basis =>
-  (only) => sql`
-    SELECT k.marketing_owner_id AS actor_id, 'lead' AS kind, k.code, k.created_at AS at, ${tail}
-    FROM sales.lead k
-    WHERE k.disabled_at IS NULL AND k.marketing_owner_id IS NOT NULL
-      AND ${within(sql`k.created_at`)}${only(sql`k.marketing_owner_id`)}`
 
 /** Contracts signed in the period, credited to `credit`; `null` = the room.
  *  `also` narrows which contracts count. */
@@ -151,20 +118,6 @@ const BORN_ACCEPTED = sql`EXISTS (
   SELECT 1 FROM sales.opportunity_stage_event ba
    WHERE ba.opportunity_code = k.code AND ba.from_stage IS NULL
      AND ba.to_stage = 'assigned' AND ba.by_id = k.accepted_by_id)`
-
-/** Deals with the actor on one lane (`null` = either), fenced on one of the
- *  deal's own dates; `also` narrows which deals count. DISTINCT: a person on
- *  both lanes of one deal is still one deal. */
-const onLane = (lane: 'BD' | 'SALE' | null, date: SQL, tail: SQL, also?: SQL): Basis => {
-  const seat = lane ? sql`w.role = ${lane} AND ` : sql``
-  const kept = also ? sql`${also} AND ` : sql``
-  return (
-    only,
-  ) => sql`SELECT DISTINCT w.actor_id, 'opportunity' AS kind, k.code, ${date} AS at, ${tail}
-    FROM sales.opportunity_owner w
-    JOIN sales.opportunity k ON k.code = w.opportunity_code ${LIVE}
-    WHERE ${seat}${kept}${within(date)}${only(sql`w.actor_id`)}`
-}
 
 /** A lead "reaches" an actor at the first hand-over to them, else at the
  *  `created` touch naming them, else at its creation when they hold it. A lead
@@ -294,6 +247,7 @@ const OWN: Partial<Record<KpiMetricKey, KpiMetricSql>> = {
         AND ${within(sql`f.signed_at`)}${only(sql`f.owner_id`)}`,
     total: MEDIAN,
   },
+  ...OWN_V2,
 }
 
 /** Counted from the deal itself, never through `opportunity_owner`: a deal
@@ -342,7 +296,8 @@ const METRICS: Record<KpiScope, Partial<Record<KpiMetricKey, KpiMetricSql>>> = {
 }
 
 /** Where one role reads a shared key differently. The account executive
- *  stands on the SALE lane, so "deals I opened" is either lane for that seat. */
+ *  stands on the SALE lane, so "deals I opened" is either lane for that seat;
+ *  Presales reads its own lane (ADR 0160 §3). */
 const BY_ROLE: Partial<Record<RoleId, Partial<Record<KpiMetricKey, KpiMetricSql>>>> = {
   'account-executive': {
     'opportunities-opened': {
@@ -350,6 +305,7 @@ const BY_ROLE: Partial<Record<RoleId, Partial<Record<KpiMetricKey, KpiMetricSql>
       total: COUNT,
     },
   },
+  presales: PRESALES_V2,
 }
 
 /** One metric as one role carries it. */

@@ -500,8 +500,9 @@ export const opportunityOwner = sales.table(
     uniqueIndex('opportunity_owner_one_primary_idx')
       .on(t.opportunityCode)
       .where(sql`"is_primary"`),
-    check('opportunity_owner_role_known', sql`"role" IN ('SALE', 'BD')`),
-    /** BD opens the door and never closes the deal: the lane has no primary. */
+    check('opportunity_owner_role_known', sql`"role" IN ('SALE', 'BD', 'PRESALES')`),
+    /** BD opens the door and never closes the deal; PRESALES supports it (ADR 0160):
+     *  neither lane has a primary, so the one-primary index above stays as it is. */
     check('opportunity_owner_primary_is_sale', sql`NOT "is_primary" OR "role" = 'SALE'`),
   ],
 )

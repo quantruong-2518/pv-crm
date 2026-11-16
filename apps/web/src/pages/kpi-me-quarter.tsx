@@ -12,6 +12,7 @@ import {
   percent,
 } from '@pv/ui'
 import {
+  quarterMonths,
   type KpiMetricDef,
   type KpiMonthPhase,
   type KpiQuarterKey,
@@ -22,7 +23,7 @@ import {
 } from '@pv/contracts'
 import { message, translate, useI18n, type Lang } from '@/app/i18n'
 import { kpiMetricText, kpiRoleText } from '@/data/kpi-i18n'
-import { defOf, kpiCatalogQuery, withCatalog, type KpiCatalog } from '@/data/kpi-catalog'
+import { defOf, kpiCatalogFor, withCatalog, type KpiCatalog } from '@/data/kpi-catalog'
 import { kpiQuarterMeQuery, kpiYearMeQuery } from '@/data/kpi-personal'
 import { GROW_WIDTH } from '@/components/period-picker-style'
 import { currentPick, periodLabel, stepPick, type PeriodPick } from './home-model'
@@ -390,7 +391,8 @@ export function QuarterView({
   onMonthView: () => void
 }) {
   const data = useQuery(kpiQuarterMeQuery(quarter))
-  const catalog = useQuery(kpiCatalogQuery)
+  /* The span's last month: the catalog in force when it ends. */
+  const catalog = useQuery(kpiCatalogFor(quarterMonths(quarter).at(-1) ?? currentPick().month))
   return (
     <QueryBlock
       query={withCatalog(data, catalog)}
@@ -405,7 +407,7 @@ export function QuarterView({
 
 export function YearView({ year, onMonthView }: { year: KpiYearKey; onMonthView: () => void }) {
   const data = useQuery(kpiYearMeQuery(year))
-  const catalog = useQuery(kpiCatalogQuery)
+  const catalog = useQuery(kpiCatalogFor(`${year}-12`))
   return (
     <QueryBlock
       query={withCatalog(data, catalog)}

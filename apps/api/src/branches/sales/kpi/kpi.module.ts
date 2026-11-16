@@ -57,6 +57,10 @@ import { KpiReconcileService } from './kpi-reconcile.service'
 import { KpiScoreController } from './kpi-score.controller'
 import { KpiScoreReader } from './kpi-score.reader'
 import { KpiSeatModule } from './kpi-seat.module'
+import { KpiBudgetService } from './kpi-board-budget.service'
+import { KpiBoardController } from './kpi-board.controller'
+import { KpiBoardRepository } from './kpi-board.repository'
+import { KpiBoardService } from './kpi-board.service'
 import { KpiService } from './kpi.service'
 import { KpiTargetsRepository } from './kpi-targets.repository'
 import { KpiTeamController } from './kpi-team.controller'
@@ -108,6 +112,7 @@ import { KpiYearController } from './kpi-year.controller'
     KpiTeamViewController,
     KpiAbsenceController,
     KpiAssignmentController,
+    KpiBoardController,
   ],
   providers: [
     KpiService,
@@ -151,6 +156,9 @@ import { KpiYearController } from './kpi-year.controller'
     KpiDeskService,
     KpiCompanyDeskService,
     KpiDeskRepository,
+    KpiBoardService,
+    KpiBoardRepository,
+    KpiBudgetService,
   ],
   exports: [KpiReconcileService],
 })

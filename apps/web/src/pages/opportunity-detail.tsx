@@ -191,6 +191,7 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
           money={money}
           assignHere={op.state === 'open' && op.acts.assign.ok && primary.move !== 'assign'}
           onAssign={() => setAssigning(true)}
+          canAssignPresales={op.state === 'open' && op.acts.assign.ok}
         />
       }
       /* A lost or terminated deal has no bar: nothing is recorded on it, nobody is contacted

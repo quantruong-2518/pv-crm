@@ -264,6 +264,15 @@ export const NOTE = {
       .filter((part) => part !== null)
       .join(' · '),
 
+  /** A PRESALES-lane change by the presales door: who was given, who was taken off. */
+  presalesLane: (added: readonly string[], removed: readonly string[]) =>
+    [
+      added.length > 0 ? `Giao Presales: ${added.join(', ')}` : null,
+      removed.length > 0 ? `Bỏ Presales: ${removed.join(', ')}` : null,
+    ]
+      .filter((part) => part !== null)
+      .join(' · '),
+
   /** The SALE primary moved and the mover said why (assign door, ADR 0086). */
   salePrimary: (from: string | null, to: string, reason: string) =>
     `Đổi Sale chính: ${from ?? 'chưa ai'} → ${to}. Lý do: ${reason}`,
@@ -277,6 +286,7 @@ const MILESTONE_WORD: Record<OpportunityMilestoneKind, string> = {
   poc: 'Đã chạy POC',
   demo: 'Đã demo',
   'site-visit': 'Đã khảo sát / gặp tại nhà máy',
+  solution: 'Đã gửi giải pháp',
   quotation: 'Đã gửi quotation',
 }
 
@@ -288,6 +298,7 @@ export const MILESTONE_TOUCH = {
   poc: 'poc-run',
   demo: 'demo-held',
   'site-visit': 'site-visited',
+  solution: 'solution-sent',
   quotation: 'quotation-sent',
 } as const satisfies Record<OpportunityMilestoneKind, TouchKind>
 

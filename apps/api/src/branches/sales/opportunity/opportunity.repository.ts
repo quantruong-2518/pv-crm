@@ -685,8 +685,22 @@ export class OpportunityRepository {
     code: string,
     rows: readonly (typeof opportunityOwner.$inferInsert)[],
   ): Promise<void> {
-    await tx.delete(opportunityOwner).where(eq(opportunityOwner.opportunityCode, code))
+    await tx
+      .delete(opportunityOwner)
+      .where(and(eq(opportunityOwner.opportunityCode, code), ne(opportunityOwner.role, 'PRESALES')))
     await this.insertOwners(tx, rows)
+  }
+
+  /** Replaces the PRESALES lane alone. `replaceOwners` leaves that lane standing
+   *  (its callers carry no Presales), so each lane has exactly one writer. */
+  async replacePresales(tx: Db, code: string, ids: readonly string[]): Promise<void> {
+    await tx
+      .delete(opportunityOwner)
+      .where(and(eq(opportunityOwner.opportunityCode, code), eq(opportunityOwner.role, 'PRESALES')))
+    await this.insertOwners(
+      tx,
+      ids.map((actorId) => ({ opportunityCode: code, actorId, role: 'PRESALES' as const })),
+    )
   }
 
   async insertProducts(

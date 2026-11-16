@@ -178,7 +178,7 @@ export class KpiOneOnOneService {
   private async scoreOf(period: KpiPeriodKey, actorId: string): Promise<KpiScoreResponse> {
     const score = (await this.scores.monthScores(period, [actorId])).get(actorId) ?? null
     const [catalog, roles] = await Promise.all([
-      this.config.effectiveCatalog(),
+      this.config.effectiveCatalog(period),
       this.repo.rolesOf(actorId),
     ])
     const signed = roles.some((r) => catalog[toContractRole(r)].some(holdsSigned))

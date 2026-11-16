@@ -6,9 +6,10 @@ import { message, useI18n } from '@/app/i18n'
 import { kpiDeskQuery } from '@/data/kpi-desk'
 import { COMPANY_PATH, ME_PATH, MONTH_PARAM, UNIT_PATH } from '@/lib/kpi-paths'
 
-/** The three tabs on top of every KPI screen (ADR 0159 §1). The desk read
- *  says which tabs the caller holds; the web never probes a role. While it
- *  loads or fails, only the first tab shows: a tab bar carries no error banner. */
+/** The three tabs under the header of every KPI screen (ADR 0159 §1). The desk
+ *  read says which tabs the caller holds; the web never probes a role. While it
+ *  loads or fails, or when only one tab is held, nothing is drawn: a lone tab
+ *  names a place the caller is already in, and a tab bar carries no error banner. */
 
 export type KpiTab = 'me' | 'unit' | 'company'
 
@@ -35,6 +36,7 @@ export function KpiTabs({ period, active, counts }: KpiTabsProps) {
   if (desk.data && desk.data.units.length > 0) held.push('unit')
   if (desk.data?.company) held.push('company')
 
+  if (held.length < 2) return null
   return (
     <SegmentedControl
       label={t(message('Màn KPI', 'KPI view', 'KPI 화면'))}

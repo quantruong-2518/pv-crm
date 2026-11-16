@@ -52,6 +52,7 @@ function activityText(
     poc: message('POC', 'POC', 'POC'),
     demo: message('Demo', 'Demo', '데모'),
     'site-visit': message('Khảo sát / gặp tại nhà máy', 'Site visit', '현장 방문'),
+    solution: message('Gửi giải pháp', 'Send solution', '솔루션 발송'),
   } as const
   return t(copy[kind])
 }

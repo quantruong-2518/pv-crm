@@ -33,6 +33,7 @@ export const ASSIGN_ONLY = 'Đã nhận PIC. Đổi Sale bằng nút Giao Sale.'
 export const PRIMARY_OFF_LANE = 'Sale chính phải là một người trong danh sách Sale đứng đơn'
 export const PRIMARY_NOT_SELLER = 'Sale chính phải là người vai Sale hoặc Account Executive.'
 export const PRIMARY_REASON_NEEDED = 'Nêu lý do đổi Sale chính.'
+export const NOT_PRESALES = 'Người được giao làm Presales phải có vai Presales.'
 
 /** One person of a SALE lane as `salePrimaryOf` reads them. */
 export type LanePerson = RefOwner & { roleIds: readonly RoleId[] | null }
@@ -124,6 +125,16 @@ export const isActiveSeller = (a: ActorRow): boolean =>
 export function assertSellersIn(actors: readonly ActorRow[], added: readonly string[]): void {
   const sellers = new Set(actors.filter(isActiveSeller).map((a) => a.id))
   if (added.some((id) => !sellers.has(id))) throw invalid({ saleOwners: [NOT_SELLER] }, NOT_SELLER)
+}
+
+/** The PRESALES door's person: switched on and wearing the `presales` role. Only
+ *  ADDED ids are judged, so someone who left the role stays removable. */
+export function assertPresalesIn(actors: readonly ActorRow[], added: readonly string[]): void {
+  const fit = new Set(
+    actors.filter((a) => a.disabledAt === null && a.roleIds.includes('presales')).map((a) => a.id),
+  )
+  if (added.some((id) => !fit.has(id)))
+    throw invalid({ presalesOwners: [NOT_PRESALES] }, NOT_PRESALES)
 }
 
 /** At OPEN, a seller without `opportunity.assign` names nobody but themselves
@@ -271,11 +282,12 @@ export const saleLaneOf = (
   ids.map((id) => ({ id, name: names.get(id) ?? id, roleIds: roles.get(id) ?? null }))
 
 /** The answer's owners straight off the write: SALE with its primary first
- *  (the read order), then BD. */
+ *  (the read order), then BD, then the PRESALES lane the write left standing. */
 export function ownersOfIds(
   body: { saleOwners: readonly string[]; bdOwners: readonly string[] },
   names: ReadonlyMap<string, string>,
   salePrimary: string | null,
+  presales: readonly OpportunityOwner[] = [],
 ): OpportunityOwner[] {
   const lane = (ids: readonly string[], role: 'SALE' | 'BD') =>
     ids.map((id) => ({
@@ -289,6 +301,7 @@ export function ownersOfIds(
     ...sale.filter((o) => o.primary),
     ...sale.filter((o) => !o.primary),
     ...lane(body.bdOwners, 'BD'),
+    ...presales,
   ]
 }
 

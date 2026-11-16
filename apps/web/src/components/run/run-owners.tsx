@@ -6,7 +6,7 @@ import { message, useI18n, type Message } from '@/app/i18n'
 import { useDirectory } from '@/data/directory'
 import { SALE_PRIMARY_COPY, marksPrimary } from '@/data/opportunities'
 import { workstreamJourneyQuery } from '@/data/workstream-journey'
-import { collectorDoorKey } from './owner-doors'
+import { collectorDoorKey, presalesDoorKey } from './owner-doors'
 import { RunBlock } from './run-block'
 import { PersonList, PersonRow } from './run-person'
 
@@ -57,6 +57,7 @@ const name = (holder: WorkstreamHolder | null) => holder?.name ?? null
 const idOf = (holder: WorkstreamHolder | null) => holder?.id ?? null
 const LANE_SEAT = {
   BD: message('BD PIC', 'BD in charge', '담당 BD'),
+  PRESALES: message('Presales PIC', 'Presales in charge', '담당 프리세일즈'),
   SALE: message('Sale PIC', 'Salesperson in charge', '담당 영업'),
 }
 
@@ -72,11 +73,14 @@ function laneRows(
   hasSeller: boolean,
   acceptedAt: string | null | undefined,
   t: Say,
+  presalesSlot: boolean,
 ): Row[] {
   const sale = lanes.filter((o) => o.role === 'SALE')
   const firstSale = sale.find((o) => o.primary) ?? sale[0]
+  const firstPresales = lanes.find((o) => o.role === 'PRESALES')
   const seated = lanes.map((o) => ({
     key: o === firstSale ? code : `${code}-${o.role}-${o.id}`,
+    ...(o === firstPresales && { doorKey: presalesDoorKey(code) }),
     step: 'deal' as const,
     seat: t(LANE_SEAT[o.role]),
     code,
@@ -100,7 +104,21 @@ function laneRows(
           ),
         },
       ]
-  return [...seated, ...noSale]
+  /* An empty Presales seat is drawn only for who can fill it; everyone else sees no gap. */
+  const noPresales: Row[] =
+    presalesSlot && !firstPresales
+      ? [
+          {
+            key: presalesDoorKey(code),
+            step: 'deal',
+            seat: t(LANE_SEAT.PRESALES),
+            code,
+            who: null,
+            hint: t(message('Chưa có Presales', 'No presales yet', '프리세일즈 없음')),
+          },
+        ]
+      : []
+  return [...seated, ...noSale, ...noPresales]
 }
 
 export function RunOwners({
@@ -126,8 +144,11 @@ export function RunOwners({
     ...workstreamJourneyQuery(workstreamCode ?? ''),
     enabled: live,
   })
+  const hasPresalesDoor = (code: string) => presalesDoorKey(code) in doors
   const alone =
-    lanes && focus !== undefined ? laneRows(focus, lanes, hasSeller, undefined, t) : null
+    lanes && focus !== undefined
+      ? laneRows(focus, lanes, hasSeller, undefined, t, hasPresalesDoor(focus))
+      : null
   if (live && journey.isLoading) return <Skeleton height={120} />
   const data = journey.data
   if (!data && !alone) return null
@@ -150,7 +171,7 @@ export function RunOwners({
         },
       ]
     }
-    return laneRows(deal.code, lanes, hasSeller, deal.acceptedAt, t)
+    return laneRows(deal.code, lanes, hasSeller, deal.acceptedAt, t, hasPresalesDoor(deal.code))
   }
 
   const all: Row[] = !data

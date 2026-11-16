@@ -35,6 +35,7 @@ import { OpportunityMoves } from './opportunity-moves.service'
 import { OpportunityImportRepository } from './opportunity-import.repository'
 import { OpportunityOpenRepository } from './opportunity-open.repository'
 import { OpportunityOpening } from './opportunity-opening.service'
+import { OpportunityPresales } from './opportunity-presales.service'
 import { OpportunitySign } from './opportunity-sign.service'
 import { OpportunityRepository } from './opportunity.repository'
 import { OpportunityService } from './opportunity.service'
@@ -116,6 +117,7 @@ import { OpportunityService } from './opportunity.service'
     OpportunityMoves,
     OpportunityAccept,
     OpportunityAssign,
+    OpportunityPresales,
     OpportunityOpening,
     OpportunityImportRepository,
     OpportunityOpenRepository,

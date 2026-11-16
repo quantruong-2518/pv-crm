@@ -22,7 +22,7 @@ import {
 import { isApiError } from '@/app/api'
 import { useAppChrome } from '@/app/chrome'
 import { kpiAssignmentTreeQuery } from '@/data/kpi-assignment'
-import { kpiCatalogQuery, type BlockQuery, type KpiCatalog } from '@/data/kpi-catalog'
+import { kpiCatalogFor, type BlockQuery, type KpiCatalog } from '@/data/kpi-catalog'
 import { message, translate, useI18n, type Message } from '@/app/i18n'
 import { kpiRoleText } from '@/data/kpi-i18n'
 import { KpiCardError } from '@/components/kpi-tabs'
@@ -188,7 +188,7 @@ function joined(
 function Board({ period }: { period: string }) {
   const { t } = useI18n()
   const [params, setParams] = useSearchParams()
-  const catalog = useQuery(kpiCatalogQuery)
+  const catalog = useQuery(kpiCatalogFor(period))
   const roles = catalog.data ? RoleId.options.filter((r) => catalog.data[r].length > 0) : []
   const trees = useQueries({ queries: roles.map((role) => kpiAssignmentTreeQuery(period, role)) })
   const all = joined(catalog, trees)

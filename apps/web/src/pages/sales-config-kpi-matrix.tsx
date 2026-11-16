@@ -1,23 +1,34 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Badge, Button, GlassCard, Select, Skeleton, cn, type BadgeProps } from '@pv/ui'
-import type { ApprovalState, KpiMetricKey, RoleId } from '@pv/contracts'
+import {
+  isKpiV2Period,
+  stepSalesPeriod,
+  type ApprovalState,
+  type KpiMetricKey,
+  type KpiPeriodKey,
+  type RoleId,
+} from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { message, translate, useI18n, type Lang } from '@/app/i18n'
-import { kpiLayerText, kpiMetricText, kpiRoleText } from '@/data/kpi-i18n'
+import { kpiFunnelStepText, kpiLayerText, kpiMetricText, kpiRoleText } from '@/data/kpi-i18n'
 import { toastDone } from '@/app/toast'
-import { kpiRoleMetricsQuery, useProposeKpiRoleMetrics } from '@/data/kpi-config'
+import { kpiRoleMetricsFor, useProposeKpiRoleMetrics } from '@/data/kpi-config'
+import { currentPick, periodLabel } from '@/data/period-pick'
 import {
   CELL_LABEL,
   NEXT_STATE,
   checkRole,
+  funnelRowsOf,
+  monthsFrom,
   rowsOf,
   type CellState,
   type RoleCheck,
   type RoleDraft,
   type RoleEntry,
 } from './sales-config-kpi-model'
+import { FunnelBox, WeightBox, WeightTotal } from './sales-config-kpi-fields'
 import { approvalStateCopy, sentCopy } from './sales-config-copy'
 
 /** 5.16 — which metrics count for each role, and which one leads its card
@@ -28,7 +39,10 @@ import { approvalStateCopy, sentCopy } from './sales-config-copy'
  *  below it, one role at a time picked from a list, so a phone or an upright
  *  tablet never scrolls the names away. Both views share one draft.
  *  Sent one role at a time (the write replaces the role's whole column); a
- *  sent column stays as sent and takes no more presses. */
+ *  sent column stays as sent and takes no more presses. A month picked above
+ *  decides the catalog shown and the month the change applies from (ADR 0160 §2);
+ *  from 01/2027 each counted metric also takes a weight and each role's funnel
+ *  steps a target. */
 
 const CELL = 'flex min-h-12 w-full flex-col items-center justify-center gap-1 rounded-md px-2 py-1'
 
@@ -51,10 +65,15 @@ const SENT_TONE: Record<ApprovalState, NonNullable<BadgeProps['tone']>> = {
 type Sent = { state: ApprovalState; changes: string[] }
 
 /** What the column changes, worded for the line under it once sent. */
-const changesOf = (check: RoleCheck, lang: Lang) =>
-  [...check.changed].map(
+const changesOf = (check: RoleCheck, lang: Lang) => [
+  ...[...check.changed].map(
     (k) => `${kpiMetricText(k, lang)}: ${translate(CELL_LABEL[check.cells.get(k) ?? 'on'], lang)}`,
-  )
+  ),
+  ...(check.weightsChanged ? [translate(message('Trọng số', 'Weights', '가중치'), lang)] : []),
+  ...(check.funnelChanged
+    ? [translate(message('Mục tiêu bước', 'Step targets', '단계 목표'), lang)]
+    : []),
+]
 
 function Cell({
   metric,
@@ -122,11 +141,13 @@ function Cell({
 /** Under a column: what is wrong, the send, and once sent, what went and where it stands. */
 function RoleSend({
   role,
+  from,
   check,
   sent,
   onSent,
 }: {
   role: RoleId
+  from: KpiPeriodKey
   check: RoleCheck
   sent: Sent | undefined
   onSent: (state: ApprovalState) => void
@@ -139,19 +160,27 @@ function RoleSend({
       <div className="flex flex-col items-start gap-2">
         <Badge tone={SENT_TONE[sent.state]}>{t(approvalStateCopy(sent.state))}</Badge>
         <p className="text-muted-foreground m-0 text-[11.5px] leading-4">
-          {t(message('Đã gửi', 'Submitted', '제출됨'))}: {sent.changes.join('; ')}.
+          {t(message('Đã gửi', 'Submitted', '제출됨'))}: {sent.changes.join('; ')}.{' '}
+          {t(
+            message(
+              `Áp dụng từ ${periodLabel(from)}.`,
+              `Applies from ${periodLabel(from)}.`,
+              `${periodLabel(from)}부터 적용됩니다.`,
+            ),
+          )}
         </p>
       </div>
     )
   }
   return (
     <div className="flex flex-col items-stretch gap-2">
-      {check.changed.size > 0 && check.problem && (
+      <WeightTotal check={check} />
+      {check.dirty && check.problem && (
         <p role="alert" className={ALERT}>
           {check.problem}
         </p>
       )}
-      {check.changed.size > 0 && (
+      {check.dirty && (
         <Button
           variant="secondary"
           size="sm"
@@ -186,19 +215,25 @@ function RoleSend({
   )
 }
 
+type TypeFn = (kind: 'weights' | 'funnel', key: string, value: string) => void
+
 type ViewProps = {
+  from: KpiPeriodKey
   roles: readonly RoleEntry[]
   checks: Map<RoleId, RoleCheck>
   sent: Partial<Record<RoleId, Sent>>
   canPropose: boolean
   pressOf: (role: RoleId) => ((metric: KpiMetricKey, now: CellState) => void) | undefined
+  /** Absent: the boxes are read-only, as the cells are. */
+  typeOf: (role: RoleId) => TypeFn | undefined
   onSent: (role: RoleId, state: ApprovalState) => void
 }
 
 /** `lg` and up: every role side by side, the metric names pinned to the left edge. */
-function TableView({ roles, checks, sent, canPropose, pressOf, onSent }: ViewProps) {
+function TableView({ from, roles, checks, sent, canPropose, pressOf, typeOf, onSent }: ViewProps) {
   const { t, lang } = useI18n()
   const pin = 'bg-card sticky left-0 z-[1]'
+  const steps = isKpiV2Period(from) ? funnelRowsOf(roles) : []
   return (
     <div className="overflow-x-auto">
       <table className="min-w-4xl w-full table-fixed text-left text-[12px]">
@@ -232,14 +267,26 @@ function TableView({ roles, checks, sent, canPropose, pressOf, onSent }: ViewPro
                 </th>
                 {roles.map(({ role }) => {
                   const press = pressOf(role)
+                  const type = typeOf(role)
+                  const check = checks.get(role)
                   return (
                     <td key={role} className="p-1">
-                      <Cell
-                        metric={key}
-                        role={role}
-                        check={checks.get(role)}
-                        onPress={press && ((now) => press(key, now))}
-                      />
+                      <div className="flex flex-col gap-1">
+                        <Cell
+                          metric={key}
+                          role={role}
+                          check={check}
+                          onPress={press && ((now) => press(key, now))}
+                        />
+                        {check && (
+                          <WeightBox
+                            metric={key}
+                            role={role}
+                            check={check}
+                            onType={type && ((v) => type('weights', key, v))}
+                          />
+                        )}
+                      </div>
                     </td>
                   )
                 })}
@@ -247,6 +294,42 @@ function TableView({ roles, checks, sent, canPropose, pressOf, onSent }: ViewPro
             ))}
           </tbody>
         ))}
+        {steps.length > 0 && (
+          <tbody>
+            <tr>
+              <th
+                scope="rowgroup"
+                colSpan={roles.length + 1}
+                className="text-muted-foreground px-2 pb-1 pt-4 text-[11.5px] font-medium"
+              >
+                {t(message('Mục tiêu bước', 'Step targets', '단계 목표'))}
+              </th>
+            </tr>
+            {steps.map((step) => (
+              <tr key={step}>
+                <th scope="row" className={cn(pin, 'px-2 py-1 font-medium leading-5')}>
+                  {kpiFunnelStepText(step, lang)}
+                </th>
+                {roles.map(({ role }) => {
+                  const type = typeOf(role)
+                  const check = checks.get(role)
+                  return (
+                    <td key={role} className="p-1">
+                      {check && (
+                        <FunnelBox
+                          step={step}
+                          role={role}
+                          check={check}
+                          onType={type && ((v) => type('funnel', step, v))}
+                        />
+                      )}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        )}
         {canPropose && (
           <tfoot>
             <tr>
@@ -258,6 +341,7 @@ function TableView({ roles, checks, sent, canPropose, pressOf, onSent }: ViewPro
                     {check && (
                       <RoleSend
                         role={role}
+                        from={from}
                         check={check}
                         sent={sent[role]}
                         onSent={(state) => onSent(role, state)}
@@ -275,13 +359,23 @@ function TableView({ roles, checks, sent, canPropose, pressOf, onSent }: ViewPro
 }
 
 /** Below `lg`: one role's metrics as a list, the role picked above it. */
-function OneRoleView({ roles, checks, sent, canPropose, pressOf, onSent }: ViewProps) {
+function OneRoleView({
+  from,
+  roles,
+  checks,
+  sent,
+  canPropose,
+  pressOf,
+  typeOf,
+  onSent,
+}: ViewProps) {
   const { t, lang } = useI18n()
   const [picked, setPicked] = useState<RoleId | undefined>(roles[0]?.role)
   const entry = roles.find((r) => r.role === picked) ?? roles[0]
   const check = entry && checks.get(entry.role)
   if (!entry || !check) return null
   const press = pressOf(entry.role)
+  const type = typeOf(entry.role)
   return (
     <div className="flex flex-col gap-4">
       <Select
@@ -303,20 +397,51 @@ function OneRoleView({ roles, checks, sent, canPropose, pressOf, onSent }: ViewP
                 <span className="text-[12.5px] font-medium leading-5">
                   {kpiMetricText(key, lang)}
                 </span>
-                <Cell
-                  metric={key}
-                  role={entry.role}
-                  check={check}
-                  onPress={press && ((now) => press(key, now))}
-                />
+                <span className="flex flex-col gap-1">
+                  <Cell
+                    metric={key}
+                    role={entry.role}
+                    check={check}
+                    onPress={press && ((now) => press(key, now))}
+                  />
+                  <WeightBox
+                    metric={key}
+                    role={entry.role}
+                    check={check}
+                    onType={type && ((v) => type('weights', key, v))}
+                  />
+                </span>
               </li>
             ))}
           </ul>
         </section>
       ))}
+      {check.funnel.size > 0 && (
+        <section className="flex flex-col gap-2">
+          <h3 className="text-muted-foreground m-0 text-[11.5px] font-medium">
+            {t(message('Mục tiêu bước', 'Step targets', '단계 목표'))}
+          </h3>
+          <ul className="m-0 flex flex-col gap-2 p-0">
+            {[...check.funnel.keys()].map((step) => (
+              <li key={step} className="grid grid-cols-[minmax(0,1fr)_144px] items-center gap-3">
+                <span className="text-[12.5px] font-medium leading-5">
+                  {kpiFunnelStepText(step, lang)}
+                </span>
+                <FunnelBox
+                  step={step}
+                  role={entry.role}
+                  check={check}
+                  onType={type && ((v) => type('funnel', step, v))}
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {canPropose && (
         <RoleSend
           role={entry.role}
+          from={from}
           check={check}
           sent={sent[entry.role]}
           onSent={(state) => onSent(entry.role, state)}
@@ -326,17 +451,29 @@ function OneRoleView({ roles, checks, sent, canPropose, pressOf, onSent }: ViewP
   )
 }
 
-function Matrix({ roles }: { roles: readonly RoleEntry[] }) {
+function Matrix({ from, roles }: { from: KpiPeriodKey; roles: readonly RoleEntry[] }) {
   const { t, lang } = useI18n()
   const canPropose = useCan('config.propose')
   const [drafts, setDrafts] = useState<Partial<Record<RoleId, RoleDraft>>>({})
   const [sent, setSent] = useState<Partial<Record<RoleId, Sent>>>({})
-  const checks = new Map(roles.map((r) => [r.role, checkRole(r, drafts[r.role] ?? {})]))
+  const checks = new Map(roles.map((r) => [r.role, checkRole(r, drafts[r.role] ?? {}, from)]))
+  const editable = (role: RoleId) => canPropose && !sent[role]
 
   const pressOf = (role: RoleId) =>
-    canPropose && !sent[role]
+    editable(role)
       ? (metric: KpiMetricKey, now: CellState) =>
-          setDrafts((prev) => ({ ...prev, [role]: { ...prev[role], [metric]: NEXT_STATE[now] } }))
+          setDrafts((prev) => ({
+            ...prev,
+            [role]: { ...prev[role], cells: { ...prev[role]?.cells, [metric]: NEXT_STATE[now] } },
+          }))
+      : undefined
+  const typeOf = (role: RoleId): TypeFn | undefined =>
+    editable(role)
+      ? (kind, key, value) =>
+          setDrafts((prev) => ({
+            ...prev,
+            [role]: { ...prev[role], [kind]: { ...prev[role]?.[kind], [key]: value } },
+          }))
       : undefined
   /* The draft is kept: the column goes on showing what was sent. */
   const onSent = (role: RoleId, state: ApprovalState) => {
@@ -346,7 +483,7 @@ function Matrix({ roles }: { roles: readonly RoleEntry[] }) {
       [role]: { state, changes: check ? changesOf(check, lang) : [] },
     }))
   }
-  const view = { roles, checks, sent, canPropose, pressOf, onSent }
+  const view = { from, roles, checks, sent, canPropose, pressOf, typeOf, onSent }
 
   return (
     <GlassCard variant="b" className="flex flex-col gap-4 p-4">
@@ -373,37 +510,75 @@ function Matrix({ roles }: { roles: readonly RoleEntry[] }) {
           ),
         )}
       </p>
+      {canPropose && (
+        <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.5]">
+          {t(
+            message(
+              'Mục tiêu bước tính theo % của bước trước; để trống là không đặt.',
+              'A step target is a % of the step before; leave it empty for none.',
+              '단계 목표는 이전 단계 대비 %이며, 비워 두면 설정하지 않습니다.',
+            ),
+          )}
+          {Array.from(checks.values()).some((c) => c.weighable) &&
+            ` ${t(
+              message(
+                'Trọng số để trống thì dùng mức chia sẵn.',
+                'An empty weight uses the default split.',
+                '가중치를 비워 두면 기본 배분을 사용합니다.',
+              ),
+            )}`}
+        </p>
+      )}
     </GlassCard>
   )
 }
 
+/** A UI limit, not a rule: the server refuses only months earlier than next month. */
+const MONTHS_AHEAD = 12
+
 export function KpiMetricMatrix() {
   const { t } = useI18n()
-  const { data, error, refetch } = useQuery(kpiRoleMetricsQuery)
-  if (data) return <Matrix roles={data.roles} />
-  if (error) {
-    return (
-      <div className="flex flex-wrap items-center gap-3">
-        <p role="alert" className={ALERT}>
-          {t(
-            message(
-              'Không tải được chỉ số theo vai trò.',
-              'Could not load metrics by role.',
-              '역할별 지표를 불러오지 못했습니다.',
-            ),
-          )}{' '}
-          {isApiError(error) ? userMessage(error) : ''}
-        </p>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="pointer-coarse:h-12"
-          onClick={() => void refetch()}
-        >
-          {t(message('Thử lại', 'Try again', '다시 시도'))}
-        </Button>
-      </div>
-    )
-  }
-  return <Skeleton className="h-64 w-full" />
+  const next = stepSalesPeriod(currentPick().month, 1)
+  const [from, setFrom] = useState(next)
+  const { data, error, refetch } = useQuery(kpiRoleMetricsFor(from))
+  /* A change applies from next month at the earliest, so no earlier month is offered. */
+  const months = monthsFrom(next, MONTHS_AHEAD)
+  return (
+    <div className="flex flex-col gap-4">
+      <Select
+        label={t(message('Áp dụng từ tháng', 'Applies from', '적용 시작 월'))}
+        size="lg"
+        className="w-full sm:w-64"
+        value={from}
+        options={months.map((m) => ({ value: m, label: periodLabel(m) }))}
+        onChange={setFrom}
+      />
+      {data ? (
+        <Matrix key={from} from={from} roles={data.roles} />
+      ) : error ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <p role="alert" className={ALERT}>
+            {t(
+              message(
+                'Không tải được chỉ số theo vai trò.',
+                'Could not load metrics by role.',
+                '역할별 지표를 불러오지 못했습니다.',
+              ),
+            )}{' '}
+            {isApiError(error) ? userMessage(error) : ''}
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="pointer-coarse:h-12"
+            onClick={() => void refetch()}
+          >
+            {t(message('Thử lại', 'Try again', '다시 시도'))}
+          </Button>
+        </div>
+      ) : (
+        <Skeleton className="h-64 w-full" />
+      )}
+    </div>
+  )
 }

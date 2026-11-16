@@ -7,16 +7,25 @@ import {
   RoleId,
   type ConfigProposalReceipt,
   type KpiAlertPatch,
+  type KpiFunnelStep,
+  type KpiPeriodKey,
   type KpiRoleMetricsPatch,
 } from '@pv/contracts'
 import type { SettingKey } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
+import { invalid } from '@api/platform/http/problem'
 import { SettingService } from '@api/platform/setting/setting.service'
 import { SalesConfigService } from '../config/config.service'
 import { KpiConfigRepository } from './kpi-config.repository'
-import { assertMeasurable, type KpiConfigChange } from './kpi-config.approval'
+import {
+  assertFromAhead,
+  assertMeasurable,
+  datedOf,
+  type KpiConfigChange,
+} from './kpi-config.approval'
 import type { ScoreSettings } from './kpi-score'
-import { catalogOf, resolvedMetrics, type KpiCatalog } from './kpi-config.overlay'
+import { catalogOf, resolvedMetrics, setFromOf, type KpiCatalog } from './kpi-config.overlay'
+import { vietnamToday } from './kpi-rules'
 
 /** KPI configuration (ADR 0099 §1–3): the metric overlay per role and the
  *  slip/hit pair. Reads answer directly; writes are proposals through the
@@ -34,31 +43,62 @@ export class KpiConfigService {
     private readonly config: SalesConfigService,
   ) {}
 
-  /** The catalog every KPI reader groups by. Pass `tx` inside a write. */
-  async effectiveCatalog(handle?: Db): Promise<KpiCatalog> {
-    const { catalog, faults } = catalogOf(await this.repo.overrides(handle))
-    for (const fault of faults) this.log.error(`KPI metric config: ${fault}`)
+  /** The catalog every KPI reader of month `period` groups by: that month's
+   *  code catalog and its own set (ADR 0160 §1–2). Pass `tx` inside a write. */
+  async effectiveCatalog(period: KpiPeriodKey, handle?: Db): Promise<KpiCatalog> {
+    const { catalog, faults } = catalogOf(period, await this.repo.overrides(handle))
+    for (const fault of faults) this.log.error(`KPI metric config ${period}: ${fault}`)
     return catalog
   }
 
-  async catalog(): Promise<KpiEffectiveCatalogResponse> {
-    return KpiEffectiveCatalogResponse.parse({ roles: await this.effectiveCatalog() })
+  async catalog(period = vietnamToday().slice(0, 7)): Promise<KpiEffectiveCatalogResponse> {
+    return KpiEffectiveCatalogResponse.parse({ roles: await this.effectiveCatalog(period) })
   }
 
-  async metrics(): Promise<KpiRoleMetricsResponse> {
-    const all = resolvedMetrics(await this.repo.overrides())
+  async metrics(period = vietnamToday().slice(0, 7)): Promise<KpiRoleMetricsResponse> {
+    const [rows, funnel] = await Promise.all([this.repo.overrides(), this.repo.funnel()])
+    const all = resolvedMetrics(period, rows)
     return KpiRoleMetricsResponse.parse({
-      roles: RoleId.options.map((role) => ({ role, metrics: all[role] })),
+      period,
+      roles: RoleId.options.map((role) => {
+        const fromPeriod = setFromOf(period, role, rows)
+        const steps = funnel.filter((f) => f.role === role && f.fromPeriod === fromPeriod)
+        return {
+          role,
+          fromPeriod,
+          metrics: all[role],
+          funnel: steps.map((f) => ({ step: f.stepKey, targetBp: f.ratioBp })),
+        }
+      }),
     })
   }
 
-  /** The contract already holds "every catalog metric, one enabled primary".
+  /** Funnel step targets of `role`'s set in force for `period`, as a share 0..1
+   *  of the step before; a step with no target is absent (ADR 0160 §7). */
+  async funnelTargets(
+    period: KpiPeriodKey,
+    role: RoleId,
+  ): Promise<ReadonlyMap<KpiFunnelStep, number>> {
+    const [rows, funnel] = await Promise.all([this.repo.overrides(), this.repo.funnel()])
+    const from = setFromOf(period, role, rows)
+    return new Map(
+      funnel
+        .filter((f) => f.role === role && f.fromPeriod === from)
+        .map((f) => [f.stepKey, f.ratioBp / 10_000]),
+    )
+  }
+
+  /** The contract already holds "every catalog metric, one enabled primary";
+   *  the request is dated and weighed here so the approver reads both.
    *  `wasOn` is read here so the approver's sentence names only what flips. */
   async proposeMetrics(who: Actor, body: KpiRoleMetricsPatch): Promise<ConfigProposalReceipt> {
-    assertMeasurable(body)
-    const now = resolvedMetrics(await this.repo.overrides())[body.role]
+    const value = datedOf(body)
+    if (Array.isArray(value)) throw invalid({ metrics: value })
+    assertFromAhead(value.from)
+    assertMeasurable(value)
+    const now = resolvedMetrics(value.from, await this.repo.overrides())[value.role]
     const wasOn = now.filter((m) => m.enabled).map((m) => m.metricKey)
-    const change: KpiConfigChange = { kind: 'kpi-metrics', value: body, wasOn }
+    const change: KpiConfigChange = { kind: 'kpi-metrics', value, wasOn }
     return this.config.propose(who, change)
   }
 

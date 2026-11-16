@@ -28,7 +28,7 @@ export const KpiDeskUnit = z.object({
   name,
   level: OrgUnitKind,
   seat: KpiDeskSeat,
-  /** The head a stand-in acts for. */
+  /** The head a stand-in acts for; on `above`, the unit's head. `null` on `holder`. */
   forName: name.nullable(),
   until: Day.nullable(),
 })
@@ -88,10 +88,26 @@ export const KpiCompanyDeskUnit = z.object({
   averageScore: z.number().nonnegative().nullable(),
   /** `null` when the unit holds nobody who records a weekly commit. */
   forecastCommitted: z.boolean().nullable(),
+  /** Two more of the unit's metrics beside the primary (ADR 0160 §10). */
+  others: z.array(KpiDeskPrimary).max(2),
+  /** The member furthest along their own primary target; `null` with no target set. */
+  top: z.object({ actorId, name, percent: z.number().nonnegative() }).nullable(),
+})
+
+/** Every person with a primary target, by % of it, highest first (ADR 0160 §10,
+ *  amends ADR 0159 §6). `percent` is `value ÷ target`, `null` while no value reads. */
+export const KpiLeaderboardRow = z.object({
+  actorId,
+  name,
+  unitName: name.nullable(),
+  role: RoleId,
+  primary: KpiDeskPrimary,
+  percent: z.number().nonnegative().nullable(),
 })
 
 export const KpiCompanyDeskResponse = z.object({
   units: z.array(KpiCompanyDeskUnit),
+  leaderboard: z.array(KpiLeaderboardRow),
   /** People behind on their primary metric, widest gap first. */
   slipping: z.array(
     z.object({ actorId, name, unitName: name.nullable(), gap: z.number().nonnegative() }),
@@ -112,4 +128,5 @@ export type KpiDeskMember = z.infer<typeof KpiDeskMember>
 export type KpiDeskUnitView = z.infer<typeof KpiDeskUnitView>
 export type KpiDeskResponse = z.infer<typeof KpiDeskResponse>
 export type KpiCompanyDeskUnit = z.infer<typeof KpiCompanyDeskUnit>
+export type KpiLeaderboardRow = z.infer<typeof KpiLeaderboardRow>
 export type KpiCompanyDeskResponse = z.infer<typeof KpiCompanyDeskResponse>

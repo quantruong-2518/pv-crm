@@ -38,6 +38,12 @@ export const KpiMetricKey = z.enum([
   'approval-turnaround-hours',
   'quotes-sent',
   'sales-cycle-days',
+  'mql-reached',
+  'lead-to-mql-rate',
+  'cost-per-mql',
+  'presales-signed-value',
+  'on-time-collection-rate',
+  'solution-days',
 ])
 
 /** `guardrail` sits beside the other three: it stops a result being gamed. */
@@ -148,11 +154,60 @@ export const KPI_CATALOG: Record<RoleId, readonly KpiMetricDef[]> = {
   ],
 }
 
-/** In the catalog so close, reconcile and the gate read them; off until config turns them on. */
+/** In the catalog so close, reconcile and the gate read them; off until config turns them on.
+ *  The v1 set; a v2 month reads `defaultOffFor`. */
 export const KPI_DEFAULT_OFF: ReadonlySet<KpiMetricKey> = new Set<KpiMetricKey>([
   'quotes-sent',
   'sales-cycle-days',
 ])
+
+/** First month of the v2 catalog (ADR 0160 §1). A constant beside `TIERED_FROM`
+ *  and `RAMP_FROM`, not shared with them: each gate belongs to its own ADR. */
+export const KPI_V2_FROM = '2027-01'
+
+/** `YYYY-MM` compares as text in calendar order. */
+export const isKpiV2Period = (period: KpiPeriodKey): boolean => period >= KPI_V2_FROM
+
+/** ADR 0160 §4: only Marketing and Presales change; v1 rows stay for history. */
+export const KPI_CATALOG_V2: Record<RoleId, readonly KpiMetricDef[]> = {
+  ...KPI_CATALOG,
+  marketing: [
+    metric('mql-reached', 'result', 'count', 'own', PRIMARY),
+    metric('lead-to-mql-rate', 'conversion', 'ratio', 'own', UNPACED),
+    metric('cost-per-mql', 'guardrail', 'money', 'own', LOWER),
+    metric('leads-sourced', 'activity', 'count', 'own'),
+    metric('lead-to-opportunity-rate', 'conversion', 'ratio', 'own', UNPACED),
+    metric('sourced-signed-value', 'result', 'money', 'own'),
+  ],
+  presales: [
+    metric('presales-signed-value', 'result', 'money', 'own', PRIMARY),
+    metric('win-rate', 'conversion', 'ratio', 'own', UNPACED),
+    metric('on-time-collection-rate', 'guardrail', 'ratio', 'own', UNPACED),
+    metric('solution-days', 'activity', 'days', 'own', LOWER),
+    metric('demos-joined', 'activity', 'count', 'own'),
+  ],
+}
+
+/** Per role, because `demos-joined` is off for Presales in v2 but stays a v1 primary. */
+export const KPI_V2_DEFAULT_OFF: Record<RoleId, ReadonlySet<KpiMetricKey>> = Object.fromEntries(
+  RoleId.options.map((role) => [
+    role,
+    new Set<KpiMetricKey>([
+      ...KPI_DEFAULT_OFF,
+      ...(role === 'marketing'
+        ? (['lead-to-opportunity-rate', 'sourced-signed-value'] as const)
+        : []),
+      ...(role === 'presales' ? (['demos-joined'] as const) : []),
+    ]),
+  ]),
+) as unknown as Record<RoleId, ReadonlySet<KpiMetricKey>>
+
+/** The catalog a month is read, scored and configured against. */
+export const catalogFor = (period: KpiPeriodKey): Record<RoleId, readonly KpiMetricDef[]> =>
+  isKpiV2Period(period) ? KPI_CATALOG_V2 : KPI_CATALOG
+
+export const defaultOffFor = (period: KpiPeriodKey, role: RoleId): ReadonlySet<KpiMetricKey> =>
+  isKpiV2Period(period) ? KPI_V2_DEFAULT_OFF[role] : KPI_DEFAULT_OFF
 
 /** Whether a metric has a weekly running total: a tally (count or money) that
  *  only grows with the month. A snapshot, a lower-is-better figure or an
@@ -180,6 +235,12 @@ export const KPI_METRIC_LABEL: Record<KpiMetricKey, string> = {
   'approval-turnaround-hours': 'Thời gian duyệt',
   'quotes-sent': 'Báo giá đã gửi',
   'sales-cycle-days': 'Thời gian chốt cơ hội',
+  'mql-reached': 'MQL đạt',
+  'lead-to-mql-rate': 'Tỷ lệ lead → MQL',
+  'cost-per-mql': 'Chi phí mỗi MQL',
+  'presales-signed-value': 'Giá trị ký',
+  'on-time-collection-rate': 'Thu tiền đúng hạn',
+  'solution-days': 'Thời gian gửi giải pháp',
 }
 
 /** How each metric is counted, one sentence in product words (ADR 0157 §1). Shown
@@ -209,6 +270,16 @@ export const KPI_METRIC_HOW: Record<KpiMetricKey, string> = {
   'quotes-sent': 'Số báo giá bạn đã gửi trong tháng; mỗi lần gửi tính một báo giá.',
   'sales-cycle-days':
     'Số ngày từ lúc mở cơ hội đến lúc ký hợp đồng đầu tiên, cho các hợp đồng ký trong tháng.',
+  'mql-reached': 'Lead bạn đưa về lên mức MQL lần đầu trong tháng, gồm lead tạo sẵn ở mức MQL.',
+  'lead-to-mql-rate': 'MQL trong tháng ÷ lead bạn đưa về trong tháng.',
+  'cost-per-mql':
+    'Tiền chi trong tháng của các nguồn bạn phụ trách ÷ MQL của bạn. Thấp hơn là tốt.',
+  'presales-signed-value':
+    'Giá trị hợp đồng ký trong tháng từ cơ hội bạn làm giải pháp, tính đủ giá trị.',
+  'on-time-collection-rate':
+    'Tiền các đợt đến hạn trong tháng đã thu đúng hạn ÷ tiền đến hạn, trên hợp đồng bạn làm giải pháp.',
+  'solution-days':
+    'Số ngày từ buổi khảo sát đầu tiên tới lúc gửi giải pháp, lấy trung vị trong tháng.',
 }
 
 export const KPI_LAYER_LABEL: Record<KpiLayer, string> = {

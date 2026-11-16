@@ -8,7 +8,7 @@ import { useAppChrome } from '@/app/chrome'
 import { KpiTabs } from '@/components/kpi-tabs'
 import { kpiCompanyQuery } from '@/data/kpi'
 import { kpiAssignmentTreeQuery } from '@/data/kpi-assignment'
-import { kpiCatalogQuery, withCatalog } from '@/data/kpi-catalog'
+import { kpiCatalogFor, withCatalog } from '@/data/kpi-catalog'
 import { kpiCloseGateQuery } from '@/data/kpi-close'
 import { kpiCompanyDeskQuery } from '@/data/kpi-desk'
 import { dm } from '@/lib/date'
@@ -16,9 +16,12 @@ import { scrollToId } from '@/lib/scroll'
 import { keyOf, num } from './home-model'
 import { TARGETS_PATH, monthQuery } from './kpi-allocate-model'
 import { assignHref, statusHref } from './kpi-assign-model'
-import { CommittedTile, LinkButton } from './kpi-company-parts'
+import { UnitCards } from './kpi-company-cards'
+import { CompareCard, LeaderboardCard } from './kpi-company-compare'
+import { paceShare } from './kpi-company-model'
+import { AssignTile, CommittedTile, LinkButton } from './kpi-company-parts'
+import { SlippingCard } from './kpi-company-slipping'
 import { CompanyTodo, type CompanyTodoItem } from './kpi-company-todo'
-import { SlippingTable, TableCard, UnitsTable } from './kpi-company-units'
 import { MonthCloseBar } from './kpi-month-close'
 import { boardOf, dayOfMonth, monthEnded, monthPick, monthText, useMonthParam } from './kpi-model'
 import { CompanyStrip, MonthPicker, QueryBlock, ReadingTile } from './kpi-parts'
@@ -80,7 +83,7 @@ export function KpiCompanyPage() {
   const period = keyOf(pick)
   const day = dayOfMonth(period)
 
-  const catalog = useQuery(kpiCatalogQuery)
+  const catalog = useQuery(kpiCatalogFor(period))
   const company = useQuery({ ...kpiCompanyQuery(period), enabled: seesAll })
   const desk = useQuery(kpiCompanyDeskQuery(period))
   const role = company.data?.scorecard.role
@@ -98,6 +101,7 @@ export function KpiCompanyPage() {
   })
   const companyStep = tree.data?.steps.find((s) => s.level === 'company')
   const unsent = (companyStep?.units?.notSent ?? 0) > 0
+  const pace = paceShare(period)
 
   const todo: CompanyTodoItem[] = []
   if (closable) {
@@ -126,12 +130,12 @@ export function KpiCompanyPage() {
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
-        <KpiTabs period={period} active="company" counts={{ company: todo.length }} />
         <ScreenHeader
           title={t(message('KPI công ty', 'Company KPIs', '회사 KPI'))}
           description={day && <span className="tnum font-num">{day}</span>}
           actions={<MonthPicker pick={pick} onPick={setPick} />}
         />
+        <KpiTabs period={period} active="company" counts={{ company: todo.length }} />
 
         <CompanyTodo items={todo} />
 
@@ -147,7 +151,11 @@ export function KpiCompanyPage() {
                 <div className="flex flex-col gap-4">
                   <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                     {hero && <ReadingTile item={hero} hero />}
-                    <CommittedTile desk={desk} />
+                    <CommittedTile
+                      desk={desk}
+                      signed={hero?.def.unit === 'money' ? hero.reading.value : null}
+                      target={hero?.def.unit === 'money' ? hero.reading.target : null}
+                    />
                   </div>
                   <CompanyStrip catalog={defs} role={data.scorecard.role} readings={rest} />
                 </div>
@@ -164,45 +172,28 @@ export function KpiCompanyPage() {
           </div>
         )}
 
-        <section className="flex flex-col gap-3">
-          <QueryBlock
-            query={withCatalog(desk, catalog)}
-            what={message('danh sách đơn vị', 'the list of units', '조직 목록')}
-            variant="b"
-          >
-            {([data, defs]) => (
-              <TableCard
-                title={t(message('Đơn vị', 'Units', '조직'))}
-                note={t(
-                  message(
-                    'Bấm để mở đơn vị như trưởng đơn vị đó thấy.',
-                    'Open a unit as its head sees it.',
-                    '책임자가 보는 화면으로 조직을 엽니다.',
-                  ),
-                )}
-              >
-                <UnitsTable catalog={defs} period={period} units={data.units} />
-              </TableCard>
-            )}
-          </QueryBlock>
-        </section>
-
-        {desk.data && desk.data.slipping.length > 0 && (
-          <section className="flex flex-col gap-3">
-            <TableCard
-              title={t(message('Người đang trượt', 'People slipping', '미달 인원'))}
-              note={t(
-                message(
-                  'Người chậm nhịp hoặc đã trượt ở chỉ số chính, sắp xếp theo phần thiếu.',
-                  'People behind pace or already missed on the main metric, widest gap first.',
-                  '주요 지표가 지연되었거나 미달한 사람, 부족분이 큰 순서로 표시합니다.',
-                ),
-              )}
-            >
-              <SlippingTable period={period} slipping={desk.data.slipping} />
-            </TableCard>
-          </section>
+        {companyStep?.units && (
+          <AssignTile
+            units={companyStep.units}
+            monthLabel={monthText(next)}
+            to={statusHref(next)}
+          />
         )}
+
+        <QueryBlock
+          query={desk}
+          what={message('danh sách đơn vị', 'the list of units', '조직 목록')}
+        >
+          {(data) => (
+            <div className="flex flex-col gap-4">
+              <CompareCard period={period} pace={pace} units={data.units} />
+              <UnitCards period={period} units={data.units}>
+                <SlippingCard period={period} pace={pace} desk={data} />
+              </UnitCards>
+              <LeaderboardCard period={period} pace={pace} rows={data.leaderboard} />
+            </div>
+          )}
+        </QueryBlock>
 
         <div className="flex flex-wrap gap-4">
           <LinkButton

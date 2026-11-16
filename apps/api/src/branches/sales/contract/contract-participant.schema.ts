@@ -30,7 +30,7 @@ export const contractParticipant = sales.table(
     actorId: text('actor_id')
       .notNull()
       .references(() => actor.id),
-    /** `'SALE' | 'BD'` — the lane the person stood on at signing. */
+    /** `'SALE' | 'BD' | 'PRESALES'` — the lane the person stood on at signing. */
     role: text('role').$type<OpportunityOwnerRole>().notNull(),
     /** The accountable seller at signing; at most one per contract. */
     isPrimary: boolean('is_primary').notNull().default(false),
@@ -48,7 +48,7 @@ export const contractParticipant = sales.table(
       .on(t.contractCode)
       .where(sql`"is_primary"`),
     /** `OpportunityOwnerRole.options`, copied out for `touch_kind_known`'s reason. */
-    check('contract_participant_role_known', sql`"role" IN ('SALE', 'BD')`),
+    check('contract_participant_role_known', sql`"role" IN ('SALE', 'BD', 'PRESALES')`),
     check('contract_participant_primary_is_sale', sql`NOT "is_primary" OR "role" = 'SALE'`),
   ],
 )

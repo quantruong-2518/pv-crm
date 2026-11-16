@@ -192,14 +192,15 @@ export class KpiDeskService {
       this.access.allows(who, 'kpi.view-all') ||
       (ground.tree !== null && (await readsInTree(this.seats, ground.tree, who, unitId)))
     if (!reads) throw denied('permission-denied', 'Bạn không phụ trách đơn vị này.')
-    return { unit, seat: 'above', forName: null, until: null }
+    const forName = unit.head ? (ground.names.get(unit.head) ?? null) : null
+    return { unit, seat: 'above', forName, until: null }
   }
 
   /** Cards, pace and pipeline for `ids` (everyone when absent), read once per kind. The
    *  pipeline is one statement for every signed-value holder among them. */
   async figuresOf(who: Actor, period: KpiPeriodKey, ids?: ReadonlySet<string>) {
     const [catalog, tolerance] = await Promise.all([
-      this.config.effectiveCatalog(),
+      this.config.effectiveCatalog(period),
       this.config.tolerance(),
     ])
     const cards = ids && ids.size === 0 ? [] : (await this.kpi.people(period, ids)).people

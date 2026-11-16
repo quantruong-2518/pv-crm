@@ -1,6 +1,6 @@
 import { and, arrayContains, eq, exists, inArray, isNull, sql } from 'drizzle-orm'
 import type { RoleId } from '@pv/engines'
-import type { TouchHolder } from '@pv/contracts'
+import type { OpportunityOwnerRole, TouchHolder } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import type { ObjectMirror } from '@api/platform/graph/object-mirror'
@@ -33,7 +33,7 @@ export type Person = {
   code: string
   id: string
   name: string
-  role: 'SALE' | 'BD'
+  role: OpportunityOwnerRole
   primary: boolean
   roleIds: RoleId[]
 }

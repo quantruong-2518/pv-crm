@@ -1163,6 +1163,13 @@
       "when": 1795946620000,
       "tag": "0170_kpi_forecast_commit_and_one_on_one",
       "breakpoints": true
+    },
+    {
+      "idx": 171,
+      "version": "7",
+      "when": 1796033020000,
+      "tag": "0171_kpi_v2_metrics_presales_lane",
+      "breakpoints": true
     }
   ]
 }

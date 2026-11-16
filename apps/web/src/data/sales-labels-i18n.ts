@@ -62,6 +62,7 @@ const MILESTONE: Record<OpportunityMilestoneKind, Message> = {
   poc: message(OPPORTUNITY_MILESTONE_LABEL.poc, 'POC', 'POC'),
   demo: message(OPPORTUNITY_MILESTONE_LABEL.demo, 'Demo', '데모'),
   'site-visit': message(OPPORTUNITY_MILESTONE_LABEL['site-visit'], 'Site visit', '현장 방문'),
+  solution: message(OPPORTUNITY_MILESTONE_LABEL.solution, 'Solution sent', '솔루션 발송'),
   quotation: message(OPPORTUNITY_MILESTONE_LABEL.quotation, 'Quotation', '견적'),
 }
 

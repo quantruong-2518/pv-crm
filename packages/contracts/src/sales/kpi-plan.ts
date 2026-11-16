@@ -23,11 +23,17 @@ export const KpiPersonParams = z.object({
 
 const count = z.number().int().nonnegative()
 
-/** Share of deals that left a stage and went forward; `left` is the deals that left it. */
+const share = z.number().min(0).max(1)
+
+/** Share of deals that left a stage and went forward; `left` is the deals that left it.
+ *  `unitRate` is the same over the person's unit, `target` the role's funnel step
+ *  target (`KpiFunnelTarget` as a 0..1 share); both shown beside, never scored (ADR 0160 §7, §9). */
 export const KpiStageRate = z.object({
   stage: StageKey,
-  rate: z.number().min(0).max(1).nullable(),
+  rate: share.nullable(),
   left: count,
+  unitRate: share.nullable(),
+  target: share.nullable(),
 })
 
 export const KpiLeading = z.object({

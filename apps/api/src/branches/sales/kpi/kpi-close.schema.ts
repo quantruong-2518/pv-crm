@@ -35,7 +35,8 @@ const metricKnown = (): SQL =>
                        'opportunity-accept-rate', 'demos-joined', 'signed-value', 'win-rate',
                        'debriefs-closed', 'overdue-receivables', 'accept-lag-days',
                        'collected-value', 'approval-turnaround-hours', 'quotes-sent',
-                       'sales-cycle-days')`
+                       'sales-cycle-days', 'mql-reached', 'lead-to-mql-rate', 'cost-per-mql',
+                       'presales-signed-value', 'on-time-collection-rate', 'solution-days')`
 
 export const kpiMonthClose = sales.table(
   'kpi_month_close',

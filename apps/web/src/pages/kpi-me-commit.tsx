@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Checkbox, GlassCard, cn } from '@pv/ui'
 import type { KpiForecastMeResponse } from '@pv/contracts'
 import { KpiCardError } from '@/components/kpi-tabs'
@@ -8,6 +8,7 @@ import { userMessage } from '@/app/api'
 import { message, useI18n } from '@/app/i18n'
 import { toastDone } from '@/app/toast'
 import { kpiForecastCommitMeQuery, useSaveKpiForecastMe } from '@/data/kpi-forecast-commit'
+import { kpiSignedByDayKey } from '@/data/kpi-signed-by-day'
 import { dm } from '@/lib/date'
 import { NOTE, TILE } from './home-tiles'
 import { printTile } from './kpi-model'
@@ -29,6 +30,7 @@ function FormBody({ period, data }: { period: string; data: KpiForecastMeRespons
   const { t } = useI18n()
   const [picked, setPicked] = useState(() => new Set(data.picked))
   const save = useSaveKpiForecastMe(period)
+  const client = useQueryClient()
   const total = data.candidates
     .filter((c) => picked.has(c.opportunityId))
     .reduce((sum, c) => sum + c.value, 0)
@@ -95,8 +97,11 @@ function FormBody({ period, data }: { period: string; data: KpiForecastMeRespons
               save.mutate(
                 { opportunityIds: [...picked] },
                 {
-                  onSuccess: () =>
-                    toastDone(t(message('Đã lưu dự báo', 'Forecast saved', '예측을 저장했습니다'))),
+                  onSuccess: () => {
+                    /* The chart's dashed line is the pick just saved. */
+                    void client.invalidateQueries({ queryKey: kpiSignedByDayKey(period) })
+                    toastDone(t(message('Đã lưu dự báo', 'Forecast saved', '예측을 저장했습니다')))
+                  },
                 },
               )
             }

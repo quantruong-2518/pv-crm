@@ -5,7 +5,7 @@ import { isTieredPeriod, stepSalesPeriod, type KpiDeskResponse } from '@pv/contr
 import { useAppChrome } from '@/app/chrome'
 import { message, useI18n } from '@/app/i18n'
 import { KpiTabs } from '@/components/kpi-tabs'
-import { kpiCatalogQuery, withCatalog, type KpiCatalog } from '@/data/kpi-catalog'
+import { kpiCatalogFor, withCatalog, type KpiCatalog } from '@/data/kpi-catalog'
 import { kpiDeskQuery } from '@/data/kpi-desk'
 import { kpiUnitForecastQuery } from '@/data/kpi-forecast-commit'
 import { dmy } from '@/lib/date'
@@ -16,6 +16,7 @@ import { useMonthParam } from './kpi-model'
 import { MonthPicker, QueryBlock } from './kpi-parts'
 import { ForecastCard } from './kpi-unit-forecast'
 import { OneOnOneCard } from './kpi-unit-oneonone'
+import { MarketingBudgetCard } from './kpi-unit-budget'
 import { MembersCard, UnitTotals } from './kpi-unit-parts'
 import { useAssignMonthToSend } from './kpi-unit-model'
 import { TodoStrip } from './kpi-unit-todo'
@@ -24,7 +25,10 @@ import { TodoStrip } from './kpi-unit-todo'
  *  One read, `GET /sales/kpi/:period/desk`, fills the totals, the members and
  *  the 1:1 counts; the weekly forecast has its own read and its own error.
  *
- *  A seat of `above` reads the unit and acts on nothing: the unit's own head does. */
+ *  A seat of `above` reads the unit and acts on nothing: the unit's own head does.
+ *
+ *  No ContextRail (law 10 debt, as on the overview): a scorecard is a sum over
+ *  many records and opens no single object a chain could be anchored on. */
 
 const UNIT_PARAM = 'unit'
 
@@ -45,9 +49,9 @@ function SeatLine({ seat }: { seat: KpiDeskResponse['units'][number] }) {
           )
         : t(
             message(
-              'Bạn xem đơn vị này từ cấp trên. Người đứng đầu đơn vị tự xử lý việc ở đây.',
-              'You view this unit from above. Its own head acts on what is here.',
-              '상위에서 이 조직을 보고 있습니다. 조직장이 직접 처리합니다.',
+              `Bạn xem đơn vị này từ cấp trên. ${who || 'Người đứng đầu đơn vị'} tự xử lý việc ở đây.`,
+              `You view this unit from above. ${who || 'Its own head'} acts on what is here.`,
+              `상위에서 이 조직을 보고 있습니다. ${who ? `${who}님이` : '조직장이'} 직접 처리합니다.`,
             ),
           )}
     </p>
@@ -136,6 +140,9 @@ function UnitBody({
         coverageLow={view.coverageLow}
         accuracy={view.lastAccuracy}
       />
+      {view.members.some((m) => m.role === 'marketing') && (
+        <MarketingBudgetCard period={period} unitId={view.unitId} />
+      )}
       <MembersCard catalog={catalog} members={view.members} period={period} scoreOf={oneMonth} />
       {tiered && <ForecastCard query={forecast} period={period} unitId={view.unitId} />}
       {view.oneOnOnes && (
@@ -153,17 +160,17 @@ export function KpiUnitPage() {
   const period = keyOf(pick)
   const unit = params.get(UNIT_PARAM) ?? undefined
   const desk = useQuery(kpiDeskQuery(period, unit))
-  const catalog = useQuery(kpiCatalogQuery)
+  const catalog = useQuery(kpiCatalogFor(period))
 
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
-        <KpiTabs period={period} active="unit" />
         <ScreenHeader
           title={t(message('Đơn vị của tôi', 'My unit', '내 조직'))}
           description={desk.data?.units.find((u) => u.unitId === desk.data?.unit?.unitId)?.name}
           actions={<MonthPicker pick={pick} onPick={setPick} />}
         />
+        <KpiTabs period={period} active="unit" />
         <QueryBlock
           query={withCatalog(desk, catalog)}
           what={message('KPI của đơn vị', 'the unit’s KPIs', '조직 KPI')}

@@ -103,7 +103,6 @@ export function KpiOneOnOnePage() {
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
-        <KpiTabs period={period} active={own ? 'me' : 'unit'} />
         <ScreenHeader
           title={t(
             message(
@@ -125,6 +124,7 @@ export function KpiOneOnOnePage() {
             </Button>
           }
         />
+        <KpiTabs period={period} active={own ? 'me' : 'unit'} />
         {actorId === '' ? null : tiered ? (
           <Body key={`${period}/${actorId}`} period={period} actorId={actorId} one={one} />
         ) : (

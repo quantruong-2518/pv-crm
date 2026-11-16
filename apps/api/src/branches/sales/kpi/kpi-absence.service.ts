@@ -253,7 +253,7 @@ export class KpiAbsenceService {
   private async unitSeat(actorId: string, today: string, tx: Db) {
     const [seat] = await this.assignments.headedBy(actorId, today, tx)
     if (!seat) return null
-    const catalog = await this.config.effectiveCatalog(tx)
+    const catalog = await this.config.effectiveCatalog(seat.book.period, tx)
     const unitId = seat.unitIds[0]!
     const role = RoleId.options.find((r) => needsSet(seat.book.tree, catalog[r], r, unitId))
     if (!role) return null

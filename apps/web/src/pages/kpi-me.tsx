@@ -22,7 +22,7 @@ import { useAppChrome } from '@/app/chrome'
 import { toastDone, toastFail } from '@/app/toast'
 import { kpiMeQuery, useAcknowledgeKpi } from '@/data/kpi'
 import { kpiAllocationsQuery } from '@/data/kpi-allocation'
-import { kpiCatalogQuery, withCatalog, type KpiCatalog } from '@/data/kpi-catalog'
+import { kpiCatalogFor, withCatalog, type KpiCatalog } from '@/data/kpi-catalog'
 import { flagsOf } from '@/data/kpi-forecast'
 import { kpiTeamRosterQuery } from '@/data/kpi-team-roster'
 import { answerable, kpiForecastMeQuery, myPackages, type MyPackage } from '@/data/kpi-personal'
@@ -32,13 +32,11 @@ import { AbsenceBlock } from './kpi-absence'
 import { AssignLink, ConfirmCard } from './kpi-assign-confirm'
 import { ContributionsPanel, FrozenNote } from './kpi-contributions'
 import { DESCRIPTION, acknowledgementOf, needsAcknowledgement, useMonthParam } from './kpi-model'
-import {
-  ForecastFlags,
-  PersonalBoard,
-  SideFailure,
-  TeamLeadLink,
-  ThresholdNote,
-} from './kpi-me-parts'
+import { ForecastFlags, SideFailure, TeamLeadLink, ThresholdNote } from './kpi-me-parts'
+import { PersonalBoard } from './kpi-me-sale-board'
+import { SignedByDayChart } from './kpi-me-sale-chart'
+import { KpiMeRoleBoard } from './kpi-me-role-board'
+import { isBoardRole } from './kpi-me-role-model'
 import { MonthPicker, QueryBlock } from './kpi-parts'
 import {
   QuarterPicker,
@@ -56,9 +54,11 @@ import { TodayStrip } from './kpi-me-today'
 import { ReceivePackage } from './kpi-receive-parts'
 import { teamsActedFor } from './kpi-team-model'
 
-/** The personal KPI screen, "mine" (ADR 0159 §3): KPI tabs, a Month / Quarter /
- *  Year switch, today's actions, the role board, the last closed month's score,
- *  and for `signed-value` holders the plan, coverage and weekly forecast form.
+/** The personal KPI screen, "mine" (ADR 0159 §3, 0160 §9): KPI tabs, a Month /
+ *  Quarter / Year switch, today's actions, the role board with the last closed
+ *  month's score, and for `signed-value` holders the signed chart, the plan,
+ *  coverage and weekly forecast form. Marketing, BD and Presales draw
+ *  `KpiMeRoleBoard` in place of those Sale-only sections.
  *
  *  The month lives in the address, so a bell line opens the month it counted.
  *  Month reads sit in `MonthBody`, so the quarter and year views never fire them.
@@ -82,6 +82,7 @@ function RoleBoard({
   allocated,
   forecast,
   between,
+  actorId,
 }: {
   catalog: KpiCatalog
   period: string
@@ -92,6 +93,7 @@ function RoleBoard({
   forecast: KpiForecastResponse | undefined
   /** Drawn between the primary metric and the other cards. */
   between?: ReactNode
+  actorId: string | undefined
 }) {
   const { t, lang } = useI18n()
   const acknowledge = useAcknowledgeKpi(period, card.role)
@@ -135,10 +137,19 @@ function RoleBoard({
         role={card.role}
         readings={card.readings}
         between={between}
+        chart={
+          actorId && card.readings.some((r) => r.key === 'signed-value') ? (
+            <SignedByDayChart period={period} actorId={actorId} />
+          ) : undefined
+        }
       />
     </section>
   )
 }
+
+/** The month's signed value as the scorecard reads it, for the plan bar. */
+const signedOf = (cards: readonly KpiScorecard[]): number | null =>
+  cards.flatMap((c) => c.readings).find((r) => r.key === 'signed-value')?.value ?? null
 
 /** A holder has lines of a role in one tier only, so the first package holding one names their team, if any. */
 const teamOf = (packages: readonly KpiAllocation[], role: RoleId, me: string | undefined) =>
@@ -183,7 +194,7 @@ function MonthBody({ pick }: { pick: PeriodPick }) {
   const { t } = useI18n()
   const period = keyOf(pick)
   const me = useQuery(kpiMeQuery(period))
-  const catalog = useQuery(kpiCatalogQuery)
+  const catalog = useQuery(kpiCatalogFor(period))
   const tiered = isTieredPeriod(period)
   /* The old allocations read answers 409 from the tiered months on. */
   const allocations = useQuery({ ...kpiAllocationsQuery(period), enabled: !tiered })
@@ -207,13 +218,6 @@ function MonthBody({ pick }: { pick: PeriodPick }) {
 
   return (
     <>
-      {ledTeams.map((team) => (
-        <TeamLeadLink key={team.id} team={team} period={period} />
-      ))}
-      {/* Any role's page read finds the unit the reader heads. */}
-      {tiered && <AssignLink period={period} role={RoleId.enum.sale} />}
-      {actorId && <AbsenceBlock me={actorId} />}
-
       <QueryBlock
         query={withCatalog(me, catalog)}
         what={message('KPI của bạn', 'your KPIs', '내 KPI')}
@@ -245,6 +249,12 @@ function MonthBody({ pick }: { pick: PeriodPick }) {
                 roles={data.scorecards.map((c) => c.role)}
                 closed={data.closed}
               />
+              {ledTeams.map((team) => (
+                <TeamLeadLink key={team.id} team={team} period={period} />
+              ))}
+              {/* Any role's page read finds the unit the reader heads. */}
+              {tiered && <AssignLink period={period} role={RoleId.enum.sale} />}
+              {actorId && <AbsenceBlock me={actorId} />}
               {data.closed && (
                 <p className={NOTE}>
                   {t(
@@ -308,13 +318,21 @@ function MonthBody({ pick }: { pick: PeriodPick }) {
                   card={card}
                   allocated={allocatedRoles.has(card.role)}
                   forecast={forecast.data}
+                  actorId={actorId}
                   between={
                     i === 0 ? <ScoreCard period={lastClosed} actorId={actorId} /> : undefined
                   }
                 />
               ))}
-              <PlanSection read={plan} />
+              <PlanSection read={plan} signed={signedOf(data.scorecards)} />
               {tiered && holder && <ForecastForm period={data.period} />}
+              {actorId &&
+                data.scorecards
+                  .map((c) => c.role)
+                  .filter(isBoardRole)
+                  .map((role) => (
+                    <KpiMeRoleBoard key={role} period={data.period} actorId={actorId} role={role} />
+                  ))}
               {!first && assigned}
               {actorId && data.scorecards.length > 0 && (
                 <ContributionsPanel catalog={defs} period={data.period} actorId={actorId} />
@@ -368,7 +386,6 @@ export function KpiMePage() {
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
-        <KpiTabs period={pick.month} active="me" />
         <ScreenHeader
           title={t(message('KPI của tôi', 'My KPIs', '내 KPI'))}
           description={t(view === 'month' ? DESCRIPTION : SPAN_DESCRIPTION)}
@@ -386,6 +403,7 @@ export function KpiMePage() {
             </div>
           }
         />
+        <KpiTabs period={pick.month} active="me" />
         {view === 'quarter' && (
           <QuarterView quarter={quarter} onMonthView={() => setView('month')} />
         )}

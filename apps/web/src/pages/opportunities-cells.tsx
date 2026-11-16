@@ -212,6 +212,7 @@ export function CloseCell({ op }: { op: OpportunityBookRow }) {
 const LANE_WORD: Record<OpportunityOwner['role'], Message> = {
   BD: message('BD', 'BD', 'BD'),
   SALE: message('Sale', 'Sales', '영업'),
+  PRESALES: message('Presales', 'Presales', '프리세일즈'),
 }
 const picsOf = (owners: readonly OpportunityOwner[]) =>
   owners.map((o) => ({

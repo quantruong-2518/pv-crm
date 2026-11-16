@@ -19,7 +19,7 @@ import { agreedIn } from './kpi.mapper'
  *
  *  Actuals are `kpi_month_value`, the card's figure frozen at close (earlier
  *  months' adjustments landed in it). The catalog and bands are the close's
- *  `score_basis`; a month closed before it reads the current config. The close
+ *  `score_basis`; a month closed before it reads its own month's catalog and set. The close
  *  keeps no target: it is read from the agreed rows the closed card reads, which
  *  nothing may write once the month is over (`stillOpen`). A month with no close
  *  answers an empty map. */
@@ -45,7 +45,7 @@ export class KpiScoreReader {
 
     const [basis, current, bands, people, frozen] = await Promise.all([
       this.closes.scoreBasisOf(period, handle),
-      this.config.effectiveCatalog(handle),
+      this.config.effectiveCatalog(period, handle),
       this.config.scoreSettings(),
       this.readings.people(),
       handle
@@ -59,7 +59,7 @@ export class KpiScoreReader {
         ),
     ])
     const settings = basis ? settingsOfBasis(basis) : bands
-    const defsOf = (role: RoleId) => (basis ? basisDefs(basis, role) : current[role])
+    const defsOf = (role: RoleId) => (basis ? basisDefs(basis, period, role) : current[role])
     const tiered = isTieredPeriod(period) ? await this.assigned.sources(period, actorIds) : null
     const sources =
       tiered ??
@@ -86,6 +86,7 @@ export class KpiScoreReader {
             target: agreed ? Number(agreed.value) : null,
             lowerIsBetter: !def.higherIsBetter,
             primary: def.primary,
+            weight: def.weight,
           }
         })
         const score = monthScoreOf(period, inputs, settings)

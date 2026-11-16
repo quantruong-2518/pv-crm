@@ -1,5 +1,6 @@
 import {
   KPI_METRIC_LABEL,
+  kpiSums,
   type KpiAllocation,
   type KpiAllocationShareLine,
   type KpiAllocationTotal,
@@ -16,7 +17,7 @@ import type {
   KpiPackageRow,
   KpiShareRow,
 } from './kpi-allocation.repository'
-import { catalogDef } from './kpi-config.overlay'
+import { codeDef } from './kpi-config.overlay'
 import { ackDueOn, ackStateOf, lapsedOnOf, lapseOf } from './kpi-rules'
 import type { KpiTargetRow } from './kpi-targets.repository'
 import { verdictOf } from './kpi-verdict'
@@ -32,14 +33,15 @@ export type RoleTargetOf = (role: RoleId, key: KpiMetricKey) => number | null
 /** One person's figure for one metric of one role this month or last. */
 export type FigureOf = (role: RoleId, actorId: string, key: KpiMetricKey) => number | null
 
-/** ADR 0098 §2: only a count or money figure kept per person adds up. */
-export const additive = (def: KpiMetricDef): boolean =>
-  def.scope === 'own' && (def.unit === 'count' || def.unit === 'money')
+/** ADR 0098 §2: only a count or money figure kept per person adds up — `kpiSums`, the
+ *  rule `kpiMetricShare` reads too. Not `kpiMetricShare` itself: it also wants higher-is-better,
+ *  and v1 allocation sums `overdue-receivables`. */
+export const additive = (def: KpiMetricDef): boolean => kpiSums(def)
 
 /** Code traits, not the effective catalog: a stored line of a metric switched
  *  off since still sums by its unit (ADR 0099 §1 keeps old packages whole). */
 export const defOf = (role: RoleId, key: KpiMetricKey): KpiMetricDef | undefined =>
-  catalogDef(role, key)
+  codeDef(role, key)
 
 const keysOf = (lines: readonly { metricKey: KpiMetricKey }[]): KpiMetricKey[] => [
   ...new Set(lines.map((l) => l.metricKey)),

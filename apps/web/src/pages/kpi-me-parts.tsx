@@ -1,11 +1,10 @@
-import { Fragment, type ReactNode } from 'react'
+import { Fragment } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Badge, Button, GlassCard, Icon, TriangleAlert, Users, cn, percent } from '@pv/ui'
 import {
   type KpiForecast,
   type KpiForecastResponse,
-  type KpiReading,
   type KpiTeamViewResponse,
   type KpiUnit,
   type RoleId,
@@ -13,21 +12,18 @@ import {
 import { useSession } from '@/app/auth'
 import type { KpiCatalog } from '@/data/kpi-catalog'
 import { flagsOf, pipelinesOf } from '@/data/kpi-forecast'
-import { weeklyMetricOf } from '@/data/kpi-personal'
 import { kpiTeamViewQuery } from '@/data/kpi-team-view'
 import { num } from './home-model'
 import { NOTE } from './home-tiles'
 import { teamPath } from './kpi-allocate-model'
-import { boardOf, printTile, printValue, type KpiItem } from './kpi-model'
-import { ReadingTile } from './kpi-parts'
+import { printTile, printValue } from './kpi-model'
 import { counterActors, isClosed, packageOf, sharedRoles } from './kpi-team-model'
-import { WeeklyChart } from './kpi-weekly-chart'
 import { message, translate, useI18n, type Lang, type Message } from '@/app/i18n'
-import { kpiMetricText, metricHowOf } from '@/data/kpi-i18n'
+import { kpiMetricText } from '@/data/kpi-i18n'
 
 /** The blocks the personal KPI screen adds to the role board for ADR 0098: the
- *  team lead's way in, the slip / hit flags, and the board with the weekly chart
- *  set beside its hero.
+ *  team lead's way in and the slip / hit flags; the board itself is
+ *  `kpi-me-sale-board.tsx`.
  *
  *  A flag is a worded badge plus a sentence with both figures, never a colour
  *  alone, and shows wherever the server raised it, as on the company and
@@ -205,56 +201,5 @@ export function ThresholdNote({ thresholds }: { thresholds: KpiForecastResponse[
         ),
       )}
     </p>
-  )
-}
-
-/** A tile with its "how it is counted" line under it; `ReadingTile` has no slot for it. */
-function CountedTile({ item, hero }: { item: KpiItem; hero?: boolean }) {
-  const { t, lang } = useI18n()
-  return (
-    <div className="flex min-w-0 flex-col gap-2">
-      <ReadingTile item={item} hero={hero} className="flex-1" />
-      <p className={cn(NOTE, 'm-0 px-1')}>
-        {t(message('Tính thế nào:', 'How it is counted:', '계산 방법:'))}{' '}
-        {metricHowOf(item.def.key, lang)}
-      </p>
-    </div>
-  )
-}
-
-/** The role's hero with its weekly chart beside it, `between` (the score), then
- *  the rest of the readings; `Scoreboard`'s layout otherwise, built from the same parts. */
-export function PersonalBoard({
-  catalog,
-  period,
-  role,
-  readings,
-  between,
-}: {
-  catalog: KpiCatalog
-  period: string
-  role: RoleId
-  readings: readonly KpiReading[]
-  between?: ReactNode
-}) {
-  const { hero, rest } = boardOf(catalog, role, readings)
-  const weekly = weeklyMetricOf(catalog, role)
-  return (
-    <div className="flex flex-col gap-4">
-      {hero && (
-        <div className={cn('grid grid-cols-1 gap-4', weekly && 'xl:grid-cols-[2fr_3fr]')}>
-          <CountedTile item={hero} hero />
-          {weekly && <WeeklyChart period={period} role={role} def={weekly} />}
-        </div>
-      )}
-      {between}
-      {rest.length > 0 && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {rest.map((item) => (
-            <CountedTile key={item.def.key} item={item} />
-          ))}
-        </div>
-      )}
-    </div>
   )
 }

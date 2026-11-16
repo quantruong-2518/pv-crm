@@ -347,6 +347,7 @@ export class LeadWriteService {
         kind: 'created',
         ...byOf(who),
         ...(owner ? { to: { actorId: owner.id, name: owner.name, ...headRole(owner) } } : {}),
+        ...(written.tier ? { toTier: written.tier } : {}),
         note: b.note,
       },
     ])

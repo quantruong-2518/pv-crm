@@ -67,13 +67,14 @@ import { WorkstreamHolder } from './workstream'
  *  the read half cannot drift apart by a letter. */
 export const OpportunityState = OpportunityStatus.exclude(['won', 'terminated'])
 
-/** Which half of the deal a person is on. UPPER_SNAKE — the naming law for
- *  enum VALUES here, same as `LeadSourceKind`. */
-export const OpportunityOwnerRole = z.enum(['SALE', 'BD'])
+/** Which lane of the deal a person is on. UPPER_SNAKE — the naming law for
+ *  enum VALUES here, same as `LeadSourceKind`. `PRESALES` builds the solution
+ *  and, like `BD`, never holds the primary flag (ADR 0160 §5). */
+export const OpportunityOwnerRole = z.enum(['SALE', 'BD', 'PRESALES'])
 
 /** The repeatable care activities of an `engaged` deal (ADR 0072) — events,
  *  not columns. One tuple read by both ends, so no screen keeps its own list. */
-export const CARE_ACTIVITY_KINDS = ['sample', 'poc', 'demo', 'site-visit'] as const
+export const CARE_ACTIVITY_KINDS = ['sample', 'poc', 'demo', 'site-visit', 'solution'] as const
 export const CareActivityKind = z.enum(CARE_ACTIVITY_KINDS, 'Hoạt động không có trong danh sách')
 
 /** How stale a deal's last activity is: `warn` from `warnDays`, `alert` from
@@ -361,7 +362,7 @@ export const OpportunityOwner = z.object({
   name: textInput(120),
   role: OpportunityOwnerRole,
   /** True on at most one `SALE` row — exactly one once a door has written the
-   *  lane (rows older than migration 0100's deploy may have none); never on `BD`. */
+   *  lane (rows older than migration 0100's deploy may have none); never on `BD` or `PRESALES`. */
   primary: z.boolean(),
 })
 
@@ -868,6 +869,7 @@ export const OPPORTUNITY_MILESTONE_LABEL: Record<OpportunityMilestoneKind, strin
   poc: 'POC',
   demo: 'Demo',
   'site-visit': 'Khảo sát / gặp tại nhà máy',
+  solution: 'Gửi giải pháp',
   quotation: 'Báo giá',
 }
 
@@ -930,6 +932,9 @@ export const OpportunityAcceptBody = z.object({ saleOwners: ownerIds.optional(),
  *  accept; only ids it adds must be sellers, and an unchanged lane is a no-op.
  *  While a sign request waits the lane's people are frozen and only the
  *  primary may move — the server then demands `reason` (ADR 0086 §2). */
+/** Replaces the PRESALES lane only; Presales never holds the primary (ADR 0160 §5). */
+export const OpportunityPresalesOwnersBody = z.object({ presalesOwners: ownerIds })
+
 export const OpportunitySaleOwnersBody = z
   .object({
     saleOwners: ownerIds,
@@ -995,6 +1000,7 @@ export type OpportunityProduct = z.infer<typeof OpportunityProduct>
 export type OpportunityAcceptBody = z.infer<typeof OpportunityAcceptBody>
 export type OpportunityAcceptResponse = z.infer<typeof OpportunityAcceptResponse>
 export type OpportunitySaleOwnersBody = z.infer<typeof OpportunitySaleOwnersBody>
+export type OpportunityPresalesOwnersBody = z.infer<typeof OpportunityPresalesOwnersBody>
 export type OpportunitySaleOwnersResponse = z.infer<typeof OpportunitySaleOwnersResponse>
 export type CareActivityKind = z.infer<typeof CareActivityKind>
 export type OpportunityMilestoneKind = z.infer<typeof OpportunityMilestoneKind>

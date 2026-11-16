@@ -9,6 +9,7 @@ import {
   salesPeriodSpan,
   stepSalesPeriod,
   StageKey,
+  type KpiFunnelStep,
   type KpiLeading,
   type KpiMetricDef,
   type KpiMyPlan,
@@ -18,7 +19,9 @@ import {
 import { toContractRole } from '@api/platform/auth/auth.mapper'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { notFound } from '@api/platform/http/problem'
+import { membersUnder } from '@api/platform/org/org-heads'
 import type { PeriodSpan } from '../performance/performance-period'
+import { rosterOf } from './kpi-allocation-team'
 import { KpiConfigService } from './kpi-config.service'
 import { KpiForecastService } from './kpi-forecast.service'
 import { pipelineSight } from './kpi-forecast-sight'
@@ -68,12 +71,24 @@ function windowBefore(period: KpiPeriodKey): PeriodSpan {
   }
 }
 
-const stagesOf = (exits: readonly StageExits[]): KpiLeading['stages'] =>
-  StageKey.options.map((stage) => {
-    const e = exits.find((x) => x.stage === stage)
-    const left = (e?.forward ?? 0) + (e?.lost ?? 0)
-    return { stage, left, rate: left > 0 ? (e?.forward ?? 0) / left : null }
-  })
+const rateOf = (exits: readonly StageExits[], stage: StageKey) => {
+  const e = exits.find((x) => x.stage === stage)
+  const left = (e?.forward ?? 0) + (e?.lost ?? 0)
+  return { left, rate: left > 0 ? (e?.forward ?? 0) / left : null }
+}
+
+/** The person's rates beside the unit's and the set target of each stage (ADR 0160 §7, §9). */
+const stagesOf = (
+  exits: readonly StageExits[],
+  unit: readonly StageExits[] | null,
+  targets: ReadonlyMap<KpiFunnelStep, number>,
+): KpiLeading['stages'] =>
+  StageKey.options.map((stage) => ({
+    stage,
+    ...rateOf(exits, stage),
+    unitRate: unit ? rateOf(unit, stage).rate : null,
+    target: targets.get(stage) ?? null,
+  }))
 
 /** Any divisor that is not positive leaves that figure `null`. */
 const upTo = (n: number, by: number | null): number | null =>
@@ -100,7 +115,7 @@ export class KpiPlanService {
     await assertReadsPerson(this.access, this.teams, this.seats, who, period, actorId)
     const person = await this.readings.person(actorId)
     if (!person) throw notFound('người này')
-    const catalog = await this.config.effectiveCatalog()
+    const catalog = await this.config.effectiveCatalog(period)
     const seat = person.roleIds
       .map(toContractRole)
       .flatMap((role) => catalog[role].map((def) => ({ role, def })))
@@ -113,13 +128,16 @@ export class KpiPlanService {
     const pipe = await this.readings.pipeline(salesPeriodSpanOf(period), [actorId])
     const real = pipe.own.get(actorId) ?? 0
     const window = windowBefore(period)
-    const [exits, signed, won, opened] = await Promise.all([
+    const mates = await this.unitOf(period, actorId)
+    const [exits, unitExits, signed, won, opened, targets] = await Promise.all([
       this.repo.stageExits(window, actorId),
+      mates.length > 0 ? this.repo.stageExits(window, mates) : null,
       this.repo.fold(seat, window, actorId),
       this.repo.fold({ role: seat.role, def: defOf('sale', 'win-rate') }, window, actorId),
       this.repo.enteredSale(salesPeriodSpanOf(period), actorId),
+      this.config.funnelTargets(period, seat.role),
     ])
-    const stages = stagesOf(exits)
+    const stages = stagesOf(exits, unitExits, targets)
     const cover = coverageOf(real, missing, pipelineSight(this.access, who)(actorId, 'own'))
     const leading: KpiLeading = {
       /* A month that has ended has nothing left to cover. */
@@ -135,6 +153,19 @@ export class KpiPlanService {
         ? noPlan()
         : planOf(missing, signed, won, quote)
     return KpiPlanResponse.parse({ leading, plan })
+  }
+
+  /** The person's unit and everyone in it: the org tree's unit from the tiered months,
+   *  the roster team before. Empty when the person stands in none. */
+  private async unitOf(period: KpiPeriodKey, actorId: string): Promise<string[]> {
+    const tree = await this.teams.orgTreeAt(period)
+    if (tree) {
+      const unitId = tree.members.find((m) => m.actorId === actorId)?.unitId
+      return unitId ? membersUnder(tree, unitId) : []
+    }
+    const roster = rosterOf(await this.teams.rosterAt(period))
+    const team = roster.teamOf(actorId)
+    return team ? roster.membersOf(team.id) : []
   }
 }
 

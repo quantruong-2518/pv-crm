@@ -103,7 +103,7 @@ export const OPPORTUNITY_CONSTRAINTS: ConstraintBook = {
   opportunity_owner_role_known: {
     kind: 'invalid',
     fields: ['saleOwners', 'bdOwners'],
-    message: 'Vai trên đơn chỉ có Sale đứng đơn hoặc BD mở cửa.',
+    message: 'Vai trên đơn chỉ có Sale đứng đơn, BD mở cửa hoặc Presales.',
   },
 
   /** The two fences of ADR 0086. `salePrimaryOf` picks one SALE person on

@@ -1,4 +1,10 @@
-import type { KpiGrade, KpiMetricKey, KpiMonthScore, KpiScoreLine } from '@pv/contracts'
+import {
+  isKpiV2Period,
+  type KpiGrade,
+  type KpiMetricKey,
+  type KpiMonthScore,
+  type KpiScoreLine,
+} from '@pv/contracts'
 
 /** Month total score (ADR 0158 §3) — pure: no clock, no database, no Nest.
  *
@@ -14,10 +20,12 @@ export type ScoreInput = {
   target: number | null
   lowerIsBetter: boolean
   primary: boolean
+  /** Whole percent from the month's set; read only for a v2 month (ADR 0160 §6). */
+  weight?: number
 }
 
-/** Owner's 15/11 rule: the primary metric weighs half. */
-const PRIMARY_WEIGHT = 0.5 // until per-metric weights land (ADR 0160)
+/** Owner's 15/11 rule for v1 months: the primary metric weighs half. */
+const PRIMARY_WEIGHT = 0.5
 
 export type ScoreSettings = {
   gradeA: number
@@ -59,8 +67,13 @@ export function monthScoreOf(
 
   const primaryKept = kept.some((j) => j.l.primary)
   const others = kept.length - (primaryKept ? 1 : 0)
+  /* A v2 month re-shares its own weights in proportion over the kept lines. */
+  const v2 = isKpiV2Period(period)
+  const keptWeight = kept.reduce((sum, j) => sum + (j.l.weight ?? 0), 0)
+  if (v2 && keptWeight === 0) return null
   /* Re-share: weights always sum to 1 over what was kept. */
   const weightOf = (l: ScoreInput): number => {
+    if (v2) return (l.weight ?? 0) / keptWeight
     if (!primaryKept) return 1 / kept.length
     if (others === 0) return 1
     return l.primary ? PRIMARY_WEIGHT : (1 - PRIMARY_WEIGHT) / others

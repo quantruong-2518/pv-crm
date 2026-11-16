@@ -21,8 +21,9 @@ function shown(def: KpiMetricDef, v: number | null | undefined): string {
 
 export async function report(db: Db, say: (line: string) => void): Promise<void> {
   const repo = new KpiReadingsRepository(db)
-  const { catalog } = catalogOf(await db.select().from(kpiRoleMetric))
+  const rows = await db.select().from(kpiRoleMetric)
   for (const period of PERIODS) {
+    const { catalog } = catalogOf(period, rows)
     say(`\n### ${period}`)
     for (const role of RoleId.options) {
       const holders = PEOPLE.filter((p) => p.roleIds.includes(role)).map((p) => ({

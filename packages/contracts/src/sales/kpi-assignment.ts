@@ -46,10 +46,23 @@ export const kpiAssignmentDeadline = (
 
 export const KpiMetricShare = z.enum(['additive', 'copied', 'total'])
 
+/** Money that does not add up per person (ADR 0160 §3): a cost is a ratio, and
+ *  every Presales is credited a shared contract in full. */
+const KPI_NOT_SUMMED: ReadonlySet<KpiMetricKey> = new Set<KpiMetricKey>([
+  'cost-per-mql',
+  'presales-signed-value',
+])
+
+/** A per-person figure whose sum over people means something. The one rule both the
+ *  tiered desk (`kpiMetricShare`) and the allocation side (`additive`) start from. */
+export const kpiSums = (def: KpiMetricDef): boolean =>
+  def.scope === 'own' &&
+  (def.unit === 'count' || def.unit === 'money') &&
+  !KPI_NOT_SUMMED.has(def.key)
+
 export const kpiMetricShare = (def: KpiMetricDef): z.infer<typeof KpiMetricShare> => {
   if (def.scope === 'room') return 'total'
-  const tally = def.unit === 'count' || def.unit === 'money'
-  return tally && def.higherIsBetter ? 'additive' : 'copied'
+  return kpiSums(def) && def.higherIsBetter ? 'additive' : 'copied'
 }
 
 /** ADR 0120 §2 and §4: a unit owes a set for a role when someone under it holds

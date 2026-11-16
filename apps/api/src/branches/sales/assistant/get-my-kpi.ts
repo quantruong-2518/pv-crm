@@ -1,4 +1,4 @@
-import { GetMyKpiInput, quarterOf } from '@pv/contracts'
+import { GetMyKpiInput, quarterMonths, quarterOf } from '@pv/contracts'
 import type { Actor } from '@pv/engines'
 import {
   defineTool,
@@ -44,9 +44,11 @@ async function run(
 ): Promise<ToolRead> {
   const month = input.at ?? thisMonth()
   if (input.period === 'quarter') {
+    const key = quarterOf(month)
+    /* The quarter's cards are its first month's, so is the catalog they are grouped by. */
     const [quarter, wide] = await Promise.all([
-      services.quarters().me(who, quarterOf(month)),
-      services.config().effectiveCatalog(),
+      services.quarters().me(who, key),
+      services.config().effectiveCatalog(quarterMonths(key)[0]),
     ])
     const catalog = ownCatalog(wide)
     const rows = scorecardRows(catalog, quarter.scorecards)
@@ -75,7 +77,7 @@ async function run(
   const [card, forecast, wide] = await Promise.all([
     services.cards().me(who, month),
     open.has('forecast') ? services.forecasts().mine(who, month) : null,
-    services.config().effectiveCatalog(),
+    services.config().effectiveCatalog(month),
   ])
   const ahead = forecastBy(forecast?.items, true)
   const rows = scorecardRows(ownCatalog(wide), card.scorecards, (role, key) =>

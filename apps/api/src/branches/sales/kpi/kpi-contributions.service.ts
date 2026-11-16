@@ -34,9 +34,9 @@ import { KpiTeamRepository } from './kpi-team.repository'
 
 const CAP = 50
 
-/** An approval is no kind of record a contribution can name; its figure
- *  stays on the card and the list leaves the metric out. */
-const UNLISTED: ReadonlySet<KpiMetricKey> = new Set(['approval-turnaround-hours'])
+/** An approval or a source's spend is no kind of record a contribution can
+ *  name; its figure stays on the card and the list leaves the metric out. */
+const UNLISTED: ReadonlySet<KpiMetricKey> = new Set(['approval-turnaround-hours', 'cost-per-mql'])
 
 /** One word per basis `tag`, reusing the labels the screens already print. */
 const LABEL: Readonly<Record<string, string>> = {
@@ -59,6 +59,11 @@ const LABEL: Readonly<Record<string, string>> = {
   took: 'Đã nhận cơ hội',
   'quote-sent': 'Đã gửi báo giá',
   cycle: 'Đã ký hợp đồng đầu tiên',
+  mql: 'Lên MQL',
+  'on-time': 'Thu đúng hạn',
+  late: 'Thu trễ hạn',
+  unpaid: 'Chưa thu',
+  'solution-sent': 'Đã gửi giải pháp',
 }
 
 const at = (r: { at: Date | string | null }): string | null =>
@@ -98,7 +103,7 @@ export class KpiContributionsService {
 
     /* `toReadings`' rule: a snapshot of a month not begun has no records. */
     const begun = monthClock(period).phase !== 'future'
-    const catalog = await this.config.effectiveCatalog()
+    const catalog = await this.config.effectiveCatalog(period)
     const seats: KpiSeat[] = person.roleIds
       .map(toContractRole)
       .flatMap((role) =>

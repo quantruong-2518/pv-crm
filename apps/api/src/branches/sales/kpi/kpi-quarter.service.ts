@@ -54,8 +54,9 @@ export class KpiQuarterService {
     /* One connection under PGlite: the months are read in turn, not together. */
     const months: KpiMeResponse[] = []
     for (const period of keys) months.push(await this.kpi.me(who, period))
+    /* The cards are the first month's, so its catalog: a quarter never straddles KPI_V2_FROM. */
     const [catalog, tolerance] = await Promise.all([
-      this.config.effectiveCatalog(),
+      this.config.effectiveCatalog(keys[0]!),
       this.config.tolerance(),
     ])
     const { from, to } = spansOf(grain).current

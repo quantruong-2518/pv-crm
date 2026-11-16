@@ -35,8 +35,8 @@ const cap = <T>(rows: readonly T[]): T[] => rows.slice(0, KPI_CLOSE_GATE_LIST_CA
 
 /** `signed-value` as a seat: `director` carries the room series (every live
  *  contract), `sale` the own one (credited to the contract's owner). */
-const signedSeat = (role: RoleId): KpiSeat => {
-  const def = catalogDef(role, 'signed-value')
+const signedSeat = (period: KpiPeriodKey, role: RoleId): KpiSeat => {
+  const def = catalogDef(period, role, 'signed-value')
   if (!def) throw new Error(`kpi: ${role} carries no signed-value`)
   return { role, def }
 }
@@ -106,11 +106,11 @@ export class KpiCloseGateService {
     const span = spansOf(period).current
     /* "Every contract signed before the month": no window (ADR 0116, default 1). */
     const before = { ...span, from: '1970-01-01', to: span.from }
-    const room = signedSeat('director')
-    const own = signedSeat('sale')
+    const room = signedSeat(period, 'director')
+    const own = signedSeat(period, 'sale')
     const [catalog, reasons, counters, packages, targetRows, month, owned, earlier] =
       await Promise.all([
-        this.config.effectiveCatalog(handle),
+        this.config.effectiveCatalog(period, handle),
         this.reasons.waitingIn(period, handle),
         this.allocations.counters(period, handle),
         this.allocations.packages(period, handle),

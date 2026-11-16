@@ -301,7 +301,7 @@ export class KpiAssignmentService {
   private async opening(period: KpiPeriodKey): Promise<KpiCatalog> {
     assertTieredMonth(period)
     stillOpen(period)
-    return this.config.effectiveCatalog()
+    return this.config.effectiveCatalog(period)
   }
 
   /** Under the roster lock: the tree as it stands, and the caller on the unit's seat. */

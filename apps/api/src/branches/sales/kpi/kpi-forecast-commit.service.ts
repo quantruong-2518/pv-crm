@@ -156,7 +156,7 @@ export class KpiForecastCommitService {
         throw denied('permission-denied', 'Bạn không phụ trách đơn vị này.')
       if (why) throw refusalOf(why)
       if (tree.nodes.find((n) => n.unitId === unitId)?.kind === 'company') throw companyUnit()
-      if ((await this.holders(tree, unitId, tx)).length === 0) throw noSigned()
+      if ((await this.holders(period, tree, unitId, tx)).length === 0) throw noSigned()
       await this.repo.upsertUnitCommit(tx, {
         period,
         week,
@@ -210,7 +210,7 @@ export class KpiForecastCommitService {
     acts: boolean,
   ): Promise<KpiUnitForecastResponse> {
     const { week, editable } = weekOfPeriod(period, today, await this.repo.isClosed(period))
-    const holders = await this.holders(tree, unitId)
+    const holders = await this.holders(period, tree, unitId)
     const [saved, committed] = await Promise.all([
       this.repo.commitsOf(
         week,
@@ -246,8 +246,8 @@ export class KpiForecastCommitService {
   }
 
   /** Everyone under the unit whose scorecard holds an own `signed-value`. */
-  private async holders(tree: KpiOrgTree, unitId: string, handle?: Db) {
-    const catalog = await this.config.effectiveCatalog(handle)
+  private async holders(period: KpiPeriodKey, tree: KpiOrgTree, unitId: string, handle?: Db) {
+    const catalog = await this.config.effectiveCatalog(period, handle)
     const under = new Set(membersUnder(tree, unitId))
     return tree.members
       .filter((m) => under.has(m.actorId) && holdsAny(catalog, m.roleIds.map(toContractRole)))
@@ -263,7 +263,7 @@ export class KpiForecastCommitService {
 
   private async assertHolder(who: Actor, period: KpiPeriodKey): Promise<void> {
     assertTieredMonth(period)
-    if (!holdsAny(await this.config.effectiveCatalog(), who.roleIds.map(toContractRole)))
+    if (!holdsAny(await this.config.effectiveCatalog(period), who.roleIds.map(toContractRole)))
       throw noSigned()
   }
 

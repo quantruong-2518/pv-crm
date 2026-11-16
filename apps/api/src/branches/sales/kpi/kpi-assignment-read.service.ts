@@ -184,7 +184,7 @@ export class KpiAssignmentReader {
     if (!all && !(await readsInTree(this.seats, book.tree, who, unit)))
       throw denied('permission-denied', 'Bạn không phụ trách đơn vị này.')
     const [catalog, monthClose] = await Promise.all([
-      this.config.effectiveCatalog(),
+      this.config.effectiveCatalog(period),
       this.closes.of(period),
     ])
     return this.pageOf(who, book, catalog, role, unit, monthClose)
@@ -382,7 +382,7 @@ export class KpiAssignmentReader {
     if (!this.access.allows(who, 'kpi.view-all') && !(await seat()).includes(who.id))
       throw denied('permission-denied', 'Bạn không có quyền xem tình trạng giao chỉ tiêu.')
     const [catalog, monthClose, away] = await Promise.all([
-      this.config.effectiveCatalog(),
+      this.config.effectiveCatalog(period),
       this.closes.of(period),
       this.absences.awayOn(vietnamToday()),
     ])
@@ -434,7 +434,7 @@ export class KpiAssignmentReader {
   async gateCounts(period: KpiPeriodKey, handle?: Db) {
     const book = await this.book(period, handle)
     if (!book) return { setsNotSent: 0, setsByDefault: 0, peopleNotConfirmed: 0 }
-    const catalog = await this.config.effectiveCatalog(handle)
+    const catalog = await this.config.effectiveCatalog(period, handle)
     const { tree, sets } = book
     const slots = RoleId.options.flatMap((role) =>
       tree.nodes
@@ -471,15 +471,17 @@ export class KpiAssignmentReader {
 
   /** Sets still owed by the units `actorId` heads: what the stand-in bell counts. */
   async waitingOn(actorId: string, today: string, handle?: Db): Promise<number> {
-    const catalog = await this.config.effectiveCatalog(handle)
-    const seats = await this.headedBy(actorId, today, handle)
-    return seats.flatMap(({ book, unitIds }) =>
-      RoleId.options.flatMap((role) =>
+    let owed = 0
+    /* Each book is a different month, so each reads its own catalog. */
+    for (const { book, unitIds } of await this.headedBy(actorId, today, handle)) {
+      const catalog = await this.config.effectiveCatalog(book.period, handle)
+      owed += RoleId.options.flatMap((role) =>
         unitIds.filter(
           (u) => needsSet(book.tree, catalog[role], role, u) && !inForceOf(book.sets, role, u),
         ),
-      ),
-    ).length
+      ).length
+    }
+    return owed
   }
 
   /** ADR 0120 §6: December reads November through the old `targetSources`

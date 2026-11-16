@@ -4,6 +4,7 @@ import {
   KpiAlertSettingResponse,
   KpiRoleMetricsResponse,
   type KpiAlertPatch,
+  type KpiPeriodKey,
   type KpiRoleMetricsPatch,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
@@ -18,7 +19,21 @@ import { cacheTier } from '@/app/query-client'
 const VIEW: ApiNeed = { branch: 'Sales', permission: 'config.view' }
 const PROPOSE: ApiNeed = { branch: 'Sales', permission: 'config.propose' }
 
-/** Every catalog metric of every role, switched-off ones included. */
+/** Every catalog metric of every role for the set in force in `period`, switched-off
+ *  ones included. */
+export const kpiRoleMetricsFor = (period: KpiPeriodKey) =>
+  queryOptions({
+    queryKey: ['sales', 'config', 'kpi-metrics', period] as const,
+    queryFn: ({ signal }) =>
+      api.read<KpiRoleMetricsResponse>(`/sales/config/kpi-metrics?period=${period}`, {
+        need: VIEW,
+        schema: KpiRoleMetricsResponse,
+        signal,
+      }),
+    ...cacheTier.reference,
+  })
+
+/** No period: the current month, for the overview's one-line summary. */
 export const kpiRoleMetricsQuery = queryOptions({
   queryKey: ['sales', 'config', 'kpi-metrics'] as const,
   queryFn: ({ signal }) =>

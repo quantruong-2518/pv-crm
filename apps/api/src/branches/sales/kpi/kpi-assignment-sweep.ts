@@ -83,7 +83,7 @@ export class KpiAssignmentSweeper {
   private async month(period: KpiPeriodKey, today: string): Promise<number> {
     const due = LEVELS.filter((kind) => today > deadlineOf(period, kind))
     if (due.length === 0) return 0
-    const catalog = await this.config.effectiveCatalog()
+    const catalog = await this.config.effectiveCatalog(period)
     const roles = RoleId.options.filter((r) => catalog[r].length > 0)
     const prev = new Map<RoleId, Previous>()
     for (const role of roles) prev.set(role, await this.reader.previous(period, role))

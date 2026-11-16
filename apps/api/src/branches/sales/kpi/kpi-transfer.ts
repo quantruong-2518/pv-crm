@@ -1,4 +1,4 @@
-import { KPI_CATALOG, workingDaysBefore, workingDaysIn, type RoleId } from '@pv/contracts'
+import { RoleId, workingDaysBefore, workingDaysIn } from '@pv/contracts'
 import { shareOf, type Line } from './kpi-assignment.mapper'
 
 /** A leaver's month, pure (ADR 0156 §6). Reads nothing.
@@ -25,11 +25,12 @@ export function keptOf(t: Pick<KpiTransferView, 'period' | 'fromDay'>, value: nu
 
 type Held = { set: { role: RoleId }; line: Line }
 
-const ROLE_ORDER: readonly string[] = Object.keys(KPI_CATALOG)
+/* Every catalog version keys its roles in `RoleId` order, so no month is needed. */
+const ROLE_ORDER: readonly string[] = RoleId.options
 
 /** One month's lines after its transfers: each leaver's additive lines cut to
  *  their days, the remainder added to the receiver's own line of the same metric.
- *  A receiver holding the metric in two roles gains it on the first in `KPI_CATALOG` order. */
+ *  A receiver holding the metric in two roles gains it on the first in `RoleId` order. */
 export function applyTransfers<T extends Held>(
   lines: readonly T[],
   moves: readonly KpiTransferView[],

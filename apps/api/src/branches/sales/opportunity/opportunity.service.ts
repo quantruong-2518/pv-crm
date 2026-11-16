@@ -556,51 +556,55 @@ export class OpportunityService {
     const { names, roles } = labelsOf(actors)
 
     const write = fromUpdate(body)
-    const { row, owner, acceptedBy, salePrimary, products } = await this.repo.run(async (tx) => {
-      const now = await this.repo.lockedByCode(who, code, tx)
-      if (!now || !now.inScope) throw notFound('cơ hội', code)
-      assertLockedAsRead(now, found, pendingSign)
-      /* Under the deal lock the terminate door also takes, so this is final. */
-      const ended = await this.repo.terminatedAmong(
-        tx,
-        signedContracts.map((c) => c.row.code),
-      )
-      const { owner, salePrimary } = ownersUnderLock(now, body, actors)
-      const written = await this.repo.updateOpportunity(tx, code, write.values)
-      await this.repo.replaceOwners(tx, code, ownerRowsOf(code, write, salePrimary))
-      const deps = { touch: this.touch, hub: this.hub }
-      const lane = saleLaneChange(now, body.saleOwners, names, owner, who)
-      const laneTouch = await recordSaleLane(tx, deps, lane)
-      await this.repo.replaceProducts(tx, code, productRowsOf(code, write))
-      const products = (await this.repo.productsOf(tx, [code])).get(code) ?? []
-      const trail = await this.touch.record(tx, editTrail({ found, body, names, products, who }))
-      const people = {
-        code,
-        label: written.name,
-        actorId: who.id,
-        before: now.owners.map((o) => o.id),
-        after: pic,
-        occurrence: laneTouch ?? trail[0],
-      }
-      await announceOwners(tx, this.hub, people)
-      const primary = { from: primaryOf(now.owners), to: salePrimary, at: new Date() }
-      await announcePrimary(tx, this.hub, { ...people, ...primary })
-      for (const signed of signedContracts) {
-        await this.syncContract(tx, found, body, signed, owner, ended.has(signed.row.code))
-      }
+    const { row, owner, acceptedBy, salePrimary, products, presales } = await this.repo.run(
+      async (tx) => {
+        const now = await this.repo.lockedByCode(who, code, tx)
+        if (!now || !now.inScope) throw notFound('cơ hội', code)
+        assertLockedAsRead(now, found, pendingSign)
+        /* Under the deal lock the terminate door also takes, so this is final. */
+        const ended = await this.repo.terminatedAmong(
+          tx,
+          signedContracts.map((c) => c.row.code),
+        )
+        const { owner, salePrimary } = ownersUnderLock(now, body, actors)
+        /* This door never edits the PRESALES lane; its people stay and are not "taken off". */
+        const presales = now.owners.filter((o) => o.role === 'PRESALES')
+        const written = await this.repo.updateOpportunity(tx, code, write.values)
+        await this.repo.replaceOwners(tx, code, ownerRowsOf(code, write, salePrimary))
+        const deps = { touch: this.touch, hub: this.hub }
+        const lane = saleLaneChange(now, body.saleOwners, names, owner, who)
+        const laneTouch = await recordSaleLane(tx, deps, lane)
+        await this.repo.replaceProducts(tx, code, productRowsOf(code, write))
+        const products = (await this.repo.productsOf(tx, [code])).get(code) ?? []
+        const trail = await this.touch.record(tx, editTrail({ found, body, names, products, who }))
+        const people = {
+          code,
+          label: written.name,
+          actorId: who.id,
+          before: now.owners.map((o) => o.id),
+          after: [...pic, ...presales.map((o) => o.id)],
+          occurrence: laneTouch ?? trail[0],
+        }
+        await announceOwners(tx, this.hub, people)
+        const primary = { from: primaryOf(now.owners), to: salePrimary, at: new Date() }
+        await announcePrimary(tx, this.hub, { ...people, ...primary })
+        for (const signed of signedContracts) {
+          await this.syncContract(tx, found, body, signed, owner, ended.has(signed.row.code))
+        }
 
-      /* Dòng gương cập nhật theo — `put` là upsert, và nó đọc từ dòng ĐÃ GHI.
+        /* Dòng gương cập nhật theo — `put` là upsert, và nó đọc từ dòng ĐÃ GHI.
          Không cập nhật thì ContextRail vẫn in tên đơn cũ sau khi người dùng đã
          sửa, và không có gì đỏ để chỉ ra điều đó. */
-      await this.mirror.put(tx, toRef(written, owner))
-      return { row: written, owner, acceptedBy: now.acceptedBy, salePrimary, products }
-    })
+        await this.mirror.put(tx, toRef(written, owner))
+        return { row: written, owner, acceptedBy: now.acceptedBy, salePrimary, products, presales }
+      },
+    )
 
     return OpportunityUpdateResponse.parse(
       await this.facts.row({
         row,
         account: found.account,
-        owners: ownersOfIds(body, names, salePrimary),
+        owners: ownersOfIds(body, names, salePrimary, presales),
         /* "Đã thắng" không đổi được bằng cửa này — nó là câu hỏi về bảng
            `contract`, và lượt sửa vừa rồi không chạm bảng đó. Chở lại đúng câu
            trả lời đã đọc cùng dòng, thay vì hỏi lần thứ hai. */

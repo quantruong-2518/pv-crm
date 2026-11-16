@@ -27,6 +27,8 @@ export type Face = {
   reading: KpiReading | null
   /** The person's own `signed-value` reading, whichever role carries it. */
   signed: { reading: KpiReading; def: KpiMetricDef } | null
+  /** The shown role's other metrics that read, for a unit's "two more" (ADR 0160 §10). */
+  rest: { reading: KpiReading; def: KpiMetricDef }[]
 }
 
 /** The role shown is the first with an agreed target on its primary metric, else the first. */
@@ -50,6 +52,10 @@ export function faceOf(person: KpiPerson, catalog: KpiCatalog): Face | null {
     def: shown.def,
     reading: shown.reading,
     signed: holding[0] ?? null,
+    rest: catalog[shown.card.role].flatMap((def) => {
+      const reading = shown.card.readings.find((r) => r.key === def.key)
+      return def.key !== shown.def?.key && reading ? [{ def, reading }] : []
+    }),
   }
 }
 
@@ -104,6 +110,14 @@ export function unitPrimary(
   return { key, value, target, verdict: verdictOf(value, target, def, elapsed, tolerance) }
 }
 
+/** Signed value still to sign: each holder's own `signed-value` target less its value, one
+ *  reading per person (`Face.signed`), never a room target. */
+export const missingOf = (faces: readonly Face[]): number =>
+  faces.reduce((s, f) => {
+    const r = f.signed?.reading
+    return r ? s + Math.max(0, (r.target ?? 0) - (r.value ?? 0)) : s
+  }, 0)
+
 /** Pipeline over what is still missing, summed over the signed-value holders among `faces`.
  *  Nothing is left to cover once the month `over`, so both fields are `null`. The ratio is `null` unless the reader sees every holder's pipeline (ADR 0143); the low flag
  *  is computed from the real pipeline either way, `null` only when nobody holds it. */
@@ -116,14 +130,66 @@ export function coverageOver(
   const holders = faces.filter((f) => f.signed)
   if (over || holders.length === 0) return { coverage: null, coverageLow: null }
   const real = holders.reduce((s, f) => s + (pipeline.get(f.actorId) ?? 0), 0)
-  const missing = holders.reduce((s, f) => {
-    const { value, target } = f.signed!.reading
-    return s + Math.max(0, (target ?? 0) - (value ?? 0))
-  }, 0)
+  const missing = missingOf(holders)
   const { ratio, low } = coverageOf(
     real,
     missing,
     holders.every((f) => sees(f.actorId)),
   )
   return { coverage: ratio, coverageLow: low }
+}
+
+/** Up to two metrics beside the unit's primary, the ones most members' roles hold. A ratio has
+ *  no unit total (`additive`), so only metrics that add up are offered. */
+export function unitOthers(
+  faces: readonly Face[],
+  primaryKey: KpiMetricKey | undefined,
+  elapsed: number,
+  tolerance: number,
+): KpiDeskPrimary[] {
+  const held = new Map<KpiMetricKey, { def: KpiMetricDef; readings: KpiReading[] }>()
+  for (const f of faces)
+    for (const { def, reading } of f.rest) {
+      if (def.key === primaryKey || !additive(def)) continue
+      const entry = held.get(def.key) ?? { def, readings: [] }
+      entry.readings.push(reading)
+      held.set(def.key, entry)
+    }
+  return [...held.values()]
+    .sort((a, b) => b.readings.length - a.readings.length)
+    .slice(0, 2)
+    .map(({ def, readings }) => {
+      const value = sumOf(readings.map((r) => r.value))
+      const target = targetOf(readings.map((r) => r.target))
+      return {
+        key: def.key,
+        value,
+        target,
+        verdict: verdictOf(value, target, def, elapsed, tolerance),
+      }
+    })
+}
+
+/** Value over the person's own primary target; only where more is better and a target is set.
+ *  Floored at 0: a terminated contract's adjustment can push signed value negative, and a
+ *  leaderboard place below nothing means nothing. */
+export const percentOf = (f: Face): number | null => {
+  const r = f.reading
+  return f.def?.higherIsBetter && r && r.value !== null && r.target !== null && r.target > 0
+    ? Math.max(0, r.value / r.target)
+    : null
+}
+
+/** The member furthest along their own primary target; `null` with no one measurable. */
+export function topOf(
+  faces: readonly Face[],
+): { actorId: string; name: string; percent: number } | null {
+  const ranked = faces.flatMap((f) => {
+    const percent = percentOf(f)
+    return percent === null ? [] : [{ actorId: f.actorId, name: f.name, percent }]
+  })
+  return ranked.reduce<(typeof ranked)[number] | null>(
+    (best, x) => (best === null || x.percent > best.percent ? x : best),
+    null,
+  )
 }

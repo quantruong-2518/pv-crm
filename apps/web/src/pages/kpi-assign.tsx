@@ -28,7 +28,7 @@ import {
   useDraftKpiAssignment,
   useSendKpiAssignment,
 } from '@/data/kpi-assignment'
-import { kpiCatalogQuery, type BlockQuery, type KpiCatalog } from '@/data/kpi-catalog'
+import { kpiCatalogFor, type BlockQuery, type KpiCatalog } from '@/data/kpi-catalog'
 import { kpiDeskQuery } from '@/data/kpi-desk'
 import { kpiRoleText } from '@/data/kpi-i18n'
 import { KpiCardError, KpiTabs, type KpiTab } from '@/components/kpi-tabs'
@@ -48,6 +48,7 @@ import {
   type Label,
 } from './kpi-assign-model'
 import { LateJoiners } from './kpi-assign-late'
+import { AssignViz } from './kpi-assign-viz'
 import { SendDown } from './kpi-assign-over-dialog'
 import { ReceivedCard } from './kpi-assign-received'
 import { ChildrenTable } from './kpi-assign-table'
@@ -95,7 +96,6 @@ function Head({
   const { t } = useI18n()
   return (
     <>
-      <KpiTabs period={keyOf(pick)} active={tab} />
       <ScreenHeader
         title={t(message('Giao chỉ tiêu', 'Assign targets', '목표 배정'))}
         meta={meta}
@@ -106,6 +106,7 @@ function Head({
           </>
         }
       />
+      <KpiTabs period={keyOf(pick)} active={tab} />
     </>
   )
 }
@@ -308,6 +309,7 @@ function RoleDesk({
       {tabs}
       {failed}
       {!page.canAct && <ReadOnlyLine page={page} />}
+      <AssignViz page={page} defs={defs} fields={fields} sums={sums} />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,4fr)_minmax(0,9fr)]">
         <ReceivedCard
           page={page}
@@ -378,7 +380,7 @@ function Desk({
   const { t } = useI18n()
   const [params, setParams] = useSearchParams()
   const [edits, setEdits] = useState<Partial<Record<RoleId, Edits>>>({})
-  const catalog = useQuery(kpiCatalogQuery)
+  const catalog = useQuery(kpiCatalogFor(period))
   const roles = catalog.data ? RoleId.options.filter((r) => catalog.data[r].length > 0) : []
   const pages = useQueries({
     queries: roles.map((role) => kpiAssignmentPageQuery(period, role, unitParam)),

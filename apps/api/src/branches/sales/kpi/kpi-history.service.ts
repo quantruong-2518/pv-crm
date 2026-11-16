@@ -61,7 +61,7 @@ export class KpiHistoryService {
     if (!actorId && !this.access.allows(caller, 'kpi.view-all')) {
       throw denied('permission-denied', 'Bạn không có quyền xem lịch sử chỉ tiêu của vai.')
     }
-    if (!catalogDef(role, metricKey)) {
+    if (!catalogDef(period, role, metricKey)) {
       throw invalid({ metricKey: ['Vai này không có chỉ số này.'] })
     }
     const entries = actorId

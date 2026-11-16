@@ -65,7 +65,11 @@ export async function readWorld(db: Db): Promise<World> {
     .select({ code: campaign.code, ownerId: campaign.ownerId })
     .from(campaign)
     .where(like(campaign.ownerId, `${SEED_ID}%`))
-  const catalog = catalogOf(await db.select().from(kpiRoleMetric)).catalog
+  /* Every seeded month is a v1 month, so the last one's catalog is theirs. */
+  const catalog = catalogOf(
+    PERIODS[PERIODS.length - 1]!,
+    await db.select().from(kpiRoleMetric),
+  ).catalog
 
   const targets = await db
     .select()

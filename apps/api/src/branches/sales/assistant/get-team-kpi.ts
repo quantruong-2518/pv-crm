@@ -91,7 +91,7 @@ async function run(
     people = team.people
   }
   const [catalog, forecast] = await Promise.all([
-    services.config().effectiveCatalog(),
+    services.config().effectiveCatalog(period),
     open.has('forecastAll') ? services.forecasts().everyone(period, who) : null,
   ])
   const ahead = forecastBy(forecast?.items)

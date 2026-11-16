@@ -1,6 +1,7 @@
 import type { BadgeProps } from '@pv/ui'
 import {
-  KPI_CATALOG,
+  KPI_V2_FROM,
+  catalogFor,
   type KpiAckState,
   type KpiAllocation,
   type KpiAllocationLine,
@@ -221,8 +222,10 @@ export function failText(error: ApiError): string {
 /** The code catalog, not the effective one (`data/kpi-catalog.ts`): a counter
  *  filed before its metric was switched off still needs its unit to be printed
  *  and answered — the server reads it the same way (`catalogDef`). */
-export const defOfCounter = (c: KpiCounter): KpiMetricDef | undefined =>
-  KPI_CATALOG[c.role].find((d) => d.key === c.metricKey)
+export const defOfCounter = (
+  c: KpiCounter,
+  period: string = KPI_V2_FROM,
+): KpiMetricDef | undefined => catalogFor(period)[c.role].find((d) => d.key === c.metricKey)
 
 const lower = (text: string) => text.charAt(0).toLowerCase() + text.slice(1)
 

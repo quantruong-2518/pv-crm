@@ -29,6 +29,7 @@ import {
   OpportunityMilestoneBody,
   OpportunityOpenContextQuery,
   OpportunitySaleOwnersBody,
+  OpportunityPresalesOwnersBody,
   OpportunityStopBody,
   OpportunityUpdate,
   QuotationCloseBody,
@@ -46,6 +47,7 @@ import { OpportunityContacts } from './opportunity-contacts.service'
 import { OpportunityImport } from './opportunity-import.service'
 import { OpportunityMoves } from './opportunity-moves.service'
 import { OpportunityOpening } from './opportunity-opening.service'
+import { OpportunityPresales } from './opportunity-presales.service'
 import { OpportunitySign } from './opportunity-sign.service'
 import { OpportunityService } from './opportunity.service'
 
@@ -83,6 +85,7 @@ export class OpportunityController {
     private readonly signs: OpportunitySign,
     private readonly accepts: OpportunityAccept,
     private readonly assigns: OpportunityAssign,
+    private readonly presales: OpportunityPresales,
     private readonly opening: OpportunityOpening,
     private readonly contacts: OpportunityContacts,
     private readonly imports: OpportunityImport,
@@ -466,6 +469,19 @@ export class OpportunityController {
     @Body(zod(OpportunitySaleOwnersBody)) body: OpportunitySaleOwnersBody,
   ) {
     return this.assigns.assign(who, code, body)
+  }
+
+  /** Give an accepted deal its Presales, or change them (ADR 0160 §5) — replaces
+   *  the PRESALES lane only. Same grant and scope as `sale-owners`. */
+  @Post(':code/presales-owners')
+  @HttpCode(200)
+  @Need({ branch: 'Sales', permission: 'opportunity.assign', scoped: true })
+  presalesOwners(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
+    @Body(zod(OpportunityPresalesOwnersBody)) body: OpportunityPresalesOwnersBody,
+  ) {
+    return this.presales.assign(who, code, body)
   }
 
   /** Stop the deal, with a reason — final (ADR 0069 §1): there is no reopen

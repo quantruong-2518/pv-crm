@@ -1,18 +1,21 @@
 import {
-  KPI_CATALOG,
-  KPI_DEFAULT_OFF,
+  KPI_FUNNEL_STEP_LABEL,
   KPI_METRIC_LABEL,
   KpiAlertPatch,
   KpiRoleMetricsPatch,
   ROLE_LABEL,
+  catalogFor,
+  defaultOffFor,
   type KpiMetricKey,
+  type KpiPeriodKey,
 } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import { conflict, invalid } from '@api/platform/http/problem'
 import type { SettingService } from '@api/platform/setting/setting.service'
 import { replaceRoleMetrics } from './kpi-config.repository'
 import { hasMetricSql } from './kpi-readings.repository'
-import { overlayRows } from './kpi-config.overlay'
+import { funnelRows, overlayRows, withDefaultWeights, type DatedPatch } from './kpi-config.overlay'
+import { nextMonth, vietnamToday } from './kpi-rules'
 
 /** The KPI members of the sales `ConfigChange` (ADR 0099 §2) — they ride the
  *  `config-change` approval every config list uses, so the one applier
@@ -37,9 +40,33 @@ export const isKpiConfigChange = <T extends { kind: string }>(
   change: T,
 ): change is Extract<T, KpiConfigChange> => KPI_KINDS.includes(change.kind)
 
+/** `YYYY-MM` as the screen prints a month: `01/2027`. */
+const monthLabel = (period: KpiPeriodKey): string => `${period.slice(5)}/${period.slice(0, 4)}`
+
+/** Next month on the Vietnam clock: the earliest a change may apply (ADR 0160 §2). */
+const earliestFrom = (): KpiPeriodKey => nextMonth(vietnamToday().slice(0, 7))
+
+/** A request without `from` (stored before ADR 0160, or sent without one) is
+ *  dated the earliest month, and the contract judges it again against that
+ *  month's catalog: its issues, or the dated request. */
+export function datedOf(patch: KpiRoleMetricsPatch): DatedPatch | string[] {
+  const parsed = KpiRoleMetricsPatch.safeParse({ ...patch, from: patch.from ?? earliestFrom() })
+  if (!parsed.success) return parsed.error.issues.map((i) => i.message)
+  return withDefaultWeights({ ...parsed.data, from: parsed.data.from ?? earliestFrom() })
+}
+
+/** Same sentence at the proposal and at approval: a request may wait past its month. */
+export function assertFromAhead(from: KpiPeriodKey): void {
+  const earliest = earliestFrom()
+  if (from >= earliest) return
+  throw conflict(
+    `Tháng áp dụng sớm nhất là ${monthLabel(earliest)}. Chọn lại tháng rồi gửi đề nghị mới.`,
+  )
+}
+
 /** ADR 0157 §1: a metric nothing can read yet stays off, at the proposal and again at approval. */
-export function assertMeasurable(patch: KpiRoleMetricsPatch): void {
-  const scopes = new Map(KPI_CATALOG[patch.role].map((d) => [d.key, d.scope]))
+export function assertMeasurable(patch: DatedPatch): void {
+  const scopes = new Map(catalogFor(patch.from)[patch.role].map((d) => [d.key, d.scope]))
   const stray = patch.metrics.filter(
     (m) => m.enabled && !hasMetricSql(m.metricKey, scopes.get(m.metricKey) ?? 'own'),
   )
@@ -62,20 +89,29 @@ export function kpiConsequenceOf(change: KpiConfigChange): string {
         : ` · điểm tháng: loại A từ ${gradeA}, B từ ${gradeB}, C từ ${gradeC}`
     return `Đổi ngưỡng cảnh báo KPI: sắp trượt khi dự báo dưới ${slipPercent}%, sắp đạt khi đã đạt từ ${hitPercent}%, thiếu đến ${tolerancePercent}% so với số cần có vẫn tính Đúng tiến độ${score}`
   }
-  const { role, metrics } = change.value
+  const { role, metrics, from, funnel } = change.value
   const primary = metrics.find((m) => m.primary)
   const label = (m: { metricKey: KpiMetricKey }) => KPI_METRIC_LABEL[m.metricKey]
-  const was = (key: KpiMetricKey) =>
-    change.wasOn ? change.wasOn.includes(key) : !KPI_DEFAULT_OFF.has(key)
+  const off0 = defaultOffFor(from ?? earliestFrom(), role)
+  const was = (key: KpiMetricKey) => (change.wasOn ? change.wasOn.includes(key) : !off0.has(key))
   const off = metrics.filter((m) => !m.enabled && was(m.metricKey)).map(label)
   const added = metrics.filter((m) => m.enabled && !was(m.metricKey)).map(label)
   const head = primary ? `chỉ số chính là ${label(primary)}` : ''
+  const weights = metrics
+    .filter((m) => m.enabled && m.weight !== undefined)
+    .map((m) => `${label(m)} ${m.weight}%`)
   const parts = [
     ...(added.length > 0 ? [`bật thêm ${added.join(', ')}`] : []),
     ...(off.length > 0 ? [`tắt ${off.join(', ')}`] : []),
   ]
   const tail = parts.length > 0 ? parts.join(' · ') : 'giữ các chỉ số đang bật'
-  return `Đổi chỉ số KPI của vai ${ROLE_LABEL[role]}: ${head} · ${tail}`
+  const steps = (funnel ?? []).map((f) => `${KPI_FUNNEL_STEP_LABEL[f.step]} ${f.targetBp / 100}%`)
+  const extra = [
+    ...(weights.length > 0 ? [`trọng số: ${weights.join(', ')}`] : []),
+    ...(steps.length > 0 ? [`mục tiêu bước: ${steps.join(', ')}`] : []),
+  ]
+  const when = from ? `, áp dụng từ tháng ${monthLabel(from)}` : ''
+  return [`Đổi chỉ số KPI của vai ${ROLE_LABEL[role]}${when}: ${head}`, tail, ...extra].join(' · ')
 }
 
 /** Short subject for the gate's log line. */
@@ -84,8 +120,10 @@ export const kpiSubjectOf = (change: KpiConfigChange): string =>
     ? `${change.value.slipPercent}/${change.value.hitPercent}/${change.value.tolerancePercent}`
     : change.value.role
 
-/** Applied on the approval's `tx`. The body is parsed again: the catalog is
- *  code, and a deploy between proposing and approving may have changed it. */
+/** Applied on the approval's `tx`. The body is parsed again against the
+ *  catalog of the month it applies from: the catalog is code, a deploy between
+ *  proposing and approving may have changed it, and a request stored before
+ *  ADR 0160 is only dated now. */
 export async function applyKpiConfig(
   tx: Db,
   change: KpiConfigChange,
@@ -113,10 +151,12 @@ export async function applyKpiConfig(
     ])
     return
   }
-  const parsed = KpiRoleMetricsPatch.safeParse(change.value)
-  if (!parsed.success) {
+  const patch = datedOf(change.value)
+  if (Array.isArray(patch)) {
     throw conflict('Danh mục chỉ số của vai đã đổi từ lúc gửi đề nghị. Gửi lại đề nghị mới.')
   }
-  assertMeasurable(parsed.data)
-  await replaceRoleMetrics(tx, parsed.data.role, overlayRows(parsed.data, proposerId))
+  assertFromAhead(patch.from)
+  assertMeasurable(patch)
+  const rows = overlayRows(patch, proposerId)
+  await replaceRoleMetrics(tx, patch.role, patch.from, rows, funnelRows(patch, proposerId))
 }

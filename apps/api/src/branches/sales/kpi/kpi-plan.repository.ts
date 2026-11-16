@@ -59,8 +59,9 @@ export class KpiPlanRepository {
   }
 
   /** One exit per deal and stage (the last in the window); a backward move is in neither
-   *  count, and a deal that left by signing is forward, by stopping lost. */
-  async stageExits(span: PeriodSpan, actorId: string): Promise<StageExits[]> {
+   *  count, and a deal that left by signing is forward, by stopping lost. Over several
+   *  people a deal they share is still one exit. */
+  async stageExits(span: PeriodSpan, actors: string | readonly string[]): Promise<StageExits[]> {
     const r = (await this.db.execute(
       spanned(
         span,
@@ -78,8 +79,7 @@ export class KpiPlanRepository {
                WHERE e.from_stage IS NOT NULL
                  AND e.at >= (SELECT lo FROM span) AND e.at < (SELECT hi FROM span)
                  AND EXISTS (SELECT 1 FROM sales.opportunity_owner w
-                              WHERE w.opportunity_code = k.code AND w.role = 'SALE'
-                                AND w.actor_id = ${actorId})
+                              WHERE w.opportunity_code = k.code AND w.role = 'SALE'${onlyFor(actors)(sql`w.actor_id`)})
                ORDER BY e.opportunity_code, e.from_stage, e.at DESC
             ) x
             GROUP BY x.stage`,
