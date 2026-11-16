@@ -41,6 +41,21 @@ const KEEP = [
   'state_rule',
   /* The feed keeps no history: a wiped rate is gone for good. */
   'fx_rate',
+  /* Who sits where, and the AI and KPI settings: configuration a migration or
+     an admin planted once, not business data, and no seed rebuilds it. */
+  'org_version',
+  'org_node',
+  'org_member',
+  'kpi_team',
+  'kpi_team_member',
+  'kpi_team_roster',
+  'kpi_role_metric',
+  'kpi_funnel_target',
+  'ai_route',
+  'ai_price',
+  /* A wiped link makes every person reconnect their Google calendar. */
+  'google_link',
+  'mail_gate',
 ]
 const OWNED_SCHEMAS = ['platform', 'sales', 'comms']
 

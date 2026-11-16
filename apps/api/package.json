@@ -26,6 +26,8 @@
     "db:seed:mail-leads": "node --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/seed-mail-leads.ts",
     "//db:seed:kpi": "Chỉ THÊM — sổ thử KPI (người, lead, cơ hội, hợp đồng, chỉ tiêu, sơ đồ tháng 12) đủ để thử KPI mọi vai, mọi dòng mang dấu [TEST KPI]. Mặc định xem trước; --apply ghi (đích không phải pglite thì bắt --password=…); chạy lại không thêm gì; --report đọc số KPI của sổ thử; --purge --apply gỡ đúng những dòng nó trồng.",
     "db:seed:kpi": "node --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/seed-kpi/seed-kpi.ts",
+    "//db:seed:quarter": "Chỉ THÊM — một quý hoạt động CRM dày (01/08/2026 tới ngày chạy: công ty, lead, cơ hội, hợp đồng, thư, KPI) cho bản demo. Mặc định xem trước; --apply ghi trong MỘT transaction (đích không phải pglite thì bắt --password=…); --report đọc các bảo đảm của kịch bản; --today=YYYY-MM-DD ghim ngày chạy. Từ chối database đã có dòng đuôi .example. Thử trên PGlite bằng src/seed-quarter/harness.ts (xem docblock).",
+    "db:seed:quarter": "node --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/seed-quarter/seed-quarter.ts",
     "//db:reset:data": "XOÁ mọi dữ liệu nghiệp vụ (lead và mọi thứ treo dưới nó), GIỮ tài khoản, quyền, cấu hình và các danh mục migration trồng. Mặc định xem trước từng bảng sẽ mất bao nhiêu dòng; phải thêm --apply mới xoá.",
     "db:reset:data": "node --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/reset-data.ts",
     "//db:reset:staff": "XOÁ SẠCH sales + platform rồi dựng lại sổ nhân sự thật từ src/staff.ts — bảy tài khoản, mỗi vai một người, cùng DEFAULT_PASSWORD. Destructive hơn db:seed: không nạp lại dữ liệu nào cả. Mặc định xem trước; phải thêm --apply mới ghi.",
