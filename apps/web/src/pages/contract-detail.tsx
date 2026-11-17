@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AiAction, AppShell, Ban, Button, Icon } from '@pv/ui'
+import { AppShell, Ban, Button, Icon } from '@pv/ui'
 import { daysUntil } from '@pv/engines'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import { useI18n, type Lang } from '@/app/i18n'
 import {
   CONTRACT_DETAIL_COPY as COPY,
-  aiSuggestionText,
+  reminderText,
   blockedLateText,
   contractReadOnlyText,
   paymentBasisText,
@@ -167,19 +167,15 @@ function ContractScreen({ contract }: { contract: Contract }) {
             </RecordCard>
           )}
           {next?.blocking && !mailBlocked && canRecord && (
-            <AiAction
-              suggestion={aiSuggestionText(
+            <BlockedReminder
+              sentence={reminderText(
                 contract.contact,
                 next.blocking.what,
                 next.installment.no,
                 lang,
               )}
-              basis={aiBasis(next, now, lang)}
-              empty={t(COPY.aiEmpty)}
-              confirmLabel={t(COPY.draftMail)}
-              onConfirm={() => setComposing({ to: addressee.code ?? null })}
-              onInspect={() => openInstallment(next.installment.no)}
-              inspectLabel={t(COPY.openInstallment)}
+              basis={basisLine(next, now, lang)}
+              onCompose={() => setComposing({ to: addressee.code ?? null })}
             />
           )}
         </>
@@ -296,9 +292,9 @@ const modalRowOf = ({
   days: d.paidAt ? null : Math.abs(daysLeft),
 })
 
-/** What the assistant read. The "no reply" clause only when the installment's
+/** The facts behind the reminder. The "no reply" clause only when the installment's
  *  latest sent touch is still waiting for one. */
-function aiBasis(next: InstallmentView<Installment>, now: string, lang: Lang): string {
+function basisLine(next: InstallmentView<Installment>, now: string, lang: Lang): string {
   const { installment, blocking } = next
   const sent = installment.records
     .filter((r) => r.state === 'done' || r.state === 'awaiting-reply')
@@ -310,4 +306,30 @@ function aiBasis(next: InstallmentView<Installment>, now: string, lang: Lang): s
   ]
     .filter(Boolean)
     .join(' · ')
+}
+
+/** Computed from the contract, no model runs: a plain reminder, not an AI block. */
+function BlockedReminder({
+  sentence,
+  basis,
+  onCompose,
+}: {
+  sentence: string
+  basis: string
+  onCompose: () => void
+}) {
+  const { t } = useI18n()
+  return (
+    <RecordCard>
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="flex min-w-0 flex-1 basis-64 flex-col gap-1">
+          <p className="m-0 text-[13px] leading-[1.55]">{sentence}</p>
+          <p className="text-muted-foreground m-0 text-[12px] leading-[1.6]">{basis}</p>
+        </div>
+        <Button className="pointer-coarse:h-12" onClick={onCompose}>
+          {t(COPY.draftMail)}
+        </Button>
+      </div>
+    </RecordCard>
+  )
 }

@@ -51,6 +51,15 @@ Breaking one of these is a PR reject.
    and waits for a confirm button. There is a `'Chưa tạo gì cả'` empty state
    directly under the button. The assistant's read-only answer is not such a
    block: it proposes nothing, so it has no button (0137 §2).
+   **Exception, confirmed by the owner on 17/11/2026: AI lead fill.** One
+   press on the fill button is the consent, and the AI writes only to fields
+   that were empty, with no review step (0128 §1, §6). The per-field caption
+   `'AI điền · <source>'` stands in for the `'Căn cứ: …'` line, and there is no
+   `'Chưa tạo gì cả'` empty line. The job runs in the background and the write
+   lands on the lead itself; Undo sits on the finished job in the AI task
+   tray (0131). It works once, only when the job is done, within 24 h, and not
+   after the job is dismissed; fields a person edited since are left alone
+   (0131 §6–7).
 10. **ContextRail is mandatory on every screen** — a row of mono-code chips
     linking the objects of one story
     (`HĐ-2607 → SO-0891 → WO-1180 → PO-0455 → L-2608-042`). Azure chip = the

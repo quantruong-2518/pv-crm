@@ -1636,10 +1636,10 @@
   },
   "apps/web/src/pages/plan.tsx": {
     "aurora/comment-budget": {
-      "count": 5
+      "count": 4
     },
     "aurora/comments-in-english": {
-      "count": 18
+      "count": 13
     },
     "max-lines-per-function": {
       "count": 1

@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { cn } from '../lib/cn'
-import { AiTaskSteps, StepMark, type AiTaskStep } from './ai-task-steps'
+import { AiTaskSteps, StepMark, type AiTaskStep, type AiTaskStepState } from './ai-task-steps'
 
 /** One job card inside O-12 · AiTaskTray: kind, title, status badge, progress while it
  *  runs, the current step with a toggle for the full list, then the outcome and actions. */
@@ -37,6 +37,8 @@ export type AiTaskCardCopy = {
   steps: (n: number) => string
   hideSteps: string
   progress: string
+  /** Screen-reader word for each step state. */
+  stepState: Record<AiTaskStepState, string>
 }
 
 const BADGE_TONE = { running: 'running', done: 'success', failed: 'danger' } as const
@@ -125,7 +127,7 @@ export function AiTaskCard({ task, copy }: { task: AiTaskItem; copy: AiTaskCardC
       {steps && task.status === 'running' && <Progress steps={steps} label={copy.progress} />}
       {steps && (
         <>
-          {listed && <AiTaskSteps steps={steps} />}
+          {listed && <AiTaskSteps steps={steps} stateLabels={copy.stepState} />}
           <div className="flex items-center gap-2 text-[13px]">
             {!listed && now && (
               <>

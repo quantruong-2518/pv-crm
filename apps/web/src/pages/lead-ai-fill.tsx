@@ -5,7 +5,7 @@ import { AI_FLASH_MS, AiFieldConflict, type AiFillState } from '@pv/ui'
 import type { LeadAiFillField, LeadAiJob, LeadProfile } from '@pv/contracts'
 import { userMessage, type ApiError } from '@/app/api'
 import { useCan } from '@/app/auth'
-import { message, translate } from '@/app/i18n'
+import { message, translate, useI18n } from '@/app/i18n'
 import { toast, toastDone, toastFail } from '@/app/toast'
 import { LeadAiMark } from '@/components/lead-ai-mark'
 import { useAttachLeadAccount, type AiFillConflict } from '@/data/lead-ai-fill'
@@ -107,6 +107,7 @@ function useLanding(lead: LeadProfile, draft: LeadDraft) {
 }
 
 export function useAiFillRun(lead: LeadProfile, draft: LeadDraft, canEdit: boolean): AiFillRun {
+  const { t } = useI18n()
   const navigate = useNavigate()
   const client = useQueryClient()
   const canOpenAccount = useCan('account.view')
@@ -191,6 +192,11 @@ export function useAiFillRun(lead: LeadProfile, draft: LeadDraft, canEdit: boole
         {doors.map((conflict) => (
           <AiFieldConflict
             key={conflict.accountCode}
+            conflictLabel={t(message('Trùng công ty', 'Duplicate account', '중복 회사'))}
+            ownedLabel={t(message('đã thuộc', 'already belongs to', '이미 다음 회사에 등록됨:'))}
+            attachLabel={t(
+              message('Gắn vào công ty này', 'Attach to this account', '이 회사에 연결'),
+            )}
             value={conflict.value}
             ownerName={conflict.accountName}
             onOpenOwner={

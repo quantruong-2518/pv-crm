@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { Button, CircleAlert, Copy, FileText, Icon, TriangleAlert, cn } from '@pv/ui'
+import { Button, CircleAlert, Copy, Icon, TriangleAlert, cn } from '@pv/ui'
 import { useI18n, type Lang } from '@/app/i18n'
 import { toastDone, toastFail } from '@/app/toast'
 import {
@@ -7,7 +7,6 @@ import {
   ERROR_COPY,
   RETRYABLE,
   asOf,
-  clock,
   footerLine,
   shownText,
   suggestionText,
@@ -216,7 +215,6 @@ function AnswerBubble({
       <div className="flex items-center gap-2">
         {compact && <AiGlyph size={18} />}
         <span className="text-accent-foreground text-[13px] font-semibold">{t(C.aiLabel)}</span>
-        <span className="text-muted-foreground tnum text-[12px]">· {clock(answer.at, lang)}</span>
       </div>
       <AssistantAnswerText
         text={shownText(answer.body, lang)}
@@ -230,8 +228,7 @@ function AnswerBubble({
         <RefCard key={`${ref.kind}:${ref.code}`} refItem={ref} openPath={openPath} facts={latest} />
       ))}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-muted-foreground flex min-w-0 flex-1 basis-48 items-center gap-2 text-[12px]">
-          <Icon icon={FileText} size={14} />
+        <span className="text-muted-foreground flex min-w-0 flex-1 basis-48 text-[12px]">
           {t(C.basisLabel)}: {basisOf(answer, lang)}
         </span>
         <Button

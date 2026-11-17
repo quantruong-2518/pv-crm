@@ -25,16 +25,10 @@ import { CodeChip, HAIRLINE } from './assistant-bits'
 const givenName = (full: string | undefined) => full?.trim().split(/\s+/).at(-1)
 
 function Greeting() {
-  const { t, lang } = useI18n()
+  const { lang } = useI18n()
   const name = givenName(useSession((s) => s.actor?.name))
-  return (
-    <div className="flex flex-col gap-1">
-      {name && (
-        <p className="m-0 text-[20px] font-semibold leading-[1.4]">{greeting(name, lang)}</p>
-      )}
-      <p className="text-muted-foreground m-0 text-[14px]">{t(C.hint)}</p>
-    </div>
-  )
+  if (!name) return null
+  return <p className="m-0 text-[20px] font-semibold leading-[1.4]">{greeting(name, lang)}</p>
 }
 
 function Samples({ convo }: { convo: Conversation }) {

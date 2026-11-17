@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { AiFillButton, SegmentedControl, Textarea, type SegmentedOption } from '@pv/ui'
 import { useLeadDesk } from '@/app/desk'
-import { useI18n } from '@/app/i18n'
+import { message, useI18n } from '@/app/i18n'
 import type { LeadDraft } from '@/data/lead-draft'
 import type { SaveState } from '@/data/lead-patch'
 import { fieldsOf, PROFILE_GROUPS, readField, type FormMode } from '@/data/lead-form'
@@ -110,6 +110,20 @@ export function LeadForm({
             {ai?.offered && (
               <AiFillButton
                 busy={ai.busy}
+                label={t(
+                  message(
+                    'Điền ô còn thiếu bằng AI',
+                    'Fill empty fields with AI',
+                    'AI로 빈 항목 채우기',
+                  ),
+                )}
+                busyLabel={t(
+                  message(
+                    'Đang điền bằng AI, xem trong khay việc',
+                    'Filling with AI, see the task tray',
+                    'AI로 입력 중, 작업 트레이에서 확인',
+                  ),
+                )}
                 onClick={() => {
                   /* The fill lands in the company tab; open it so it is seen. */
                   setTab('company')

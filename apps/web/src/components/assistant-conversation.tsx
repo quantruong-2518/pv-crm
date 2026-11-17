@@ -21,7 +21,7 @@ import {
 import { AssistantQuestion, type AssistantSubject } from '@pv/contracts'
 import { useI18n } from '@/app/i18n'
 import { refPath } from '@/data/assistant'
-import { ASSISTANT_COPY as C, askingAbout, dropSubject } from '@/data/assistant-copy'
+import { ASSISTANT_COPY as C, askingAbout, dropSubject, shownText } from '@/data/assistant-copy'
 import {
   composerId,
   focusComposer,
@@ -88,7 +88,7 @@ export function AssistantThread({
   /** Drawn while the chat has no message yet. */
   empty: ReactNode
 }) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const { detail, items, busy, ask } = convo
   const end = useFollow(items)
 
@@ -123,7 +123,7 @@ export function AssistantThread({
   return (
     <div className={cn('flex flex-col', compact ? 'gap-4' : 'gap-6')}>
       <p aria-live="polite" className="sr-only">
-        {finished ? `${t(C.answered)} ${last.answer.body}` : ''}
+        {finished ? `${t(C.answered)} ${shownText(last.answer.body, lang)}` : ''}
       </p>
       {rail.length > 0 && (
         <ContextRail
@@ -255,9 +255,6 @@ export function AssistantComposer({
       {t(C.deep)}
     </Button>
   )
-  const deepLine = canDeep && deep && (
-    <p className="text-glass-foreground w-full text-[12px]">{t(C.deepHint)}</p>
-  )
   const field = (
     <Textarea
       id={composerId(origin)}
@@ -290,7 +287,6 @@ export function AssistantComposer({
         {field}
         {deepSwitch}
         {send}
-        {deepLine}
       </form>
     )
   }
@@ -307,11 +303,12 @@ export function AssistantComposer({
       <div className="flex flex-wrap items-center gap-2">
         {subject && <SubjectChip subject={subject} />}
         <span className="flex-1" />
-        <span className="text-glass-foreground hidden text-[12px] sm:inline">{t(C.keys)}</span>
+        <span className="text-glass-foreground pointer-coarse:hidden hidden text-[12px] sm:inline">
+          {t(C.keys)}
+        </span>
         {deepSwitch}
         {send}
       </div>
-      {deepLine}
     </form>
   )
 }

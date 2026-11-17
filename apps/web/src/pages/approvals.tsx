@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Inbox, TriangleAlert } from '@pv/ui'
+import { AiMark, Icon, Inbox, TriangleAlert } from '@pv/ui'
 import {
   AppShell,
   ApprovalChain,
-  Badge,
   Button,
   EmptyState,
   GlassCard,
@@ -221,6 +220,7 @@ function RequestCard({ request }: { request: ApprovalRequestView }) {
   const actions = (
     <div className="flex shrink-0 flex-wrap gap-2">
       <Button
+        className="pointer-coarse:h-12"
         disabled={decide.isPending}
         onClick={() =>
           send(
@@ -237,7 +237,12 @@ function RequestCard({ request }: { request: ApprovalRequestView }) {
       >
         {t(message('Phê duyệt', 'Approve', '승인'))}
       </Button>
-      <Button variant="ghost" disabled={decide.isPending} onClick={() => setRefusing(true)}>
+      <Button
+        variant="ghost"
+        className="pointer-coarse:h-12"
+        disabled={decide.isPending}
+        onClick={() => setRefusing(true)}
+      >
         {t(message('Từ chối', 'Reject', '거절'))}
       </Button>
     </div>
@@ -272,9 +277,10 @@ function RequestCard({ request }: { request: ApprovalRequestView }) {
       {/* Rule 9 on screen: an AI proposal says so, and on what grounds, in one block. */}
       {request.fromAi ? (
         <div className="flex flex-col items-start gap-2">
-          <Badge tone="running">
-            {t(message('Do trợ lý AI đề xuất', 'Suggested by AI assistant', 'AI 도우미의 제안'))}
-          </Badge>
+          <span className="text-muted-foreground flex items-center gap-1 text-[12px] leading-[1.7]">
+            <Icon icon={AiMark} size={16} className="text-primary" />
+            {t(message('AI đề xuất', 'Suggested by AI', 'AI 제안'))}
+          </span>
           {request.basis ? (
             <p className="text-glass-foreground text-[12px] leading-[1.7]">
               {t(message('Căn cứ:', 'Basis:', '근거:'))} {request.basis}
@@ -312,6 +318,7 @@ function RequestCard({ request }: { request: ApprovalRequestView }) {
           <div className="flex flex-wrap gap-2">
             <Button
               variant="destructive"
+              className="pointer-coarse:h-12"
               disabled={reason.trim() === '' || decide.isPending}
               onClick={() =>
                 send(
@@ -322,7 +329,11 @@ function RequestCard({ request }: { request: ApprovalRequestView }) {
             >
               {t(message('Xác nhận từ chối', 'Reject request', '요청 거절'))}
             </Button>
-            <Button variant="ghost" onClick={() => setRefusing(false)}>
+            <Button
+              variant="ghost"
+              className="pointer-coarse:h-12"
+              onClick={() => setRefusing(false)}
+            >
               {t(message('Hủy', 'Cancel', '취소'))}
             </Button>
           </div>

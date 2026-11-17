@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react'
 import type { IconGlyph } from '@pv/ui'
-import { AiMark, CircleCheckBig, ClipboardList, Coins, Send, Timer, TriangleAlert, X } from '@pv/ui'
+import { CircleCheckBig, ClipboardList, Coins, Send, Timer, TriangleAlert, X } from '@pv/ui'
 import { useQuery } from '@tanstack/react-query'
 import {
-  AiAction,
   AppShell,
   Badge,
   Button,
@@ -36,10 +35,11 @@ import { PLAN_ANCHOR, planBoardQuery } from '@/data/plan'
  *  --------------------------------------------------------------------------
  *  LUẬT 9 LÀ XƯƠNG SỐNG CỦA MÀN, KHÔNG PHẢI MỘT MỤC TRONG CHECKLIST
  *  --------------------------------------------------------------------------
- *  Đây là màn AI nặng nhất của hệ, nên nó phải là màn kỷ luật nhất. Ba bước từ
- *  đề xuất tới hành động đều CHỜ NGƯỜI BẤM, và không bước nào rút ngắn được:
+ *  Đề xuất do luật tính từ số liệu, không có mô hình AI chạy ở đây, nhưng màn giữ
+ *  kỷ luật như một màn AI. Ba bước từ đề xuất tới hành động đều CHỜ NGƯỜI BẤM,
+ *  và không bước nào rút ngắn được:
  *
- *    1. trợ lý đề xuất  → người bấm "Thêm vào kế hoạch"
+ *    1. màn đưa đề xuất → người bấm "Thêm vào kế hoạch"
  *    2. kế hoạch thành hình → người bấm "Gửi … duyệt"
  *    3. người gật gật    → lúc đó mới có ai bắt tay vào làm
  *
@@ -257,13 +257,11 @@ export function PlanPage() {
             </GlassCard>
 
             <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr] lg:gap-6">
-              {/* 2 · Đề xuất. Mỗi khối là một <AiAction>: có căn cứ số thật, có
-                  nút, và có dòng "Chưa tạo gì cả" ngay dưới nút. */}
+              {/* 2 · Proposals. Computed from the fixture by rules, no model runs, so
+                  they are plain cards, not AI blocks. The only way back out of the
+                  plan is the list below: one action, one place. */}
               <section id="proposals" className="flex flex-col gap-4">
                 <div className="flex items-center gap-2">
-                  {/* Luật 15 · icon Trợ lý AI là `AiMark`, size 20 vì đây là đầu
-                      một khối chứ không phải icon trong nút. */}
-                  <Icon icon={AiMark} size={20} className="text-primary" />
                   <h3 className="text-[13px] font-semibold">
                     {t(
                       message('Đề xuất cho tháng tới', 'Proposals for next month', '다음 달 제안'),
@@ -283,69 +281,44 @@ export function PlanPage() {
                 {board.proposals.map((p) => {
                   const added = picked.includes(p.id)
                   return (
-                    /* KHÔNG dùng `done` của AiAction: nó in cứng chữ "Đã thực
-                       hiện", mà bấm nút ở đây mới chỉ là ĐƯA VÀO KẾ HOẠCH —
-                       chưa ai làm gì, và {board.approver} còn chưa gật. Giữ nút
-                       lại và đổi nhãn để rút ra được, thay vì báo một việc đã
-                       xong khi nó chưa xong.
-                       Vì `done` luôn false nên `empty` là chỗ DUY NHẤT của cả
-                       hai câu trạng thái — hai câu ấy trước 20/08 là hai thẻ
-                       `<p>` màn tự dựng bên ngoài khối. */
-                    <AiAction
-                      key={p.id}
-                      variant="panel"
-                      suggestion={p.suggestion}
-                      basis={p.basis}
-                      /* Nhãn khác hẳn nút "Bỏ khỏi kế hoạch" ở danh sách bên
-                         dưới — hai nút cùng tên trên một màn thì người dùng
-                         không biết mình đang rút cái nào. */
-                      confirmLabel={
-                        added
-                          ? t(
-                              message(
-                                'Đã thêm · bấm để rút',
-                                'Added · click to withdraw',
-                                '추가됨 · 눌러서 취소',
-                              ),
-                            )
-                          : p.confirmLabel
-                      }
-                      empty={
-                        added ? (
-                          <>
+                    <GlassCard key={p.id} className="flex flex-col gap-3 p-4 sm:p-5">
+                      <div className="flex flex-col gap-1">
+                        <p className="m-0 text-[13px] leading-[1.55]">{p.suggestion}</p>
+                        <p className="text-muted-foreground m-0 text-[12px] leading-[1.6]">
+                          {t(message('Căn cứ: ', 'Basis: ', '근거: '))}
+                          {p.basis}
+                        </p>
+                      </div>
+                      {added ? (
+                        <div className="flex flex-wrap items-center gap-3">
+                          <Badge tone="success">
+                            {t(message('Đã vào kế hoạch', 'In the plan', '계획에 추가됨'))}
+                          </Badge>
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap items-center gap-3">
+                          <Button
+                            className="pointer-coarse:h-12"
+                            onClick={() => {
+                              toggle(p.id)
+                              /* Wire to E3 `proposeFromAi` once there is a backend:
+                                 a proposal enters pending, never as done. */
+                            }}
+                          >
+                            {p.confirmLabel}
+                          </Button>
+                          <span className="text-muted-foreground text-[12px] leading-[1.6]">
                             {t(
                               message(
-                                'Đã vào kế hoạch, người làm là ',
-                                'Added to the plan; the owner is ',
-                                '계획에 추가되었으며 담당자는 ',
+                                `${board.approver} duyệt rồi ${p.owner} mới làm.`,
+                                `${p.owner} starts only after ${board.approver} approves.`,
+                                `${board.approver} 승인 후 ${p.owner}이(가) 진행합니다.`,
                               ),
                             )}
-                            <b className="text-on-tint-primary font-semibold">{p.owner}</b>
-                            {t(
-                              message(
-                                '. Chưa gửi cho ai.',
-                                '. Nothing has been sent yet.',
-                                '입니다. 아직 아무에게도 보내지 않았습니다.',
-                              ),
-                            )}
-                          </>
-                        ) : (
-                          t(
-                            message(
-                              `Chưa tạo gì cả. ${board.approver} duyệt rồi ${p.owner} mới làm.`,
-                              `Nothing has been created yet. ${p.owner} starts only after ${board.approver} approves.`,
-                              `아직 아무것도 만들지 않았습니다. ${board.approver} 승인 후 ${p.owner}이(가) 진행합니다.`,
-                            ),
-                          )
-                        )
-                      }
-                      onConfirm={() => {
-                        toggle(p.id)
-                        /* Nối E3 khi có backend: `proposeFromAi` với đúng
-                           `basis` ở trên. Đề xuất vào hệ ở trạng thái chờ,
-                           không phải trạng thái đã làm. */
-                      }}
-                    />
+                          </span>
+                        </div>
+                      )}
+                    </GlassCard>
                   )
                 })}
               </section>
@@ -508,9 +481,9 @@ const NOT_DOING: { title: Message; body: Message }[] = [
       '자동으로 아무에게도 보내지 않음',
     ),
     body: message(
-      'Trợ lý không thêm việc, không gửi duyệt, không báo ai. Cả ba bước chờ bạn bấm.',
-      'The assistant does not add tasks, send for approval or notify anyone. All three steps wait for you to press.',
-      '도우미는 일을 추가하거나 승인을 요청하거나 누군가에게 알리지 않습니다. 세 단계 모두 직접 누르셔야 진행됩니다.',
+      'Màn này không tự thêm việc, không tự gửi duyệt, không tự báo ai. Cả ba bước chờ bạn bấm.',
+      'This screen does not add tasks, send for approval or notify anyone on its own. All three steps wait for you to press.',
+      '이 화면은 스스로 업무를 추가하거나 승인을 요청하거나 알리지 않습니다. 세 단계 모두 직접 누르셔야 진행됩니다.',
     ),
   },
   {

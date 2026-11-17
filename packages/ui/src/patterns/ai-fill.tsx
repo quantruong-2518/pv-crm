@@ -13,8 +13,8 @@ import { cn } from '../lib/cn'
  *  task tray (O-12) is the way back. The basis law 9 asks for is
  *  carried per field by `AiFieldMark`, which names where each value came from.
  *
- *  Fixed Vietnamese copy lives here, as in `AiAction`, so every screen says
- *  the same words; the screen only passes data and callbacks. */
+ *  Words come in by props, as in `AiTaskTray`: en/ko screens must not show
+ *  Vietnamese, so nothing here carries a default string. */
 
 /** How long a filled box stays lit; screens pace their own steps by it. */
 export const AI_FLASH_MS = 600
@@ -29,6 +29,10 @@ export type AiFillButtonProps = {
   /** A job is running: the button is tinted with a dot, and a press opens the
    *  tray (the caller decides) instead of starting a second job. */
   busy?: boolean
+  /** Tooltip and aria-label while idle, e.g. "Fill empty fields with AI". */
+  label: string
+  /** The same while a job runs, e.g. "Filling with AI, see the task tray". */
+  busyLabel: string
   /** Given = the button is off and this line, under it, says what is missing. */
   disabledReason?: string
   className?: string
@@ -38,11 +42,13 @@ export type AiFillButtonProps = {
 export function AiFillButton({
   onClick,
   busy = false,
+  label: idleLabel,
+  busyLabel,
   disabledReason,
   className,
 }: AiFillButtonProps) {
   const reasonId = useId()
-  const label = busy ? 'Đang điền bằng AI, xem trong khay việc' : 'Điền ô còn thiếu bằng AI'
+  const label = busy ? busyLabel : idleLabel
   return (
     <span className={cn('inline-flex flex-col items-start gap-1', className)}>
       <Button
@@ -57,7 +63,7 @@ export function AiFillButton({
         aria-describedby={disabledReason ? reasonId : undefined}
         onClick={onClick}
       >
-        <Icon icon={AiMark} size={20} />
+        <Icon icon={AiMark} size={16} />
         {busy && (
           <span aria-hidden className="bg-primary absolute right-1.5 top-1.5 size-2 rounded-full" />
         )}
@@ -121,6 +127,10 @@ export function AiFillField({ state, children, className }: AiFillFieldProps) {
 }
 
 export type AiFieldMarkProps = {
+  /** The caption lead, e.g. "AI filled"; the middle dot after it is drawn here. */
+  label: string
+  /** The warning badge text when `unsure`, e.g. "Unsure". */
+  unsureLabel: string
   /** Where the value came from: a host, or the tax registry. */
   source: string
   /** Opens the source in a new tab so the reader can check it. */
@@ -132,7 +142,14 @@ export type AiFieldMarkProps = {
 
 /** M-23 · AiFieldMark — the caption under an AI-filled field. The screen drops
  *  it once a person edits that field. */
-export function AiFieldMark({ source, sourceHref, unsure, className }: AiFieldMarkProps) {
+export function AiFieldMark({
+  label,
+  unsureLabel,
+  source,
+  sourceHref,
+  unsure,
+  className,
+}: AiFieldMarkProps) {
   return (
     <span
       className={cn(
@@ -141,8 +158,8 @@ export function AiFieldMark({ source, sourceHref, unsure, className }: AiFieldMa
         className,
       )}
     >
-      <Icon icon={AiMark} size={12} />
-      <span>AI điền ·</span>
+      <Icon icon={AiMark} size={16} />
+      <span>{label} ·</span>
       {sourceHref ? (
         <a
           href={sourceHref}
@@ -158,7 +175,7 @@ export function AiFieldMark({ source, sourceHref, unsure, className }: AiFieldMa
       {unsure && (
         <>
           <span aria-hidden>·</span>
-          <Badge tone="warning">Chưa chắc</Badge>
+          <Badge tone="warning">{unsureLabel}</Badge>
         </>
       )}
     </span>
@@ -166,6 +183,12 @@ export function AiFieldMark({ source, sourceHref, unsure, className }: AiFieldMa
 }
 
 export type AiFieldConflictProps = {
+  /** The danger badge, e.g. "Duplicate account". */
+  conflictLabel: string
+  /** Between the value and the owner, e.g. "already belongs to". */
+  ownedLabel: string
+  /** The button that attaches the record, e.g. "Attach to this account". */
+  attachLabel: string
   /** The value found, e.g. the tax code. */
   value: string
   /** The account in the book that already holds `value`. */
@@ -180,6 +203,9 @@ export type AiFieldConflictProps = {
 /** M-24 · AiFieldConflict — the value was found but belongs to another account,
  *  so the field stays empty and the person chooses. */
 export function AiFieldConflict({
+  conflictLabel,
+  ownedLabel,
+  attachLabel,
   value,
   ownerName,
   onOpenOwner,
@@ -193,10 +219,10 @@ export function AiFieldConflict({
         className,
       )}
     >
-      <Badge tone="danger">Trùng công ty</Badge>
+      <Badge tone="danger">{conflictLabel}</Badge>
       <span className="pointer-coarse:min-h-12 inline-flex flex-wrap items-center gap-1">
         <span className="font-mono">{value}</span>
-        <span>đã thuộc</span>
+        <span>{ownedLabel}</span>
         {onOpenOwner ? (
           <button
             type="button"
@@ -213,7 +239,7 @@ export function AiFieldConflict({
         )}
       </span>
       <Button size="sm" variant="ghost" className="pointer-coarse:h-12" onClick={onAttach}>
-        Gắn vào công ty này
+        {attachLabel}
       </Button>
     </span>
   )

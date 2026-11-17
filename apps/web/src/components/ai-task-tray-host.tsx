@@ -113,7 +113,7 @@ function stoppedAt(job: Moving, total: number) {
     message(
       `Dừng ở bước ${at}/${total}`,
       `Stopped at step ${at}/${total}`,
-      `${at}/${total}단계에서 멈췄어요`,
+      `${at}/${total}단계에서 멈췄습니다`,
     ),
   )
 }
@@ -364,11 +364,17 @@ export function AiTaskTrayHost() {
         running: (n) => t(message(`${n} đang chạy`, `${n} running`, `${n}건 진행 중`)),
         failed: (n) => t(message(`${n} lỗi`, `${n} failed`, `${n}건 오류`)),
         done: (n) => t(message(`${n} xong`, `${n} done`, `${n}건 완료`)),
-        clear: t(message('Xoá việc đã xong', 'Clear finished tasks', '완료된 작업 지우기')),
+        clear: t(message('Xoá việc đã kết thúc', 'Clear finished jobs', '종료된 작업 지우기')),
         collapse: t(message('Thu gọn khay', 'Collapse tray', '트레이 접기')),
         steps: (n) => t(message(`Xem ${n} bước`, `Show ${n} steps`, `${n}단계 보기`)),
         hideSteps: t(message('Ẩn các bước', 'Hide steps', '단계 숨기기')),
         progress: t(message('Tiến độ', 'Progress', '진행률')),
+        stepState: {
+          done: t(message('xong', 'done', '완료')),
+          now: t(message('đang chạy', 'running', '진행 중')),
+          wait: t(message('chờ', 'waiting', '대기')),
+          fail: t(message('lỗi', 'failed', '실패')),
+        },
       }}
     />
   )

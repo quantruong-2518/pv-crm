@@ -29,8 +29,9 @@ import { formatNumber, message, translate, type Lang } from '@/app/i18n'
  *  --------------------------------------------------------------------------
  *  VÌ SAO CÂU "CĂN CỨ" ĐƯỢC VIẾT Ở ĐÂY, KHÔNG PHẢI Ở TẦNG MÀN
  *  --------------------------------------------------------------------------
- *  Luật 9 bắt mọi khối AI có dòng "Căn cứ: …". Dòng đó không phải nhãn trang
- *  trí — nó là LỜI KHAI về dữ liệu trợ lý đã đọc. Nếu câu nằm ở JSX còn con số
+ *  Mỗi đề xuất mang dòng "Căn cứ: …" (không mô hình nào chạy, nhưng người duyệt
+ *  vẫn cần thấy nó). Dòng đó không phải nhãn trang trí — nó là LỜI KHAI về dữ
+ *  liệu đề xuất dựa vào. Nếu câu nằm ở JSX còn con số
  *  nằm ở đây, người sửa chữ sẽ đổi được lời khai mà không đụng vào phép tính,
  *  và tới lúc nào đó câu nói một đằng số một nẻo. Vì thế `suggestion` và
  *  `basis` ra lò cùng chỗ với con số đẻ ra chúng, và màn chỉ việc in.
@@ -64,9 +65,8 @@ export type PlanStat = {
   hint: string
 }
 
-/** Một đề xuất cho tháng tới. Đúng hình của `AiActionProps`: có câu đề xuất, có
- *  căn cứ, và chờ nút. Thêm hai thứ mà luật 9 không đòi nhưng kế hoạch thì cần:
- *  ai làm, và tra ngược được ở object nào. */
+/** Một đề xuất cho tháng tới: một câu, căn cứ của nó, và chờ nút. Thêm hai thứ
+ *  mà kế hoạch cần: ai làm, và tra ngược được ở object nào. */
 export type PlanProposal = {
   id: string
   /** Một câu, có hệ quả rõ. */

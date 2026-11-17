@@ -55,7 +55,7 @@ export function ProposalCard({
       onConfirm={() => apply.mutate(proposal, { onError: refused })}
       onDismiss={() => dismiss.mutate(proposal, { onError: refused })}
       done={end !== null}
-      doneLabel={end ? t(end.copy) : undefined}
+      doneLabel={t(end ? end.copy : C.applied)}
       doneTone={end?.tone}
     />
   )

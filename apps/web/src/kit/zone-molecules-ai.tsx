@@ -59,6 +59,11 @@ function FlashDemo() {
   )
 }
 
+/** AiFieldMark with the kit's Vietnamese words; screens pass their own. */
+function AiMarkDemo(props: { source: string; sourceHref?: string; unsure?: boolean }) {
+  return <AiFieldMark label="AI điền" unsureLabel="Chưa chắc" {...props} />
+}
+
 const DEMO_CHOICES = [
   {
     key: 'call',
@@ -80,8 +85,9 @@ function AiChoicesDemo() {
         onPick: () => setPicked(choice.key),
       }))}
       basis="ghi chú · 3 lượt trao đổi · Biên bản khảo sát.pdf"
+      basisLabel="Căn cứ"
       empty="Chưa chọn bước nào."
-      pickLabel="Chọn bước này"
+      pickLabel="Điền vào ô"
       pickedLabel="Đã điền vào ô"
     />
   )
@@ -107,14 +113,28 @@ export function AiFillCards() {
         note="bấm là điền"
         noteAccent
         bodyClassName="flex flex-col gap-3 p-4"
-        footer="chỉ còn icon AiMark 20, chữ ở title và aria-label · busy = nền nhạt màu chính + chấm, bấm mở khay · disabledReason = một dòng dưới nút · tablet 48px"
+        footer="chỉ còn icon AiMark 16, chữ ở title và aria-label · busy = nền nhạt màu chính + chấm, bấm mở khay · disabledReason = một dòng dưới nút · tablet 48px"
       >
         <KitState>Sẵn sàng</KitState>
-        <AiFillButton onClick={() => {}} />
+        <AiFillButton
+          onClick={() => {}}
+          label="Điền ô còn thiếu bằng AI"
+          busyLabel="Đang điền bằng AI, xem trong khay việc"
+        />
         <KitState>Đang điền</KitState>
-        <AiFillButton onClick={() => {}} busy />
+        <AiFillButton
+          onClick={() => {}}
+          busy
+          label="Điền ô còn thiếu bằng AI"
+          busyLabel="Đang điền bằng AI, xem trong khay việc"
+        />
         <KitState>Chưa đủ dữ liệu</KitState>
-        <AiFillButton onClick={() => {}} disabledReason="Cần tên công ty và người liên hệ trước." />
+        <AiFillButton
+          onClick={() => {}}
+          label="Điền ô còn thiếu bằng AI"
+          busyLabel="Đang điền bằng AI, xem trong khay việc"
+          disabledReason="Cần tên công ty và người liên hệ trước."
+        />
         <p className="text-muted-foreground text-[11.5px] leading-[1.7]">
           Nằm ở hàng tiêu đề của thẻ Thông tin lead, cạnh dòng trạng thái lưu. Bấm là đẩy việc chạy
           nền, điền thẳng vào ô trống, không có bước duyệt; Hoàn tác nằm ở khay việc. Không có quyền
@@ -147,7 +167,7 @@ export function AiFillCards() {
         <FlashDemo />
         <div className="flex flex-col gap-2">
           <KitState>3 · Đã điền</KitState>
-          <KitField label="Tên pháp nhân" under={<AiFieldMark source="tra cứu mã số thuế" />}>
+          <KitField label="Tên pháp nhân" under={<AiMarkDemo source="tra cứu mã số thuế" />}>
             <AiFillField state="filled">
               <Input defaultValue="Công ty TNHH DAS Vina" className="h-11 text-[13px]" />
             </AiFillField>
@@ -160,15 +180,15 @@ export function AiFillCards() {
         name="AiFieldMark"
         note="ô do AI điền"
         bodyClassName="flex flex-col gap-4 p-4"
-        footer="text-accent-foreground 12px · AiMark 12 · nguồn có href thì mở tab mới · unsure = Badge warning"
+        footer="text-accent-foreground 12px · AiMark 16 · nguồn có href thì mở tab mới · unsure = Badge warning"
       >
-        <KitField label="Mã số thuế" under={<AiFieldMark source="tra cứu mã số thuế" />}>
+        <KitField label="Mã số thuế" under={<AiMarkDemo source="tra cứu mã số thuế" />}>
           <Input defaultValue="0123456789" className="h-11 font-mono text-[13px]" />
         </KitField>
         <KitField
           label="Địa chỉ nhà máy"
           under={
-            <AiFieldMark source="dasvina.example" sourceHref="https://dasvina.example" unsure />
+            <AiMarkDemo source="dasvina.example" sourceHref="https://dasvina.example" unsure />
           }
         >
           <Input defaultValue="Lô B2, KCN Quế Võ, Bắc Ninh" className="h-11 text-[13px]" />
@@ -190,6 +210,9 @@ export function AiFillCards() {
           label="Mã số thuế"
           under={
             <AiFieldConflict
+              conflictLabel="Trùng công ty"
+              ownedLabel="đã thuộc"
+              attachLabel="Gắn vào công ty này"
               value="0123456789"
               ownerName="DAS Vina Holdings"
               onOpenOwner={() => {}}
@@ -216,6 +239,8 @@ const DEMO_STEPS = [
   { label: 'Điền vào lead', state: 'wait' },
 ] as const
 
+const STEP_STATE = { done: 'xong', now: 'đang chạy', wait: 'chờ', fail: 'lỗi' } as const
+
 const TRAY_COPY = {
   title: 'Việc AI',
   running: (n: number) => `${n} đang chạy`,
@@ -226,6 +251,7 @@ const TRAY_COPY = {
   steps: (n: number) => `Xem ${n} bước`,
   hideSteps: 'Ẩn các bước',
   progress: 'Tiến độ',
+  stepState: STEP_STATE,
 }
 
 const TRAY_TASKS: AiTaskItem[] = [
@@ -277,6 +303,24 @@ const TRAY_TASKS: AiTaskItem[] = [
   },
 ]
 
+/** The collapsed face production uses: the header button, portalled into `slot`. */
+function HeaderButtonDemo({ tasks }: { tasks: AiTaskItem[] }) {
+  const [slot, setSlot] = useState<HTMLElement | null>(null)
+  return (
+    <div className="flex items-center gap-3">
+      <span ref={setSlot} />
+      <AiTaskTray
+        open={false}
+        onOpenChange={() => {}}
+        onClearDone={() => {}}
+        copy={TRAY_COPY}
+        tasks={tasks}
+        slot={slot}
+      />
+    </div>
+  )
+}
+
 /** The collapsed pill on its own row beside the round button, as the shell lays them out. */
 function BesideFab({ tasks }: { tasks: AiTaskItem[] }) {
   return (
@@ -305,8 +349,11 @@ export function AiTaskCards() {
         bodyClassName="flex flex-col gap-3 p-4"
         footer="xong = dấu tích + thời gian · đang chạy = chữ đậm, vòng quay · chờ = nhạt · lỗi = đỏ, các bước sau dừng"
       >
-        <AiTaskSteps steps={[...DEMO_STEPS]} />
-        <AiTaskSteps steps={[{ label: 'Tìm thông tin trên web', state: 'fail', note: 'lỗi' }]} />
+        <AiTaskSteps steps={[...DEMO_STEPS]} stateLabels={STEP_STATE} />
+        <AiTaskSteps
+          steps={[{ label: 'Tìm thông tin trên web', state: 'fail', note: 'lỗi' }]}
+          stateLabels={STEP_STATE}
+        />
       </SpecCard>
 
       <SpecCard
@@ -324,6 +371,12 @@ export function AiTaskCards() {
           <BesideFab tasks={TRAY_TASKS.filter((t) => t.status === 'failed')} />
           <KitState>Thu gọn · tất cả đã xong</KitState>
           <BesideFab tasks={TRAY_TASKS.filter((t) => t.status === 'done')} />
+          <KitState>Nút trên thanh đầu trang · đang chạy / chỉ có lỗi / xong</KitState>
+          <div className="flex items-center gap-4">
+            <HeaderButtonDemo tasks={TRAY_TASKS} />
+            <HeaderButtonDemo tasks={TRAY_TASKS.filter((t) => t.status === 'failed')} />
+            <HeaderButtonDemo tasks={TRAY_TASKS.filter((t) => t.status === 'done')} />
+          </div>
         </div>
         <AiTaskTray
           inline

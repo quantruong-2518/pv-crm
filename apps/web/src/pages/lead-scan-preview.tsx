@@ -254,25 +254,25 @@ function CommitBar({
               ),
             )}
       </Button>
-      <p className="text-muted-foreground tnum text-[12.5px]">
-        {creates === 0 && merges === 0
-          ? t(
-              message(
-                'Không có gì để tạo hay nhập.',
-                'Nothing to create or merge.',
-                '생성하거나 병합할 항목이 없습니다.',
-              ),
-            )
-          : merges > 0
+      {(creates === 0 && merges === 0) || merges > 0 ? (
+        <p className="text-muted-foreground tnum text-[12.5px]">
+          {merges > 0
             ? t(
                 message(
-                  `Bấm để tạo và nhập ${merges} công ty vào lead có sẵn.`,
-                  `Press to create leads and merge ${merges} ${merges === 1 ? 'company' : 'companies'} into existing leads.`,
-                  `눌러서 리드를 생성하고 회사 ${merges}곳을 기존 리드에 병합합니다.`,
+                  `${merges} công ty sẽ nhập vào lead có sẵn.`,
+                  `${merges} ${merges === 1 ? 'company' : 'companies'} will be merged into existing leads.`,
+                  `회사 ${merges}곳은 기존 리드에 병합됩니다.`,
                 ),
               )
-            : t(message('Bấm để tạo lead.', 'Press to create leads.', '눌러서 리드를 생성합니다.'))}
-      </p>
+            : t(
+                message(
+                  'Không có gì để tạo hay nhập.',
+                  'Nothing to create or merge.',
+                  '생성하거나 병합할 항목이 없습니다.',
+                ),
+              )}
+        </p>
+      ) : null}
     </div>
   )
 }

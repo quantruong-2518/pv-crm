@@ -1,4 +1,4 @@
-import type { Dispatch, ReactNode, SetStateAction } from 'react'
+import { useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import { AiAction, AiChoices, AiMark, Button, Checkbox, Icon, RotateCcw, Textarea } from '@pv/ui'
 import type { CommAiPart, CommVocabularyResponse, StepOptionsResponse } from '@pv/contracts'
 import { message, useI18n } from '@/app/i18n'
@@ -19,21 +19,24 @@ import type { StepDraft } from '@/data/comm-record-detail'
  *  and leaves the words a narrow column on a phone. */
 
 const TOUCH = 'pointer-coarse:h-12'
-/** `AiAction` draws its own 40px button; this lifts it to 48px on touch (law 13).
- *  The wrap is for file names and URLs in the basis line, which have no break. */
-const BLOCK = 'wrap-break-word pointer-coarse:[&_button]:h-12'
+/** The wrap is for file names and URLs in the basis line, which have no break. */
+const BLOCK = 'wrap-break-word'
+
+const BASIS = message('Căn cứ', 'Basis', '근거')
+const FILLED = message('Đã điền vào ô', 'Filled in', '입력됨')
+const FILL = message('Điền vào ô', 'Fill in', '입력란에 채우기')
 
 const capitalized = (word: string) => word.charAt(0).toUpperCase() + word.slice(1)
 
 function AskButton({
   ai,
   part,
-  note,
+  onAsk,
   children,
 }: {
   ai: CommAiReportState
   part: CommAiPart
-  note: string
+  onAsk: (part: CommAiPart) => void
   children: ReactNode
 }) {
   const { t } = useI18n()
@@ -43,7 +46,7 @@ function AskButton({
       variant="secondary"
       className={TOUCH}
       disabled={ai.asking !== null || (ai.needsNotice && !ai.notice)}
-      onClick={() => ai.ask(part, note)}
+      onClick={() => onAsk(part)}
     >
       <Icon icon={AiMark} size={16} />
       {ai.asking === part ? t(message('Đang tạo…', 'Generating…', '생성 중…')) : children}
@@ -53,7 +56,7 @@ function AskButton({
 
 /** Under the buttons, and over the other cards too: the stepper can leave the
  *  first card while a press runs, and the answer lands where nobody is looking. */
-export function CommAiStatus({ ai }: { ai: CommAiReportState }) {
+export function CommAiStatus({ ai, onRetry }: { ai: CommAiReportState; onRetry?: () => void }) {
   const { t } = useI18n()
   if (ai.asking) {
     return (
@@ -78,10 +81,29 @@ export function CommAiStatus({ ai }: { ai: CommAiReportState }) {
   }
   if (!ai.error) return null
   return (
-    <p role="alert" className="text-destructive-foreground m-0 text-[12.5px] leading-[1.6]">
-      {ai.error}
-    </p>
+    <div role="alert" className="flex flex-wrap items-center gap-3">
+      <p className="text-destructive-foreground m-0 text-[12.5px] leading-[1.6]">{ai.error}</p>
+      {onRetry && (
+        <Button type="button" variant="secondary" className={TOUCH} onClick={onRetry}>
+          {t(message('Thử lại', 'Retry', '다시 시도'))}
+        </Button>
+      )}
+    </div>
   )
+}
+
+/** Keeps the last press, so a retry sends the same note even if the box was edited since. */
+function useAsk(ai: CommAiReportState, note: string) {
+  const [asked, setAsked] = useState<{ part: CommAiPart; note: string } | null>(null)
+  const ask = (part: CommAiPart) => {
+    setAsked({ part, note })
+    ai.ask(part, note)
+  }
+  const blocked = ai.needsNotice && !ai.notice
+  return {
+    ask,
+    retry: asked && ai.canAsk && !blocked ? () => ai.ask(asked.part, asked.note) : undefined,
+  }
 }
 
 export function CommAiContent({
@@ -100,6 +122,7 @@ export function CommAiContent({
 }) {
   const { t } = useI18n()
   const noteWord = t(ai.words.note)
+  const { ask, retry } = useAsk(ai, note)
   const take = () => {
     if (!ai.report) return
     ai.summaryTaken(note)
@@ -128,10 +151,10 @@ export function CommAiContent({
       <div className="flex flex-wrap gap-2 empty:hidden">
         {ai.canAsk && (
           <>
-            <AskButton ai={ai} part="summary" note={note}>
+            <AskButton ai={ai} part="summary" onAsk={ask}>
               {t(message('Tạo tóm tắt', 'Create summary', '요약 생성'))}
             </AskButton>
-            <AskButton ai={ai} part="minutes" note={note}>
+            <AskButton ai={ai} part="minutes" onAsk={ask}>
               {t(message('Tạo biên bản', 'Create minutes', '회의록 생성'))}
             </AskButton>
           </>
@@ -160,7 +183,7 @@ export function CommAiContent({
           </Button>
         )}
       </div>
-      <CommAiStatus ai={ai} />
+      <CommAiStatus ai={ai} onRetry={retry} />
       {ai.report && ai.part === 'summary' && (
         <AiAction
           variant="panel"
@@ -174,13 +197,14 @@ export function CommAiContent({
             </>
           }
           basis={ai.basis}
+          basisLabel={t(BASIS)}
           empty={
             ai.summaryUsed
               ? t(
                   message(
-                    `Ô ${noteWord} đang khác bản này.`,
-                    `The ${noteWord} field differs from this version.`,
-                    `${noteWord} 입력란이 이 버전과 다릅니다.`,
+                    `${capitalized(noteWord)} đã được sửa sau khi điền.`,
+                    `The ${noteWord} field was edited after it was filled.`,
+                    `입력 후 ${noteWord} 입력란이 수정되었습니다.`,
                   ),
                 )
               : t(
@@ -191,9 +215,9 @@ export function CommAiContent({
                   ),
                 )
           }
-          confirmLabel={t(message('Dùng bản này', 'Use this version', '이 버전 사용'))}
+          confirmLabel={t(FILL)}
           done={ai.summaryUsed && note.trim() === ai.report.summary.trim()}
-          doneLabel={t(message('Đã điền vào ô', 'Added to the field', '입력란에 반영됨'))}
+          doneLabel={t(FILLED)}
           onConfirm={take}
         />
       )}
@@ -203,6 +227,7 @@ export function CommAiContent({
           className={BLOCK}
           suggestion={<MinutesBox ai={ai} />}
           basis={ai.basis}
+          basisLabel={t(BASIS)}
           empty={
             ai.minutesChangedSinceSave
               ? t(
@@ -220,11 +245,9 @@ export function CommAiContent({
                   ),
                 )
           }
-          confirmLabel={t(
-            message('Lưu vào tệp đính kèm', 'Save as attachment', '첨부 파일로 저장'),
-          )}
+          confirmLabel={t(message('Lưu vào hồ sơ', 'Save to the record', '기록에 저장'))}
           done={ai.minutesSaved}
-          doneLabel={t(message('Đã lưu', 'Saved', '저장됨'))}
+          doneLabel={t(message('Đã lưu vào hồ sơ', 'Saved to the record', '기록에 저장됨'))}
           onConfirm={ai.saveMinutes}
         />
       )}
@@ -293,6 +316,7 @@ export function CommAiEvaluation({
         </ul>
       }
       basis={ai.basis}
+      basisLabel={t(BASIS)}
       empty={t(
         message(
           'Chưa điền gì. Câu trả lời của bạn vẫn giữ nguyên.',
@@ -300,15 +324,9 @@ export function CommAiEvaluation({
           '아직 입력된 내용이 없습니다. 작성하신 답변은 그대로입니다.',
         ),
       )}
-      confirmLabel={t(
-        message(
-          `Dùng ${t(ai.words.evaluation)} này`,
-          `Use this ${t(ai.words.evaluation)}`,
-          `이 ${t(ai.words.evaluation)} 사용`,
-        ),
-      )}
+      confirmLabel={t(FILL)}
       done={rows.every((a) => picked[a.criterionId] === a.answerId)}
-      doneLabel={t(message('Đã điền vào ô', 'Added to the field', '입력란에 반영됨'))}
+      doneLabel={t(FILLED)}
       /* The person's own answers spread last: a question answered while the
          report ran stays as they left it. */
       onConfirm={() =>
@@ -366,9 +384,10 @@ export function CommAiSteps({
         }
       })}
       basis={ai.basis}
+      basisLabel={t(BASIS)}
       empty={t(message('Chưa chọn bước nào.', 'No step chosen yet.', '선택한 단계가 없습니다.'))}
-      pickLabel={t(message('Chọn bước này', 'Choose this step', '이 단계 선택'))}
-      pickedLabel={t(message('Đã điền vào ô', 'Added to the field', '입력란에 반영됨'))}
+      pickLabel={t(FILL)}
+      pickedLabel={t(FILLED)}
     />
   )
 }

@@ -8,7 +8,9 @@ import { refKindLabel, refPath } from '@/data/assistant'
 import { ASSISTANT_COPY as C } from '@/data/assistant-copy'
 import { compactMoney } from '@/components/deal-money/money'
 import {
+  BADGE_INK,
   OVERDUE_COPY,
+  STATE_TONE,
   isLateClose,
   opportunityProfileQuery,
   standingLabel,
@@ -61,9 +63,7 @@ export function RefCard({
       <span className="flex min-w-0 flex-[1_1_220px] flex-col gap-1">
         <span className="flex items-center gap-2">
           <CodeChip code={refItem.code} />
-          <Badge tone="draft" className="text-[12px]">
-            {t(refKindLabel(refItem.kind))}
-          </Badge>
+          <span className="text-muted-foreground text-[12px]">{t(refKindLabel(refItem.kind))}</span>
         </span>
         <span className="text-foreground truncate text-[14px] font-semibold">{name}</span>
         {rest.length > 0 && (
@@ -73,9 +73,12 @@ export function RefCard({
       {deal && (
         <span className="grid min-w-0 flex-[1_1_320px] grid-cols-3 gap-4">
           <Fact label={t(STAGE)}>
-            <span className="text-[14px] font-semibold">
+            <Badge
+              tone={STATE_TONE[deal.state]}
+              className={cn('text-[12px]', STATE_TONE[deal.state] === 'draft' && BADGE_INK)}
+            >
               {salesLabel(standingLabel(deal), lang)}
-            </span>
+            </Badge>
           </Fact>
           {deal.amount !== null && (
             <Fact label={t(C.value)}>

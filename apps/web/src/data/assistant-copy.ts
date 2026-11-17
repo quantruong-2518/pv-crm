@@ -40,11 +40,6 @@ export const ASSISTANT_COPY = {
     '더 꼼꼼하지만 더 느립니다.',
   ),
   tryAsking: m('Câu hỏi đề xuất', 'Suggested questions', '추천 질문'),
-  hint: m(
-    'Hỏi về khách, cơ hội, hợp đồng của bạn.',
-    'Ask about your customers, opportunities and contracts.',
-    '내 고객, 영업 기회, 계약에 대해 물어보세요.',
-  ),
   viewing: m('Đang xem', 'Viewing', '보는 중'),
   askAboutThis: m('Hỏi về hồ sơ này', 'Ask about this record', '이 기록에 대해 묻기'),
   untitled: m('Chưa đặt tên', 'Untitled', '제목 없음'),

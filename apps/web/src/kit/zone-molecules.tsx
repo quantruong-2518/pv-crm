@@ -616,8 +616,25 @@ export function ZoneMolecules() {
             suggestion="Trợ lý đề xuất: duyệt PO-0455 hôm nay và chuyển 30% khối lượng WO-1180 sang CNC-05 → kịp giao 22/08, dư 1 ngày."
             basis="tồn kho K1-A2 · năng lực xưởng X1 · hợp đồng SO-0891."
             empty="Chưa tạo gì cả. Trợ lý chỉ chuyển khối lượng khi có người bấm, và lệnh chuyển vẫn phải qua chuỗi duyệt."
+            basisLabel="Căn cứ"
+            confirmLabel="Lưu vào hồ sơ"
+            doneLabel="Đã lưu vào hồ sơ"
             onConfirm={() => {}}
             onInspect={() => {}}
+            inspectLabel="Xem căn cứ"
+          />
+          <AiAction
+            variant="panel"
+            className="mt-4 max-w-sm"
+            suggestion="Trợ lý đề xuất: gửi nhắc đợt thanh toán 2 cho Công ty Sao Đỏ."
+            basis="hợp đồng SO-0891 · đợt 2 quá hạn 3 ngày."
+            empty="Chưa tạo gì cả. Thư chỉ gửi khi có người bấm."
+            basisLabel="Căn cứ"
+            confirmLabel="Điền vào ô"
+            doneLabel="Đã điền vào ô"
+            onConfirm={() => {}}
+            onDismiss={() => {}}
+            dismissLabel="Bỏ"
           />
           {/* The assistant's proposal card: a way out, the wait while pressing, and a muted end. */}
           <div className="mt-4 flex flex-col gap-3">
@@ -625,23 +642,31 @@ export function ZoneMolecules() {
               suggestion="Đổi hạn việc tiếp theo của Công ty Sao Đỏ."
               basis="bạn hỏi dời sang thứ Sáu."
               empty="Chưa lưu gì vào hồ sơ."
-              confirmLabel="Làm"
+              basisLabel="Căn cứ"
+              confirmLabel="Lưu vào hồ sơ"
+              doneLabel="Đã lưu vào hồ sơ"
               onConfirm={() => {}}
               onDismiss={() => {}}
+              dismissLabel="Bỏ"
             />
             <AiAction
               suggestion="Đổi hạn việc tiếp theo của Công ty Sao Đỏ."
               basis="bạn hỏi dời sang thứ Sáu."
               empty="Chưa lưu gì vào hồ sơ."
-              confirmLabel="Làm"
+              basisLabel="Căn cứ"
+              confirmLabel="Lưu vào hồ sơ"
+              doneLabel="Đã lưu vào hồ sơ"
               onConfirm={() => {}}
               onDismiss={() => {}}
+              dismissLabel="Bỏ"
               pending
             />
             <AiAction
               suggestion="Đổi hạn việc tiếp theo của Công ty Sao Đỏ."
               basis="bạn hỏi dời sang thứ Sáu."
               empty="Chưa lưu gì vào hồ sơ."
+              basisLabel="Căn cứ"
+              confirmLabel="Lưu vào hồ sơ"
               onConfirm={() => {}}
               done
               doneTone="muted"

@@ -13,13 +13,6 @@ export type AiTaskStep = {
   note?: string
 }
 
-const STEP_SR: Record<AiTaskStepState, string> = {
-  done: 'xong',
-  now: 'đang chạy',
-  wait: 'chờ',
-  fail: 'lỗi',
-}
-
 const STEP_TEXT: Record<AiTaskStepState, string> = {
   done: 'text-muted-foreground',
   now: 'text-foreground font-semibold',
@@ -35,7 +28,14 @@ export function StepMark({ state }: { state: AiTaskStepState }) {
   return <span aria-hidden className="mx-1 size-3 rounded-full ring-[1.75px] ring-current" />
 }
 
-export function AiTaskSteps({ steps }: { steps: AiTaskStep[] }) {
+/** Screen-reader words for each state; the caller owns the language. */
+export function AiTaskSteps({
+  steps,
+  stateLabels,
+}: {
+  steps: AiTaskStep[]
+  stateLabels: Record<AiTaskStepState, string>
+}) {
   return (
     <ol className="flex flex-col gap-2">
       {steps.map((s) => (
@@ -50,7 +50,7 @@ export function AiTaskSteps({ steps }: { steps: AiTaskStep[] }) {
           <StepMark state={s.state} />
           <span>
             {s.label}
-            <span className="sr-only"> · {STEP_SR[s.state]}</span>
+            <span className="sr-only"> · {stateLabels[s.state]}</span>
           </span>
           <span className="text-glass-foreground tnum text-[12px]">{s.note}</span>
         </li>

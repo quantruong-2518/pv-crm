@@ -7,7 +7,7 @@ import { dm } from '@/lib/date'
  *  record already uses, so the card and the record say the same thing. */
 
 export const PROPOSAL_COPY = {
-  confirm: m('Làm', 'Do it', '실행'),
+  confirm: m('Lưu vào hồ sơ', 'Save to the record', '기록에 저장'),
   dismiss: m('Bỏ', 'Drop', '버리기'),
   before: m('Trước', 'Before', '이전'),
   after: m('Sau', 'After', '이후'),
@@ -26,9 +26,9 @@ export const PROPOSAL_COPY = {
     '기한이 지났습니다. 저장된 내용은 없습니다.',
   ),
   cannot: m(
-    'Chưa lưu gì vào hồ sơ.',
-    'Nothing has been saved to the record.',
-    '기록에 저장된 내용이 없습니다.',
+    'Bạn không có quyền sửa hồ sơ này.',
+    "You can't edit this record.",
+    '이 기록을 수정할 권한이 없습니다.',
   ),
   emptySet: m(
     'Chưa lưu gì vào hồ sơ.',

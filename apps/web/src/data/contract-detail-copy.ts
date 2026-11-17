@@ -18,9 +18,7 @@ export const CONTRACT_DETAIL_COPY = {
     '계약을 열 수 없습니다.',
   ),
   backToBook: message('Về sổ hợp đồng', 'Back to contracts', '계약 목록으로'),
-  aiEmpty: message('Chưa soạn thư.', 'No email drafted yet.', '아직 작성한 메일이 없습니다.'),
   draftMail: message('Soạn thư', 'Draft email', '메일 작성'),
-  openInstallment: message('Mở đợt', 'Open installment', '납부 회차 열기'),
   rail: message(
     'Liên hệ, người liên hệ và tài liệu của hợp đồng',
     'Contract activity, contacts and documents',
@@ -94,7 +92,7 @@ export function installmentNoText(no: number, lang: Lang) {
   return translate(message(`Đợt ${n}`, `Installment ${n}`, `납부 회차 ${n}`), lang)
 }
 
-export function aiSuggestionText(contact: string, what: string, no: number, lang: Lang) {
+export function reminderText(contact: string, what: string, no: number, lang: Lang) {
   const payment = installmentNoText(no, lang)
   return translate(
     message(
