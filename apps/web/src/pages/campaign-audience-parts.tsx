@@ -309,7 +309,7 @@ function MemberCard({
         {/* Without it `DataTable` clips (it is `overflow-x-hidden`), and on a
             phone the email column — the whole reason this list exists —
             truncates to nothing. */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overscroll-contain">
           {isPending ? (
             <div className="flex flex-col gap-3 p-5">
               <Skeleton height={48} />

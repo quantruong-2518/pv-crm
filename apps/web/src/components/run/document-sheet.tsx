@@ -62,7 +62,7 @@ export default function SheetView({ blob }: { blob: Blob }) {
           {t(message('Trang này trống.', 'This sheet is empty.', '이 시트는 비어 있습니다.'))}
         </p>
       ) : (
-        <div className="bg-surface-ink/9 overflow-x-auto rounded-lg">
+        <div className="bg-surface-ink/9 max-h-[min(70dvh,640px)] overflow-auto overscroll-contain rounded-lg">
           <table className="tnum w-max min-w-full border-collapse text-[12.5px]">
             <thead>
               <tr className="text-muted-foreground">

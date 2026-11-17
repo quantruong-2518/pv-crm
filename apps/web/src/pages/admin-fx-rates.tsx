@@ -42,7 +42,7 @@ function RateTable({
 }) {
   const { t, lang } = useI18n()
   return (
-    <GlassCard variant="b" className="overflow-x-auto p-4 lg:p-5">
+    <GlassCard variant="b" className="overflow-x-auto overscroll-contain p-4 lg:p-5">
       {rows.length === 0 ? (
         <p className="text-muted-foreground m-0 py-8 text-center text-[12.5px] leading-[1.6]">
           {t(message('Chưa có tỷ giá nào.', 'No rates yet.', '등록된 환율이 없습니다.'))}

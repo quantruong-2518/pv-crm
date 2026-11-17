@@ -157,7 +157,7 @@ function ResultList({
           className="py-6"
         />
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overscroll-contain">
           <DataTable
             className={wide ? 'min-w-[640px]' : 'min-w-[480px]'}
             columns={heads}

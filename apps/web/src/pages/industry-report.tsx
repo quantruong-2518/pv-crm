@@ -155,7 +155,7 @@ export default function IndustryReportPage() {
         <GlassCard
           variant="b"
           aria-label={t(message('Bảng theo ngành', 'Table by industry', '업종별 표'))}
-          className="overflow-x-auto"
+          className="overflow-x-auto overscroll-contain"
         >
           {isPending ? (
             <div className="flex flex-col gap-3 p-5">

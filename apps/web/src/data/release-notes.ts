@@ -37,6 +37,22 @@ export type ReleaseNote = {
 
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    id: '2026-11-17',
+    date: '17/11/2026',
+    items: [
+      {
+        module: message('PV One', 'PV One', 'PV One'),
+        feature: message('Bảng dữ liệu', 'Data tables', '데이터 표'),
+        kind: 'fix',
+        text: message(
+          'Bảng dài cuộn trong khung; cuộn hết bảng không kéo theo trang.',
+          'Long tables scroll within their panels without moving the page at the edge.',
+          '긴 표는 영역 안에서 스크롤되며 끝에 닿아도 페이지가 함께 움직이지 않습니다.',
+        ),
+      },
+    ],
+  },
+  {
     id: '2026-10-25',
     date: '25/10/2026',
     items: [

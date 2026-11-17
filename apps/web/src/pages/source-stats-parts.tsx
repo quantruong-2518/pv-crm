@@ -157,7 +157,7 @@ export function SourceStatsBlock() {
           options={TIME_WINDOWS.map((w) => ({ value: w.key, label: t(w.label) }))}
         />
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto overscroll-contain">
         {isPending ? (
           <div className="flex flex-col gap-3 p-5">
             <Skeleton height={ROW_PX} />

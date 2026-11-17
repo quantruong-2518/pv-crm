@@ -297,14 +297,14 @@ export function BookPage({
         {toolbar}
 
         {reserve === undefined ? (
-          <div className="overflow-x-auto">{body}</div>
+          <div className="overflow-x-auto overscroll-contain">{body}</div>
         ) : (
           <div
             ref={bodyRef}
             style={reservedHeight(reserve, row.px)}
             className={cn(
               RESERVED_CLASS,
-              hasRows ? 'overflow-auto' : 'justify-center overflow-hidden',
+              hasRows ? 'overflow-auto overscroll-contain' : 'justify-center overflow-hidden',
             )}
           >
             {body}

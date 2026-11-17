@@ -416,7 +416,10 @@ function PickerTable({
   onPaint: (code: string, event: ReactPointerEvent<HTMLElement>) => void
 }) {
   return (
-    <GlassCard variant="b" className="max-h-[50vh] select-none overflow-auto p-0">
+    <GlassCard
+      variant="b"
+      className="max-h-[50vh] select-none overflow-auto overscroll-contain p-0"
+    >
       {pending ? (
         <div className="flex flex-col gap-3 p-5">
           <Skeleton height={56} />
@@ -471,6 +474,7 @@ function PickerTable({
         />
       ) : (
         <DataTable
+          stickyHeader
           flush
           rowHeight="h-14"
           className="min-w-[760px]"

@@ -351,6 +351,7 @@ function FieldTable({ group, files }: { group: ScanGroup; files: LeadScanRespons
   const urlOf = new Map(files.map((file) => [file.name, file.url]))
   return (
     <DataTable
+      stickyHeader
       columns={FIELD_COLUMNS.map((c) => ({ ...c, header: t(c.header) }))}
       rowHeight="min-h-10 py-2"
       className="px-5"

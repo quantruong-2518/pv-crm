@@ -90,25 +90,22 @@ export function DataTable({
    *  wider cells can pass `h-14`/`h-16` without reshaping every other table
    *  that uses this component. */
   rowHeight?: string
-  /** The header stays put while the rows scroll inside a parent of fixed
-   *  height. The root then clips instead of hiding: `hidden` would make the
-   *  table its own scroller and the header would stick to the wrong box. */
+  /** The parent owns scrolling and sizing. The root must not add a second
+   *  scroller, so the header sticks inside that parent. */
   stickyHeader?: boolean
 }) {
   const template = columns.map((c) => c.width).join(' ')
 
   return (
-    /* `overflow-x-hidden`: header nút sắp xếp cuối cùng dùng `-m-1` để nới
-       vùng bấm mà không đẩy chữ (xem bên dưới) — ở cột cuối, mép phải của nút
-       tràn ra ngoài bảng đúng 4px vì không còn cột nào bên phải để `gap-3`
-       nuốt phần tràn đó. Bảng luôn nằm trong khối cha `overflow-y-auto`
-       (luật 8), mà CSS coi cặp overflow-x/overflow-y là MỘT cặp: chỉ đặt một
-       trục thành `auto` thì trục kia tự động cũng thành `auto`, nên 4px tràn
-       này biến thành một thanh cuộn ngang thật — vô hình khi bảng đủ dòng để
-       cần cuộn dọc (thanh cuộn dọc đã chiếm khoảng đó), lộ ra thành một thanh
-       cuộn ngang trơ trọi giữa khoảng trống khi bảng lọc còn ít dòng. */
+    /* The last sort button extends 4px beyond its track. Clip x to avoid a
+       stray horizontal scrollbar; `stickyHeader` lets the parent own y scroll. */
     <div
-      className={cn(stickyHeader ? 'overflow-x-clip' : 'overflow-x-hidden', className)}
+      className={cn(
+        stickyHeader
+          ? 'overflow-x-clip'
+          : 'max-h-[min(70dvh,640px)] overflow-y-auto overflow-x-hidden overscroll-contain',
+        className,
+      )}
       role="table"
     >
       <div
@@ -117,8 +114,7 @@ export function DataTable({
           'text-muted-foreground grid min-h-10 items-center gap-3 py-2 font-medium tracking-[.01em]',
           flush ? 'bg-surface-ink/5 px-5 text-[11.5px]' : 'border-b-white/6 border-b',
           /* Opaque card under the same 5% tint, so scrolled rows never show through. */
-          stickyHeader &&
-            'bg-card sticky top-0 z-10 bg-[linear-gradient(color-mix(in_srgb,var(--surface-ink)_5%,transparent),color-mix(in_srgb,var(--surface-ink)_5%,transparent))]',
+          'bg-card sticky top-0 z-10 bg-[linear-gradient(color-mix(in_srgb,var(--surface-ink)_5%,transparent),color-mix(in_srgb,var(--surface-ink)_5%,transparent))]',
         )}
         style={{ gridTemplateColumns: template }}
       >

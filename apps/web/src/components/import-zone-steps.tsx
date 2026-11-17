@@ -263,7 +263,7 @@ function PreviewTable({
           ),
         )}
       </Kicker>
-      <div className="overflow-x-auto">
+      <div className="max-h-[min(70dvh,640px)] overflow-auto overscroll-contain">
         <table className="w-full min-w-[560px] text-left text-[11.5px]">
           <thead>
             <tr className="text-muted-foreground">

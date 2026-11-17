@@ -219,7 +219,7 @@ export function CostBreakdown({ report }: { report: AiCostReport }) {
         {t(message('Chi tiết', 'Details', '세부 정보'))}
       </SectionTitle>
       {/* Law 8: a table sits on glass-b. */}
-      <GlassCard variant="b" className="overflow-x-auto p-4 lg:p-5">
+      <GlassCard variant="b" className="overflow-x-auto overscroll-contain p-4 lg:p-5">
         <DataTable
           className="min-w-[720px]"
           rowHeight="min-h-12"
@@ -331,7 +331,7 @@ export function PriceTable({
 }) {
   const { t } = useI18n()
   return (
-    <GlassCard variant="b" className="overflow-x-auto p-4 lg:p-5">
+    <GlassCard variant="b" className="overflow-x-auto overscroll-contain p-4 lg:p-5">
       {rows.length === 0 ? (
         <EmptyState
           icon={Inbox}

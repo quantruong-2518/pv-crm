@@ -225,7 +225,7 @@ function ContentPart() {
     <div className="flex min-w-0 flex-col gap-6">
       {/* A table ALWAYS sits on glass-b — rule 8. */}
       <GlassCard variant="b" className="overflow-hidden">
-        <div className="overflow-x-auto p-4 lg:p-5">
+        <div className="overflow-x-auto overscroll-contain p-4 lg:p-5">
           <DataTable
             className="min-w-[620px]"
             columns={[

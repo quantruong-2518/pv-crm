@@ -134,15 +134,27 @@ export function StackTable({
   const wide = useMinWidth(from)
   if (wide) {
     return (
-      <div className="overflow-x-auto">
+      <div className="max-h-[min(70dvh,640px)] overflow-auto overscroll-contain">
         <div className={tableClassName} style={tableStyle}>
-          <DataTable flush={flush} rowHeight={rowHeight} columns={columns} rows={rows} />
+          <DataTable
+            stickyHeader
+            flush={flush}
+            rowHeight={rowHeight}
+            columns={columns}
+            rows={rows}
+          />
         </div>
       </div>
     )
   }
   return (
-    <ul className={cn('grid gap-3', flush && 'px-5', from === 'lg' && 'md:grid-cols-2')}>
+    <ul
+      className={cn(
+        'grid max-h-[min(70dvh,640px)] gap-3 overflow-y-auto overscroll-contain',
+        flush && 'px-5',
+        from === 'lg' && 'md:grid-cols-2',
+      )}
+    >
       {rows.map((row) => (
         <Card key={row.id} columns={columns} row={row} />
       ))}

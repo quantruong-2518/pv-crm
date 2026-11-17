@@ -236,7 +236,7 @@ function TableView({ from, roles, checks, sent, canPropose, pressOf, typeOf, onS
   const pin = 'bg-card sticky left-0 z-[1]'
   const steps = isKpiV2Period(from) ? funnelRowsOf(roles) : []
   return (
-    <div className="overflow-x-auto">
+    <div className="max-h-[min(70dvh,640px)] overflow-auto overscroll-contain">
       <table className="min-w-4xl w-full table-fixed text-left text-[12px]">
         <thead>
           <tr className="text-muted-foreground text-[11.5px]">
