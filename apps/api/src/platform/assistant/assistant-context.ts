@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import type { AssistantLang } from '@pv/contracts'
 import type { Actor } from '@pv/engines'
 import type { AiConverseRequest, AiEffort, AiMessage, AiToolDecl } from '../ai/ai-client'
 import { ASSISTANT, roleAddition } from '../ai/prompts/assistant.prompts'
@@ -17,12 +18,31 @@ const VN_TIME = new Intl.DateTimeFormat('en-GB', {
   timeStyle: 'short',
 })
 
+/** The prompt names the chat's language in English, whatever the language itself is. */
+export const LANGUAGE_NAME: Record<AssistantLang, string> = {
+  vi: 'Vietnamese',
+  en: 'English',
+  ko: 'Korean',
+}
+
 const PROMPT = renderPrompt(ASSISTANT)
 export const ASSISTANT_PROMPT_VERSION = PROMPT.prompt
 
 /** The fixed sentence of a turn that failed. It says nothing of the chat, so a fold
  *  neither counts nor reads a row that holds only this. */
 export const CUT_SHORT = 'Trợ lý chưa trả lời được câu này. Thử lại sau ít phút.'
+
+/** The same sentence in the chat's language: it is stored as the answer body, so
+ *  every reader of a body must know all three (`withoutCutShort`, `CUT_SHORT_ALL`). */
+export const CUT_SHORT_BY: Record<AssistantLang, string> = {
+  vi: CUT_SHORT,
+  en: 'The assistant could not answer this question. Try again in a few minutes.',
+  ko: '도우미가 이 질문에 답하지 못했습니다. 몇 분 뒤에 다시 시도하세요.',
+}
+export const CUT_SHORT_ALL: string[] = Object.values(CUT_SHORT_BY)
+
+export const withoutCutShort = (body: string): string =>
+  CUT_SHORT_ALL.reduce((text, sentence) => text.replace(sentence, ''), body)
 
 /** One marker per session for the summary and for every replayed answer: the binder
  *  masks digits the model types, so an answer cannot hold a session id. A replayed
@@ -54,6 +74,7 @@ export function openingMessages(
     now: VN_TIME.format(turn.at),
     role: turn.who.roleIds,
     screen: turn.screen,
+    language: LANGUAGE_NAME[begun.lang],
     record: begun.subject,
   })
   return [

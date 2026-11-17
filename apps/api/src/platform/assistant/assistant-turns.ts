@@ -5,6 +5,7 @@ import type { RouteNeed } from '../access/need.decorator'
 import { AiUnavailableError } from '../ai/ai-errors'
 import { AiGateway } from '../ai/ai-gateway'
 import { notFound } from '../http/problem'
+import { detectLang } from './assistant-lang'
 import { AssistantRunner, FAILED, UNAVAILABLE } from './assistant-loop'
 import { AssistantSessionRepository } from './assistant-session.repository'
 import type { AssistantSessionRowDb } from './assistant.schema'
@@ -84,7 +85,15 @@ export class AssistantTurns {
       const refused = await this.refusal(body.deep ? ['assistant', task] : [task], who.id)
       if (refused) return send({ type: 'error', ...refused })
       const subject = body.subject ?? null
-      const row = session ?? (await this.sessions.open(who.id, titleOf(body.question), subject))
+      /* Only a new session picks its language; a stored one keeps its own. */
+      const row =
+        session ??
+        (await this.sessions.open(
+          who.id,
+          titleOf(body.question),
+          subject,
+          detectLang(body.question, body.lang ?? 'vi'),
+        ))
       if (!session) opened = row.id
       const onBegun = (id: string): void => {
         turnId = id

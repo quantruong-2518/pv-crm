@@ -123,6 +123,20 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
   - `canPress` asks the permission only, not the record's scope: a lead handed
     to someone else keeps "Làm" until the press is refused.
   - The stale check compares text and due only, not the doer or kind.
+- CRM assistant reply language (ADR 0163), debt:
+  - Built 17/11/2026, uncommitted, not shipped. Ship order: migrate 0175 on Neon,
+    deploy the API to Fly and confirm /healthz, only then push the web change
+    (`apps/web/src/data/assistant-stream.ts`) to master. `AssistantTurnBody` is
+    `.strict()` and the web builds on every push, so a new web sending `lang` to
+    the old API gets a 400 on every chat turn.
+  - The locale tag map (vi-VN/en-US/ko-KR) and the en/ko period labels are
+    hand-copied in `apps/api/src/platform/assistant/assistant-bind.ts` from the
+    web (`apps/web/src/app/i18n.ts` LOCALE_TAG, `apps/web/src/pages/home-model.ts`
+    period labels); moving one copy into `@pv/contracts` is pending.
+  - Prompt v18 never run live; scripted eval unchanged, gate 0 still OPEN. en
+    and ko answer quality is unmeasured.
+  - The morning brief stays Vietnamese.
+  - Korean dates from Node ICU print `2026/11/01`; browsers print `2026. 11. 01.`.
 - CRM assistant KPI tools (ADR 0151), debt:
   - On production at 18307063, Fly v220 (11/11/2026), /healthz ok; no migration.
   - ADR 0151 amendment of 11/11/2026 (no room-scope readings in `get_my_kpi`,

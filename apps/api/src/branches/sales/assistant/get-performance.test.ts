@@ -155,7 +155,7 @@ type Out = Record<string, any> // eslint-disable-line @typescript-eslint/no-expl
 
 /** What the person would read where the model writes the cite of `value`. */
 function printed(output: object, rowCount: number | null, pick: (o: Out) => { cite: string }) {
-  const turn = new TurnBinding('', null)
+  const turn = new TurnBinding('', null, 'vi')
   const draft = turn.draft(output, rowCount)
   turn.keep(draft)
   return turn.push(`${pick(draft.output as Out).cite} `).trim()

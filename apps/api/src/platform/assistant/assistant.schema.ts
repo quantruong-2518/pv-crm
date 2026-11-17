@@ -14,6 +14,7 @@ import {
 import { sql } from 'drizzle-orm'
 import type {
   AssistantEndedBy,
+  AssistantLang,
   AssistantMessageState,
   AssistantProposalAction,
   AssistantProposalState,
@@ -40,6 +41,9 @@ export const assistantSession = platform.table(
       .notNull()
       .references(() => actor.id, { onDelete: 'cascade' }),
     title: text('title'),
+    /** Reply language, picked from the first message and never changed within a chat.
+     *  Old rows are 'vi' by default: every chat so far was Vietnamese-first. */
+    lang: text('lang').$type<AssistantLang>().notNull().default('vi'),
 
     /** The record the chat was opened from. No FK, for `touch.subject_code`'s
      *  reason: the column names several kinds of row, in more than one table. */
@@ -71,6 +75,8 @@ export const assistantSession = platform.table(
       'assistant_session_subject_kind_known',
       sql`"subject_kind" IS NULL OR "subject_kind" IN ('lead', 'opportunity', 'contract')`,
     ),
+    /** The contract's enum (`vi` | `en` | `ko`), copied by hand: a new value must be a migration. */
+    check('assistant_session_lang_known', sql`"lang" IN ('vi', 'en', 'ko')`),
     check('assistant_session_summary_pair', sql`("summary" IS NULL) = ("summary_through" IS NULL)`),
   ],
 )

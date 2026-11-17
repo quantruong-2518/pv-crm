@@ -1,4 +1,11 @@
-import { ContractCode, CURRENCIES, isSalesPeriodKey, ObjectCode, salesGrainOf } from '@pv/contracts'
+import {
+  type AssistantLang,
+  ContractCode,
+  CURRENCIES,
+  isSalesPeriodKey,
+  ObjectCode,
+  salesGrainOf,
+} from '@pv/contracts'
 
 /** Values are bound, not checked after (ADR 0133 D3): text streams to the screen, so
  *  the model writes ids and the server writes the values.
@@ -9,12 +16,13 @@ import { ContractCode, CURRENCIES, isSalesPeriodKey, ObjectCode, salesGrainOf } 
  *  hold for one turn, and only for a result that reached the model. `⟦` and `⟧` in
  *  data turn into plain brackets first, so a label cannot carry an id.
  *
- *  On the way out an id becomes its value in Vietnamese form, an unknown or broken id
+ *  On the way out an id becomes its value in the chat's language, an unknown or broken id
  *  becomes nothing, and a figure or code the model typed goes through `shown`. Only
  *  the last word of the stream is held back: no id, figure or code spans a space. */
 
 /** What the person reads where the model typed a figure or code nothing vouches for. */
 export const UNSURE = '[chưa rõ]'
+const UNSURE_BY: Record<AssistantLang, string> = { vi: UNSURE, en: '[unknown]', ko: '[알 수 없음]' }
 
 /* By key, because a JSON value carries no unit: these are the trusted halves' money
    and percent fields, and a money value prints in its own record's currency. A KPI
@@ -46,7 +54,6 @@ const PERCENT: ReadonlySet<string> = new Set([
 ])
 
 const PERIOD_KEY = /^(?:period|.+Period)$/
-const PERIOD_UNIT = { week: 'tuần', month: 'tháng', quarter: 'quý', year: 'năm' } as const
 
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/
 const MOMENT = /^\d{4}-\d{2}-\d{2}T/
@@ -60,23 +67,64 @@ const SPACE = /\s/u
 /* A token that opens with a letter is the code alternative: figures open with a digit. */
 const LETTER = /^\p{L}/u
 
-const VN_DAY = new Intl.DateTimeFormat('en-GB', {
-  timeZone: 'Asia/Ho_Chi_Minh',
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
+/* The same locale tags as the web's `LOCALE_TAG`. */
+const LOCALE_TAG: Record<AssistantLang, string> = { vi: 'vi-VN', en: 'en-US', ko: 'ko-KR' }
+
+type Printer = {
+  day: Intl.DateTimeFormat
+  plain: Intl.NumberFormat
+  cash: ReadonlyMap<string, Intl.NumberFormat>
+}
+
+const printerOf = (tag: string): Printer => ({
+  day: new Intl.DateTimeFormat(tag, {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }),
+  plain: new Intl.NumberFormat(tag, { maximumFractionDigits: 2 }),
+  cash: new Map(
+    CURRENCIES.map(({ code }) => [
+      code,
+      new Intl.NumberFormat(tag, {
+        style: 'currency',
+        currency: code,
+        maximumFractionDigits: code === 'VND' ? 0 : 2,
+      }),
+    ]),
+  ),
 })
-const PLAIN_NUMBER = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 })
-const CASH = new Map<string, Intl.NumberFormat>(
-  CURRENCIES.map(({ code }) => [
-    code,
-    new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: code,
-      maximumFractionDigits: code === 'VND' ? 0 : 2,
-    }),
-  ]),
-)
+
+const PRINTER: Record<AssistantLang, Printer> = {
+  vi: printerOf(LOCALE_TAG.vi),
+  en: printerOf(LOCALE_TAG.en),
+  ko: printerOf(LOCALE_TAG.ko),
+}
+
+type PeriodWriter = (n: number, year: string) => string
+/* en and ko mirror the web's period picker; a week there is a date range, which the
+   server has no span for, so a week keeps its number. */
+const PERIOD_LABEL: Record<AssistantLang, Record<ReturnType<typeof salesGrainOf>, PeriodWriter>> = {
+  vi: {
+    week: (n, y) => `tuần ${n}/${y}`,
+    month: (n, y) => `tháng ${n}/${y}`,
+    quarter: (n, y) => `quý ${n}/${y}`,
+    year: (_, y) => `năm ${y}`,
+  },
+  en: {
+    week: (n, y) => `Week ${n}, ${y}`,
+    month: (n, y) => `Month ${n} · ${y}`,
+    quarter: (n, y) => `Q${n} · ${y}`,
+    year: (_, y) => `Year ${y}`,
+  },
+  ko: {
+    week: (n, y) => `${y}년 ${n}주`,
+    month: (n, y) => `${y}년 ${n}월`,
+    quarter: (n, y) => `${y}년 ${n}분기`,
+    year: (_, y) => `${y}년`,
+  },
+}
 
 type Bound = { text: string; code: string | null }
 type Cited = { value: string | number; cite: string }
@@ -89,27 +137,36 @@ const isCode = (value: unknown): value is string =>
 
 const plain = (text: string): string => text.replaceAll('⟦', '[').replaceAll('⟧', ']')
 
-/** Prints week 43 of 2026 as `43/2026` behind its unit; a year has no number before the slash. */
-function periodLabel(key: string): string {
+/** The sales period key as a label whose unit word and order follow the chat language. */
+function periodLabel(key: string, lang: AssistantLang): string {
   const grain = salesGrainOf(key)
-  const unit = PERIOD_UNIT[grain]
-  if (grain === 'year') return `${unit} ${key}`
-  return `${unit} ${Number(key.slice(grain === 'month' ? 5 : 6))}/${key.slice(0, 4)}`
+  const n = Number(key.slice(grain === 'month' ? 5 : 6))
+  return PERIOD_LABEL[lang][grain](n, key.slice(0, 4))
 }
 
 /** A money value with no known currency prints bare: a wrong ₫ would be 26,400 times off. */
-function printed(key: string, value: string | number, currency: string | null): string {
+function printed(
+  key: string,
+  value: string | number,
+  currency: string | null,
+  lang: AssistantLang,
+): string {
+  const { day: dayFormat, plain, cash: cashBy } = PRINTER[lang]
   if (typeof value === 'string') {
-    if (PERIOD_KEY.test(key) && isSalesPeriodKey(value)) return periodLabel(value)
+    if (PERIOD_KEY.test(key) && isSalesPeriodKey(value)) return periodLabel(value, lang)
     const day = DAY.exec(value)
-    if (day) return `${day[3]}/${day[2]}/${day[1]}`
+    if (day) {
+      /* Noon on the Vietnam calendar, so the zone cannot move a plain date to its neighbour. */
+      const noon = new Date(`${value}T12:00:00+07:00`)
+      return Number.isNaN(noon.getTime()) ? `${day[3]}/${day[2]}/${day[1]}` : dayFormat.format(noon)
+    }
     const at = MOMENT.test(value) ? new Date(value) : null
-    return at && !Number.isNaN(at.getTime()) ? VN_DAY.format(at) : value
+    return at && !Number.isNaN(at.getTime()) ? dayFormat.format(at) : value
   }
-  if (PERCENT.has(key) || key.endsWith('Percent')) return `${PLAIN_NUMBER.format(value)}%`
-  if (key.endsWith('Vnd')) return (CASH.get('VND') ?? PLAIN_NUMBER).format(value)
-  const cash = MONEY.has(key) && currency ? CASH.get(currency) : undefined
-  return (cash ?? PLAIN_NUMBER).format(value)
+  if (PERCENT.has(key) || key.endsWith('Percent')) return `${plain.format(value)}%`
+  if (key.endsWith('Vnd')) return (cashBy.get('VND') ?? plain).format(value)
+  const cash = MONEY.has(key) && currency ? cashBy.get(currency) : undefined
+  return (cash ?? plain).format(value)
 }
 
 const lastSpace = (text: string): number => {
@@ -125,11 +182,13 @@ export class TurnBinding {
   private readonly values = new Map<string, Bound>()
   private readonly codes: Set<string>
   private readonly figures: ReadonlySet<string>
+  private readonly lang: AssistantLang
 
   /** Only what the person wrote, and the code of the record the chat is about, may
    *  be echoed (ADR 0136 §5). The context line's clock and screen are not: a figure
    *  from them would pass as vouched, so the model names today in words. */
-  constructor(question: string, subjectCode: string | null) {
+  constructor(question: string, subjectCode: string | null, lang: AssistantLang) {
+    this.lang = lang
     this.figures = new Set(question.match(FIGURE))
     this.codes = new Set([...(question.match(CODE) ?? []), ...(subjectCode ? [subjectCode] : [])])
   }
@@ -138,7 +197,10 @@ export class TurnBinding {
     const values = new Map<string, Bound>()
     const cite = (key: string, value: string | number, currency: string | null): Cited => {
       const id = `⟦v${this.next++}⟧`
-      values.set(id, { text: printed(key, value, currency), code: isCode(value) ? value : null })
+      values.set(id, {
+        text: printed(key, value, currency, this.lang),
+        code: isCode(value) ? value : null,
+      })
       return { value, cite: id }
     }
     const walk = (
@@ -204,8 +266,8 @@ export class TurnBinding {
   private shown(text: string): string {
     return text.replace(TOKEN, (token) => {
       if (token.startsWith('⟦') || token === '⟧') return this.values.get(token)?.text ?? ''
-      if (LETTER.test(token)) return this.codes.has(token) ? token : UNSURE
-      return this.figures.has(token) ? token : UNSURE
+      if (LETTER.test(token)) return this.codes.has(token) ? token : UNSURE_BY[this.lang]
+      return this.figures.has(token) ? token : UNSURE_BY[this.lang]
     })
   }
 }

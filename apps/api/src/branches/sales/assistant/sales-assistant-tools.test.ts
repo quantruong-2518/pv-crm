@@ -1452,7 +1452,7 @@ describe('get_record on a deal carries its quotations and money', () => {
       open: [],
       contracts: [paper('HĐ-2711', true), { ...paper('HĐ-2713', true), currency: 'USD' }],
     })
-    const bind = new TurnBinding('', null)
+    const bind = new TurnBinding('', null, 'vi')
     const draft = bind.draft(verdict.output, verdict.rowCount)
     bind.keep(draft)
     const said = (...path: (string | number)[]) => {
@@ -1786,7 +1786,7 @@ describe('get_my_kpi', () => {
     const { verdict, kpi } = await monthOf()
     expect(kpi.rows[0]?.trusted).not.toHaveProperty('pipelineMoney')
     expect(kpi.rows[1]?.trusted).not.toHaveProperty('pipelineMoney')
-    const bind = new TurnBinding('', null)
+    const bind = new TurnBinding('', null, 'vi')
     const draft = bind.draft(verdict.output, verdict.rowCount)
     expect((draft.output as Mine).kpi.rows[0]?.trusted).not.toHaveProperty('pipelineMoney')
   })
@@ -1801,7 +1801,7 @@ describe('get_my_kpi', () => {
 
   /** What the model would print for one figure of one row, through the real binder. */
   const sayer = (verdict: { output: object; rowCount: number | null }) => {
-    const bind = new TurnBinding('', null)
+    const bind = new TurnBinding('', null, 'vi')
     const draft = bind.draft(verdict.output, verdict.rowCount)
     bind.keep(draft)
     return (row: number, key: string) => {
@@ -1951,7 +1951,7 @@ describe('get_team_kpi', () => {
     expect(JSON.stringify(kpi.rows.map((r) => r.readings))).not.toContain('Chị Lan')
     expect(kpi.trusted.more).toBe(false)
 
-    const bind = new TurnBinding('', null)
+    const bind = new TurnBinding('', null, 'vi')
     const draft = bind.draft(verdict.output, verdict.rowCount)
     bind.keep(draft)
     const bound = (

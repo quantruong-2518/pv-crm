@@ -1,4 +1,5 @@
 // @vitest-environment node
+import type { AssistantLang } from '@pv/contracts'
 import { describe, expect, it } from 'vitest'
 import { TurnBinding, UNSURE } from './assistant-bind'
 
@@ -13,8 +14,9 @@ function bound(
   rowCount: number | null = 1,
   asked = 'Hợp đồng này thế nào?',
   subject: string | null = null,
+  lang?: AssistantLang,
 ) {
-  const binding = new TurnBinding(asked, subject)
+  const binding = new TurnBinding(asked, subject, lang ?? 'vi')
   const draft = binding.draft(output, rowCount)
   binding.keep(draft)
   return { binding, output: draft.output as Record<string, unknown> }
@@ -157,7 +159,7 @@ describe('a result as the model reads it', () => {
   })
 
   it('fills nothing from a draft that was not kept: an over-cap result reached no model', () => {
-    const binding = new TurnBinding('Hỏi', null)
+    const binding = new TurnBinding('Hỏi', null, 'vi')
     binding.draft({ trusted: { amount: 9 } }, 1)
     const kept = binding.draft({ trusted: { amount: 7 } }, 1)
     binding.keep(kept)
@@ -224,7 +226,7 @@ describe('the answer as it streams', () => {
   it('knows nothing of an earlier turn: its ids and its codes are gone', () => {
     const first = bound(CONTRACT).binding
     expect(say(first, '⟦v2⟧')).toBe('HĐ-7000')
-    const next = new TurnBinding('Còn hợp đồng đó?', null)
+    const next = new TurnBinding('Còn hợp đồng đó?', null, 'vi')
 
     expect(say(next, 'Hợp đồng ⟦v2⟧ là HĐ-7000.')).toBe(`Hợp đồng  là ${UNSURE}.`)
   })
@@ -235,5 +237,61 @@ describe('the answer as it streams', () => {
 
     expect(label).not.toMatch(/[⟦⟧]/)
     expect(say(binding, `Khách ${label}.`)).toBe(`Khách Công ty ${UNSURE} [v${UNSURE}].`)
+  })
+})
+
+describe('the printed form follows the chat language', () => {
+  const PERIODS = { trusted: { period: ['2026-W43', '2026-11', '2026-Q4', '2026'] } }
+  const printAll = (lang: AssistantLang, output: object, ids: string): string =>
+    say(bound(output, 1, 'Hỏi', null, lang).binding, ids)
+
+  it('prints money, percent and dates the English way, a moment on the Vietnam calendar', () => {
+    expect(printAll('en', CONTRACT, '⟦v3⟧ ⟦v4⟧ ⟦v6⟧ ⟦v7⟧')).toBe(
+      '₫480,000,000 11/01/2026 40% 11/02/2026',
+    )
+    const usd = bound(
+      { trusted: { amount: 12_500, currency: 'USD', ratePercent: 12.5 } },
+      1,
+      'Hỏi',
+      null,
+      'en',
+    )
+    expect(say(usd.binding, '⟦v2⟧ ⟦v3⟧')).toBe('$12,500.00 12.5%')
+  })
+
+  it('prints money, percent and dates the Korean way', () => {
+    /* ICU's version picks the separators of ko-KR; year first is what matters. */
+    expect(printAll('ko', CONTRACT, '⟦v3⟧ ⟦v4⟧ ⟦v6⟧ ⟦v7⟧')).toMatch(
+      /^₫480,000,000 2026\D+11\D+01\D* 40% 2026\D+11\D+02\D*$/,
+    )
+  })
+
+  it('prints a sales period the way the web picker does, a week by its number', () => {
+    const cites = '⟦v2⟧ ⟦v3⟧ ⟦v4⟧ ⟦v5⟧'
+    expect(printAll('en', PERIODS, cites)).toBe('Week 43, 2026 Month 11 · 2026 Q4 · 2026 Year 2026')
+    expect(printAll('ko', PERIODS, cites)).toBe('2026년 43주 2026년 11월 2026년 4분기 2026년')
+  })
+
+  it('keeps the Vietnamese form for a default or an explicit vi chat', () => {
+    expect(printAll('vi', PERIODS, '⟦v2⟧ ⟦v3⟧ ⟦v4⟧ ⟦v5⟧')).toBe(
+      'tuần 43/2026 tháng 11/2026 quý 4/2026 năm 2026',
+    )
+    const bare = bound({ trusted: { amount: 1_234.5, currency: 'VND' } })
+    expect(say(bare.binding, '⟦v2⟧')).toBe(`1.235${NBSP}₫`)
+  })
+
+  it('masks what the model typed with a placeholder in the chat language', () => {
+    const typed = 'Có 3 lead, mã HĐ-9999, ngày 10/08.'
+    expect(say(bound(CONTRACT, 1, 'Hỏi', null, 'en').binding, typed)).toBe(
+      'Có [unknown] lead, mã [unknown], ngày [unknown].',
+    )
+    expect(say(bound(CONTRACT, 1, 'Hỏi', null, 'ko').binding, typed)).toBe(
+      'Có [알 수 없음] lead, mã [알 수 없음], ngày [알 수 없음].',
+    )
+  })
+
+  it('still keeps the figures the person wrote, and drops unknown ids, in any language', () => {
+    const { binding } = bound(CONTRACT, 1, 'Is 1.5 right?', null, 'en')
+    expect(say(binding, 'About 1.5, not 2. ⟦v99⟧ ⟦v2⟧')).toBe('About 1.5, not [unknown].  HĐ-7000')
   })
 })

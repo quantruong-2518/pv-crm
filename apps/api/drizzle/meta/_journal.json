@@ -1177,6 +1177,13 @@
       "when": 1796033320000,
       "tag": "0174_assistant_proposal",
       "breakpoints": true
+    },
+    {
+      "idx": 175,
+      "version": "7",
+      "when": 1796033380000,
+      "tag": "0175_assistant_session_lang",
+      "breakpoints": true
     }
   ]
 }

@@ -6,7 +6,12 @@ import { fileURLToPath } from 'node:url'
 import { Controller, Get, type ExecutionContext } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 import type { FastifyReply } from 'fastify'
-import { AssistantReportQuery, type AssistantEvent, type AssistantRef } from '@pv/contracts'
+import {
+  AssistantReportQuery,
+  type AssistantEvent,
+  type AssistantLang,
+  type AssistantRef,
+} from '@pv/contracts'
 import { createAccessControl, DEFAULT_ROLE_PERMISSIONS, type Actor } from '@pv/engines'
 import { and, eq, sql } from 'drizzle-orm'
 import { migrate } from 'drizzle-orm/pglite/migrator'
@@ -260,7 +265,7 @@ function doors(client: Scripted) {
 async function ask(
   client: Scripted,
   who: Actor = director,
-  body: { question: string; sessionId?: string; deep?: boolean } = {
+  body: { question: string; sessionId?: string; deep?: boolean; lang?: AssistantLang } = {
     question: 'Lead LD-0001 thế nào?',
   },
 ) {
@@ -604,6 +609,48 @@ describe('a turn', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('fixes the chat language on the first message and ignores the screen and later messages', async () => {
+    const first = new Scripted([{ text: 'It is open.' }])
+    const opened = await ask(first, director, {
+      question: 'What is the status of this lead?',
+      lang: 'vi',
+    })
+    const lang = async () =>
+      (
+        await db.select().from(assistantSession).where(eq(assistantSession.id, opened.sessionId!))
+      )[0]!.lang
+
+    const second = new Scripted([{ text: 'Vẫn là tiếng Anh.' }])
+    const body = {
+      question: 'Còn hợp đồng nào nữa không?',
+      sessionId: opened.sessionId,
+      lang: 'ko' as const,
+    }
+    await ask(second, director, body)
+
+    expect(await lang()).toBe('en')
+    expect(JSON.stringify(first.requests[0]!.messages.at(-1))).toContain(
+      '\\"language\\":\\"English\\"',
+    )
+    expect(JSON.stringify(second.requests[0]!.messages.at(-1))).toContain(
+      '\\"language\\":\\"English\\"',
+    )
+  })
+
+  it('takes the screen language for a first message that names none', async () => {
+    const client = new Scripted([{ text: '알겠습니다.' }])
+    const { sessionId } = await ask(client, director, { question: 'LD-0001', lang: 'ko' })
+
+    const [row] = await db
+      .select()
+      .from(assistantSession)
+      .where(eq(assistantSession.id, sessionId!))
+    expect(row!.lang).toBe('ko')
+    expect(JSON.stringify(client.requests[0]!.messages.at(-1))).toContain(
+      '\\"language\\":\\"Korean\\"',
+    )
   })
 
   it('cuts a long first question into a title on a word boundary', () => {

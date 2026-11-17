@@ -26,6 +26,7 @@ import { AuditRepository } from '../audit/audit.repository'
 import { createDb, type Db } from '../db/create-db'
 import { audit } from '../db/platform.schema'
 import { isDbConstraint } from '../http/db-error'
+import { CUT_SHORT_BY } from './assistant-context'
 import { AssistantRunner } from './assistant-loop'
 import { AssistantToolGate, defineTool, door } from './assistant-tools'
 import { AssistantRepository } from './assistant.repository'
@@ -210,10 +211,10 @@ function runnerWith(client: Scripted, audits = auditRepo()) {
   return new AssistantRunner(gateway, new AssistantRepository(db), audits, gate)
 }
 
-async function ask(client: Scripted, audits = auditRepo()) {
+async function ask(client: Scripted, audits = auditRepo(), lang: 'vi' | 'en' | 'ko' = 'vi') {
   const [session] = await db
     .insert(assistantSession)
-    .values({ ownerId: marketing.id })
+    .values({ ownerId: marketing.id, lang })
     .returning({ id: assistantSession.id })
   const events: AssistantEvent[] = []
   const ctx = {
@@ -273,7 +274,7 @@ describe('a round', () => {
     expect(seen).toEqual({ audits: 1, calls: 1 })
     expect(turn).toMatchObject({ state: 'done', endedBy: 'answer', rounds: 2 })
     expect(turn.body).toBe('Lead đang được chăm sóc.')
-    expect(turn.promptVersion).toBe('assistant@17')
+    expect(turn.promptVersion).toBe('assistant@18')
     expect(rows[0]).toMatchObject({ role: 'user', state: 'done' })
     expect(rows[0]!.finishedAt).not.toBeNull()
     /* The sink threw on every event and the turn still ran to its end. */
@@ -606,6 +607,14 @@ describe('the time budget', () => {
     const { turn } = await ask(client)
 
     expect(turn).toMatchObject({ state: 'failed', endedBy: 'cap-time', body: CUT_SHORT })
+  })
+
+  it('writes the fixed sentence in the chat language, and still fails a cap with nothing else', async () => {
+    const stillCalling = { ...toolRound('lead'), text: '' }
+    const client = new Scripted([toolRoundAt(48_000), stillCalling])
+    const { turn } = await ask(client, auditRepo(), 'en')
+
+    expect(turn).toMatchObject({ state: 'failed', endedBy: 'cap-time', body: CUT_SHORT_BY.en })
   })
 })
 

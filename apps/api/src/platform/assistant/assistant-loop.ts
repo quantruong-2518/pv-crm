@@ -5,6 +5,7 @@ import type {
   AssistantEndedBy,
   AssistantErrorCode,
   AssistantEvent,
+  AssistantLang,
   AssistantMessageState,
 } from '@pv/contracts'
 import type { Actor } from '@pv/engines'
@@ -14,12 +15,13 @@ import { AiGateway } from '../ai/ai-gateway'
 import { AuditRepository, type AuditEntry } from '../audit/audit.repository'
 import {
   ASSISTANT_PROMPT_VERSION,
-  CUT_SHORT,
+  CUT_SHORT_BY,
   fenced,
   newFence,
   openingMessages,
   requestOf,
   tokensOf,
+  withoutCutShort,
 } from './assistant-context'
 import { TurnBinding, type Draft } from './assistant-bind'
 import { cardRows, freshCard, limitCards } from './assistant-proposal'
@@ -135,6 +137,8 @@ type Turn = {
   cards: Set<string>
   /** D3: what the model writes reaches `text` and the wire only through this. */
   binding: TurnBinding
+  /** The chat's reply language, for the fixed sentence of a failed round. */
+  lang: AssistantLang
   /** Characters the model wrote, round breaks included; `text` lags it by a held word. */
   wrote: number
 }
@@ -311,7 +315,8 @@ function endOfRound(turn: Turn, round: AiRound): AssistantEndedBy | null {
 /** D7: the writing round failed, so a fixed sentence follows the partial text. */
 function addCutShort(turn: Turn): void {
   say(turn, turn.binding.flush())
-  say(turn, turn.text === '' ? CUT_SHORT : `\n\n${CUT_SHORT}`)
+  const sentence = CUT_SHORT_BY[turn.lang]
+  say(turn, turn.text === '' ? sentence : `\n\n${sentence}`)
 }
 
 /** The one way out for answer text, so the row and the wire hold the same string. */
@@ -371,7 +376,8 @@ export class AssistantRunner {
       startedAt,
       emit,
       messages,
-      binding: new TurnBinding(ctx.question, begun.subject?.code ?? null),
+      lang: begun.lang,
+      binding: new TurnBinding(ctx.question, begun.subject?.code ?? null, begun.lang),
       wrote: 0,
       text: '',
       rounds: 0,
@@ -527,7 +533,7 @@ export class AssistantRunner {
     say(turn, turn.binding.flush())
     const body = withoutNul(turn.text)
     /* The fixed sentence is not an answer: a cap that left only that failed the turn. */
-    const unanswered = endedBy.startsWith('cap-') && body.replace(CUT_SHORT, '').trim() === ''
+    const unanswered = endedBy.startsWith('cap-') && withoutCutShort(body).trim() === ''
     const state = unanswered ? 'failed' : STATE_OF[endedBy]
     const swept = await this.lost(turn.id, {
       state,

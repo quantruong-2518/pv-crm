@@ -6,7 +6,7 @@ import { ASSISTANT_SUMMARY, AssistantSummaryOutput } from '../ai/prompts/assista
 import { renderPrompt } from '../ai/prompts/prompt-spec'
 import { AuditRepository } from '../audit/audit.repository'
 import type { Actor } from '@pv/engines'
-import { fenced, newFence, tokensOf } from './assistant-context'
+import { fenced, LANGUAGE_NAME, newFence, tokensOf } from './assistant-context'
 import { checkChat } from './assistant-refs'
 import { AssistantToolGate } from './assistant-tools'
 import { AssistantRepository, type WholeTurn } from './assistant.repository'
@@ -142,7 +142,11 @@ export class AssistantSummarizer {
     if (!last) return
 
     const turns = folded.map(({ question, answer }) => ({ question, answer }))
-    const text = fenced(newFence(), { previousSummary: open.summary, turns })
+    const text = fenced(newFence(), {
+      previousSummary: open.summary,
+      language: LANGUAGE_NAME[open.lang],
+      turns,
+    })
     const note = `assistant.summary · session ${sessionId} · ${turns.length} turn(s)`
     await this.audit.write({ actorId: who.id, action: 'ai-read', note })
     const { value } = await this.gateway.run(

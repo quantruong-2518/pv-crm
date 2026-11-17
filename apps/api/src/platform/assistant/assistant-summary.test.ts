@@ -23,7 +23,7 @@ import { AiRouteRepository } from '../ai/ai-route.repository'
 import { AuditRepository } from '../audit/audit.repository'
 import { createDb, type Db } from '../db/create-db'
 import { audit } from '../db/platform.schema'
-import { CUT_SHORT, tokensOf } from './assistant-context'
+import { CUT_SHORT, CUT_SHORT_BY, tokensOf } from './assistant-context'
 import { AssistantRunner } from './assistant-loop'
 import { AssistantSummarizer, foldCount } from './assistant-summary'
 import { AssistantToolGate } from './assistant-tools'
@@ -110,7 +110,7 @@ function runnerOf(client: Scripted) {
 }
 
 async function newSession(
-  values: { summary?: string; summaryThrough?: number } = {},
+  values: { summary?: string; summaryThrough?: number; lang?: 'vi' | 'en' | 'ko' } = {},
 ): Promise<string> {
   const [row] = await db
     .insert(assistantSession)
@@ -295,7 +295,7 @@ describe('a fold', () => {
       .where(eq(aiCall.task, 'assistant-summary'))
       .orderBy(sql`${aiCall.at} DESC`)
       .limit(1)
-    expect(row).toMatchObject({ promptVersion: 'assistant-summary@2', outcome: 'ok' })
+    expect(row).toMatchObject({ promptVersion: 'assistant-summary@3', outcome: 'ok' })
   })
 
   it('folds on tokens below 10 turns, keeping the two newest', async () => {
@@ -375,9 +375,21 @@ describe('a fold', () => {
     expect(request!.system).not.toContain(lines[0]!)
     expect(JSON.parse(lines[1]!)).toEqual({
       previousSummary: 'Asking: chuyện cũ',
+      language: 'Vietnamese',
       turns: [2, 3, 4, 5].map((n) => ({ question: `hỏi ${n}`, answer: `đáp ${n}` })),
     })
     expect(await sessionOf(id)).toMatchObject({ summaryThrough: 10 })
+  })
+
+  it("names the chat's language in the fenced block", async () => {
+    const id = await newSession({ lang: 'ko' })
+    await seedTurns(id, 10)
+    const client = new Scripted(async () => ({ ...GOOD, records: [] }))
+    await bench(client).summarizer.afterTurn(who, id)
+
+    const part = client.requests[0]!.parts[0]
+    if (!part || !('text' in part)) throw new Error('no text part')
+    expect(JSON.parse(part.text.split('\n')[1]!)).toMatchObject({ language: 'Korean' })
   })
 
   it('uses a new fence on each fold', async () => {
@@ -460,6 +472,17 @@ describe('turns with nothing to fold', () => {
     const id = await newSession()
     await seedTurns(id, 9)
     await seed(id, 19, ['hỏi', CUT_SHORT])
+    const client = new Scripted()
+    await bench(client).summarizer.afterTurn(who, id)
+
+    expect(client.requests).toHaveLength(0)
+  })
+
+  it('does not count a turn that holds only the English or Korean fixed sentence', async () => {
+    const id = await newSession({ lang: 'en' })
+    await seedTurns(id, 8)
+    await seed(id, 17, ['question', CUT_SHORT_BY.en])
+    await seed(id, 19, ['질문', CUT_SHORT_BY.ko])
     const client = new Scripted()
     await bench(client).summarizer.afterTurn(who, id)
 

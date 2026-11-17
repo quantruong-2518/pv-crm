@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common'
 import { and, asc, count, desc, eq, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
-import type { AssistantReportBody, AssistantSubject } from '@pv/contracts'
+import type { AssistantLang, AssistantReportBody, AssistantSubject } from '@pv/contracts'
 import { DB, type Db } from '../db/db.module'
 import { actor } from '../db/platform.schema'
 import {
@@ -52,10 +52,11 @@ export class AssistantSessionRepository {
     ownerId: string,
     title: string,
     subject: AssistantSubject | null,
+    lang: AssistantLang,
   ): Promise<AssistantSessionRowDb> {
     const [row] = await this.db
       .insert(assistantSession)
-      .values({ ownerId, title, subjectKind: subject?.kind, subjectCode: subject?.code })
+      .values({ ownerId, title, lang, subjectKind: subject?.kind, subjectCode: subject?.code })
       .returning()
     return row as AssistantSessionRowDb
   }

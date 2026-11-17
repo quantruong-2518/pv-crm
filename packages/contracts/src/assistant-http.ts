@@ -21,6 +21,10 @@ import { Day, Moment } from './primitives'
 export const AssistantAvailability = z.object({ enabled: z.boolean(), deep: z.boolean() })
 export type AssistantAvailability = z.infer<typeof AssistantAvailability>
 
+/** Active UI language of the web app. */
+export const AssistantLang = z.enum(['vi', 'en', 'ko'])
+export type AssistantLang = z.infer<typeof AssistantLang>
+
 /** Absent `sessionId` opens a new session. `screen` may reach the prompt, so it is held to a path shape. */
 export const AssistantTurnBody = z
   .object({
@@ -34,6 +38,10 @@ export const AssistantTurnBody = z
       .regex(/^\/[!-~]*$/)
       .optional(),
     subject: AssistantSubject.optional(),
+    /** Optional so a web bundle older than the API still passes `.strict()`. Used only when the
+     *  opening message's own language is unclear, on the turn that opens a session; a chat's
+     *  language never changes, so later turns ignore it. */
+    lang: AssistantLang.optional(),
   })
   .strict()
 export type AssistantTurnBody = z.infer<typeof AssistantTurnBody>

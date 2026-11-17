@@ -91,6 +91,7 @@ questions live in the web.
 A right-hand panel on the existing Drawer and AiAction style, with no new
 `--ai-*` tokens; the canvas's gradient look is an owner follow-up. A
 `/assistant` page with sessions, an admin screen for reports, three languages.
+The language the assistant replies in is ADR 0163.
 
 ## Known limits
 

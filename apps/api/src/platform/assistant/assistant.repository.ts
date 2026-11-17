@@ -10,14 +10,19 @@ import {
   isNull,
   lt,
   lte,
-  ne,
+  notInArray,
   sql,
 } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
-import type { AssistantEndedBy, AssistantMessageState, AssistantRecordKind } from '@pv/contracts'
+import type {
+  AssistantEndedBy,
+  AssistantLang,
+  AssistantMessageState,
+  AssistantRecordKind,
+} from '@pv/contracts'
 import { aiCall } from '../ai/ai-cost.schema'
 import { DB, type Db } from '../db/db.module'
-import { CUT_SHORT } from './assistant-context'
+import { CUT_SHORT_ALL } from './assistant-context'
 import type { ProposalView } from './assistant-proposal'
 import {
   assistantMessage,
@@ -67,6 +72,7 @@ export type WholeTurn = { seq: number; question: string; answer: string }
 
 /** The summary, its mark, and the oldest turns the mark does not cover yet. */
 export type Unsummarised = {
+  lang: AssistantLang
   summary: string | null
   through: number | null
   turns: readonly WholeTurn[]
@@ -78,6 +84,8 @@ export type TurnBegun = {
   summary: string | null
   /** The last seq the summary covers: an answer at or below it may be quoted there. */
   summaryThrough: number | null
+  /** The chat's reply language, fixed when the session opened. */
+  lang: AssistantLang
   subject: { kind: AssistantRecordKind; code: string } | null
   history: readonly TurnLine[]
 }
@@ -154,12 +162,13 @@ export class AssistantRepository {
         finishedAt: sql`now()`,
       })
 
-      const { summary, summaryThrough, subjectKind, subjectCode } = session
+      const { summary, summaryThrough, lang, subjectKind, subjectCode } = session
       return {
         ok: true,
         turnId: turn.id,
         summary,
         summaryThrough,
+        lang,
         subject: subjectKind && subjectCode ? { kind: subjectKind, code: subjectCode } : null,
         history: replayable(rows.filter((r) => r.seq > (summaryThrough ?? 0)))
           .slice(-REPLAY_TURNS)
@@ -259,7 +268,11 @@ export class AssistantRepository {
    *  a fold passes them when it lands. `null` = the session is gone. */
   async unsummarised(sessionId: string, limit: number): Promise<Unsummarised | null> {
     const [session] = await this.db
-      .select({ summary: assistantSession.summary, through: assistantSession.summaryThrough })
+      .select({
+        summary: assistantSession.summary,
+        through: assistantSession.summaryThrough,
+        lang: assistantSession.lang,
+      })
       .from(assistantSession)
       .where(eq(assistantSession.id, sessionId))
     if (!session) return null
@@ -281,7 +294,7 @@ export class AssistantRepository {
           eq(answer.sessionId, sessionId),
           eq(answer.role, 'assistant'),
           gt(answer.seq, session.through ?? 0),
-          ne(answer.body, CUT_SHORT),
+          notInArray(answer.body, CUT_SHORT_ALL),
           sql`${answer.body} ~ '\\S' AND ${question.body} ~ '\\S'`,
         ),
       )
