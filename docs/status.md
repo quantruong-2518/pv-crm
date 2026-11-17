@@ -124,11 +124,11 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
     to someone else keeps "Làm" until the press is refused.
   - The stale check compares text and due only, not the doer or kind.
 - CRM assistant reply language (ADR 0163), debt:
-  - Built 17/11/2026, uncommitted, not shipped. Ship order: migrate 0175 on Neon,
-    deploy the API to Fly and confirm /healthz, only then push the web change
-    (`apps/web/src/data/assistant-stream.ts`) to master. `AssistantTurnBody` is
-    `.strict()` and the web builds on every push, so a new web sending `lang` to
-    the old API gets a 400 on every chat turn.
+  - Shipped 17/11/2026 (commit 30d958ae). Migration 0175 applied on Neon and
+    verified (ledger id 173, `assistant_session.lang` text NOT NULL default
+    'vi', CHECK vi/en/ko). API and worker deployed to Fly v231, /healthz ok,
+    both machines started. The web change (`assistant-stream.ts` sends `lang`)
+    goes out in the same commit as this note.
   - The locale tag map (vi-VN/en-US/ko-KR) and the en/ko period labels are
     hand-copied in `apps/api/src/platform/assistant/assistant-bind.ts` from the
     web (`apps/web/src/app/i18n.ts` LOCALE_TAG, `apps/web/src/pages/home-model.ts`

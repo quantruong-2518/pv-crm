@@ -1,6 +1,6 @@
 # 0163 · The assistant replies in the language of the chat's first message and keeps it for the whole chat
 
-Status: accepted (built, uncommitted, not shipped; prompt v18 never run live, gate 0 OPEN)
+Status: accepted (shipped 17/11/2026, commit 30d958ae: migration 0175 on Neon, ledger id 173, verified; API + worker on Fly v231, /healthz ok; web sends `lang` in the follow-up push; prompt v18 never run live, gate 0 OPEN)
 Date: 2026-11-17
 Source: owner, 17/11/2026; ADR 0136 §7 (three languages on the web), ADR 0133
 

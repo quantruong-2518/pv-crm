@@ -2,7 +2,7 @@ import { AssistantEvent, type AssistantTurnBody } from '@pv/contracts'
 import { API_BASE_URL } from '@/app/api/base-url'
 import { ApiError, failureOf } from '@/app/api/errors'
 import { access, renewSession, sessionIsLive, useSession } from '@/app/auth'
-import { message, translate } from '@/app/i18n'
+import { getLang, message, translate } from '@/app/i18n'
 import { USE_NEED } from './assistant'
 
 /** `POST /assistant/turns` — one question in, a `text/event-stream` of
@@ -77,7 +77,7 @@ export async function streamTurn(
     res = await fetch(`${API_BASE_URL}${PATH}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, lang: getLang() } satisfies AssistantTurnBody),
       signal,
       credentials: 'include',
     })
