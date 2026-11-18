@@ -90,8 +90,9 @@ not built.
 
 ### 8 · Components
 
-Kit components M-21…M-24 (button, field states, field mark, tax-code clash) in
-`@pv/ui`; the result toast reuses `Toast` (O-08) with an undo action and
+Kit components M-21…M-22 (button, field states) in `@pv/ui`; on 18/11 the field
+mark and tax-code clash (M-23, M-24) were removed in `a3012108`, as nothing
+called them. The result toast reuses `Toast` (O-08) with an undo action and
 carries no component of its own (M-25 in the kit is the example of it).
 
 ## Consequences

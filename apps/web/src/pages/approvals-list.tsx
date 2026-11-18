@@ -76,9 +76,11 @@ function ApprovalListItem({
           </span>
         ) : null}
         {showState ? (
-          <Badge tone={STATE_TONE[request.state]} className="shrink-0">
-            {t(STATE_LABEL[request.state])}
-          </Badge>
+          /* Opaque base: the tint keeps its resting contrast on a selected or hovered
+             row, where the stone theme's pill fell under 4.5:1 (law 13). */
+          <span className="bg-card flex shrink-0 rounded-sm">
+            <Badge tone={STATE_TONE[request.state]}>{t(STATE_LABEL[request.state])}</Badge>
+          </span>
         ) : null}
       </button>
     </li>

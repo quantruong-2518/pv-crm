@@ -183,16 +183,32 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
 - 18/11 · AI surfaces v3 reached production: API/contract in `0c748211` (Fly
   v232, no migration, `my-work` gains `brief`, ADR 0154) and web in `c202abbe`
   (approvals inbox, AI lead fill, comm record fill form, assistant page and
-  home; ADR 0137). Gate at the commit: format, web types, lint, tokens, build,
-  web tests green. Owed:
+  home; ADR 0137); cleanup and docs in `a3012108`. Gate at the commit: format,
+  web types, lint, tokens, build, web tests green. Owed:
   - Second on-screen inspection of the five screens after the review fixes.
-  - `/kit` entries for the new pieces; `AiFieldMark` and `AiFieldConflict` in
-    `@pv/ui` remain but nothing calls them.
+  - `/kit` entries for the new pieces. `AiFieldMark` and `AiFieldConflict` were
+    removed from `@pv/ui` in `a3012108` together with kit entries M-23/M-24,
+    as nothing called them.
   - `GET /assistant/my-work` not yet tried on production with a logged-in call.
   - Owner questions open: a comm record with only an audio file has no place
     on the fill screen to delete that file; taking AI suggestions without
     "Lưu nháp" and reloading shows empty fields while the AI block says
     filled; assistant column 720px (drawing) vs 820px (previous build).
+  - The second inspection covered approvals, lead AI fill, the comm fill form,
+    the assistant page with its home and session list, and the assistant
+    drawer, in three themes and three viewports; they pass contrast, 48px
+    targets and one background layer except the items below; not measured: the
+    assistant record pane, a conversation with a pending proposal, and the comm
+    form's failed-job state.
+  - Measured on a 1024px tablet: FAB overlaps the end of the approval chain
+    label and the "Hoàn tác" button of the lead AI result line until the column
+    is scrolled.
+  - Measured: the "Inbound" option on the new-lead form reads 4.46:1 in the
+    Aurora theme.
+  - Measured: header notification badge reads 4.46:1.
+  - Measured on a 360px phone: the assistant drawer subline ("Chỉ trả lời về dữ liệu bạn được xem trong PV One") is truncated to about 40% of its text (`apps/web/src/components/assistant-panel-host.tsx`).
+  - Measured on tablet and phone: the notification panel's two filter buttons are 24px high.
+  - Fixed: the approvals status pill on a selected row read 4.36:1 in the stone theme; it now sits on an opaque card-coloured base, measured 5.50:1 after the fix (`apps/web/src/pages/approvals-list.tsx`).
 
 ## KPI
 
