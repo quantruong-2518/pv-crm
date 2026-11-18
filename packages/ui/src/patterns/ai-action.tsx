@@ -54,10 +54,16 @@ export type AiActionProps = {
 
 /** The AI mark every AI block opens with, in a box one text line high so it
  *  sits beside the first line of text, not the middle of a wrapped block. */
-function AiLead({ className }: { className?: string }) {
+function AiLead({
+  className,
+  state = 'idle',
+}: {
+  className?: string
+  state?: 'idle' | 'loading' | 'done'
+}) {
   return (
     <span className={cn('flex h-5 shrink-0 items-center', className)}>
-      <Icon icon={AiMark} size={16} className="text-primary" />
+      <Icon icon={AiMark} size={20} aiState={state} className="text-primary" />
     </span>
   )
 }
@@ -86,10 +92,11 @@ export function AiAction({
        tụt vào một lớp `<div>` bên trong nên bố cục của strip không đổi. */
     <div
       className={cn(
-        'flex flex-col gap-3 rounded-lg px-5 py-4',
+        'pv-ai-action flex flex-col gap-3 rounded-lg px-5 py-4',
         variant === 'strip' ? 'glass-ai' : 'glass-ai-panel',
         className,
       )}
+      aria-busy={pending || undefined}
     >
       <div
         className={
@@ -98,7 +105,10 @@ export function AiAction({
             : 'flex flex-col gap-3.5'
         }
       >
-        <AiLead className={variant === 'strip' ? 'self-start' : undefined} />
+        <AiLead
+          className={variant === 'strip' ? 'self-start' : undefined}
+          state={pending ? 'loading' : done && doneTone === 'success' ? 'done' : 'idle'}
+        />
 
         <div className="text-on-tint-primary min-w-0 flex-1 text-[13px] leading-[1.55]">
           {suggestion}
@@ -123,6 +133,7 @@ export function AiAction({
             <>
               <Button
                 type="button"
+                data-ai-trigger=""
                 className="pointer-coarse:h-12"
                 onClick={onConfirm}
                 disabled={pending}
@@ -205,11 +216,11 @@ export function AiChoices({
   return (
     <div
       className={cn(
-        'glass-ai-panel wrap-break-word flex flex-col gap-3 rounded-lg px-5 py-4',
+        'glass-ai-panel pv-ai-action wrap-break-word flex flex-col gap-3 rounded-lg px-5 py-4',
         className,
       )}
     >
-      <AiLead />
+      <AiLead state={choices.some((choice) => choice.picked) ? 'done' : 'idle'} />
       <ul className="m-0 flex list-none flex-col gap-4 p-0">
         {choices.map((choice) => (
           <li key={choice.key} className="flex flex-wrap items-center gap-3">
@@ -226,6 +237,7 @@ export function AiChoices({
             ) : (
               <Button
                 type="button"
+                data-ai-trigger=""
                 variant="secondary"
                 className="pointer-coarse:h-12 shrink-0"
                 onClick={choice.onPick}

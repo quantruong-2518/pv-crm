@@ -113,7 +113,7 @@ export function AiFillCards() {
         note="bấm là điền"
         noteAccent
         bodyClassName="flex flex-col gap-3 p-4"
-        footer="chỉ còn icon AiMark 16, chữ ở title và aria-label · busy = nền nhạt màu chính + chấm, bấm mở khay · disabledReason = một dòng dưới nút · tablet 48px"
+        footer="icon AiMark 30 hiện trực tiếp, không nền nút; rê hoặc focus hiện việc AI sẽ làm · busy = ba điểm chạy trong icon, bấm mở khay · disabledReason = một dòng dưới nút · tablet 48px"
       >
         <KitState>Sẵn sàng</KitState>
         <AiFillButton
@@ -321,7 +321,7 @@ function HeaderButtonDemo({ tasks }: { tasks: AiTaskItem[] }) {
   )
 }
 
-/** The collapsed pill on its own row beside the round button, as the shell lays them out. */
+/** The collapsed pill on its own row beside the floating mark, as the shell lays them out. */
 function BesideFab({ tasks }: { tasks: AiTaskItem[] }) {
   return (
     <div className="flex items-center justify-end gap-3">

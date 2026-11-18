@@ -8,7 +8,7 @@ import type { IconSvgElement } from '@hugeicons/react'
  * the <Icon> gateway. Hugeicons keeps a number of compatibility aliases, so
  * the public names stay semantic and concise.
  */
-export type IconGlyph = IconSvgElement
+export type IconGlyph = IconSvgElement | 'ai-mark' | 'crm-agent-mark'
 
 export {
   Activity,
@@ -123,8 +123,6 @@ export {
   Location01Icon as MapPin,
   Logout03Icon as LogOut,
   MoreHorizontalIcon as Ellipsis,
-  // The assistant's mark (owner, 03/11): a sparkle cluster replaces Orbit, drawn bare with no tile.
-  SparklesIcon as AiMark,
   // Maximize01 in Hugeicons is a hand gesture; the diagonal expand arrows read as full screen.
   ArrowExpandDiagonal01Icon as Maximize,
   StopCircleIcon as StopCircle,
@@ -146,3 +144,8 @@ export {
   UserSwitchIcon as UserSwitch,
   WhatsappIcon as Whatsapp,
 } from '@hugeicons/core-free-icons'
+
+/** The AI family is drawn by <Icon> as a filled, faceted PV open frame.
+ *  These semantic keys keep every caller behind the same icon gateway. */
+export const AiMark = 'ai-mark' as const
+export const CrmAgentMark = 'crm-agent-mark' as const

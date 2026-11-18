@@ -26,7 +26,7 @@ import { SessionList } from './assistant-sessions'
  *  No rail on the list alone or on a chat that names no record: there is nothing to open. */
 
 /** The box stays in reach while the thread scrolls: docked over BottomNav below `lg`. The
- *  round assistant button is not drawn on this screen, so nothing covers the send button. */
+ *  floating assistant mark is not drawn on this screen, so nothing covers the send button. */
 const DOCK = 'sticky bottom-[calc(84px+env(safe-area-inset-bottom)+12px)] z-20 lg:bottom-6'
 /** Following the thread stops this far above the screen's bottom edge: the docked box's
  *  measured height plus a gap, and below `lg` the BottomNav's height too. Kept in state,
@@ -96,7 +96,7 @@ export function AssistantPage() {
         <ScreenHeader
           title={
             <span className="flex items-center gap-3">
-              <AiGlyph size={26} />
+              <AiGlyph size={26} aiState={convo.busy ? 'loading' : 'idle'} />
               {t(C.title)}
             </span>
           }

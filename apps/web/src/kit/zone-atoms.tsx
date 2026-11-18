@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { OPPORTUNITY_STAGE_LABEL, StageKey } from '@pv/contracts'
 import { CalendarDays, FileText, Hash, Linkedin, Mail, MessageCircle, Send, Users } from '@pv/ui'
 import { SpecCard } from './chrome/spec-card'
 import { ZoneBody, ZoneHeader } from './chrome/zone'
 import {
+  AiMark,
   AssistantFab,
   Avatar,
   AvatarGroup,
@@ -15,9 +16,12 @@ import {
   Checkbox,
   Chip,
   CostBand,
+  CrmAgentMark,
   type CostBandProps,
+  Drawer,
   InfoTip,
   Input,
+  Icon,
   Kicker,
   MetaPill,
   Money,
@@ -54,6 +58,56 @@ const STATUS_DOTS = [
 ] as const
 
 const TEAM = ['Trần Thu Hà', 'Đỗ Quang Huy', 'Lê Hoàng Nam', 'Vũ Minh Châu', 'Phạm Diệu Anh']
+
+function AiMotionDemo() {
+  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'failed'>('idle')
+  const outcome = useRef<'done' | 'failed'>('done')
+  useEffect(() => {
+    if (state !== 'loading') return
+    const timer = window.setTimeout(() => setState(outcome.current), 1400)
+    return () => window.clearTimeout(timer)
+  }, [state])
+  const run = (result: 'done' | 'failed') => {
+    outcome.current = result
+    setState('loading')
+  }
+  return (
+    <div className="pv-ai-action flex flex-col items-center gap-3">
+      <div className="flex items-center gap-6">
+        <Icon icon={AiMark} size={26} aiState={state} />
+        <Icon icon={CrmAgentMark} size={26} aiState={state} />
+      </div>
+      <span aria-live="polite" className="text-muted-foreground text-[11px]">
+        {state === 'idle'
+          ? 'Sẵn sàng'
+          : state === 'loading'
+            ? 'Đang xử lý'
+            : state === 'done'
+              ? 'Đã xong'
+              : 'Có lỗi'}
+      </span>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          data-ai-trigger=""
+          disabled={state === 'loading'}
+          onClick={() => run('done')}
+        >
+          Chạy thử
+        </Button>
+        <Button
+          size="sm"
+          data-ai-trigger=""
+          variant="ghost"
+          disabled={state === 'loading'}
+          onClick={() => run('failed')}
+        >
+          Thử lỗi
+        </Button>
+      </div>
+    </div>
+  )
+}
 
 /** Bốn trạng thái của A-21. Số lấy từ ví dụ tính tay — không phải fixture, và
  *  cũng không được là fixture: trang kit là tài liệu của component, không phải
@@ -94,6 +148,7 @@ export function ZoneAtoms() {
   const [grain, setGrain] = useState('quarter')
   const [fn, setFn] = useState('all')
   const [face, setFace] = useState('waves')
+  const [agentPreviewOpen, setAgentPreviewOpen] = useState(false)
 
   return (
     <section id="zone-01" className="pb-2 pt-12">
@@ -548,12 +603,16 @@ export function ZoneAtoms() {
         <SpecCard
           code="A-20"
           name="AssistantFab"
-          note="56px · rounded-full"
-          bodyClassName="flex items-center justify-center px-4 py-6"
+          note="AI chung · CRM Agent · vùng bấm 56px"
+          bodyClassName="flex flex-col items-center justify-center gap-5 px-4 py-6"
           footer={
             <>
-              Một trong ba chỗ được dùng rounded-full (luật 5) · đĩa trắng, icon AiMark 26 màu
-              chính, viền sáng 2px chuyển màu (chủ sản phẩm, 03/11 — ngoại lệ của luật 15).
+              Hai icon cùng sắc xanh PV và các mặt nổi: AI chung mang chữ AI trắng trong hình đầu
+              tròn có góc gấp PV, CRM Agent giữ khung mở với mặt cười. Cả hai không có ô nền; mặt
+              trước, cạnh và gờ sáng tạo chiều sâu ngay trong icon. Nút trợ lý nổi chỉ hiện icon
+              56px trong vùng bấm 56px, mặt trong trắng đục và bóng theo dáng icon. Rê chuột để thấy
+              nháy mắt, phóng to và xoay; bấm sẽ xoay ngược trước khi mở trợ lý. Nút thử bên dưới
+              cho thấy chạy, xong và lỗi; khi giảm chuyển động hệ thống, icon đứng yên.
               <br />
               AppShell chỉ vẽ nút này khi màn có truyền `onOpenAssistant`. Một nút nổi bấm không ra
               gì thì tệ hơn không có nút — nó hứa một màn chưa tồn tại, trên mọi màn.
@@ -562,7 +621,27 @@ export function ZoneAtoms() {
         >
           {/* `static` đè `fixed` của component: ở đây nó là mẫu vật trong thẻ,
               không phải nút thật neo vào góc cửa sổ. */}
-          <AssistantFab className="static" />
+          <div className="text-primary flex items-center gap-4">
+            <span className="text-muted-foreground flex flex-col items-center gap-2 text-[11px]">
+              <Icon icon={AiMark} size={26} className="text-primary" />
+              AI chung
+            </span>
+            <span className="text-muted-foreground flex flex-col items-center gap-2 text-[11px]">
+              <Icon icon={CrmAgentMark} size={26} className="text-primary" />
+              CRM Agent
+            </span>
+          </div>
+          <AssistantFab className="static" onClick={() => setAgentPreviewOpen(true)} />
+          <Drawer
+            open={agentPreviewOpen}
+            onClose={() => setAgentPreviewOpen(false)}
+            title="Trợ lý AI"
+          >
+            <p className="text-muted-foreground text-sm">
+              Bản xem trước chuyển động mở trợ lý từ icon CRM Agent.
+            </p>
+          </Drawer>
+          <AiMotionDemo />
         </SpecCard>
 
         {/* A-21 */}

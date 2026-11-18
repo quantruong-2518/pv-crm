@@ -55,7 +55,7 @@ export type AppShellProps = {
   children: ReactNode
   /** Không truyền thì khung KHÔNG vẽ nút Trợ lý nổi — xem lý do ở chỗ render. */
   onOpenAssistant?: () => void
-  /** The assistant's own screen drops the round button: it would sit on its send button. */
+  /** The assistant's own screen drops the floating mark: it would sit on its send button. */
   hideAssistantFab?: boolean
   onNavigate?: (key: BottomNavKey) => void
   /** Something to act on now, floating at bottom-centre — see `ActionBanner`.
@@ -100,7 +100,7 @@ export function AppShell({
 
       {/* Nút Trợ lý nổi CHỈ khi có người nhận cú bấm.
           Màn 04 · Trợ lý AI chưa dựng, nên trên phần lớn màn `onOpenAssistant`
-          còn trống. Một nút tròn 56px ở góc phải dưới mà bấm không ra gì
+          còn trống. Một vùng chạm 56px ở góc phải dưới mà bấm không ra gì
           tệ hơn hẳn việc không có nút: nó hứa một màn không tồn tại, và nó hứa
           trên MỌI màn. Có màn rồi thì màn truyền hàm vào, nút tự hiện lại. */}
       {onOpenAssistant && !hideAssistantFab ? (

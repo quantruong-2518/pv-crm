@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AiMark, ChevronDown, Lock } from '../icons'
+import { ChevronDown, CrmAgentMark, Lock } from '../icons'
 import { Avatar } from '../ui/avatar'
 import { Icon } from '../ui/icon'
 import { THEMES, setTheme, useThemeMode, type ThemeMode } from '../ui/theme-switch'
@@ -213,7 +213,7 @@ export function AccountMenu({
           ))}
           <MenuRow
             action={{
-              icon: AiMark,
+              icon: CrmAgentMark,
               label: assistantLabel,
               locked: !onOpenAssistant,
               onClick: onOpenAssistant,

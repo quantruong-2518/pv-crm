@@ -4,8 +4,8 @@
  *   · emoji — no place in the UI uses emoji;
  *   · ▲▼▬ and relatives — numeric deltas use the Hugeicons
  *     trending-up/down/minus icons;
- *   · the raw `sparkles` / `bot` / `wand` icons — the one AI mark is the
- *     `AiMark` alias of @pv/ui (decision 0137), no exceptions.
+ *   · the raw `sparkles` / `bot` / `wand` icons — shared AI uses `AiMark` and
+ *     the CRM assistant uses `CrmAgentMark` from @pv/ui.
  *  A fourth, from docs/design-system/ui-copy.md: builder vocabulary and
  *  capitals used for emphasis, in strings written straight into JSX (text,
  *  attributes, `{}` including ternaries and `&&`). Copy held in a variable, a
@@ -45,7 +45,7 @@ export default {
         'On-screen copy says "{{word}}". Users are not technical: say what happens to them, not how the system does it (docs/design-system/ui-copy.md).',
       shout:
         'On-screen copy shouts "{{word}}". No capitals for emphasis (docs/design-system/ui-copy.md).',
-      icon: 'Icon "{{name}}" is AI slop. The AI mark is `AiMark` from @pv/ui — not a raw vendor glyph (law 15).',
+      icon: 'Icon "{{name}}" is AI slop. Use `AiMark` or `CrmAgentMark` from @pv/ui (law 15).',
     },
   },
   create(context) {

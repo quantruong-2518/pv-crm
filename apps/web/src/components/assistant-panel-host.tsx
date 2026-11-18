@@ -50,7 +50,7 @@ function AssistantPanel() {
       onClose={closeAssistant}
       title={
         <span className="flex items-center gap-3">
-          <AiGlyph />
+          <AiGlyph aiState={convo.busy ? 'loading' : 'idle'} />
           <span className="flex min-w-0 flex-col">
             <span>{t(C.title)}</span>
             <span className="text-muted-foreground truncate text-[12px] font-normal">{line}</span>

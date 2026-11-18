@@ -441,6 +441,195 @@
     transition-duration: var(--motion-duration);
     transition-timing-function: var(--motion-ease);
   }
+
+  /* The AI mark reacts only to a real press or a real task state. */
+  .pv-ai-mark {
+    transform-box: view-box;
+    transform-origin: center;
+    transition: transform var(--motion-duration) var(--motion-ease);
+  }
+  button:active .pv-ai-mark[data-ai-state='idle'],
+  .pv-ai-action:has([data-ai-trigger]:active) .pv-ai-mark[data-ai-state='idle'] {
+    transform: scale(0.88) rotate(-5deg);
+  }
+  .pv-ai-mark[data-ai-state='loading'] {
+    animation: pv-ai-breathe 1.45s ease-in-out infinite;
+  }
+  .pv-ai-mark[data-ai-state='loading'] .pv-ai-glint {
+    animation: pv-ai-glint 1.45s ease-in-out infinite;
+  }
+  .pv-ai-mark[data-ai-state='loading'] .pv-ai-loading-dots circle {
+    animation: pv-ai-dot 1.15s ease-in-out infinite;
+  }
+  .pv-ai-mark[data-ai-state='loading'] .pv-ai-loading-dots circle:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+  .pv-ai-mark[data-ai-state='loading'] .pv-ai-loading-dots circle:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+  .pv-ai-mark[data-ai-state='done'] {
+    animation: pv-ai-settle 0.65s var(--motion-ease) both;
+  }
+  .pv-ai-mark[data-ai-state='failed'] {
+    animation: pv-ai-nudge 0.48s ease-out both;
+  }
+  .pv-ai-result {
+    opacity: 0;
+  }
+  .pv-ai-mark[data-ai-state='done'] .pv-ai-result,
+  .pv-ai-mark[data-ai-state='failed'] .pv-ai-result {
+    animation: pv-ai-result 0.85s ease-out both;
+  }
+  .pv-ai-mark[data-ai-state='done'] .pv-ai-face,
+  .pv-ai-mark[data-ai-state='failed'] .pv-ai-face {
+    animation: pv-ai-face-return 0.85s ease-out both;
+  }
+  .pv-ai-status[data-ai-status='done'] svg {
+    animation: pv-ai-settle 0.65s var(--motion-ease) both;
+  }
+  .pv-ai-status[data-ai-status='failed'] svg {
+    animation: pv-ai-nudge 0.48s ease-out both;
+  }
+  .pv-agent-fab .pv-ai-eyes {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  .pv-agent-fab .pv-ai-mark {
+    filter: drop-shadow(0 8px 11px rgb(8 29 86 / 0.34)) drop-shadow(0 2px 3px rgb(8 29 86 / 0.22));
+  }
+  .pv-agent-fab[data-opening='true'] .pv-ai-mark {
+    animation: pv-agent-open 0.42s cubic-bezier(0.22, 0.75, 0.2, 1) both;
+  }
+  .pv-agent-fab[data-opening='true'] .pv-ai-eyes {
+    animation: pv-agent-blink 0.42s ease-in-out both;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pv-agent-fab:hover:not([data-opening='true']) .pv-ai-mark[data-ai-state='idle'] {
+    animation: pv-agent-hover 0.7s cubic-bezier(0.22, 0.75, 0.2, 1) both;
+  }
+  .pv-agent-fab:hover:not([data-opening='true']) .pv-ai-eyes {
+    animation: pv-agent-blink 0.7s ease-in-out both;
+  }
+}
+
+@keyframes pv-agent-hover {
+  0% {
+    transform: scale(1) rotate(0deg);
+  }
+  55% {
+    transform: scale(1.14) rotate(220deg);
+  }
+  100% {
+    transform: scale(1.12) rotate(360deg);
+  }
+}
+
+@keyframes pv-agent-open {
+  0% {
+    transform: scale(1.08) rotate(0deg);
+  }
+  55% {
+    transform: scale(1.15) rotate(-230deg);
+  }
+  100% {
+    transform: scale(1) rotate(-360deg);
+  }
+}
+
+@keyframes pv-agent-blink {
+  0%,
+  34%,
+  46%,
+  100% {
+    transform: scaleY(1);
+  }
+  40% {
+    transform: scaleY(0.08);
+  }
+}
+
+@keyframes pv-ai-breathe {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-1px) scale(1.055);
+  }
+}
+
+@keyframes pv-ai-glint {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 0.72;
+  }
+}
+
+@keyframes pv-ai-dot {
+  0%,
+  70%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  35% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes pv-ai-settle {
+  0% {
+    transform: scale(0.9);
+  }
+  50% {
+    transform: scale(1.09);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes pv-ai-nudge {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25%,
+  75% {
+    transform: translateX(-1.5px);
+  }
+  50% {
+    transform: translateX(1.5px);
+  }
+}
+
+@keyframes pv-ai-result {
+  0% {
+    opacity: 0;
+  }
+  25%,
+  65% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes pv-ai-face-return {
+  0%,
+  65% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
 }
 
 @keyframes shimmer {
@@ -518,6 +707,14 @@
   * {
     animation: none !important;
     transition: none !important;
+  }
+  .pv-ai-mark[data-ai-state='done'] .pv-ai-result,
+  .pv-ai-mark[data-ai-state='failed'] .pv-ai-result {
+    opacity: 1;
+  }
+  .pv-ai-mark[data-ai-state='done'] .pv-ai-face,
+  .pv-ai-mark[data-ai-state='failed'] .pv-ai-face {
+    opacity: 0;
   }
 }
 

@@ -35,9 +35,10 @@ Breaking one of these is a PR reject.
    sheen. **Single exception**: the high-contrast variant for outdoor kiosk
    tablets, 2px border. On the assistant screens the record card in an answer,
    the "Đang xem" row and code chips carry a light inset hairline (`docs/decisions/0137-the-assistant-look-the-owner-chose-on-03-11.md` §4).
-5. **Corner radius**: card 6 · control 4 · tag 3 · `rounded-full` reserved for
-   status dots, avatars and the floating AI Assistant button only (FAB, 56px,
-   bottom right corner). Sứ sets radius per theme: 8 · 12 · 16 · 24 (`docs/decisions/0108-third-theme-porcelain.md` §3).
+5. **Corner radius**: card 6 · control 4 · tag 3 · visible `rounded-full` reserved
+   for status dots and avatars. The floating CRM Agent keeps an invisible 56px
+   round hit target around its bare icon. Sứ sets radius per theme: 8 · 12 · 16 ·
+   24 (`docs/decisions/0108-third-theme-porcelain.md` §3).
 6. **Type**: Be Vietnam Pro carries text, headings and numbers alike · JetBrains
    Mono carries code and object codes. Numbers are always `tabular-nums`. Labels
    are sentence case — no uppercase, no letter-spacing, because Vietnamese
@@ -66,10 +67,10 @@ Breaking one of these is a PR reject.
     object of the story currently open, dim-white chip = related object.
 11. **Icons**: Hugeicons Stroke Rounded, stroke 1.75, size 16 in buttons / 20
     in nav. Every glyph goes through the `Icon` gateway of `@pv/ui`; no filled
-    icons, no emoji. **Single exception**: `BrandMark` (A-25), a filled inline
-    SVG, draws only the three chat-app logos (Zalo, Telegram, WhatsApp) on the
-    contact bar's buttons (0081), in one color — the text color; nothing else
-    may use `BrandMark`.
+    icons, no emoji. **Exceptions**: `BrandMark` (A-25) draws the three chat-app
+    logos (Zalo, Telegram, WhatsApp) on the contact bar's buttons (0081), in
+    one color — the text color; nothing else may use `BrandMark`. `AiMark` and
+    `CrmAgentMark` are filled PV marks drawn through the same `Icon` gateway.
 12. **Screen background** is exactly 1 layer: the aurora glow — three points
     (`--aurora-1/2/3`) across the top 420px, masked downwards, opacity .55 —
     over `--background`. Gradient is light, never pattern: no grid, no grain,
@@ -83,12 +84,15 @@ Breaking one of these is a PR reject.
     Finance) because those are product names; capabilities inside a branch are
     always in Vietnamese — Nhân sự · Tài liệu & quy trình · Công việc · Báo
     cáo · Hiệu suất thiết bị. Do not abbreviate HR, DMS, BI, OEE in the UI.
-15. **No AI slop**: the AI mark is `AiMark` (a sparkle cluster, drawn bare,
-    owner 03/11, 0137 §1); the raw vendor names `Sparkles`, `Bot`, `Wand` stay
-    banned so every screen takes the one mark. Number deltas use the Hugeicons
+15. **No AI slop**: shared AI actions use the domed `AI` lettermark `AiMark`;
+    the CRM assistant uses the related `CrmAgentMark` with a small smiling face
+    inside its PV open frame. Both use the same blue facets, are drawn bare, and
+    keep legible silhouettes at 16px. The raw vendor names `Sparkles`,
+    `Bot`, `Wand` stay banned. Number deltas use the Hugeicons
     `trending-up/down/minus` icons, never
     ▲▼▬. No emoji, no decorative gradient outside the background glow, the AI
-    block, the primary button ramp and the assistant button's halo (0137 §5), no
+    block, the primary button ramp and the two AI marks' internal facets
+    (0137 and its 17/11 update), no
     rounded-card-with-left-border-accent. Sứ adds one place: the sheen on
     `.glass-a` only (`docs/decisions/0108-third-theme-porcelain.md` §5).
 16. **Object status is always a text pill**, never a naked color dot. Lead,

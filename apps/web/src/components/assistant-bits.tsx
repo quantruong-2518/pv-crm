@@ -1,4 +1,4 @@
-import { AiMark, Chip, Icon, cn } from '@pv/ui'
+import { Chip, CrmAgentMark, Icon, cn, type IconProps } from '@pv/ui'
 
 /** Small pieces the assistant's panel and page share (owner, 03/11 design).
  *
@@ -7,15 +7,24 @@ import { AiMark, Chip, Icon, cn } from '@pv/ui'
  *  answer is a read-only bubble rather than an AI block (law 9 does not apply to
  *  an answer that proposes nothing), and the record card carries an inset hairline (law 4). */
 
-/** The assistant's mark: a sparkle with no tile or ground behind it. */
+/** The assistant's own conversation mark, bare on every panel and answer. */
 export function AiGlyph({
   size = 24,
+  aiState = 'idle',
   className,
 }: {
   size?: 14 | 18 | 24 | 26
+  aiState?: IconProps['aiState']
   className?: string
 }) {
-  return <Icon icon={AiMark} size={size} className={cn('text-primary', className)} />
+  return (
+    <Icon
+      icon={CrmAgentMark}
+      size={size}
+      aiState={aiState}
+      className={cn('text-primary', className)}
+    />
+  )
 }
 
 /** Sharp corner top-left points at the mark; plain card ground, a soft neutral lift, no ring.

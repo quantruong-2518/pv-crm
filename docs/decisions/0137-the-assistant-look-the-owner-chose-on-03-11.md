@@ -43,3 +43,47 @@ down here instead of hiding in code comments.
 - Record card facts (step, value, close date) show for opportunities only, read
   live through the viewer's own opportunity door; leads and contracts show the label.
 - Nobody has seen these screens with a real answer streaming yet.
+
+## Update · 17/11/2026
+
+The owner asked for a compact, dimensional AI family with a signature tied to PV,
+and rejected the familiar sparkle shape and a thin-line PV monogram. `AiMark` now
+uses the open corner of the PV mark as a filled, faceted frame; the blue front,
+side and highlight create depth within the mark. `CrmAgentMark` adds two small
+eyes and a restrained smile inside the same frame. Shared AI actions retain `AiMark`.
+The assistant page, panel, navigation and floating button use `CrmAgentMark`.
+Both remain bare marks without a tile or background.
+
+## Motion · 17/11/2026
+
+The PV marks answer a press with a short compression. Real running work makes
+the frame breathe and replaces its centre with three moving points. A completed
+action briefly settles and shows a success check; a failed action nudges and
+shows an error cross. The CRM Agent's smile returns after the result. Motion is
+disabled by the system's reduced-motion preference; status text and the static
+result mark remain available. The AI task tray's existing status tile uses the
+same settle/nudge timing when a background job ends.
+
+## Update · 18/11/2026
+
+The floating CRM Agent entry now shows only its 52px mark in a transparent
+56px hit target. The white disc and conic halo from §5 were removed at the
+owner's request; its position and touch area stay the same.
+
+The Agent's inner face is opaque white so content cannot show through it. A
+fine-pointer hover plays one smooth clockwise turn with a blink and leaves the
+mark slightly larger; pressing plays the reverse turn before opening the
+assistant panel. Reduced motion opens the panel at once.
+
+## Shared AI mark · 18/11/2026
+
+The owner found the shared mark too square and read its frame as a background,
+not as an AI helper. `AiMark` now has a domed silhouette with a folded PV
+corner and legible white `AI` lettering. It shares CRM Agent's blue facets and
+motion states while keeping a distinct outline and no surrounding tile. The
+icon-only AI fill control shows the 30px mark directly in a transparent 40px
+hit target (48px on touch), including while its job is running. Hover or focus
+reveals the action label beside the mark.
+
+The CRM Agent floating mark grows to 56px inside the same 56px hit target. A
+shadow follows the SVG silhouette, adding lift without restoring a button disc.

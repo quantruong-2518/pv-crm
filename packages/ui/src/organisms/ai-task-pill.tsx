@@ -35,7 +35,13 @@ export function StatusTile({ status }: { status: Status }) {
   const { glyph, tone, spin } = TILE[status]
   /* The spin sits on the glyph, not the tile, so the tinted square stays still. */
   return (
-    <span className={cn('flex size-7 shrink-0 items-center justify-center rounded-md', tone)}>
+    <span
+      data-ai-status={status}
+      className={cn(
+        'pv-ai-status flex size-7 shrink-0 items-center justify-center rounded-md',
+        tone,
+      )}
+    >
       <Icon icon={glyph} className={spin} />
     </span>
   )

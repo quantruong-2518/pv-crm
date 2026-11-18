@@ -26,8 +26,8 @@ const TOUCH_HALO =
 
 export type AiFillButtonProps = {
   onClick: () => void
-  /** A job is running: the button is tinted with a dot, and a press opens the
-   *  tray (the caller decides) instead of starting a second job. */
+  /** A job is running: the mark animates, and a press opens the tray
+   *  (the caller decides) instead of starting a second job. */
   busy?: boolean
   /** Tooltip and aria-label while idle, e.g. "Fill empty fields with AI". */
   label: string
@@ -48,26 +48,30 @@ export function AiFillButton({
   className,
 }: AiFillButtonProps) {
   const reasonId = useId()
+  const hintId = useId()
   const label = busy ? busyLabel : idleLabel
   return (
-    <span className={cn('inline-flex flex-col items-start gap-1', className)}>
-      <Button
-        variant="secondary"
-        className={cn(
-          'pointer-coarse:size-12 relative size-10 px-0',
-          busy && 'bg-primary/24 text-accent-foreground',
-        )}
+    <span
+      className={cn('group/ai-fill relative inline-flex flex-col items-start gap-1', className)}
+    >
+      <button
+        type="button"
+        className="focus-visible:outline-ring pointer-coarse:size-12 inline-flex size-10 items-center justify-center rounded-md bg-transparent p-0 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-45"
         disabled={disabledReason !== undefined}
         aria-label={label}
-        title={label}
-        aria-describedby={disabledReason ? reasonId : undefined}
+        aria-busy={busy || undefined}
+        aria-describedby={disabledReason ? `${hintId} ${reasonId}` : hintId}
         onClick={onClick}
       >
-        <Icon icon={AiMark} size={16} />
-        {busy && (
-          <span aria-hidden className="bg-primary absolute right-1.5 top-1.5 size-2 rounded-full" />
-        )}
-      </Button>
+        <Icon icon={AiMark} size={30} aiState={busy ? 'loading' : 'idle'} />
+      </button>
+      <span
+        id={hintId}
+        role="tooltip"
+        className="bg-popover text-popover-foreground pointer-events-none absolute bottom-[calc(100%+8px)] right-0 z-30 w-max max-w-60 rounded-md px-3 py-2 text-xs leading-[1.4] opacity-0 shadow-[var(--shadow-pop)] transition-opacity duration-150 group-focus-within/ai-fill:opacity-100 group-hover/ai-fill:opacity-100"
+      >
+        {label}
+      </span>
       {disabledReason && (
         <span id={reasonId} className="text-muted-foreground text-[12px] leading-[1.6]">
           {disabledReason}
