@@ -25,12 +25,18 @@ export function CommRecordFrame({
   noteFailed = false,
   bar,
   subjectInTitle = false,
+  wide = false,
+  stateBadge = true,
   children,
 }: {
   record: DebriefView
   title: ReactNode
   /** The title already is the subject's label, so the back row drops it. */
   subjectInTitle?: boolean
+  /** Room for a second column beside the cards. */
+  wide?: boolean
+  /** False when the meta line already says where the record stands. */
+  stateBadge?: boolean
   /** The time line right of the state pill. */
   meta?: ReactNode
   caption?: ReactNode
@@ -46,7 +52,7 @@ export function CommRecordFrame({
 }) {
   const titleId = useId()
   return (
-    <ScreenLayout className="mx-auto max-w-[960px]">
+    <ScreenLayout className={cn('mx-auto', wide ? 'max-w-[1240px]' : 'max-w-[960px]')}>
       <header className="flex min-w-0 flex-col gap-4" aria-labelledby={titleId}>
         <BackRow record={record} withLabel={!subjectInTitle} />
         <div className="flex min-w-0 flex-wrap items-start gap-4">
@@ -65,7 +71,7 @@ export function CommRecordFrame({
               {title}
             </h1>
             <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px] leading-[1.5]">
-              <CommStateBadge state={record.state} />
+              {stateBadge && <CommStateBadge state={record.state} />}
               {meta}
             </div>
             {caption && <p className="text-muted-foreground m-0 text-[12px]">{caption}</p>}

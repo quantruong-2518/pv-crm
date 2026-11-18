@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AiFillButton, SegmentedControl, Textarea, type SegmentedOption } from '@pv/ui'
+import type { LeadAiFillField } from '@pv/contracts'
 import { useLeadDesk } from '@/app/desk'
 import { message, useI18n } from '@/app/i18n'
 import type { LeadDraft } from '@/data/lead-draft'
@@ -9,6 +10,7 @@ import { RecordCard } from '@/components/record/record-card'
 import { LeadAdmissionPanel } from './lead-admission-panel'
 import type { AiFillRun } from './lead-ai-fill'
 import { FieldRow } from './lead-fields'
+import { LeadAiStatus } from './lead-ai-status'
 import { LEAD_COPY, leadGroupText } from '@/data/lead-copy'
 
 /** Module 2 · The profile card — one tab row and the boxes of the open tab.
@@ -44,6 +46,18 @@ const tabsOf = (mode: FormMode) =>
  *  when its people move to the contacts list, so the edit door asks it with
  *  the company. */
 const CHANNEL_URL_FIELDS = fieldsOf('person').filter((field) => field.key === 'channelUrl')
+
+/** The box on the page: its wrapper carries `data-field`. Puts the cursor in
+ *  the control when there is one, and scrolls the box into view either way. */
+function focusBox(key: string) {
+  const box = document.querySelector<HTMLElement>(`[data-field="${key}"]`)
+  if (!box) return
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+  box.scrollIntoView({ block: 'center', behavior: still ? 'auto' : 'smooth' })
+  box.querySelector<HTMLElement>('input, textarea, select, [role="combobox"]')?.focus({
+    preventScroll: true,
+  })
+}
 
 const boxesOf = (tab: (typeof PROFILE_GROUPS)[number]['key'], mode: FormMode) =>
   tab === 'company' && mode === 'edit'
@@ -96,6 +110,26 @@ export function LeadForm({
 
   const purpose = leadGroupText(tab, 'purpose', lang)
 
+  /* A box on another tab is reached by opening that tab first; the effect
+     runs once it is drawn. */
+  const goal = useRef<string | null>(null)
+  useEffect(() => {
+    if (goal.current) focusBox(goal.current)
+    goal.current = null
+  }, [tab])
+  const tabOf = (key: string) =>
+    tabsOf(draft.mode).find(
+      (entry) =>
+        entry.key !== 'note' && boxesOf(entry.key, draft.mode).some((box) => box.key === key),
+    )?.key
+  const goTo = (key: LeadAiFillField) => {
+    const owner = tabOf(key)
+    if (!owner) return
+    if (owner === tab) return focusBox(key)
+    goal.current = key
+    setTab(owner)
+  }
+
   const editing = draft.mode === 'edit'
 
   return (
@@ -117,13 +151,7 @@ export function LeadForm({
                     'AI로 빈 항목 채우기',
                   ),
                 )}
-                busyLabel={t(
-                  message(
-                    'Đang điền bằng AI, xem trong khay việc',
-                    'Filling with AI, see the task tray',
-                    'AI로 입력 중, 작업 트레이에서 확인',
-                  ),
-                )}
+                busyLabel={t(message('Đang điền bằng AI', 'Filling with AI', 'AI로 입력 중'))}
                 onClick={() => {
                   /* The fill lands in the company tab; open it so it is seen. */
                   setTab('company')
@@ -143,6 +171,16 @@ export function LeadForm({
         options={options}
         onChange={(next) => setTab(next as TabKey)}
       />
+
+      {ai && tab !== 'note' && (
+        <LeadAiStatus
+          status={ai.status}
+          values={draft.values}
+          canGo={(key) => canEdit && tabOf(key) !== undefined}
+          canAttach={canEdit}
+          onGo={goTo}
+        />
+      )}
 
       {tab === 'note' ? (
         <NoteBox code={code} />

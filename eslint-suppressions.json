@@ -1576,11 +1576,6 @@
       "count": 1
     }
   },
-  "apps/web/src/pages/approvals.tsx": {
-    "aurora/comment-budget": {
-      "count": 1
-    }
-  },
   "apps/web/src/pages/change-password.tsx": {
     "aurora/comment-budget": {
       "count": 3

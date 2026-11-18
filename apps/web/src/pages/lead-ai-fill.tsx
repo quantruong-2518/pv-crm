@@ -1,14 +1,21 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { AI_FLASH_MS, AiFieldConflict, type AiFillState } from '@pv/ui'
+import type { AiFillState } from '@pv/ui'
 import type { LeadAiFillField, LeadAiJob, LeadProfile } from '@pv/contracts'
 import { userMessage, type ApiError } from '@/app/api'
 import { useCan } from '@/app/auth'
-import { message, translate, useI18n } from '@/app/i18n'
+import { message, translate, useI18n, type Lang } from '@/app/i18n'
 import { toast, toastDone, toastFail } from '@/app/toast'
-import { LeadAiMark } from '@/components/lead-ai-mark'
-import { useAttachLeadAccount, type AiFillConflict } from '@/data/lead-ai-fill'
+import { AiFieldToggle, AiSourceLine } from '@/components/lead-ai-mark'
+import {
+  distinctSources,
+  sourceOf,
+  unsureFields,
+  useAttachLeadAccount,
+  type AiFillConflict,
+  type AiSource,
+} from '@/data/lead-ai-fill'
 import {
   activeJobOf,
   aiJobsQuery,
@@ -17,41 +24,65 @@ import {
   useAiJobs,
   useAiJobTurns,
   usePressAiFill,
+  useUndoAiJob,
   type AiJobTurn,
 } from '@/data/lead-ai-job'
 import type { LeadDraft } from '@/data/lead-draft'
 import type { FieldKey, FormValues } from '@/data/lead-form'
 import { leadProfileQuery, profileForm } from '@/data/lead-profile'
 
-/** Module 2 · the AI fill of a lead as its boxes show it (ADR 0131).
+/** Module 2 · the AI fill of a lead as its form shows it (ADR 0131).
  *
- *  The press only queues a job; the tray in the corner shows its steps and
- *  holds Undo. While this lead has a job moving, the boxes it may fill are
- *  skeletons. When a job this page saw moving turns DONE, the new values go
- *  into the draft as already written (`LeadDraft.absorb`) and the skeletons
- *  lift one box at a time, 120 ms apart, each with the `AI_FLASH_MS` flash;
- *  reduced motion lifts them all at once. An Undo pressed in the tray is
- *  absorbed the same way, so no blur writes the AI value back. */
-
-const STEP_MS = 120
+ *  The press only queues a job; the tray in the corner holds its steps and
+ *  Undo, and the form shows one line of the same job: the step while it moves,
+ *  the result once it is done. When a job this page saw moving turns DONE, the
+ *  boxes it filled are skeletons until the new values are in the draft
+ *  (`LeadDraft.absorb`); an Undo pressed anywhere is absorbed the same way, so
+ *  no blur writes the AI value back. What needs a look is read from the
+ *  profile's own marks, not the job, so it survives a reload and a reader who
+ *  never pressed the button sees it too. */
 
 /** What `FieldRow` asks of a run, per box. */
 export type AiFillView = {
+  /** `waiting` while a landed job's values are being read in. */
   stateOf: (key: FieldKey) => AiFillState | undefined
+  /** The mark at the end of the label of a box the AI filled. */
+  mark: (key: FieldKey) => ReactNode
+  /** The source line under the box, while its mark is open. */
   under: (key: FieldKey) => ReactNode
+}
+
+/** What the lines above the form draw; `lead-ai-status.tsx` owns the looks. */
+export type AiStatus = {
+  /** A job of this lead is queued or running. */
+  active?: Pick<LeadAiJob, 'state' | 'step'>
+  /** The latest fill still standing: its count, sources and Undo. */
+  done?: {
+    filled: number
+    sources: AiSource[]
+    canUndo: boolean
+    undo: () => void
+    undoing: boolean
+  }
+  /** Fields the AI marked unsure, still holding its value. */
+  unsure: { key: LeadAiFillField }[]
+  conflicts: AiFillConflict[]
+  attach: (conflict: AiFillConflict) => void
+  attaching: boolean
+  /** Absent when the reader may not open accounts. */
+  openOwner?: (accountCode: string) => void
 }
 
 export type AiFillRun = {
   view: AiFillView
+  status: AiStatus
   /** The button is drawn: the server's `canAiFill`, or a job is running. */
   offered: boolean
   busy: boolean
   press: () => void
 }
 
-type Run = { code: string; phase: Partial<Record<FieldKey, AiFillState>> }
-
-const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches
+type Run = { code: string; waiting: ReadonlySet<FieldKey> }
 
 const pick = (values: FormValues, keys: readonly FieldKey[]) =>
   Object.fromEntries(keys.map((key) => [key, values[key]])) as Partial<FormValues>
@@ -67,22 +98,6 @@ const standingOf = (jobs: readonly LeadAiJob[], code: string) =>
 function useLanding(lead: LeadProfile, draft: LeadDraft) {
   const client = useQueryClient()
   const [stored, setRun] = useState<Run | null>(null)
-  const timers = useRef<ReturnType<typeof setTimeout>[]>([])
-
-  useEffect(() => () => timers.current.forEach(clearTimeout), [])
-
-  const setPhase = (key: FieldKey, state: AiFillState | undefined) =>
-    setRun((cur) => cur && { ...cur, phase: { ...cur.phase, [key]: state } })
-
-  const reveal = (code: string, keys: FieldKey[]) => {
-    const step = reducedMotion() ? 0 : STEP_MS
-    setRun({ code, phase: Object.fromEntries(keys.map((key) => [key, 'waiting'])) })
-    keys.forEach((key, i) =>
-      timers.current.push(setTimeout(() => setPhase(key, 'flash'), i * step)),
-    )
-    const done = keys.length * step + AI_FLASH_MS
-    timers.current.push(setTimeout(() => setRun((cur) => cur && { ...cur, phase: {} }), done))
-  }
 
   const land = (job: LeadAiJob, turn: AiJobTurn) => {
     const code = job.leadCode
@@ -90,12 +105,11 @@ function useLanding(lead: LeadProfile, draft: LeadDraft) {
     if (code !== lead.code || keys.length === 0) return
     /* Read now: by the time the profile is back, a person may have typed. */
     const before = pick(draft.values, keys)
-    if (turn === 'done')
-      setRun({ code, phase: Object.fromEntries(keys.map((key) => [key, 'waiting'])) })
+    if (turn === 'done') setRun({ code, waiting: new Set(keys) })
     const settle = (fresh: LeadProfile | undefined) => {
-      if (!fresh) return setRun(null)
-      draft.absorb(code, pick(profileForm(fresh) as FormValues, draft.untouched(code, before)))
-      if (turn === 'done') reveal(code, keys)
+      if (fresh)
+        draft.absorb(code, pick(profileForm(fresh) as FormValues, draft.untouched(code, before)))
+      setRun(null)
     }
     const profile = leadProfileQuery(code)
     void client
@@ -103,18 +117,46 @@ function useLanding(lead: LeadProfile, draft: LeadDraft) {
       .then(settle, () => settle(client.getQueryData(profile.queryKey)))
   }
 
-  return { run: stored?.code === lead.code ? stored : null, land }
+  return { waiting: stored?.code === lead.code ? stored.waiting : undefined, land }
+}
+
+/** The per-box face of a run: the mark of a box the AI filled and its source
+ *  line while that mark is open. `opened` holds `lead:key` slots. */
+function viewOf(
+  lead: LeadProfile,
+  lang: Lang,
+  stateOf: AiFillView['stateOf'],
+  opened: ReadonlySet<string>,
+  toggle: (slot: string) => void,
+): AiFillView {
+  const markOf = (key: FieldKey) => (stateOf(key) ? undefined : lead.aiFill[key as LeadAiFillField])
+  const slot = (key: FieldKey) => `${lead.code}:${key}`
+  return {
+    stateOf,
+    mark: (key) =>
+      markOf(key) && (
+        <AiFieldToggle open={opened.has(slot(key))} onToggle={() => toggle(slot(key))} />
+      ),
+    under: (key) => {
+      const mark = markOf(key)
+      return mark && opened.has(slot(key)) ? (
+        <AiSourceLine source={sourceOf(mark.source, lang)} />
+      ) : null
+    },
+  }
 }
 
 export function useAiFillRun(lead: LeadProfile, draft: LeadDraft, canEdit: boolean): AiFillRun {
-  const { t } = useI18n()
+  const { lang } = useI18n()
   const navigate = useNavigate()
   const client = useQueryClient()
   const canOpenAccount = useCan('account.view')
   const jobs = useAiJobs()
   const fill = usePressAiFill()
   const attach = useAttachLeadAccount()
-  const { run, land } = useLanding(lead, draft)
+  const undo = useUndoAiJob()
+  const { waiting, land } = useLanding(lead, draft)
+  const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set())
   const [attached, setAttached] = useState<ReadonlySet<string>>(() => new Set())
   useAiJobTurns(jobs, land)
 
@@ -176,41 +218,53 @@ export function useAiFillRun(lead: LeadProfile, draft: LeadDraft, canEdit: boole
       },
     )
 
+  const result = standing?.result
+  const done: AiStatus['done'] =
+    standing && result
+      ? {
+          filled: result.filled.length,
+          sources: distinctSources(result.filled, lang),
+          canUndo: standing.canUndo,
+          undo: () =>
+            undo.mutate(standing.id, {
+              onError: (error) =>
+                toastFail(
+                  translate(
+                    message('Chưa hoàn tác được.', 'Could not undo.', '실행 취소하지 못했습니다.'),
+                  ),
+                  userMessage(error),
+                ),
+            }),
+          undoing: undo.isPending && undo.variables === standing.id,
+        }
+      : undefined
+
   /* Boxes stay editable while the job runs; absorb skips any a person typed in. */
-  const stateOf = (key: FieldKey) => run?.phase[key]
+  const stateOf = (key: FieldKey) => (waiting?.has(key) ? 'waiting' : undefined)
   /* One hook instance serves every lead the screen steps through. */
   const busy = active !== undefined || (fill.isPending && fill.variables === lead.code)
 
-  const under = (key: FieldKey): ReactNode => {
-    const shut = stateOf(key) === 'waiting'
-    const mark = shut ? undefined : lead.aiFill[key as LeadAiFillField]
-    const doors = key === 'taxCode' && !shut ? conflicts : []
-    if (!mark && doors.length === 0) return null
-    return (
-      <>
-        <LeadAiMark mark={mark} />
-        {doors.map((conflict) => (
-          <AiFieldConflict
-            key={conflict.accountCode}
-            conflictLabel={t(message('Trùng công ty', 'Duplicate account', '중복 회사'))}
-            ownedLabel={t(message('đã thuộc', 'already belongs to', '이미 다음 회사에 등록됨:'))}
-            attachLabel={t(
-              message('Gắn vào công ty này', 'Attach to this account', '이 회사에 연결'),
-            )}
-            value={conflict.value}
-            ownerName={conflict.accountName}
-            onOpenOwner={
-              canOpenAccount ? () => navigate(`/sales/accounts/${conflict.accountCode}`) : undefined
-            }
-            onAttach={() => attachTo(conflict)}
-          />
-        ))}
-      </>
-    )
-  }
+  const toggle = (slot: string) =>
+    setOpened((cur) => {
+      const next = new Set(cur)
+      if (!next.delete(slot)) next.add(slot)
+      return next
+    })
+  const view = viewOf(lead, lang, stateOf, opened, toggle)
 
   return {
-    view: { stateOf, under },
+    view,
+    status: {
+      active,
+      done,
+      unsure: unsureFields(lead.aiFill).map((key) => ({ key })),
+      conflicts,
+      attach: attachTo,
+      attaching: attach.isPending,
+      openOwner: canOpenAccount
+        ? (code) => navigate(`/sales/accounts/${encodeURIComponent(code)}`)
+        : undefined,
+    },
     offered: canEdit && (busy || lead.canAiFill),
     busy,
     press,

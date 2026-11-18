@@ -1,344 +1,109 @@
-import { useState } from 'react'
+import { useMemo } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AiMark, Icon, Inbox, TriangleAlert } from '@pv/ui'
-import {
-  AppShell,
-  ApprovalChain,
-  Button,
-  EmptyState,
-  GlassCard,
-  Kicker,
-  MetaPill,
-  ScreenHeader,
-  ScreenLayout,
-  Skeleton,
-  Textarea,
-  type ChainStep,
-} from '@pv/ui'
-import type { ApprovalKind, ApprovalRequestView } from '@pv/contracts'
+import { AppShell, ContextRail, ScreenHeader, ScreenLayout, cn } from '@pv/ui'
 import { useAppChrome } from '@/app/chrome'
-import { isApiError, userMessage } from '@/app/api'
-import { toastDone } from '@/app/toast'
-import { message, useI18n, type Message } from '@/app/i18n'
-import { pendingApprovalsQuery, useDecideApproval } from '@/data/approvals'
+import { useCan } from '@/app/auth'
+import { message, useI18n } from '@/app/i18n'
+import { myApprovalsQuery, pendingApprovalsQuery } from '@/data/approvals'
+import { opportunityProfileQuery } from '@/data/opportunities'
+import { ApprovalDetail } from './approvals-detail'
+import { ApprovalListPanel } from './approvals-list'
+import { railOf, signedCodeOf, sortOldestFirst, type ApprovalTab } from './approvals-model'
 
 /** One Core · the approval inbox — pipeline #10, a queue of PEOPLE.
  *
- *  ------------------------------------------------------------------
- *  A QUEUE, NOT A PIPELINE
- *  ------------------------------------------------------------------
- *  `docs/decisions/0015-pipeline-queue-and-ledger-are-different-things.md`
- *  separates three things this codebase kept calling one: a pipeline (ordered
- *  stages, each with a clock), a queue
- *  (work sorted by PERSON, in and out), and a ledger (append-only events). This
- *  screen is the second. It has no columns and no stages — a request is either
- *  waiting on you or it has left, and the only two controls are yes and no.
+ *  List beside detail from `md`; on a phone the detail takes the list's place.
+ *  The open request lives in `?id=` and the tab in `?tab=`, so back works.
  *
- *  ------------------------------------------------------------------
- *  WHY NOT `ApprovalCard` (O-04)
- *  ------------------------------------------------------------------
- *  That organism asks for an `amount` and puts the sum in the primary button,
- *  which is exactly right for a discount and a purchase
- *  order and wrong for a change to a vocabulary list: there is no number, and
- *  inventing a zero would put a lie on the button. It comes into its own when
- *  the money-shaped kinds arrive; until then the row is composed from
- *  `ApprovalChain` (M-03) plus what this request actually carries.
+ *  A queue, not a pipeline (ADR 0015): no stages, a request is waiting on you
+ *  or it has left. The reader decides on `consequence`, the one sentence the
+ *  branch wrote when raising it; the payload never crosses the wire.
  *
- *  ------------------------------------------------------------------
- *  WHAT THE READER DECIDES ON
- *  ------------------------------------------------------------------
- *  `consequence` — one sentence the branch wrote when the request was raised,
- *  saying what happens if this is approved. The payload never crosses the wire;
- *  a platform screen decoding a branch's private shape would make that shape
- *  part of the platform's contract. */
+ *  ContextRail (law 10) is the open request's linked objects. A settings change
+ *  links none, so its rail is empty: law 10 debt, as on the holds book.
+ *
+ *  `ApprovalCard` (O-04) is not used: it puts an amount on the primary button,
+ *  and a settings change has none to print. */
 export default function ApprovalInboxScreen() {
-  const { t, number } = useI18n()
+  const { t } = useI18n()
   const chrome = useAppChrome()
-  const { data: rows, isPending, error, refetch } = useQuery(pendingApprovalsQuery())
+  const navigate = useNavigate()
+  const mayReadDeal = useCan('opportunity.view')
+  const [params, setParams] = useSearchParams()
+  const tab: ApprovalTab = params.get('tab') === 'sent' ? 'sent' : 'waiting'
+  const id = params.get('id')
+
+  const pending = useQuery(pendingApprovalsQuery())
+  /* The sent list is read only when its tab opens. */
+  const mine = useQuery({ ...myApprovalsQuery(), enabled: tab === 'sent' })
+  const active = tab === 'sent' ? mine : pending
+  const rows = useMemo(
+    () => (tab === 'waiting' && active.data ? sortOldestFirst(active.data) : active.data),
+    [tab, active.data],
+  )
+
+  /* Desktop opens on the first row; a phone shows the detail only for a real `?id=`. */
+  const opened = rows?.find((row) => row.id === id)
+  const selected = opened ?? rows?.[0]
+  const phoneDetail = Boolean(opened)
+
+  /* Same key as the detail's related block, so one read serves both. */
+  const dealCode = selected ? signedCodeOf(selected) : undefined
+  const deal = useQuery({
+    ...opportunityProfileQuery(dealCode ?? ''),
+    enabled: Boolean(dealCode) && mayReadDeal,
+  })
+  const railObjects = selected ? railOf(selected, deal.data, navigate) : []
+  const rail = railObjects.length > 0 ? <ContextRail objects={railObjects} /> : undefined
+  const split = Boolean(selected && rows)
+
+  const go = (next: { tab?: ApprovalTab; id?: string | null }) => {
+    const query = new URLSearchParams()
+    if ((next.tab ?? tab) === 'sent') query.set('tab', 'sent')
+    if (next.id) query.set('id', next.id)
+    setParams(query)
+  }
 
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <ScreenHeader
           title={t(message('Hộp duyệt', 'Approvals', '승인함'))}
-          description={t(
-            message(
-              'Duyệt xong, thay đổi có hiệu lực ngay.',
-              'Changes take effect as soon as you approve.',
-              '승인하면 변경 사항이 바로 적용됩니다.',
-            ),
-          )}
-          meta={
-            rows && rows.length > 0 ? (
-              <MetaPill tone="warning">
-                {t(
-                  message(
-                    `${number(rows.length)} yêu cầu đang chờ`,
-                    `${number(rows.length)} pending requests`,
-                    `대기 중인 요청 ${number(rows.length)}건`,
-                  ),
-                )}
-              </MetaPill>
-            ) : null
-          }
+          context={rail ? <div className="max-md:hidden">{rail}</div> : undefined}
+          className={phoneDetail ? 'hidden md:flex' : undefined}
         />
-
-        {isPending ? (
-          <div className="flex flex-col gap-4">
-            <Skeleton className="h-32" />
-            <Skeleton className="h-32" />
-          </div>
-        ) : error || !rows ? (
-          <EmptyState
-            tone="danger"
-            icon={TriangleAlert}
-            message={`${t(message('Không tải được yêu cầu.', 'Requests could not be loaded.', '요청을 불러올 수 없습니다.'))} ${
-              isApiError(error)
-                ? userMessage(error)
-                : t(message('Thử lại.', 'Try again.', '다시 시도하세요.'))
-            }`}
-            action={{
-              label: t(message('Thử lại', 'Try again', '다시 시도')),
-              onClick: () => void refetch(),
-            }}
-            className="py-12"
+        {phoneDetail && rail ? <div className="md:hidden">{rail}</div> : null}
+        <div
+          className={cn(
+            'grid gap-5',
+            split &&
+              'md:h-[calc(100dvh-17rem)] md:min-h-[26rem] md:grid-cols-[344px_minmax(0,1fr)] md:grid-rows-[minmax(0,1fr)] lg:h-[calc(100dvh-13rem)]',
+          )}
+        >
+          <ApprovalListPanel
+            tab={tab}
+            onTab={(next) => go({ tab: next })}
+            waitingCount={pending.data?.length}
+            query={active}
+            rows={rows}
+            selectedId={selected?.id}
+            onPick={(next) => go({ id: next })}
+            className={phoneDetail ? 'hidden md:flex' : undefined}
           />
-        ) : rows.length === 0 ? (
-          /* An empty inbox is the normal state, not a failure — so it says what
-             it means rather than offering something to create. */
-          <EmptyState
-            icon={Inbox}
-            message={t(
-              message(
-                'Không có yêu cầu nào chờ bạn duyệt.',
-                'No requests are waiting for your approval.',
-                '승인 대기 중인 요청이 없습니다.',
-              ),
-            )}
-            /* The one next step an inbox has: look again. It fills from other
-               people's screens, so a reader who expected something has nothing
-               to create here — only a reason to re-ask. */
-            action={{
-              label: t(message('Tải lại', 'Refresh', '새로고침')),
-              onClick: () => void refetch(),
-            }}
-            className="py-12"
-          />
-        ) : (
-          <div className="flex flex-col gap-4">
-            {sortOldestFirst(rows).map((row) => (
-              <RequestCard key={row.id} request={row} />
-            ))}
-          </div>
-        )}
-      </ScreenLayout>
-    </AppShell>
-  )
-}
-
-/** The kind as a reader says it. Keyed by the contract's enum, so a new kind
- *  fails to compile here instead of printing its wire key. */
-const KIND_LABEL: Record<ApprovalKind, Message> = {
-  'config-change': message('Thay đổi cấu hình', 'Settings change', '설정 변경'),
-  'contract-sign': message('Ký hợp đồng', 'Contract signing', '계약 체결'),
-}
-
-/** The chain as M-03 draws it: `ok` behind, `current` on the person waited on,
- *  `next` ahead. The label carries the role beside the name because a reader
- *  three links down needs to know why that person is in the chain at all. */
-function chainSteps(request: ApprovalRequestView): ChainStep[] {
-  return request.chain.map((link) => ({
-    label: `${link.person} · ${link.role}`,
-    state: link.state === 'approved' ? 'ok' : link.state === 'waiting' ? 'current' : 'next',
-  }))
-}
-
-/** Oldest first: the request that has waited longest is the one to clear. */
-function sortOldestFirst(rows: ApprovalRequestView[]): ApprovalRequestView[] {
-  return [...rows].sort((a, b) => a.raisedAt.localeCompare(b.raisedAt))
-}
-
-/** A one-line "who is next"; the full chain opens on demand. */
-function ChainToggle({ request }: { request: ApprovalRequestView }) {
-  const { t } = useI18n()
-  const [open, setOpen] = useState(false)
-  const waitingIndex = request.chain.findIndex((link) => link.state === 'waiting')
-  const waiting = request.chain[waitingIndex]
-  const total = request.chain.length
-  if (total < 2) return null
-
-  return (
-    <div className="flex flex-col gap-3">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-        className="text-muted-foreground hover:text-foreground w-fit text-left text-[11.5px]"
-      >
-        {waiting
-          ? t(
-              message(
-                `Bước ${waitingIndex + 1}/${total} · chờ ${waiting.person}`,
-                `Step ${waitingIndex + 1}/${total} · waiting on ${waiting.person}`,
-                `${waitingIndex + 1}/${total}단계 · ${waiting.person}님 대기`,
-              ),
-            )
-          : t(message('Chuỗi duyệt', 'Approval chain', '승인 단계'))}
-        {' · '}
-        <span className="underline">
-          {open
-            ? t(message('Ẩn', 'Hide', '숨기기'))
-            : t(message('Xem chuỗi duyệt', 'View chain', '단계 보기'))}
-        </span>
-      </button>
-      {open ? <ApprovalChain steps={chainSteps(request)} /> : null}
-    </div>
-  )
-}
-
-function RequestCard({ request }: { request: ApprovalRequestView }) {
-  const { t, date } = useI18n()
-  const decide = useDecideApproval(request.id)
-  /* The refusal box opens on demand rather than sitting under every row: a
-     reason is required to refuse, and a textarea permanently under a card the
-     reader means to approve is a box that reads like an obligation. */
-  const [refusing, setRefusing] = useState(false)
-  const [reason, setReason] = useState('')
-
-  const failure = isApiError(decide.error) ? userMessage(decide.error) : null
-
-  const send = (body: Parameters<typeof decide.mutate>[0], done: string) => {
-    decide.mutate(body, {
-      onSuccess: () => {
-        toastDone(done)
-        setRefusing(false)
-        setReason('')
-      },
-    })
-  }
-
-  const actions = (
-    <div className="flex shrink-0 flex-wrap gap-2">
-      <Button
-        className="pointer-coarse:h-12"
-        disabled={decide.isPending}
-        onClick={() =>
-          send(
-            { decision: 'approved' },
-            t(
-              message(
-                'Đã duyệt. Thay đổi đã có hiệu lực.',
-                'Approved. The change is now in effect.',
-                '승인했습니다. 변경 사항이 적용되었습니다.',
-              ),
-            ),
-          )
-        }
-      >
-        {t(message('Phê duyệt', 'Approve', '승인'))}
-      </Button>
-      <Button
-        variant="ghost"
-        className="pointer-coarse:h-12"
-        disabled={decide.isPending}
-        onClick={() => setRefusing(true)}
-      >
-        {t(message('Từ chối', 'Reject', '거절'))}
-      </Button>
-    </div>
-  )
-
-  return (
-    <GlassCard variant="b" className="flex flex-col gap-3 p-5">
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <Kicker tone="muted">{t(KIND_LABEL[request.kind])}</Kicker>
-          <p className="font-display text-[15px] font-semibold">{request.consequence}</p>
-          <p className="text-muted-foreground text-[11.5px]">
-            {t(
-              message(
-                `${request.raisedBy} gửi yêu cầu`,
-                `${request.raisedBy} requested`,
-                `${request.raisedBy}님이 요청함`,
-              ),
-            )}{' '}
-            ·{' '}
-            {date(request.raisedAt, {
-              day: '2-digit',
-              month: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </p>
-        </div>
-        {refusing ? null : actions}
-      </div>
-
-      {/* Rule 9 on screen: an AI proposal says so, and on what grounds, in one block. */}
-      {request.fromAi ? (
-        <div className="flex flex-col items-start gap-2">
-          <span className="text-muted-foreground flex items-center gap-1 text-[12px] leading-[1.7]">
-            <Icon icon={AiMark} size={16} className="text-primary" />
-            {t(message('AI đề xuất', 'Suggested by AI', 'AI 제안'))}
-          </span>
-          {request.basis ? (
-            <p className="text-glass-foreground text-[12px] leading-[1.7]">
-              {t(message('Căn cứ:', 'Basis:', '근거:'))} {request.basis}
-            </p>
+          {selected && rows ? (
+            <ApprovalDetail
+              key={selected.id}
+              request={selected}
+              tab={tab}
+              index={rows.indexOf(selected)}
+              total={rows.length}
+              onBack={() => go({ id: null })}
+              className={phoneDetail ? undefined : 'hidden md:flex'}
+            />
           ) : null}
         </div>
-      ) : null}
-
-      {request.links.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-2">
-          {request.links.map((link) => (
-            <MetaPill key={link.objectCode}>
-              {link.objectCode} · {link.objectLabel}
-            </MetaPill>
-          ))}
-        </div>
-      ) : null}
-
-      <ChainToggle request={request} />
-
-      {failure ? (
-        <p role="alert" className="text-destructive-foreground text-[11.5px] leading-[1.5]">
-          {failure}
-        </p>
-      ) : null}
-
-      {refusing ? (
-        <div className="flex flex-col gap-3">
-          <Textarea
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder={t(message('Lý do từ chối', 'Reason for rejection', '거절 사유'))}
-            rows={3}
-          />
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="destructive"
-              className="pointer-coarse:h-12"
-              disabled={reason.trim() === '' || decide.isPending}
-              onClick={() =>
-                send(
-                  { decision: 'rejected', reason: reason.trim() },
-                  t(message('Đã từ chối yêu cầu.', 'Request rejected.', '요청을 거절했습니다.')),
-                )
-              }
-            >
-              {t(message('Xác nhận từ chối', 'Reject request', '요청 거절'))}
-            </Button>
-            <Button
-              variant="ghost"
-              className="pointer-coarse:h-12"
-              onClick={() => setRefusing(false)}
-            >
-              {t(message('Hủy', 'Cancel', '취소'))}
-            </Button>
-          </div>
-        </div>
-      ) : null}
-    </GlassCard>
+      </ScreenLayout>
+    </AppShell>
   )
 }

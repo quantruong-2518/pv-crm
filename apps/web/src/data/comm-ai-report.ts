@@ -1,5 +1,5 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react'
-import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { queryOptions, useMutation, useQuery } from '@tanstack/react-query'
 import {
   CommAiReport,
   CommAiReportStatus,
@@ -13,19 +13,14 @@ import {
   type DebriefView,
   type StepOptionsResponse,
 } from '@pv/contracts'
-import { api, isApiError, userMessage, type ApiError } from '@/app/api'
-import { getLang, message, translate, useLang, type Lang, type Message } from '@/app/i18n'
+import { api, userMessage, type ApiError } from '@/app/api'
+import { message, translate, useLang, type Lang, type Message } from '@/app/i18n'
 import { useCan } from '@/app/auth'
 import { cacheTier } from '@/app/query-client'
-import { dmy } from '@/lib/date'
+import { useSaveMinutes } from '@/data/comm-ai-minutes'
+import { readSettled, writeSettled, type DraftPart } from '@/data/comm-ai-settled'
 import { COMM_AI_JOB_FAILED, isCommJobActive, useCommAiJob } from '@/data/comm-ai-job'
-import {
-  COMM_RECORDS_KEY,
-  commFilesQuery,
-  deleteCommFile,
-  uploadCommFile,
-  type StepDraft,
-} from '@/data/comm-record-detail'
+import { COMM_RECORDS_KEY, commFilesQuery, type StepDraft } from '@/data/comm-record-detail'
 import { COMM_VIEW_NEED } from '@/data/comms'
 import { dueOnPick } from '@/data/next-step'
 
@@ -75,13 +70,28 @@ type Held = {
   savedMinutes: string | null
   /** Hand edits a new minutes press replaced before they were saved. */
   editedMinutes: string | null
+  /** The job this report came from, or null for a sync answer that is not kept. */
+  jobId: string | null
+  /** The parts one press moved into the form; their previews are gone for good. */
+  taken: DraftPart[]
+  /** "Discard suggestions": the report stays for the minutes, its previews go. */
+  dismissed: boolean
+  dropped: DraftPart[]
 }
 
 /** Where every report lands, whichever door it came through. */
-function heldWith(before: Held | null, report: CommAiReport, part: CommAiPart, note: string): Held {
+function heldWith(
+  before: Held | null,
+  report: CommAiReport,
+  part: CommAiPart,
+  note: string,
+  recordId: string,
+  jobId: string | null,
+): Held {
   const edited = before && before.minutes !== before.report.minutes ? before : null
-  /* A press for the summary was not asked to redo the minutes. */
+  /* The "Regenerate" button asks for the summary, so hand-edited minutes survive it here. */
   const kept = part === 'summary' ? edited : null
+  const done = jobId ? readSettled(recordId, jobId) : null
   const lost = part === 'minutes' && edited?.savedMinutes !== edited?.minutes.trim()
   return {
     report,
@@ -91,6 +101,10 @@ function heldWith(before: Held | null, report: CommAiReport, part: CommAiPart, n
     minutes: kept?.minutes ?? report.minutes,
     savedMinutes: kept?.savedMinutes ?? null,
     editedMinutes: lost && edited ? edited.minutes : (before?.editedMinutes ?? null),
+    jobId,
+    taken: done?.taken ?? [],
+    dismissed: done?.dismissed ?? false,
+    dropped: done?.dropped ?? [],
   }
 }
 
@@ -101,29 +115,31 @@ const recordingsOf = ({ rows }: CommAttachmentsResponse) =>
     .map((file) => file.id)
     .join(' ') || null
 
-/** Already gone is what a replace wanted: the person may have removed it from the list. */
-async function dropFile(id: string, fileId: string) {
-  try {
-    await deleteCommFile(id, fileId)
-  } catch (error) {
-    if (!isApiError(error) || error.kind !== 'not-found') throw error
-  }
+/** One entry per job: a reopened record reads the landed job again and must not re-offer
+ *  what the person already settled. */
+function useKeepSettled(recordId: string, held: Held | null) {
+  const jobId = held?.jobId ?? null
+  const taken = held?.taken
+  const dropped = held?.dropped
+  const dismissed = held?.dismissed
+  useEffect(() => {
+    if (jobId && taken && dropped && dismissed !== undefined)
+      writeSettled(recordId, { jobId, taken, dropped, dismissed })
+  }, [recordId, jobId, taken, dropped, dismissed])
 }
 
 export function useCommAiReport(record: DebriefView, words = FORM_WORDS) {
   const lang = useLang()
   const permitted = useCan('comm.view-content') && record.closableByMe
   const status = useQuery({ ...commAiStatusQuery, enabled: permitted })
-  const client = useQueryClient()
   const [held, setHeld] = useState<Held | null>(null)
   /* A stack: a second summary taken must not cost the note kept from the first. */
   const [replaced, setReplaced] = useState<string[]>([])
-  const [saveProblem, setSaveProblem] = useState<string | null>(null)
-  /* Outside `Held`: a save of a newer report still replaces the file this form saved. */
-  const [savedFile, setSavedFile] = useState<string | null>(null)
   /* The recordings the tick was given for: a word given for one does not cover another. */
   const [noticed, setNoticed] = useState<string | null>(null)
   const [jobProblem, setJobProblem] = useState<string | null>(null)
+  /* Kept here so one retry button, wherever it sits, resends the last press as it was. */
+  const [asked, setAsked] = useState<{ part: CommAiPart; note: string } | null>(null)
 
   /* `permitted` also guards the cache, which a switched-off query still hands back.
      The route comes first because each read of the file list files an audit line. */
@@ -136,11 +152,22 @@ export function useCommAiReport(record: DebriefView, words = FORM_WORDS) {
   const recordings = listenable ? (files.data ?? null) : null
   const listens = recordings !== null
   const { job, press } = useCommAiJob(record.id, permitted)
+  const {
+    saveMinutes,
+    saving,
+    problem: saveProblem,
+    clearProblem,
+  } = useSaveMinutes(record, held?.minutes ?? null, (text) =>
+    setHeld((h) => h && { ...h, savedMinutes: text }),
+  )
 
-  const land = useCallback((report: CommAiReport, part: CommAiPart, note: string) => {
-    setSaveProblem(null)
-    setHeld((before) => heldWith(before, report, part, note))
-  }, [])
+  const land = useCallback(
+    (report: CommAiReport, part: CommAiPart, note: string, jobId: string | null = null) => {
+      clearProblem()
+      setHeld((before) => heldWith(before, report, part, note, record.id, jobId))
+    },
+    [clearProblem, record.id],
+  )
 
   const run = useMutation<CommAiReport, ApiError, { part: CommAiPart; note: string }>({
     mutationFn: ({ note }) =>
@@ -159,40 +186,16 @@ export function useCommAiReport(record: DebriefView, words = FORM_WORDS) {
   useLayoutEffect(() => {
     if (!job || isCommJobActive(job) || landed.current === job.id) return
     landed.current = job.id
-    if (job.state === 'FAILED') setJobProblem(job.error ?? translate(COMM_AI_JOB_FAILED))
-    else if (job.report) land(job.report, job.part, job.note)
+    if (job.state === 'FAILED') {
+      setJobProblem(job.error ?? translate(COMM_AI_JOB_FAILED))
+      /* A retry after a reload must resend what the failed press carried. */
+      setAsked((was) => was ?? { part: job.part, note: job.note })
+    } else if (job.report) land(job.report, job.part, job.note, job.id)
   }, [job, land])
-
-  const save = useMutation<string, ApiError, { text: string; replaces: string | null }>({
-    mutationFn: async ({ text, replaces }) => {
-      const file = new File([text], minutesFileName(record, getLang()), { type: 'text/plain' })
-      const fileId = await uploadCommFile(record.id, file, 'text/plain')
-      /* New file first, so a failure never leaves the record with none. An old copy
-         that will not delete stays in the list, where the person can remove it. */
-      if (replaces) await dropFile(record.id, replaces).catch(() => undefined)
-      return fileId
-    },
-    onSuccess: (fileId, { text }) => {
-      setSavedFile(fileId)
-      setHeld((h) => h && { ...h, savedMinutes: text })
-    },
-    onError: (error) =>
-      setSaveProblem(
-        isApiError(error)
-          ? userMessage(error)
-          : translate(
-              message(
-                'Không lưu được biên bản. Thử lại.',
-                'Could not save the minutes. Try again.',
-                '회의록을 저장하지 못했습니다. 다시 시도해 주세요.',
-              ),
-            ),
-      ),
-    onSettled: () => void client.invalidateQueries({ queryKey: COMM_RECORDS_KEY }),
-  })
 
   const ask = (part: CommAiPart, note: string) => {
     const sent = note.trim()
+    setAsked({ part, note: sent })
     run.reset()
     press.reset()
     setJobProblem(null)
@@ -226,6 +229,14 @@ export function useCommAiReport(record: DebriefView, words = FORM_WORDS) {
     return back
   }
 
+  const draftTaken = (parts: readonly DraftPart[]) =>
+    setHeld((h) => h && { ...h, taken: [...new Set([...h.taken, ...parts])] })
+  const dismissDraft = () => setHeld((h) => h && { ...h, dismissed: true })
+  const dropPart = (part: DraftPart) =>
+    setHeld((h) => h && { ...h, dropped: [...h.dropped.filter((p) => p !== part), part] })
+
+  useKeepSettled(record.id, held)
+
   const setMinutes = (minutes: string) => setHeld((h) => h && { ...h, minutes })
 
   const restoreMinutes = () =>
@@ -235,19 +246,6 @@ export function useCommAiReport(record: DebriefView, words = FORM_WORDS) {
         : h,
     )
 
-  const saveMinutes = () => {
-    if (!held || save.isPending) return
-    const text = held.minutes.trim()
-    if (text === '')
-      return setSaveProblem(
-        translate(
-          message('Biên bản đang trống.', 'The minutes are empty.', '회의록이 비어 있습니다.'),
-        ),
-      )
-    setSaveProblem(null)
-    save.mutate({ text, replaces: savedFile })
-  }
-
   const saved = held?.savedMinutes ?? null
   /* Until the list is read a press could take the sync path past a recording. */
   const filesKnown = !listenable || !files.isPending
@@ -256,6 +254,16 @@ export function useCommAiReport(record: DebriefView, words = FORM_WORDS) {
   const pressed = run.isPending ? run.variables.part : press.isPending ? press.variables.part : null
   const asking = pressed ?? running
   const refusal = run.error ?? press.error
+  const error = refusal ? userMessage(refusal) : jobProblem
+  const live = job && isCommJobActive(job) ? job : null
+  const blocked = listens && noticed !== recordings
+  const stage: CommAiStage = asking
+    ? 'running'
+    : error
+      ? 'error'
+      : !held || held.dismissed
+        ? 'idle'
+        : 'ready'
 
   return {
     /* Only asking needs the route: a daily limit reached after a press must not
@@ -272,7 +280,21 @@ export function useCommAiReport(record: DebriefView, words = FORM_WORDS) {
     asking,
     /** The running ask is a recording job, so the person need not wait on this screen. */
     listening: press.isPending || running !== null,
-    error: refusal ? userMessage(refusal) : jobProblem,
+    error,
+    stage,
+    /** Where the job stands, or null on the sync path or when idle. */
+    progress:
+      press.isPending || live ? { step: live?.step ?? 0, queued: live?.state === 'QUEUED' } : null,
+    sources: held?.report.sources ?? null,
+    hasReport: held !== null,
+    /** Parts the person dropped or took: none of them is previewed again. */
+    settledParts: [...(held?.dropped ?? []), ...(held?.taken ?? [])],
+    taken: held?.taken ?? [],
+    draftTaken,
+    dismissDraft,
+    dropPart,
+    /** Resends the last press with the note it carried; undefined until one was made. */
+    retry: asked && canAsk && !blocked ? () => ask(asked.part, asked.note) : undefined,
     needsNotice: listens,
     notice: listens && noticed === recordings,
     setNotice: (ticked: boolean) => setNoticed(ticked ? recordings : null),
@@ -286,7 +308,7 @@ export function useCommAiReport(record: DebriefView, words = FORM_WORDS) {
     restoreMinutes,
     minutesSaved: saved !== null && saved === held?.minutes.trim(),
     minutesChangedSinceSave: saved !== null && saved !== held?.minutes.trim(),
-    savingMinutes: save.isPending,
+    savingMinutes: saving,
     saveProblem,
     saveMinutes,
   }
@@ -294,24 +316,34 @@ export function useCommAiReport(record: DebriefView, words = FORM_WORDS) {
 
 export type CommAiReportState = ReturnType<typeof useCommAiReport>
 
+/** running: a press is out · error: it was refused or failed · ready: a report is held
+ *  and not discarded; which parts still wait is the form's plan · idle: nothing to press on. */
+export type CommAiStage = 'idle' | 'running' | 'error' | 'ready'
+
+/** How many exchanges and files a screen counts: said once for the basis line and the call panel. */
+export const exchangesCount = (n: number) =>
+  message(`${n} lượt trao đổi`, `${n} exchanges`, `대화 ${n}회`)
+export const filesCount = (n: number) => message(`${n} tệp`, `${n} files`, `파일 ${n}개`)
+
 /** The law 9 line, from what the server says was read and never from the model.
- *  Built beside the data, as in `data/plan.ts`, so the words cannot drift from it. */
-function commAiBasis(
+ *  Built beside the data so the words cannot drift from it. `files: 'count'` is for a
+ *  narrow block where a long file name would not wrap; the panel next to it lists the names. */
+export function commAiBasis(
   { note, turns, files, unread }: CommAiSources,
   noteWord: string,
   lang: Lang,
+  format: { files: 'names' | 'count' } = { files: 'names' },
 ): string {
+  const fileParts =
+    format.files === 'names'
+      ? files
+      : files.length > 0
+        ? [translate(filesCount(files.length), lang)]
+        : []
   const read = [
     ...(note ? [noteWord] : []),
-    ...(turns > 0
-      ? [
-          translate(
-            message(`${turns} lượt trao đổi`, `${turns} exchanges`, `대화 ${turns}회`),
-            lang,
-          ),
-        ]
-      : []),
-    ...files,
+    ...(turns > 0 ? [translate(exchangesCount(turns), lang)] : []),
+    ...fileParts,
   ]
   const skipped =
     unread.length > 0
@@ -325,12 +357,6 @@ function commAiBasis(
         )
       : ''
   return [read.join(' · '), skipped].filter(Boolean).join('. ')
-}
-
-function minutesFileName(record: DebriefView, lang: Lang): string {
-  const day = dmy(record.meeting?.at ?? record.createdAt).replaceAll('/', '-')
-  const name = translate(message('Biên bản', 'Minutes', '회의록'), lang)
-  return `${name} ${record.subject.code} ${day}.txt`
 }
 
 /** Answers the form can take: the vocabulary may have moved since the press, a

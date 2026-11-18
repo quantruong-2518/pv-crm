@@ -1,151 +1,53 @@
-import { useState, type ReactNode } from 'react'
-import { Button, CircleAlert, Copy, Icon, TriangleAlert, cn } from '@pv/ui'
-import { useI18n, type Lang } from '@/app/i18n'
-import { toastDone, toastFail } from '@/app/toast'
+import { useI18n } from '@/app/i18n'
 import {
   ASSISTANT_COPY as C,
-  ERROR_COPY,
-  RETRYABLE,
-  asOf,
-  footerLine,
+  sentenceStart,
   shownText,
   suggestionText,
 } from '@/data/assistant-copy'
-import type { AnswerView } from '@/data/assistant-thread'
 import { AssistantAnswerText } from './assistant-answer-text'
-import { AiGlyph, BUBBLE } from './assistant-bits'
+import { AnswerFooter, FailedAlert, QuietLine, type AnswerProps } from './assistant-answer-parts'
+import { basisOf, quietKind } from './assistant-answer-model'
+import { PanelAnswer } from './assistant-answer-panel'
 import { ProposalCard } from './assistant-proposal-card'
-import { RefCard, RefTable } from './assistant-ref-card'
-import { ReportForm } from './assistant-report-form'
-import { RunningBubble } from './assistant-running'
+import { RefTable } from './assistant-ref-card'
+import { RunningLine } from './assistant-running'
 
-/** One assistant answer in the conversation (ADR 0133), as the owner's
- *  03/11 design draws it: the steps with a stop icon while it runs, the refusal
- *  with a retry when it fails, and otherwise a read-only bubble.
+/** One assistant answer in the conversation (ADR 0133). On the page (owner, 18/11) it is
+ *  plain text on the background: no bubble, no mark, one dim line of evidence under it
+ *  with copy and report, the proposal as the one `glass-ai` block, at most two follow-ups.
+ *  The drawer keeps its bubble (`assistant-answer-panel.tsx`).
  *
- *  The bubble is not an AI block: an answer proposes nothing, so law 9 (wait for
- *  a button) does not apply and there is no confirm button; the code chip and the
- *  record card already open the record (owner, 03/11). It still prints its basis.
- *  Three records or more become a table under the bubble (law 8). */
+ *  An answer proposes nothing by itself: law 9 binds only the proposal card, whose button
+ *  is the only thing that writes. The records an answer names open in the page's record
+ *  pane; three or more also list in a table under it (law 8). */
 
-const TOUCH = 'pointer-coarse:h-12'
-/** Copy and report: quiet icon buttons that keep their 48px reach on touch (law 13). */
-const QUIET =
-  'text-muted-foreground hover:text-foreground hover:bg-surface-ink/9 pointer-coarse:size-12 size-8 bg-transparent px-0 shadow-none'
+const FOLLOW_UPS = 2
 
-type AnswerProps = {
-  answer: AnswerView
-  /** Suggestion chips only under the newest answer. */
-  last: boolean
-  busy: boolean
-  /** The panel is narrow: the AI mark moves inside the bubble. */
-  compact: boolean
-  ask: (question: string) => void
-  openPath: (path: string) => void
-  /** Leaves the session: an unchecked answer stays unchecked for the rest of this chat. */
-  onNewChat: () => void
-}
-
-/** The turn's footer, live or saved; a row with none (a stopped turn) still dates its figures.
- *  Lower case in both, because it follows the basis label. */
-const basisOf = (answer: AnswerView, lang: Lang) =>
-  answer.footer ? footerLine(answer.footer, lang) : asOf(answer.at, lang)
-
-export function AssistantAnswer(props: AnswerProps) {
-  const { t } = useI18n()
-  const { answer, compact } = props
-  if (answer.state === 'running') {
-    return (
-      <Row compact={compact}>
-        <RunningBubble answer={answer} compact={compact} />
-      </Row>
-    )
-  }
+export function AssistantAnswer(props: AnswerProps & { compact: boolean }) {
+  if (props.compact) return <PanelAnswer {...props} />
+  const { answer } = props
+  if (answer.state === 'running') return <RunningLine answer={answer} />
   if (answer.state === 'failed') return <Failed {...props} />
-  if (answer.withheld)
-    return <p className="text-muted-foreground m-0 text-[12.5px]">{t(C.withheld)}</p>
-  if (answer.unchecked) {
-    return (
-      <div className="flex flex-wrap items-center gap-3">
-        <p className="text-muted-foreground m-0 flex-1 text-[12.5px]">{t(C.unchecked)}</p>
-        <Button variant="ghost" size="sm" className={TOUCH} onClick={props.onNewChat}>
-          {t(C.newChat)}
-        </Button>
-      </div>
-    )
-  }
-  if (!answer.body) return <p className="text-muted-foreground m-0 text-[12.5px]">{t(C.stopped)}</p>
+  const quiet = quietKind(answer)
+  if (quiet) return <QuietLine kind={quiet} onNewChat={props.onNewChat} />
   return <Answered {...props} />
 }
 
-/** The page puts the mark beside the bubble; the panel has no room and draws it in the bubble. */
-function Row({ compact, children }: { compact: boolean; children: ReactNode }) {
-  if (compact) return <div className="flex flex-col gap-3">{children}</div>
-  return (
-    <div className="flex items-start gap-3">
-      <AiGlyph className="mt-1" />
-      <div className="flex min-w-0 flex-1 flex-col gap-3">{children}</div>
-    </div>
-  )
-}
-
-function useCopy(answer: AnswerView) {
-  const { t, lang } = useI18n()
-  return () =>
-    void navigator.clipboard.writeText(shownText(answer.body, lang)).then(
-      () => toastDone(t(C.copied)),
-      () => toastFail(t(C.copyFailed)),
-    )
-}
-
-function Failed({ answer, ask, busy, openPath, compact, last }: AnswerProps) {
-  const { t, lang } = useI18n()
-  const failure = answer.failure
-  /* The server's sentence is Vietnamese; another language reads the one keyed by code. */
-  const text = failure
-    ? lang === 'vi' && failure.message
-      ? failure.message
-      : t(ERROR_COPY[failure.code])
-    : t(C.notAnswered)
-  const retry = !failure || RETRYABLE.has(failure.code)
-  const alert = (
-    <div
-      role="alert"
-      className="text-destructive-foreground flex flex-wrap items-center gap-3 text-[12.5px]"
-    >
-      <Icon icon={TriangleAlert} size={16} className="shrink-0" />
-      <span className="flex-1">{text}</span>
-      {retry && answer.question && (
-        <Button
-          variant="ghost"
-          size="sm"
-          className={TOUCH}
-          disabled={busy}
-          onClick={() => ask(answer.question)}
-        >
-          {t(C.retry)}
-        </Button>
-      )}
-    </div>
-  )
-  /* What arrived before the break is still shown, with its basis, and can be copied. */
+function Failed({ answer, ask, busy, openPath }: AnswerProps) {
+  const alert = <FailedAlert answer={answer} ask={ask} busy={busy} />
+  /* What arrived before the break is still shown, with its evidence, and can be copied. */
   if (!answer.body) return alert
   return (
-    <Row compact={compact}>
-      <AnswerBubble
-        answer={answer}
-        compact={compact}
-        openPath={openPath}
-        reportable={false}
-        latest={last}
-      />
+    <div className="flex flex-col gap-3">
+      <Text answer={answer} openPath={openPath} reportable={false} />
       {alert}
-    </Row>
+    </div>
   )
 }
 
-function Answered({ answer, last, busy, ask, openPath, compact }: AnswerProps) {
-  const { t, lang } = useI18n()
+function Answered({ answer, last, busy, ask, openPath }: AnswerProps) {
+  const { lang } = useI18n()
   const suggestions = last
     ? answer.suggestions.flatMap((s) => {
         const text = suggestionText(s, lang)
@@ -154,26 +56,15 @@ function Answered({ answer, last, busy, ask, openPath, compact }: AnswerProps) {
     : []
 
   return (
-    <Row compact={compact}>
-      <AnswerBubble
-        answer={answer}
-        compact={compact}
-        openPath={openPath}
-        reportable
-        latest={last}
-      />
+    <div className="flex flex-col gap-4">
+      <Text answer={answer} openPath={openPath} reportable />
       {answer.refs.length >= 3 && <RefTable refs={answer.refs} openPath={openPath} />}
       {answer.proposals.map((proposal) => (
-        <ProposalCard key={proposal.id} proposal={proposal} compact={compact} />
+        <ProposalCard key={proposal.id} proposal={proposal} compact={false} />
       ))}
       {suggestions.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
-          {!compact && (
-            <span className="text-muted-foreground mr-1 text-[12px] font-semibold">
-              {t(C.askNext)}
-            </span>
-          )}
-          {suggestions.map((s) => (
+          {suggestions.slice(0, FOLLOW_UPS).map((s) => (
             <button
               key={s.key}
               type="button"
@@ -186,36 +77,19 @@ function Answered({ answer, last, busy, ask, openPath, compact }: AnswerProps) {
           ))}
         </div>
       )}
-    </Row>
+    </div>
   )
 }
 
-function AnswerBubble({
+/** The answer's words, then its evidence line with copy and report. */
+function Text({
   answer,
-  compact,
   openPath,
   reportable,
-  latest,
-}: {
-  answer: AnswerView
-  compact: boolean
-  openPath: (path: string) => void
-  reportable: boolean
-  /** Newest answer of the thread: only its cards read facts. */
-  latest: boolean
-}) {
+}: Pick<AnswerProps, 'answer' | 'openPath'> & { reportable: boolean }) {
   const { t, lang } = useI18n()
-  const [reporting, setReporting] = useState(false)
-  const [reported, setReported] = useState(false)
-  const copy = useCopy(answer)
-  const cards = answer.refs.length < 3 ? answer.refs : []
-
   return (
-    <article className={cn(BUBBLE, 'flex flex-col gap-3')}>
-      <div className="flex items-center gap-2">
-        {compact && <AiGlyph size={18} />}
-        <span className="text-accent-foreground text-[13px] font-semibold">{t(C.aiLabel)}</span>
-      </div>
+    <div className="flex flex-col gap-2">
       <AssistantAnswerText
         text={shownText(answer.body, lang)}
         refs={answer.refs}
@@ -224,46 +98,11 @@ function AnswerBubble({
       {answer.state === 'stopped' && (
         <span className="text-muted-foreground text-[12px]">{t(C.stopped)}</span>
       )}
-      {cards.map((ref) => (
-        <RefCard key={`${ref.kind}:${ref.code}`} refItem={ref} openPath={openPath} facts={latest} />
-      ))}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-muted-foreground flex min-w-0 flex-1 basis-48 text-[12px]">
-          {t(C.basisLabel)}: {basisOf(answer, lang)}
-        </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          className={QUIET}
-          aria-label={t(C.copy)}
-          title={t(C.copy)}
-          onClick={copy}
-        >
-          <Icon icon={Copy} size={16} />
-        </Button>
-        {reportable && answer.id && !reported && !reporting && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className={QUIET}
-            aria-label={t(C.report)}
-            title={t(C.report)}
-            onClick={() => setReporting(true)}
-          >
-            <Icon icon={CircleAlert} size={16} />
-          </Button>
-        )}
-        {reported && <span className="text-muted-foreground text-[12px]">{t(C.reported)}</span>}
-      </div>
-      {answer.id && reporting && (
-        <ReportForm
-          messageId={answer.id}
-          onClose={(sent) => {
-            setReporting(false)
-            setReported(sent)
-          }}
-        />
-      )}
-    </article>
+      <AnswerFooter
+        answer={answer}
+        reportable={reportable}
+        line={sentenceStart(basisOf(answer, lang))}
+      />
+    </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useId, type Dispatch, type ReactNode, type SetStateAction } from 'react'
+import { useId, type Dispatch, type SetStateAction } from 'react'
 import type { UseQueryResult } from '@tanstack/react-query'
 import { message, useI18n } from '@/app/i18n'
 import { Input, Separator, Textarea } from '@pv/ui'
@@ -17,7 +17,7 @@ import { commNoun, subjectKindLabel, type StepDraft } from '@/data/comm-record-d
 import type { CloseStep } from '@/data/customer-close'
 
 /** The three cards of the owner's form on `/comms/:id`, one shown at a time
- *  by `CommFormSteps` — first fill and later edit alike. Each card only draws
+ *  by `CommFormSteps` on the later edit. Each card only draws
  *  and reports; the form's state lives in `useCommForm`. */
 
 export function ContentStep({
@@ -28,7 +28,6 @@ export function ContentStep({
   onTitle,
   onSummary,
   fileNote,
-  aid,
 }: {
   record: DebriefView
   /** Null hides the field. */
@@ -39,8 +38,6 @@ export function ContentStep({
   onSummary: (summary: string) => void
   /** The grey words after the files label. */
   fileNote?: string
-  /** Under the note box: the AI report on a first fill (ADR 0132). */
-  aid?: ReactNode
 }) {
   const { t, number } = useI18n()
   const titleId = useId()
@@ -99,7 +96,6 @@ export function ContentStep({
           {t(message('ký tự', 'characters', '자'))}
         </span>
       </div>
-      {aid}
       <Separator />
       <div className="flex min-w-0 flex-col gap-3">
         <span className={STEP_LABEL}>
@@ -121,18 +117,15 @@ export function EvaluationStep({
   picked,
   onPick,
   close,
-  aid,
 }: {
   heading: string
   vocab: UseQueryResult<CommVocabularyResponse>
   picked: Record<string, string>
   onPick: Dispatch<SetStateAction<Record<string, string>>>
   close: CloseStep
-  aid?: ReactNode
 }) {
   return (
     <CommStepCard index={1} title={heading}>
-      {aid}
       <CommEvaluation vocab={vocab} picked={picked} onPick={onPick} />
       {close.customer && (
         <TemperaturePick value={close.temperature} onPick={close.setTemperature} />
@@ -148,7 +141,6 @@ export function NextStepStep({
   close,
   draft,
   onDraft,
-  aid,
 }: {
   record: DebriefView
   heading: string
@@ -156,8 +148,6 @@ export function NextStepStep({
   close: CloseStep
   draft: StepDraft
   onDraft: (next: StepDraft) => void
-  /** Over the step fields, and only while they show. */
-  aid?: ReactNode
 }) {
   const { t, lang } = useI18n()
   const { code } = record.subject
@@ -165,15 +155,12 @@ export function NextStepStep({
     <CommStepCard index={2} title={heading}>
       {close.takesStep ? (
         close.stepShown && (
-          <>
-            {aid}
-            <CommNextStepFields
-              kinds={kinds}
-              options={close.options}
-              draft={draft}
-              onDraft={onDraft}
-            />
-          </>
+          <CommNextStepFields
+            kinds={kinds}
+            options={close.options}
+            draft={draft}
+            onDraft={onDraft}
+          />
         )
       ) : close.target.isPending ? null : (
         <p className="text-muted-foreground m-0 text-[13px] leading-[1.6]">

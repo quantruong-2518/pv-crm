@@ -35,7 +35,9 @@ export const BUBBLE =
 /** Inside the answer the record card is drawn by a light hairline instead of a shadow. */
 export const HAIRLINE = 'ring-foreground/12 ring-1 ring-inset'
 
-/** A record code: card ground, primary ring, mono, 24px. A button when `onOpen` is given. */
+/** A record code: card ground, primary ring, mono, 24px. A button when `onOpen` is given.
+ *  `open` is the azure state for the record the page is showing. On a coarse pointer
+ *  the base `Chip` pads the hit area to 48px when it is a button (law 13). */
 const CODE_CHIP =
   'bg-card text-accent-foreground ring-primary/45 hover:bg-accent h-6 rounded-[6px] px-2 py-0 align-baseline text-[12.5px] font-semibold ring-1 ring-inset'
 
@@ -44,6 +46,7 @@ export function CodeChip({
   onOpen,
   label,
   small = false,
+  open = false,
   className,
 }: {
   code: string
@@ -51,13 +54,20 @@ export function CodeChip({
   /** Accessible name when the chip opens the record. */
   label?: string
   small?: boolean
+  open?: boolean
   className?: string
 }) {
   return (
     <Chip
       variant="source"
       aria-label={label}
-      className={cn(CODE_CHIP, small && 'h-5 text-[11px]', !onOpen && 'hover:bg-card', className)}
+      className={cn(
+        CODE_CHIP,
+        small && 'h-5 text-[11px]',
+        open && 'bg-primary/24 hover:bg-primary/32',
+        !onOpen && (open ? 'hover:bg-primary/24' : 'hover:bg-card'),
+        className,
+      )}
       onOpen={onOpen}
     >
       {code}

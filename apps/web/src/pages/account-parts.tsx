@@ -6,10 +6,8 @@ import {
   Avatar,
   Badge,
   Button,
-  EmptyState,
   GlassCard,
   Icon,
-  Inbox,
   KeyRound,
   MetaPill,
   Plug,
@@ -18,18 +16,12 @@ import {
   type BadgeProps,
   type IconGlyph,
 } from '@pv/ui'
-import {
-  MY_APPROVALS_LIMIT,
-  type ApprovalRequestView,
-  type ApprovalState,
-  type GoogleLinkStatus,
-} from '@pv/contracts'
+import type { GoogleLinkStatus } from '@pv/contracts'
 import type { Actor } from '@pv/engines'
 import { isApiError, userMessage } from '@/app/api'
 import { CHANGE_PASSWORD_PATH } from '@/app/auth'
 import { message, translate, useI18n } from '@/app/i18n'
 import { toast } from '@/app/toast'
-import { dmhm } from '@/lib/date'
 import { grantedGroups } from '@/data/account'
 import { useConnectGoogle } from '@/data/google'
 import { PERMISSION_LABEL, RESOURCE_LABEL } from '@/data/roles'
@@ -37,12 +29,12 @@ import { kpiRoleText } from '@/data/kpi-i18n'
 import { scopeLabel } from '@/data/users'
 import { RECONNECT_GOOGLE, unreadySender } from '@/components/mail-letter/letter-model'
 
-/** The four blocks of "my account". Every word about a role, a permission, a
+/** The three blocks of "my account". Every word about a role, a permission, a
  *  scope or a Google fault is read from the table the admin screens and the
  *  letter composer already print, so one thing has one name across the app.
  *
- *  The identity summary is `.glass-a`; the sign-in rows, the permission list
- *  and the requests sit on `.glass-b` (law 8). Rows inside a card are divided
+ *  The identity summary is `.glass-a`; the sign-in rows and the permission list
+ *  sit on `.glass-b` (law 8). Rows inside a card are divided
  *  by a hairline drawn with box-shadow, never a border (law 4). */
 
 const failed = (error: unknown, fallback: string) =>
@@ -373,149 +365,6 @@ export function PermissionBlock({ actor }: { actor: Actor }) {
             </Accordion>
           ))}
         </div>
-      )}
-    </GlassCard>
-  )
-}
-
-const STATE_TONE: Record<ApprovalState, BadgeProps['tone']> = {
-  waiting: 'warning',
-  approved: 'success',
-  rejected: 'danger',
-}
-
-/** Who decided, and when. The name is optional on the wire, so the sentence
- *  still stands without it. */
-function decidedLine(request: ApprovalRequestView): string | null {
-  if (!request.decidedAt) return null
-  const at = dmhm(request.decidedAt)
-  const by = request.decidedBy
-  const rejected = request.state === 'rejected'
-  return translate(
-    rejected
-      ? message(
-          `${by ? `${by} từ chối` : 'Đã từ chối'} lúc ${at}`,
-          `${by ? `Rejected by ${by}` : 'Rejected'} at ${at}`,
-          `${by ? `${by}님이 ` : ''}${at}에 거절`,
-        )
-      : message(
-          `${by ? `${by} duyệt` : 'Đã duyệt'} lúc ${at}`,
-          `${by ? `Approved by ${by}` : 'Approved'} at ${at}`,
-          `${by ? `${by}님이 ` : ''}${at}에 승인`,
-        ),
-  )
-}
-
-const REQUEST_STATE: Record<ApprovalState, ReturnType<typeof message>> = {
-  waiting: message('Chờ duyệt', 'Awaiting approval', '승인 대기'),
-  approved: message('Đã duyệt', 'Approved', '승인됨'),
-  rejected: message('Từ chối', 'Rejected', '거절됨'),
-}
-
-function RequestRow({ request, separated }: { request: ApprovalRequestView; separated: boolean }) {
-  const { t } = useI18n()
-  const decided = decidedLine(request)
-
-  return (
-    <li className={`flex flex-col gap-1 ${separated ? `pt-4 ${HAIRLINE}` : ''}`}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="text-foreground m-0 min-w-0 text-[13px] font-semibold leading-[1.5]">
-          {request.consequence}
-        </p>
-        <Badge tone={STATE_TONE[request.state]}>{t(REQUEST_STATE[request.state])}</Badge>
-      </div>
-      <p className="text-muted-foreground tnum m-0 text-[12px] leading-[1.5]">
-        {t(
-          message(
-            `Gửi lúc ${dmhm(request.raisedAt)}`,
-            `Sent at ${dmhm(request.raisedAt)}`,
-            `${dmhm(request.raisedAt)}에 전송`,
-          ),
-        )}
-        {decided ? ` · ${decided}` : ''}
-      </p>
-      {request.decidedReason ? (
-        <p className={`text-foreground ${BODY}`}>
-          {t(
-            message(
-              `Lý do từ chối: ${request.decidedReason}`,
-              `Reason for rejection: ${request.decidedReason}`,
-              `거절 사유: ${request.decidedReason}`,
-            ),
-          )}
-        </p>
-      ) : null}
-    </li>
-  )
-}
-
-/** One card with the rows inside it: a request is a line, not a surface. */
-export function RequestsBlock({ requests }: { requests: UseQueryResult<ApprovalRequestView[]> }) {
-  const { t } = useI18n()
-  const rows = requests.data
-
-  return (
-    <GlassCard id="requests" variant="b" className="flex scroll-mt-44 flex-col gap-4 p-5">
-      <SectionTitle
-        size="detail"
-        hint={t(
-          message('Mới nhất ở trên cùng.', 'Newest first.', '최신 항목이 맨 위에 표시됩니다.'),
-        )}
-      >
-        {t(message('Yêu cầu tôi đã gửi', 'Requests I sent', '내가 보낸 요청'))}
-      </SectionTitle>
-
-      {requests.isPending ? (
-        <Skeleton className="h-20" />
-      ) : !rows ? (
-        <Retry
-          text={failed(
-            requests.error,
-            t(
-              message(
-                'Không tải được các yêu cầu bạn đã gửi.',
-                'Could not load the requests you sent.',
-                '보낸 요청을 불러오지 못했습니다.',
-              ),
-            ),
-          )}
-          onRetry={() => void requests.refetch()}
-        />
-      ) : rows.length === 0 ? (
-        <EmptyState
-          icon={Inbox}
-          message={t(
-            message(
-              'Bạn chưa gửi yêu cầu nào.',
-              'You have not sent any requests.',
-              '보낸 요청이 없습니다.',
-            ),
-          )}
-          action={{
-            label: t(message('Tải lại', 'Reload', '새로고침')),
-            onClick: () => void requests.refetch(),
-          }}
-        />
-      ) : (
-        <>
-          <ul className="m-0 flex list-none flex-col gap-4 p-0">
-            {rows.map((request, i) => (
-              <RequestRow key={request.id} request={request} separated={i > 0} />
-            ))}
-          </ul>
-          {/* The server cuts the list there and sends no total. */}
-          {rows.length === MY_APPROVALS_LIMIT ? (
-            <p className={`text-muted-foreground ${BODY}`}>
-              {t(
-                message(
-                  `Chỉ hiện ${MY_APPROVALS_LIMIT} yêu cầu mới nhất.`,
-                  `Showing only the ${MY_APPROVALS_LIMIT} most recent requests.`,
-                  `최근 요청 ${MY_APPROVALS_LIMIT}개만 표시합니다.`,
-                ),
-              )}
-            </p>
-          ) : null}
-        </>
       )}
     </GlassCard>
   )

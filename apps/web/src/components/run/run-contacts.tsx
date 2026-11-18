@@ -1,15 +1,16 @@
 import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeftRight, Drawer, Skeleton, cn } from '@pv/ui'
-import { type ContactRow, type OpportunityProfileResponse } from '@pv/contracts'
+import { ArrowLeftRight, Badge, Drawer, Skeleton, cn } from '@pv/ui'
+import { type AiFillMark, type ContactRow, type OpportunityProfileResponse } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { message, useI18n, type Message } from '@/app/i18n'
 import { ContactEditDrawer, ContactsCard } from '@/components/contacts-card'
-import { LeadAiMark } from '@/components/lead-ai-mark'
+import { AiFieldToggle, AiSourceLine } from '@/components/lead-ai-mark'
 import { accountProfileQuery } from '@/data/accounts'
 import { leadContactsQuery } from '@/data/contacts'
 import { contractDetailQuery } from '@/data/contracts'
+import { sourceOf } from '@/data/lead-ai-fill'
 import { leadProfileQuery } from '@/data/lead-profile'
 import { opportunityProfileQuery } from '@/data/opportunities'
 import {
@@ -39,7 +40,7 @@ type Person = {
   line: string | null
   /** How to reach them — information, not an action. */
   reach?: string | null
-  /** The AI fill's captions under `line` and `reach` (lead's primary contact). */
+  /** The AI fill's marks under `line` and `reach` (lead's primary contact). */
   marks?: { line?: ReactNode; reach?: ReactNode }
   /** Where the name leads. */
   to?: string
@@ -75,6 +76,21 @@ const reachOf = (
   [c.email, c.phone].filter(Boolean).join(' · ') ||
   t(message('Chưa có kênh liên lạc nào', 'No contact channel yet', '연락 수단 없음'))
 
+/** The same provenance the form draws — bare mark, source on demand — plus the
+ *  unsure badge, which the rail keeps because the form's review list skips these. */
+function RailMark({ mark }: { mark: AiFillMark | undefined }) {
+  const { t, lang } = useI18n()
+  const [open, setOpen] = useState(false)
+  if (!mark) return null
+  return (
+    <span className="flex flex-wrap items-center gap-x-2">
+      <AiFieldToggle open={open} onToggle={() => setOpen(!open)} />
+      {mark.unsure && <Badge tone="warning">{t(message('Chưa chắc', 'Unsure', '불확실'))}</Badge>}
+      {open && <AiSourceLine source={sourceOf(mark.source, lang)} />}
+    </span>
+  )
+}
+
 function LeadContacts({ code }: { code: string }) {
   const { t } = useI18n()
   const canView = useCan('lead.view')
@@ -92,8 +108,8 @@ function LeadContacts({ code }: { code: string }) {
     /* The fill writes the lead's own title and phone, which the primary shows. */
     marks: c.isPrimary
       ? {
-          line: c.title && <LeadAiMark mark={lead?.aiFill.contactTitle} />,
-          reach: c.phone && <LeadAiMark mark={lead?.aiFill.phone} />,
+          line: c.title && <RailMark mark={lead?.aiFill.contactTitle} />,
+          reach: c.phone && <RailMark mark={lead?.aiFill.phone} />,
         }
       : undefined,
   }))

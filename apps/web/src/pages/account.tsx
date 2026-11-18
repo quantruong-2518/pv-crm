@@ -4,15 +4,14 @@ import { useQuery } from '@tanstack/react-query'
 import { ScreenHeader } from '@pv/ui'
 import { useSession } from '@/app/auth'
 import { message, useI18n } from '@/app/i18n'
-import { myApprovalsQuery } from '@/data/approvals'
 import { googleLinkQuery } from '@/data/google'
 import { LanguagePicker } from '@/components/auth-card'
 import { SettingsShell } from '@/components/settings-shell'
-import { IdentityBlock, PermissionBlock, RequestsBlock, SignInBlock } from './account-parts'
+import { IdentityBlock, PermissionBlock, SignInBlock } from './account-parts'
 
 /** One Core · "my account" — the one place for what is about the reader, and
- *  where the bell sends "your access changed", "your password was reset",
- *  "your Google link broke" and "your request was decided" (owner, 11/10/2026).
+ *  where the bell sends "your access changed", "your password was reset"
+ *  and "your Google link broke" (owner, 11/10/2026).
  *
  *  Every read is real and asked again on arrival, the session included: the
  *  reader comes here because something just changed elsewhere.
@@ -30,11 +29,10 @@ export default function AccountScreen() {
   useEffect(() => void refresh().finally(() => setAsked(true)), [refresh])
   /* Same key as the meeting panel and the composer, which never re-ask. */
   const link = useQuery({ ...googleLinkQuery(), staleTime: 0 })
-  const requests = useQuery(myApprovalsQuery())
 
   /* Runs again once every read settles: a block that changes height moves the
      ones below it. The reduced-motion rule stops CSS motion only. */
-  const settled = asked && !link.isPending && !requests.isPending
+  const settled = asked && !link.isPending
   useEffect(() => {
     if (!hash) return
     const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -52,7 +50,6 @@ export default function AccountScreen() {
       {actor ? <IdentityBlock actor={actor} /> : null}
       <SignInBlock link={link} />
       {actor ? <PermissionBlock actor={actor} /> : null}
-      <RequestsBlock requests={requests} />
     </SettingsShell>
   )
 }

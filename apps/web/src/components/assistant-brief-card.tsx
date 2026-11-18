@@ -1,9 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
-import { MY_WORK_SECTION_LABEL } from '@pv/contracts'
 import { Button, Icon, Skeleton, TriangleAlert } from '@pv/ui'
 import { useI18n } from '@/app/i18n'
 import { refPath } from '@/data/assistant'
-import { BRIEF_COPY as B, myWorkQuery } from '@/data/assistant-brief'
+import { BRIEF_COPY as B, SECTION_LABEL, myWorkQuery } from '@/data/assistant-brief'
 import { ASSISTANT_COPY as C, openLabel } from '@/data/assistant-copy'
 import { CodeChip } from './assistant-bits'
 
@@ -45,7 +44,7 @@ export function AssistantBriefCard({ openPath }: { openPath: (path: string) => v
         sections.map((s) => (
           <div key={s.section} className="flex min-w-0 flex-col gap-2">
             <p className="m-0 flex items-baseline gap-2 text-[13px] font-semibold">
-              <span className="min-w-0 flex-1">{MY_WORK_SECTION_LABEL[s.section]}</span>
+              <span className="min-w-0 flex-1">{t(SECTION_LABEL[s.section])}</span>
               {!s.skipped && (
                 <span className="tnum shrink-0">
                   {number(s.count)}

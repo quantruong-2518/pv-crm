@@ -10,6 +10,8 @@ import {
 import {
   ArrowUpLong,
   Button,
+  ChevronDown,
+  ChevronRight,
   ContextRail,
   Icon,
   Skeleton,
@@ -21,7 +23,13 @@ import {
 import { AssistantQuestion, type AssistantSubject } from '@pv/contracts'
 import { useI18n } from '@/app/i18n'
 import { refPath } from '@/data/assistant'
-import { ASSISTANT_COPY as C, askingAbout, dropSubject, shownText } from '@/data/assistant-copy'
+import {
+  ASSISTANT_COPY as C,
+  VIEW_COPY as V,
+  askingAbout,
+  dropSubject,
+  shownText,
+} from '@/data/assistant-copy'
 import {
   composerId,
   focusComposer,
@@ -30,8 +38,9 @@ import {
   useAssistantLive,
 } from '@/data/assistant-live'
 import type { Conversation } from '@/data/assistant-conversation'
-import { railOf } from '@/data/assistant-thread'
+import { railOf, type ThreadItem } from '@/data/assistant-thread'
 import { AssistantAnswer } from './assistant-answer'
+import { hasPendingProposal, threadHasPending } from './assistant-answer-model'
 
 /** The one conversation of the CRM assistant, shared by the panel and the
  *  `/assistant` page (ADR 0133). Router-free: the panel lives outside the
@@ -39,7 +48,10 @@ import { AssistantAnswer } from './assistant-answer'
  *
  *  Thread and composer are two pieces because the panel docks the composer in
  *  its footer; `useConversation` (`data/assistant-conversation.ts`) runs once
- *  in the parent and feeds both. The empty state is the caller's (`empty`). */
+ *  in the parent and feeds both. The empty state is the caller's (`empty`).
+ *
+ *  On the page every turn before the newest folds to its question on one dim line, and the
+ *  box is one surface (owner, 18/11). The drawer keeps its full thread and its two-row box. */
 
 const TOUCH = 'pointer-coarse:h-12'
 const QUESTION_MAX = AssistantQuestion.maxLength ?? undefined
@@ -71,6 +83,56 @@ function useFollow(items: Conversation['items']) {
   return end
 }
 
+type Turn = {
+  question: Extract<ThreadItem, { kind: 'question' }> | null
+  answer: Extract<ThreadItem, { kind: 'answer' }> | null
+}
+
+/** A question and the answer that follows it; an answer with no question before it stands alone. */
+function turnsOf(items: readonly ThreadItem[]): Turn[] {
+  const turns: Turn[] = []
+  for (const item of items) {
+    const open = turns.at(-1)
+    if (item.kind === 'question') turns.push({ question: item, answer: null })
+    else if (open && open.question && !open.answer) open.answer = item
+    else turns.push({ question: null, answer: item })
+  }
+  return turns
+}
+
+function Question({ text }: { text: string }) {
+  return (
+    <p className="bg-primary-strong stone:bg-primary porcelain:bg-primary text-primary-foreground m-0 ml-auto max-w-[85%] whitespace-pre-line rounded-[16px_16px_4px_16px] px-4 py-3 text-[14px] leading-[1.55]">
+      {text}
+    </p>
+  )
+}
+
+/** An earlier question on one dim line; pressing it shows its answer. */
+function FoldedQuestion({
+  text,
+  open,
+  onToggle,
+}: {
+  text: string
+  open: boolean
+  onToggle: () => void
+}) {
+  const { t } = useI18n()
+  return (
+    <button
+      type="button"
+      aria-expanded={open}
+      title={t(open ? V.collapseTurn : V.expandTurn)}
+      className="text-muted-foreground hover:text-foreground motion-std pointer-coarse:min-h-12 flex min-h-9 w-full items-center gap-2 text-left text-[13px]"
+      onClick={onToggle}
+    >
+      <span className="min-w-0 flex-1 truncate">{text}</span>
+      <Icon icon={open ? ChevronDown : ChevronRight} size={16} className="shrink-0" />
+    </button>
+  )
+}
+
 export function AssistantThread({
   convo,
   subject,
@@ -78,11 +140,14 @@ export function AssistantThread({
   onNewChat,
   endStyle,
   empty,
+  rail: showRail = true,
 }: {
   convo: Conversation
   subject?: AssistantSubject
   openPath: (path: string) => void
   onNewChat: () => void
+  /** False when the page's record pane stands in for the ContextRail. */
+  rail?: boolean
   /** Scroll margin of the end marker, for a box docked over the thread's foot. */
   endStyle?: CSSProperties
   /** Drawn while the chat has no message yet. */
@@ -91,6 +156,7 @@ export function AssistantThread({
   const { t, lang } = useI18n()
   const { detail, items, busy, ask } = convo
   const end = useFollow(items)
+  const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(() => new Set())
 
   if (convo.sessionId && detail.isPending && !items.length) {
     return (
@@ -120,12 +186,13 @@ export function AssistantThread({
   const last = items.filter((i) => i.kind === 'answer').at(-1)
   const finished = last?.kind === 'answer' && last.answer.live && last.answer.state === 'done'
   const compact = convo.origin === 'panel'
+  const gap = compact ? 'gap-4' : 'gap-6'
   return (
-    <div className={cn('flex flex-col', compact ? 'gap-4' : 'gap-6')}>
+    <div className={cn('flex flex-col', gap)}>
       <p aria-live="polite" className="sr-only">
         {finished ? `${t(C.answered)} ${shownText(last.answer.body, lang)}` : ''}
       </p>
-      {rail.length > 0 && (
+      {showRail && rail.length > 0 && (
         <ContextRail
           max={6}
           objects={rail.map(({ ref, source }) => ({
@@ -135,27 +202,48 @@ export function AssistantThread({
           }))}
         />
       )}
-      {items.map((item) =>
-        item.kind === 'question' ? (
-          <p
-            key={item.key}
-            className="bg-primary-strong stone:bg-primary porcelain:bg-primary text-primary-foreground m-0 ml-auto max-w-[85%] whitespace-pre-line rounded-[16px_16px_4px_16px] px-4 py-3 text-[14px] leading-[1.55]"
-          >
-            {item.text}
-          </p>
-        ) : (
-          <AssistantAnswer
-            key={item.key}
-            answer={item.answer}
-            last={item.key === last?.key}
-            busy={busy}
-            compact={compact}
-            ask={ask}
-            openPath={openPath}
-            onNewChat={onNewChat}
-          />
-        ),
-      )}
+      {turnsOf(items).map((turn, index, all) => {
+        const { question, answer } = turn
+        const key = question?.key ?? ''
+        /* A proposal still waiting for its button stays in view whatever its age. */
+        const folded =
+          !compact &&
+          question !== null &&
+          index < all.length - 1 &&
+          !(answer && hasPendingProposal(answer.answer))
+        const open = !folded || unfolded.has(key)
+        return (
+          <section key={question?.key ?? answer?.key} className={cn('flex flex-col', gap)}>
+            {question &&
+              (folded ? (
+                <FoldedQuestion
+                  text={question.text}
+                  open={open}
+                  onToggle={() =>
+                    setUnfolded((prev) => {
+                      const next = new Set(prev)
+                      if (!next.delete(key)) next.add(key)
+                      return next
+                    })
+                  }
+                />
+              ) : (
+                <Question text={question.text} />
+              ))}
+            {open && answer && (
+              <AssistantAnswer
+                answer={answer.answer}
+                last={answer.key === last?.key}
+                busy={busy}
+                compact={compact}
+                ask={ask}
+                openPath={openPath}
+                onNewChat={onNewChat}
+              />
+            )}
+          </section>
+        )
+      })}
       <div ref={end} style={endStyle} />
     </div>
   )
@@ -189,12 +277,15 @@ export function AssistantComposer({
   convo,
   focusOnOpen = false,
   subject,
+  header,
   className,
 }: {
   convo: Conversation
   /** Only on a fine pointer: on a phone the keyboard would cover the answer. */
   focusOnOpen?: boolean
   subject?: ComposerSubject
+  /** Page only: a row at the top of the same surface (the phone's record row). */
+  header?: ReactNode
   className?: string
 }) {
   const { t } = useI18n()
@@ -204,6 +295,8 @@ export function AssistantComposer({
   const canDeep = useAssistantDeep()
   const [deep, setDeep] = useState(false)
   const ready = AssistantQuestion.safeParse(text).success && !convo.busy
+  /* The proposal's button is the page's one filled button while it waits. */
+  const yields = page && threadHasPending(convo.items)
   const submit = (e?: FormEvent) => {
     e?.preventDefault()
     if (!ready) return
@@ -232,13 +325,13 @@ export function AssistantComposer({
       type="submit"
       className={cn(
         TOUCH,
-        !page && 'pointer-coarse:size-12 size-10 px-0',
+        'pointer-coarse:size-12 size-10 px-0',
         !ready && 'bg-primary/16 text-accent-foreground opacity-100 shadow-none',
+        ready && yields && 'bg-accent text-accent-foreground bg-none shadow-none',
       )}
-      aria-label={page ? undefined : t(C.send)}
+      aria-label={t(C.send)}
       disabled={!ready}
     >
-      {page && t(C.send)}
       <Icon icon={ArrowUpLong} size={16} />
     </Button>
   )
@@ -248,7 +341,7 @@ export function AssistantComposer({
       variant="ghost"
       size="md"
       aria-pressed={deep}
-      title={t(C.deepHint)}
+      title={page ? undefined : t(C.deepHint)}
       className={cn(TOUCH, 'shrink-0', deep && 'bg-accent text-accent-foreground hover:bg-accent')}
       onClick={() => setDeep(!deep)}
     >
@@ -258,7 +351,7 @@ export function AssistantComposer({
   const field = (
     <Textarea
       id={composerId(origin)}
-      rows={page ? 2 : 1}
+      rows={1}
       autoGrow
       maxLength={QUESTION_MAX}
       aria-label={t(C.question)}
@@ -266,7 +359,7 @@ export function AssistantComposer({
       className={cn(
         'max-h-40 flex-1 bg-transparent p-0 focus-visible:shadow-none',
         page
-          ? 'min-h-12 text-[15px] leading-[1.5]'
+          ? 'min-h-12 basis-40 py-3 text-[15px] leading-[1.5]'
           : 'pointer-coarse:min-h-12 py-2 text-[14px] leading-[1.6]',
       )}
       value={text}
@@ -294,21 +387,19 @@ export function AssistantComposer({
   return (
     <form
       className={cn(
-        'bg-muted stone:bg-popover porcelain:bg-popover focus-within:ring-ring flex flex-col gap-2 rounded-2xl py-3 pl-4 pr-3 shadow-[var(--shadow-pop),inset_0_1px_0_var(--sheen-a)] focus-within:ring-2',
+        'bg-muted stone:bg-popover porcelain:bg-popover focus-within:ring-ring flex flex-col gap-1 rounded-2xl py-2 pl-4 pr-3 shadow-[var(--shadow-pop),inset_0_1px_0_var(--sheen-a)] focus-within:ring-2',
         className,
       )}
       onSubmit={submit}
     >
-      {field}
+      {header}
       <div className="flex flex-wrap items-center gap-2">
         {subject && <SubjectChip subject={subject} />}
-        <span className="flex-1" />
-        <span className="text-glass-foreground pointer-coarse:hidden hidden text-[12px] sm:inline">
-          {t(C.keys)}
-        </span>
+        {field}
         {deepSwitch}
         {send}
       </div>
+      {deep && <p className="text-glass-foreground m-0 pb-1 text-[12px]">{t(C.deepHint)}</p>}
     </form>
   )
 }

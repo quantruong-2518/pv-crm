@@ -8,7 +8,6 @@ import {
   type CommAiJobStepKey,
   type LeadAiJob,
   type LeadAiJobResult,
-  type LeadAiJobStepKey,
 } from '@pv/contracts'
 import { userMessage, type ApiError } from '@/app/api'
 import { formatNumber, message, translate, useI18n, type Message } from '@/app/i18n'
@@ -31,6 +30,7 @@ import {
   usePressAiFill,
   useUndoAiJob,
 } from '@/data/lead-ai-job'
+import { LEAD_STEP_LABEL } from '@/data/lead-ai-steps'
 import { useAiTraySlot } from '@/components/ai-tray-slot-store'
 import { router } from '@/routes'
 
@@ -38,14 +38,6 @@ import { router } from '@/routes'
  *  recording reports (ADR 0135) mapped onto `AiTaskItem`. Outside the router like
  *  the toasts, so opening a record goes through `router` itself. A reader with
  *  neither `lead.edit` nor `comm.view` has no jobs, so the tray draws nothing. */
-
-const STEP_LABEL: Record<LeadAiJobStepKey, Message> = {
-  'read-lead': message('Đọc hồ sơ lead', 'Read the lead profile', '리드 프로필 읽기'),
-  'web-search': message('Tìm thông tin trên web', 'Search the web', '웹에서 정보 검색'),
-  'tax-lookup': message('Tra cứu mã số thuế', 'Look up the tax ID', '세금번호 조회'),
-  'dup-check': message('Kiểm tra trùng công ty', 'Check for duplicate companies', '중복 회사 확인'),
-  write: message('Điền vào lead', 'Fill in the lead', '리드에 입력'),
-}
 
 const COMM_STEP_LABEL: Record<CommAiJobStepKey, Message> = {
   'read-sources': message('Đọc ghi chú và tệp', 'Read the notes and files', '메모와 파일 읽기'),
@@ -191,7 +183,7 @@ function itemOf(job: LeadAiJob, doors: Doors): AiTaskItem {
       kind,
       status: 'running',
       badge: runningBadge(job, TOTAL),
-      steps: stepsOf(job, LEAD_AI_JOB_STEPS, STEP_LABEL),
+      steps: stepsOf(job, LEAD_AI_JOB_STEPS, LEAD_STEP_LABEL),
     }
   }
   if (job.state === 'FAILED') {

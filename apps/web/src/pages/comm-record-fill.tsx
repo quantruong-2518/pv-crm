@@ -1,20 +1,21 @@
 import { useMemo, useState } from 'react'
-import { ArrowLeft, ArrowRight, Button, Icon, PhoneOff, Save, Timer } from '@pv/ui'
+import { Button, GlassCard, Icon, PhoneOff, Save, Separator, Timer, cn } from '@pv/ui'
 import type { DebriefClose, DebriefView } from '@pv/contracts'
 import { message, useI18n } from '@/app/i18n'
 import { userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
 import { dmy, hm } from '@/lib/date'
-import {
-  CommAiContent,
-  CommAiEvaluation,
-  CommAiStatus,
-  CommAiSteps,
-} from '@/components/comm-ai-report'
+import { CommAiBlock, FILL_DRAFT } from '@/components/comm-ai-block'
+import { CommAiMinutes } from '@/components/comm-ai-minutes'
 import { CommLateMark } from '@/components/comm-bits'
+import { CommCallPanel } from '@/components/comm-call-panel'
+import { FillNote, FillTitle } from '@/components/comm-fill-fields'
+import { FillEvaluation, FillNextStep } from '@/components/comm-fill-sections'
 import { CommRecordFrame } from '@/components/comm-record-frame'
 import { CommUnreachedDialog } from '@/components/comm-unreached-dialog'
 import { useCommAiReport } from '@/data/comm-ai-report'
+import { clearSettled } from '@/data/comm-ai-settled'
+import { useFillDraft } from '@/data/comm-fill-draft'
 import {
   commNoun,
   useAnchorTurn,
@@ -27,7 +28,7 @@ import {
 } from '@/data/comm-record-detail'
 import { EMPTY_COMM_DRAFT, useCommForm } from '@/data/comm-record-form'
 import { useMinuteClock } from '@/data/minute-clock'
-import { BAR_BUTTON, CommFormBar, CommFormSteps, type FormProblem } from './comm-record-form'
+import { BAR_BUTTON, CommFormBar, type FormProblem } from './comm-record-form'
 
 const TEXT = {
   draftSavedOnThisDevice: message(
@@ -35,16 +36,20 @@ const TEXT = {
     'Draft saved on this device',
     '이 기기에 초안을 저장했습니다',
   ),
+  suggestionsWait: message(
+    'Còn gợi ý AI chưa điền.',
+    'AI suggestions are still unfilled.',
+    '채우지 않은 AI 제안이 있습니다.',
+  ),
 }
 
-/** The owner's fill form for an open comm: three steps, one card at a time,
- *  and a sticky bar that says what the open step still lacks. Next is shut
- *  until the open step is complete, confirm until all three are; the stepper
- *  jumps anywhere. A draft is kept in this browser only; the server stores the
- *  record when the owner confirms (ADR 0074 §2, 0075 §2).
+/** The owner's fill form for an open comm: one page, the form beside what the
+ *  call holds, and a sticky bar that says what still blocks the confirm. A draft
+ *  is kept in this browser only; the server stores the record when the owner
+ *  confirms (ADR 0074 §2, 0075 §2).
  *
- *  AI proposes on a press and waits for another (ADR 0132): the report sits
- *  beside this form, and only the owner's press moves a part into it. */
+ *  AI proposes on a press and waits for another (ADR 0132): its suggestions show
+ *  dim beside the fields, and only the fill button moves them into the fields. */
 
 export function CommFillWorkspace({ record }: { record: DebriefView }) {
   const { t } = useI18n()
@@ -52,13 +57,17 @@ export function CommFillWorkspace({ record }: { record: DebriefView }) {
   const saved = useMemo(() => readCommDraft(record.id), [record.id])
   const form = useCommForm(record, saved ?? EMPTY_COMM_DRAFT)
   const ai = useCommAiReport(record)
-  const { close, at, go, titles } = form
+  const { close, titles } = form
   const [unreached, setUnreached] = useState(false)
+  const [chosen, setChosen] = useState(0)
+  const options = close.options.data
+  const noteWord = t(ai.words.note)
 
-  /* One gap per step, in the order of `titles`; the bar says the open one's. */
+  const { plan, fill } = useFillDraft(form, ai, options, chosen)
+
   const gaps = [form.contentGap, form.answersGap ?? close.temperatureGap, close.gapOf(form.draft)]
-  const blocker = gaps.find((gap) => gap !== null) ?? null
-  const last = titles.length - 1
+  const gap = gaps.find((g) => g !== null) ?? null
+  const waiting = plan !== null
 
   const save = () => {
     const { title, summary, picked, draft } = form
@@ -66,7 +75,7 @@ export function CommFillWorkspace({ record }: { record: DebriefView }) {
     toastDone(t(TEXT.draftSavedOnThisDevice))
   }
   const submit = () => {
-    if (blocker || confirm.isPending) return
+    if (gap || waiting || confirm.isPending) return
     const body: DebriefClose = {
       title: form.title.trim(),
       summary: form.summary.trim(),
@@ -78,6 +87,7 @@ export function CommFillWorkspace({ record }: { record: DebriefView }) {
       {
         onSuccess: () => {
           clearCommDraft(record.id)
+          clearSettled(record.id)
           toastDone(
             t(message('Đã xác nhận liên hệ', 'Interaction confirmed', '연락 기록을 확인했습니다')),
           )
@@ -86,16 +96,18 @@ export function CommFillWorkspace({ record }: { record: DebriefView }) {
     )
   }
 
-  const shortfall = at === last ? blocker : (gaps[at] ?? null)
-  const problem: FormProblem =
-    at === last && confirm.error
-      ? { text: userMessage(confirm.error), failed: true }
-      : shortfall === null
+  const problem: FormProblem = confirm.error
+    ? { text: userMessage(confirm.error), failed: true }
+    : waiting
+      ? { text: t(TEXT.suggestionsWait) }
+      : gap === null
         ? null
-        : { text: shortfall }
+        : { text: gap }
 
   return (
     <CommRecordFrame
+      wide
+      stateBadge={false}
       record={record}
       title={t(
         message(
@@ -107,7 +119,7 @@ export function CommFillWorkspace({ record }: { record: DebriefView }) {
       meta={<FillMeta record={record} />}
       actions={
         record.channel !== 'meeting' && (
-          <Button size="lg" variant="secondary" onClick={() => setUnreached(true)}>
+          <Button size="lg" variant="ghost" onClick={() => setUnreached(true)}>
             <Icon icon={PhoneOff} size={16} />
             {t(message('Không liên lạc được', 'Could not reach', '연락되지 않음'))}
           </Button>
@@ -115,82 +127,80 @@ export function CommFillWorkspace({ record }: { record: DebriefView }) {
       }
       bar={
         <CommFormBar problem={problem}>
-          <Button size="md" variant="secondary" className={BAR_BUTTON} onClick={save}>
+          <Button size="md" variant="ghost" className={BAR_BUTTON} onClick={save}>
             <Icon icon={Save} size={16} />
             {t(message('Lưu nháp', 'Save draft', '초안 저장'))}
           </Button>
-          {at > 0 && (
-            <Button size="md" variant="ghost" className={BAR_BUTTON} onClick={() => go(at - 1)}>
-              <Icon icon={ArrowLeft} size={16} />
-              {t(message('Bước trước', 'Previous step', '이전 단계'))}
+          {waiting && (
+            <Button size="md" className={cn(BAR_BUTTON, 'lg:hidden')} onClick={fill}>
+              {t(FILL_DRAFT)}
             </Button>
           )}
-          {at < last && (
-            <Button
-              size="md"
-              className={BAR_BUTTON}
-              disabled={gaps[at] !== null}
-              onClick={() => go(at + 1)}
-            >
-              {t(message('Tiếp tục', 'Continue', '계속'))}
-              <Icon icon={ArrowRight} size={16} />
-            </Button>
-          )}
-          {at === last && (
-            <Button
-              size="md"
-              className={BAR_BUTTON}
-              disabled={blocker !== null || confirm.isPending}
-              onClick={submit}
-            >
-              {t(message('Xác nhận', 'Confirm', '확인'))}
-            </Button>
-          )}
+          <Button
+            size="md"
+            variant={waiting ? 'secondary' : 'default'}
+            className={cn(BAR_BUTTON, waiting && 'max-lg:hidden')}
+            disabled={gap !== null || waiting || confirm.isPending}
+            onClick={submit}
+          >
+            {t(message('Xác nhận', 'Confirm', '확인'))}
+          </Button>
         </CommFormBar>
       }
     >
-      <CommFormSteps
-        record={record}
-        form={form}
-        gaps={gaps}
-        ai={
-          ai.allowed
-            ? {
-                content: (
-                  <CommAiContent
-                    ai={ai}
-                    note={form.summary}
-                    onNote={form.setSummary}
-                    title={form.title}
-                    onTitle={form.setTitle}
-                  />
-                ),
-                evaluation: (
-                  <>
-                    <CommAiStatus ai={ai} />
-                    <CommAiEvaluation
-                      ai={ai}
-                      criteria={form.vocab.data?.criteria ?? []}
-                      picked={form.picked}
-                      onPick={form.setPicked}
-                    />
-                  </>
-                ),
-                nextStep: (
-                  <>
-                    <CommAiStatus ai={ai} />
-                    <CommAiSteps
-                      ai={ai}
-                      options={close.options.data}
-                      draft={form.draft}
-                      onDraft={form.setDraft}
-                    />
-                  </>
-                ),
+      <div className="flex min-w-0 flex-col gap-6 lg:flex-row lg:items-start">
+        <div className="flex min-w-0 flex-1 flex-col gap-6">
+          {ai.allowed && (
+            <CommAiBlock ai={ai} note={form.summary} waiting={waiting} onFill={fill} />
+          )}
+          <GlassCard className="flex min-w-0 flex-col gap-8 p-5 sm:p-6">
+            <FillTitle
+              title={form.title}
+              onTitle={form.setTitle}
+              preview={plan?.title}
+              onDrop={() => ai.dropPart('title')}
+            />
+            <FillNote
+              record={record}
+              summary={form.summary}
+              onSummary={form.setSummary}
+              noteWord={noteWord}
+              preview={plan?.note}
+              onDrop={() => ai.dropPart('note')}
+              onRestore={
+                ai.canRestore ? () => form.setSummary(ai.restoreNote(form.summary)) : undefined
               }
-            : undefined
-        }
-      />
+            />
+            <Separator />
+            <FillEvaluation
+              heading={titles[1] ?? ''}
+              vocab={form.vocab}
+              picked={form.picked}
+              onPick={form.setPicked}
+              close={close}
+              preview={plan?.answers ?? []}
+              onDrop={() => ai.dropPart('answers')}
+            />
+            <Separator />
+            <FillNextStep
+              record={record}
+              heading={titles[2] ?? ''}
+              kinds={form.vocab.data?.stepKinds ?? []}
+              close={close}
+              draft={form.draft}
+              onDraft={form.setDraft}
+              steps={plan?.steps ?? []}
+              chosen={chosen}
+              onChoose={setChosen}
+              options={options}
+              onDrop={() => ai.dropPart('step')}
+            />
+          </GlassCard>
+        </div>
+        <div className="min-w-0 lg:w-[360px] lg:shrink-0">
+          <CommCallPanel record={record} minutes={<CommAiMinutes ai={ai} waiting={waiting} />} />
+        </div>
+      </div>
       <CommUnreachedDialog record={record} open={unreached} onClose={() => setUnreached(false)} />
     </CommRecordFrame>
   )

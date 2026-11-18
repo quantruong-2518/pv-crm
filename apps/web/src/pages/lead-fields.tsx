@@ -61,6 +61,7 @@ function FieldShell({
   required,
   error,
   plain,
+  mark,
   under,
   children,
 }: {
@@ -70,13 +71,21 @@ function FieldShell({
   required: boolean
   error?: string
   plain?: boolean
-  /** Below the hint, outside the label: the AI caption and conflict line hold
-   *  links and buttons that must not share the box's label. */
+  /** The AI mark at the end of the label. Outside the `<label>`: a button
+   *  inside it would become the box the label points at. */
+  mark?: ReactNode
+  /** Below the hint, outside the label: the AI source line holds a link
+   *  that must not share the box's label. */
   under?: ReactNode
   children: ReactNode
 }) {
   const head = (
-    <span className="text-glass-foreground text-[13px] font-semibold leading-[1.4]">
+    <span
+      className={cn(
+        'text-glass-foreground text-[13px] font-semibold leading-[1.4]',
+        mark && 'pr-6',
+      )}
+    >
       {field.label}
       {required && (
         <span className="text-destructive-foreground" aria-hidden="true">
@@ -95,8 +104,9 @@ function FieldShell({
   )
 
   return (
-    <div className="flex min-w-0 flex-col gap-2">
+    <div className="relative flex min-w-0 flex-col gap-2" data-field={field.key}>
       {plain ? body : <label className="flex flex-col gap-2">{body}</label>}
+      {mark && <span className="absolute right-0 top-px">{mark}</span>}
       {/* The complaint REPLACES the hint: two lines under one box is one line
           too many, and the hint is the less urgent of the two. */}
       {error ? (
@@ -231,7 +241,7 @@ function FieldControl({
         max={DEADLINE_MAX}
         aria-label={field.label}
         aria-required={marked}
-        className="h-11 text-[13px]"
+        className="pointer-coarse:h-12 h-11 text-[13px]"
         onChange={(e) => onChange(e.target.value)}
       />
     )
@@ -248,8 +258,8 @@ function FieldControl({
         aria-label={field.label}
         aria-required={marked}
         suffix={field.unit}
-        shellClassName="h-11"
-        className="h-11 min-w-0 flex-1 font-mono text-[13px]"
+        shellClassName="pointer-coarse:h-12 h-11"
+        className="pointer-coarse:h-12 h-11 min-w-0 flex-1 font-mono text-[13px]"
         /* Clamped by DIGITS, not by `maxLength`: the box shows `1.000.000`
            while the value behind it is `1000000`, so a character ceiling on
            the control would cut the number short by the separators. */
@@ -273,7 +283,7 @@ function FieldControl({
       placeholder={field.placeholder}
       aria-label={field.label}
       aria-required={marked}
-      className={cn('h-11 text-[13px]', field.mono && 'font-mono')}
+      className={cn('pointer-coarse:h-12 h-11 text-[13px]', field.mono && 'font-mono')}
       onChange={(e) => onChange(e.target.value)}
       onBlur={onBlur}
     />
@@ -331,6 +341,7 @@ function LeadAddressBoxes({
           required={writable && isRequired(boxOf(key), draft.mode)}
           error={errors?.[0]}
           plain={plain}
+          mark={ai?.mark(key)}
           under={ai?.under(key)}
         >
           {filling(ai, key, children)}
@@ -452,6 +463,7 @@ export function FieldRow({
             /* A tag box holds buttons: a wrapping label would aim its click at
                the first pill's remove button. */
             plain={drawn.kind === 'select' || drawn.kind === 'read' || drawn.kind === 'tags'}
+            mark={ai?.mark(field.key)}
             under={ai?.under(field.key)}
           >
             {filling(

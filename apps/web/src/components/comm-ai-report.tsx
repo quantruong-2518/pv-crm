@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
+import type { Dispatch, ReactNode, SetStateAction } from 'react'
 import { AiAction, AiChoices, AiMark, Button, Checkbox, Icon, RotateCcw, Textarea } from '@pv/ui'
 import type { CommAiPart, CommVocabularyResponse, StepOptionsResponse } from '@pv/contracts'
 import { message, useI18n } from '@/app/i18n'
@@ -56,7 +56,7 @@ function AskButton({
 
 /** Under the buttons, and over the other cards too: the stepper can leave the
  *  first card while a press runs, and the answer lands where nobody is looking. */
-export function CommAiStatus({ ai, onRetry }: { ai: CommAiReportState; onRetry?: () => void }) {
+function CommAiStatus({ ai, onRetry }: { ai: CommAiReportState; onRetry?: () => void }) {
   const { t } = useI18n()
   if (ai.asking) {
     return (
@@ -92,20 +92,6 @@ export function CommAiStatus({ ai, onRetry }: { ai: CommAiReportState; onRetry?:
   )
 }
 
-/** Keeps the last press, so a retry sends the same note even if the box was edited since. */
-function useAsk(ai: CommAiReportState, note: string) {
-  const [asked, setAsked] = useState<{ part: CommAiPart; note: string } | null>(null)
-  const ask = (part: CommAiPart) => {
-    setAsked({ part, note })
-    ai.ask(part, note)
-  }
-  const blocked = ai.needsNotice && !ai.notice
-  return {
-    ask,
-    retry: asked && ai.canAsk && !blocked ? () => ai.ask(asked.part, asked.note) : undefined,
-  }
-}
-
 export function CommAiContent({
   ai,
   note,
@@ -122,7 +108,7 @@ export function CommAiContent({
 }) {
   const { t } = useI18n()
   const noteWord = t(ai.words.note)
-  const { ask, retry } = useAsk(ai, note)
+  const ask = (part: CommAiPart) => ai.ask(part, note)
   const take = () => {
     if (!ai.report) return
     ai.summaryTaken(note)
@@ -183,7 +169,7 @@ export function CommAiContent({
           </Button>
         )}
       </div>
-      <CommAiStatus ai={ai} onRetry={retry} />
+      <CommAiStatus ai={ai} onRetry={ai.retry} />
       {ai.report && ai.part === 'summary' && (
         <AiAction
           variant="panel"

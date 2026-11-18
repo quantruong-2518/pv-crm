@@ -45,12 +45,6 @@ export const ASSISTANT_COPY = {
   untitled: m('Chưa đặt tên', 'Untitled', '제목 없음'),
   recent: m('Gần đây', 'Recent', '최근'),
   seeAll: m('Xem tất cả', 'See all', '모두 보기'),
-  askNext: m('Hỏi tiếp', 'Ask next', '이어서 묻기'),
-  keys: m(
-    'Enter để gửi · Shift + Enter để xuống dòng',
-    'Enter to send · Shift + Enter for a new line',
-    'Enter로 보내기 · Shift + Enter로 줄 바꿈',
-  ),
   value: m('Giá trị', 'Value', '금액'),
   aiLabel: m('Trợ lý trả lời', 'Assistant answer', '도우미 답변'),
   basisLabel: m('Căn cứ', 'Based on', '근거'),
@@ -110,9 +104,6 @@ export const dropSubject = (code: string, lang: Lang) =>
     m(`Bỏ hồ sơ đang hỏi: ${code}`, `Stop asking about ${code}`, `${code}에 대한 질문 해제`),
     lang,
   )
-
-export const questionCount = (n: number, lang: Lang) =>
-  translate(m(`${n} câu hỏi`, `Questions: ${n}`, `질문 ${n}개`), lang)
 
 export const openLabel = (code: string, lang: Lang) =>
   translate(m(`Mở ${code}`, `Open ${code}`, `${code} 열기`), lang)
@@ -399,3 +390,57 @@ export function suggestionText(s: AssistantSuggestion, lang: Lang) {
     question: translate(worded.question(code ?? ''), lang),
   }
 }
+
+/** The page's lean conversation view: the header menu and the record pane. */
+export const VIEW_COPY = {
+  options: m('Tuỳ chọn', 'Options', '옵션'),
+  paneTitle: m('Hồ sơ đang bàn', 'Record in discussion', '논의 중인 기록'),
+  openPane: m('Xem hồ sơ đang bàn', 'View the record in discussion', '논의 중인 기록 보기'),
+  noContract: m('Chưa có', 'None yet', '아직 없음'),
+  noDeal: m('Chưa có cơ hội', 'No opportunity yet', '아직 영업 기회 없음'),
+  lead: m('Lead', 'Lead', '리드'),
+  deal: m('Cơ hội', 'Opportunity', '영업 기회'),
+  contract: m('Hợp đồng', 'Contract', '계약'),
+  owner: m('Phụ trách', 'Owner', '담당자'),
+  expectedClose: m('Dự kiến chốt', 'Expected close', '예상 마감'),
+  expandTurn: m('Xem lại lượt này', 'Show this exchange', '이 대화 보기'),
+  collapseTurn: m('Thu gọn', 'Collapse', '접기'),
+} as const
+
+/** "day 12/14" on the stage the deal stands in; the limit is missing when nobody timed the stage. */
+export const stageDay = (days: number, limit: number | null, lang: Lang) =>
+  translate(
+    limit === null
+      ? m(`ngày ${days}`, `day ${days}`, `${days}일째`)
+      : m(`ngày ${days}/${limit}`, `day ${days}/${limit}`, `${days}/${limit}일`),
+    lang,
+  )
+
+/** Time only for today, otherwise day and time: a proposal may outlive the day it was made. */
+export function expiresLine(at: string, lang: Lang): string {
+  const when = sameDay(new Date(at), new Date())
+    ? clock(at, lang)
+    : `${dayMonth(at, lang)} ${clock(at, lang)}`
+  return translate(m(`Hết hạn ${when}`, `Expires ${when}`, `${when} 만료`), lang)
+}
+
+/** The footer line starts a capital: "Read 1 opportunity · as of 09:42". Korean has no case. */
+export const sentenceStart = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
+
+/** Chat management words: the header's menu, the rename form and the delete confirm. */
+export const SESSION_COPY = {
+  pin: m('Ghim', 'Pin', '고정'),
+  unpin: m('Bỏ ghim', 'Unpin', '고정 해제'),
+  rename: m('Đổi tên', 'Rename', '이름 변경'),
+  title: m('Tên cuộc trò chuyện', 'Chat name', '대화 이름'),
+  save: m('Lưu', 'Save', '저장'),
+  cancel: m('Huỷ', 'Cancel', '취소'),
+  remove: m('Xoá', 'Delete', '삭제'),
+  removeChat: m('Xoá cuộc trò chuyện', 'Delete chat', '대화 삭제'),
+  removeTitle: m('Xoá cuộc trò chuyện này?', 'Delete this chat?', '이 대화를 삭제할까요?'),
+  removeBody: m(
+    'Xoá rồi không khôi phục được.',
+    'It cannot be restored.',
+    '삭제하면 되돌릴 수 없습니다.',
+  ),
+} as const

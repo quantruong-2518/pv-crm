@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
-import { Button, GlassCard, Icon, Plus, SearchField, Skeleton, cn } from '@pv/ui'
+import { Button, SearchField, Skeleton, cn } from '@pv/ui'
 import type { AssistantSession } from '@pv/contracts'
 import { message, useI18n } from '@/app/i18n'
 import { sessionsQuery } from '@/data/assistant'
@@ -11,12 +11,11 @@ import {
   type SessionGroup,
 } from '@/data/assistant-copy'
 import { CodeChip } from '@/components/assistant-bits'
-import { DeleteSessionModal, RenameForm, SessionActions } from './assistant-session-parts'
 
-/** The `/assistant` page's sidebar: a new-chat button, a search box over the
- *  chats loaded so far, and the chats in groups (pinned, today, this week,
- *  earlier), in the server's order, a page at a time. A long list, so it sits on
- *  `.glass-b` (law 8). Every row has pin, rename and delete: on hover or focus, always on touch. */
+/** The chats the header's switcher opens (owner, 18/11): a search box over the chats
+ *  loaded so far and the chats in groups (pinned, today, this week, earlier), in the
+ *  server's order, a page at a time. It fills the drawer, which is its surface; pin,
+ *  rename and delete live in the header's menu, on the open chat. */
 
 const m = message
 const COPY = {
@@ -52,7 +51,6 @@ export function SessionList({
 }) {
   const { t } = useI18n()
   const sessions = useInfiniteQuery(sessionsQuery)
-  const [deleting, setDeleting] = useState<AssistantSession | null>(null)
   const [query, setQuery] = useState('')
   const rows = sessions.data?.pages.flatMap((page) => page.sessions) ?? []
   const needle = fold(query.trim())
@@ -63,16 +61,12 @@ export function SessionList({
     : rows
 
   return (
-    <GlassCard variant="b" className={cn('flex flex-col gap-3 p-3', className)}>
-      <Button className={TOUCH} onClick={() => onPick(null)}>
-        <Icon icon={Plus} size={16} />
-        {t(C.newChat)}
-      </Button>
+    <div className={cn('flex flex-col gap-3', className)}>
       <SearchField
         placeholder={t(COPY.search)}
         value={query}
         onChange={setQuery}
-        className="pointer-coarse:h-12"
+        className="pointer-coarse:[&_input]:h-12 pointer-coarse:h-12"
       />
       {sessions.isPending ? (
         <div className="flex flex-col gap-2">
@@ -111,7 +105,6 @@ export function SessionList({
                     session={session}
                     current={session.id === current}
                     onPick={() => onPick(session.id)}
-                    onDelete={() => setDeleting(session)}
                   />
                 ))}
               </ul>
@@ -130,12 +123,7 @@ export function SessionList({
           {t(COPY.more)}
         </Button>
       )}
-      <DeleteSessionModal
-        session={deleting}
-        onClose={() => setDeleting(null)}
-        onDeleted={(id) => id === current && onPick(null)}
-      />
-    </GlassCard>
+    </div>
   )
 }
 
@@ -143,35 +131,18 @@ function SessionRow({
   session,
   current,
   onPick,
-  onDelete,
 }: {
   session: AssistantSession
   current: boolean
   onPick: () => void
-  onDelete: () => void
 }) {
   const { t, lang } = useI18n()
-  const [renaming, setRenaming] = useState(false)
-
-  if (renaming) {
-    return (
-      <li className="px-1 py-2">
-        <RenameForm session={session} onDone={() => setRenaming(false)} />
-      </li>
-    )
-  }
-
   return (
-    <li
-      className={cn(
-        'motion-std group flex items-center gap-1 rounded-md pl-1',
-        current ? 'bg-accent pr-1' : 'hover:bg-surface-ink/5',
-      )}
-    >
+    <li className={cn('motion-std rounded-md', current ? 'bg-accent' : 'hover:bg-surface-ink/5')}>
       <button
         type="button"
         aria-current={current ? 'true' : undefined}
-        className="pointer-coarse:min-h-12 flex min-h-11 min-w-0 flex-1 flex-col justify-center gap-1 px-2 py-2 text-left"
+        className="pointer-coarse:min-h-12 flex min-h-11 w-full min-w-0 flex-col justify-center gap-1 px-3 py-2 text-left"
         onClick={onPick}
       >
         <span
@@ -189,9 +160,6 @@ function SessionRow({
           </span>
         </span>
       </button>
-      {current && (
-        <SessionActions session={session} onRename={() => setRenaming(true)} onDelete={onDelete} />
-      )}
     </li>
   )
 }

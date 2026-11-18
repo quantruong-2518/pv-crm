@@ -257,7 +257,7 @@ function kpiQuery(month: string, role?: string, team?: string): string {
 
 /** Where a press on a row goes, by what the row points at. Things about the
  *  reader land on "my account", at the block that shows them. `approval` is
- *  the inbox, which has no per-request address. */
+ *  the inbox; a decided request opens its own row there (see `notificationPath`). */
 const SUBJECT_PATH: Record<NotificationSubject, (code: string) => string> = {
   lead: (code) => `/sales/leads/${encodeURIComponent(code)}`,
   'lead-pool': () => '/sales/leads',
@@ -362,7 +362,7 @@ export const notificationPath = (
     return month.success ? `${path}?month=${month.data}` : path
   }
   if (row.subject.kind === 'approval' && row.kind !== 'approval-waiting')
-    return `${ACCOUNT}#requests`
+    return `/approvals?tab=sent&id=${encodeURIComponent(row.subject.code)}`
   if (row.kind === 'lead-nurtured') return '/sales/nurturing'
   /* The book opens on its `active` tab, which hides the batch's leads. */
   if (row.subject.kind === 'lead-batch' && row.kind === 'lead-received')

@@ -7,14 +7,11 @@ import { CommTurns } from '@/components/comm-turns'
 import type { CommForm } from '@/data/comm-record-form'
 import { ContentStep, EvaluationStep, NextStepStep } from './comm-record-fill-steps'
 
-/** The body and the sticky bar of a comm's three-step form, drawn alike for
- *  the owner's first fill (`CommFillWorkspace`) and the later edit
- *  (`CommEditWorkspace`). The stepper jumps anywhere; one card shows at a time. */
+/** The body of the later edit's three-step form (`CommEditWorkspace`) and the sticky
+ *  bar both forms share. The stepper jumps anywhere; one card shows at a time.
+ *  The first fill is one page of its own (`CommFillWorkspace`). */
 
 export type FormProblem = { text: string; failed?: boolean } | null
-
-/** The AI report's blocks, one slot per card (ADR 0132). The edit passes none. */
-export type CommFormAi = { content: ReactNode; evaluation: ReactNode; nextStep: ReactNode }
 
 export function CommFormSteps({
   record,
@@ -22,7 +19,6 @@ export function CommFormSteps({
   gaps,
   stepCard,
   fileNote,
-  ai,
 }: {
   record: DebriefView
   form: CommForm
@@ -31,7 +27,6 @@ export function CommFormSteps({
   /** Replaces the default next-step card. */
   stepCard?: ReactNode
   fileNote?: string
-  ai?: CommFormAi
 }) {
   const { titles, at, close } = form
   const states = titles.map<CommStepState>((_, i) =>
@@ -50,7 +45,6 @@ export function CommFormSteps({
           onTitle={form.setTitle}
           onSummary={form.setSummary}
           fileNote={fileNote}
-          aid={ai?.content}
         />
       )}
       {at === 1 && (
@@ -60,7 +54,6 @@ export function CommFormSteps({
           picked={form.picked}
           onPick={form.setPicked}
           close={close}
-          aid={ai?.evaluation}
         />
       )}
       {at === 2 &&
@@ -72,7 +65,6 @@ export function CommFormSteps({
             close={close}
             draft={form.draft}
             onDraft={form.setDraft}
-            aid={ai?.nextStep}
           />
         ))}
     </>
