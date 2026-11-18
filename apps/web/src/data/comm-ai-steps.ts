@@ -1,8 +1,7 @@
 import { COMM_AI_JOB_STEPS, type CommAiJobStepKey } from '@pv/contracts'
 import { message, type Message } from '@/app/i18n'
 
-/** The steps of a comm report job, named once for the form and the AI tray.
- *  The tray host keeps its own copy until it imports these. */
+/** The steps of a comm report job, named once for the form and the AI tray. */
 
 export const COMM_AI_STEP_LABEL: Record<CommAiJobStepKey, Message> = {
   'read-sources': message('Đọc ghi chú và tệp', 'Read the notes and files', '메모와 파일 읽기'),

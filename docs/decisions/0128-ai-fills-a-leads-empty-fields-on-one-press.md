@@ -76,7 +76,7 @@ tool. **Per-search vendor cost is not in the ledger yet**; only tokens are.
 ### 6 · Law 9
 
 Law 9 asks that AI waits for a button and shows its basis. Here the button is
-the consent, the per-field caption "AI điền · <source>" is the basis, and
+the consent, the source opened from the AI mark on each field is the basis, and
 "Hoàn tác" is the way back. The review step of `AIAction` is replaced by these
 three, not dropped.
 

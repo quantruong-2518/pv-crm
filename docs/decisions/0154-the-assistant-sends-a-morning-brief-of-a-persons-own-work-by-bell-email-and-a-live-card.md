@@ -119,6 +119,17 @@ card, the bell and the email come from one ledger, `MY_WORK_SECTION_LABEL` in
 Why: a stored card would go stale by the afternoon and would be rechecked on every
 reload (§8).
 
+**Update · 18/11/2026.** `GET /assistant/my-work` also returns `brief`:
+`{ summary, at }` or null. It is the asker's own `assistant-brief` line written
+today (same Vietnam day as `day`); null when there is none or the line has no
+AI sentence. It is read through `NotificationHub.lineSummary`: no model call, no
+write. A failed read logs a warning and returns null, so the work list still
+arrives. `gather()` does not read it, because the sweeper calls `gather()`
+before the brief exists. The event key `briefEventKey` lives in
+`my-work.service.ts`, shared by sweeper and reader. `MyWorkResponse.brief` is
+nullable with default null, so a newer web parses an older API. The assistant
+home shows it above the rows.
+
 ### 7 · The contract `collector` filter
 
 The contract book query gains `collector`, a comma list of actor ids shaped like

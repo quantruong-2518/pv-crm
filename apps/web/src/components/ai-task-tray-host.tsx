@@ -5,7 +5,6 @@ import {
   COMM_AI_JOB_STEPS,
   LEAD_AI_JOB_STEPS,
   type CommAiJob,
-  type CommAiJobStepKey,
   type LeadAiJob,
   type LeadAiJobResult,
 } from '@pv/contracts'
@@ -18,6 +17,7 @@ import {
   useCommAiJobs,
   useDismissFinishedCommAiJobs,
 } from '@/data/comm-ai-job'
+import { COMM_AI_STEP_LABEL } from '@/data/comm-ai-steps'
 import { inlineLabel } from '@/data/lead-ai-fill'
 import {
   isActive,
@@ -38,12 +38,6 @@ import { router } from '@/routes'
  *  recording reports (ADR 0135) mapped onto `AiTaskItem`. Outside the router like
  *  the toasts, so opening a record goes through `router` itself. A reader with
  *  neither `lead.edit` nor `comm.view` has no jobs, so the tray draws nothing. */
-
-const COMM_STEP_LABEL: Record<CommAiJobStepKey, Message> = {
-  'read-sources': message('Đọc ghi chú và tệp', 'Read the notes and files', '메모와 파일 읽기'),
-  listen: message('Nghe ghi âm', 'Listen to the recording', '녹음 듣기'),
-  write: message('Viết tóm tắt và biên bản', 'Write the summary and minutes', '요약과 회의록 작성'),
-}
 
 const FILL_FAILED = message(
   'Chưa điền được. Thử lại sau ít phút.',
@@ -250,7 +244,7 @@ function commItemOf(job: CommAiJob, openComm: (id: string) => void): AiTaskItem 
       ...base,
       status: 'running',
       badge: runningBadge(job, COMM_TOTAL),
-      steps: stepsOf(job, COMM_AI_JOB_STEPS, COMM_STEP_LABEL),
+      steps: stepsOf(job, COMM_AI_JOB_STEPS, COMM_AI_STEP_LABEL),
     }
   }
   const actions = [

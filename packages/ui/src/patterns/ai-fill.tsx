@@ -1,28 +1,20 @@
 import { useId, useLayoutEffect, useRef, type ReactNode } from 'react'
 import { AiMark } from '../icons'
-import { Badge } from '../ui/badge'
-import { Button } from '../ui/button'
 import { Icon } from '../ui/icon'
 import { Skeleton } from '../ui/skeleton'
 import { cn } from '../lib/cn'
 
-/** M-21…M-24 · AI fill — the pieces of "fill the empty fields" on a record.
+/** M-21…M-22 · AI fill — the pieces of "fill the empty fields" on a record.
  *
  *  Unlike M-09 the press IS the consent (owner's decision, no review step):
  *  values land straight in empty fields and Undo on the finished job in the
- *  task tray (O-12) is the way back. The basis law 9 asks for is
- *  carried per field by `AiFieldMark`, which names where each value came from.
+ *  task tray (O-12) is the way back.
  *
  *  Words come in by props, as in `AiTaskTray`: en/ko screens must not show
  *  Vietnamese, so nothing here carries a default string. */
 
 /** How long a filled box stays lit; screens pace their own steps by it. */
 export const AI_FLASH_MS = 600
-
-/** A ≥48px touch target around a text link or button that sits on a 16px line
- *  (law 13); the caller's row must leave the room. */
-const TOUCH_HALO =
-  "relative after:absolute after:inset-x-0 after:content-[''] pointer-coarse:after:-inset-y-4"
 
 export type AiFillButtonProps = {
   onClick: () => void
@@ -81,7 +73,7 @@ export function AiFillButton({
   )
 }
 
-/** `filled` draws the field as it is; the caption under it is `AiFieldMark`. */
+/** `filled` draws the field as it is. */
 export type AiFillState = 'waiting' | 'flash' | 'filled'
 
 export type AiFillFieldProps = {
@@ -126,125 +118,6 @@ export function AiFillField({ state, children, className }: AiFillFieldProps) {
           className="bg-primary/16 pointer-events-none absolute inset-0 rounded-md shadow-[inset_0_0_0_2px_var(--ring)] transition-opacity ease-out motion-reduce:hidden"
         />
       )}
-    </span>
-  )
-}
-
-export type AiFieldMarkProps = {
-  /** The caption lead, e.g. "AI filled"; the middle dot after it is drawn here. */
-  label: string
-  /** The warning badge text when `unsure`, e.g. "Unsure". */
-  unsureLabel: string
-  /** Where the value came from: a host, or the tax registry. */
-  source: string
-  /** Opens the source in a new tab so the reader can check it. */
-  sourceHref?: string
-  /** Only one web source, or the registry name did not match: adds the warning badge. */
-  unsure?: boolean
-  className?: string
-}
-
-/** M-23 · AiFieldMark — the caption under an AI-filled field. The screen drops
- *  it once a person edits that field. */
-export function AiFieldMark({
-  label,
-  unsureLabel,
-  source,
-  sourceHref,
-  unsure,
-  className,
-}: AiFieldMarkProps) {
-  return (
-    <span
-      className={cn(
-        'text-accent-foreground inline-flex flex-wrap items-center gap-1 text-[12px] leading-[16px]',
-        sourceHref && 'pointer-coarse:min-h-12',
-        className,
-      )}
-    >
-      <Icon icon={AiMark} size={16} />
-      <span>{label} ·</span>
-      {sourceHref ? (
-        <a
-          href={sourceHref}
-          target="_blank"
-          rel="noreferrer"
-          className={cn('underline underline-offset-2 hover:no-underline', TOUCH_HALO)}
-        >
-          {source}
-        </a>
-      ) : (
-        <span>{source}</span>
-      )}
-      {unsure && (
-        <>
-          <span aria-hidden>·</span>
-          <Badge tone="warning">{unsureLabel}</Badge>
-        </>
-      )}
-    </span>
-  )
-}
-
-export type AiFieldConflictProps = {
-  /** The danger badge, e.g. "Duplicate account". */
-  conflictLabel: string
-  /** Between the value and the owner, e.g. "already belongs to". */
-  ownedLabel: string
-  /** The button that attaches the record, e.g. "Attach to this account". */
-  attachLabel: string
-  /** The value found, e.g. the tax code. */
-  value: string
-  /** The account in the book that already holds `value`. */
-  ownerName: string
-  /** Opens that account; absent (no permission to view it) = plain name. */
-  onOpenOwner?: () => void
-  /** Attaches the record to that account instead of filling the field. */
-  onAttach: () => void
-  className?: string
-}
-
-/** M-24 · AiFieldConflict — the value was found but belongs to another account,
- *  so the field stays empty and the person chooses. */
-export function AiFieldConflict({
-  conflictLabel,
-  ownedLabel,
-  attachLabel,
-  value,
-  ownerName,
-  onOpenOwner,
-  onAttach,
-  className,
-}: AiFieldConflictProps) {
-  return (
-    <span
-      className={cn(
-        'text-muted-foreground flex flex-wrap items-center gap-2 text-[12px] leading-[16px]',
-        className,
-      )}
-    >
-      <Badge tone="danger">{conflictLabel}</Badge>
-      <span className="pointer-coarse:min-h-12 inline-flex flex-wrap items-center gap-1">
-        <span className="font-mono">{value}</span>
-        <span>{ownedLabel}</span>
-        {onOpenOwner ? (
-          <button
-            type="button"
-            onClick={onOpenOwner}
-            className={cn(
-              'text-accent-foreground underline underline-offset-2 hover:no-underline',
-              TOUCH_HALO,
-            )}
-          >
-            {ownerName}
-          </button>
-        ) : (
-          ownerName
-        )}
-      </span>
-      <Button size="sm" variant="ghost" className="pointer-coarse:h-12" onClick={onAttach}>
-        {attachLabel}
-      </Button>
     </span>
   )
 }

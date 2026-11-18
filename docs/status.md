@@ -180,6 +180,20 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
     writes, sends or moves a stage by itself. A chatbot reads through E2 like
     any other door.
 
+- 18/11 · AI surfaces v3 reached production: API/contract in `0c748211` (Fly
+  v232, no migration, `my-work` gains `brief`, ADR 0154) and web in `c202abbe`
+  (approvals inbox, AI lead fill, comm record fill form, assistant page and
+  home; ADR 0137). Gate at the commit: format, web types, lint, tokens, build,
+  web tests green. Owed:
+  - Second on-screen inspection of the five screens after the review fixes.
+  - `/kit` entries for the new pieces; `AiFieldMark` and `AiFieldConflict` in
+    `@pv/ui` remain but nothing calls them.
+  - `GET /assistant/my-work` not yet tried on production with a logged-in call.
+  - Owner questions open: a comm record with only an audio file has no place
+    on the fill screen to delete that file; taking AI suggestions without
+    "Lưu nháp" and reloading shows empty fields while the AI block says
+    filled; assistant column 720px (drawing) vs 820px (previous build).
+
 ## KPI
 
 Built through wave 2b (ADR 0112 to 0120).

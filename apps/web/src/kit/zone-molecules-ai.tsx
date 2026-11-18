@@ -2,8 +2,6 @@ import { useState, type ReactNode } from 'react'
 import {
   type AiTaskItem,
   AiChoices,
-  AiFieldConflict,
-  AiFieldMark,
   AiFillButton,
   AiFillField,
   AiTaskSteps,
@@ -12,9 +10,13 @@ import {
   Button,
   Input,
 } from '@pv/ui'
+import { COMPANY_DOMAIN } from '@pv/engines/fixtures/das-vina'
+import { AiFieldToggle, AiSourceLine } from '@/components/lead-ai-mark'
+import { message, useI18n } from '@/app/i18n'
+import { sourceOf, type AiSource } from '@/data/lead-ai-fill'
 import { SpecCard } from './chrome/spec-card'
 
-/** Zone 02 · the AI family (M-21…M-24, M-27, M-28, O-12), set beside AIAction (M-09).
+/** Zone 02 · the AI family (M-21, M-22, M-27, M-28, O-12), set beside AIAction (M-09).
  *  Own file because zone-molecules is a catalog already past 800 lines; the
  *  cards return as a fragment so they flow in the zone's three-column grid.
  *  Copy and states follow the approved canvas "Theme kit · Component AI". */
@@ -59,9 +61,20 @@ function FlashDemo() {
   )
 }
 
-/** AiFieldMark with the kit's Vietnamese words; screens pass their own. */
-function AiMarkDemo(props: { source: string; sourceHref?: string; unsure?: boolean }) {
-  return <AiFieldMark label="AI điền" unsureLabel="Chưa chắc" {...props} />
+/** The toggle rides the label end; pressing it shows or hides the source line. */
+function SourceToggleDemo({ source, open: start }: { source: AiSource; open: boolean }) {
+  const { t } = useI18n()
+  const [open, setOpen] = useState(start)
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-glass-foreground flex items-center gap-2 text-[13px] font-semibold leading-[1.4]">
+        {t(message('Mã số thuế', 'Tax ID', '세금번호'))}
+        <AiFieldToggle open={open} onToggle={() => setOpen(!open)} />
+      </span>
+      <Input className="h-11 font-mono text-[13px]" />
+      {open && <AiSourceLine source={source} />}
+    </div>
+  )
 }
 
 const DEMO_CHOICES = [
@@ -151,7 +164,8 @@ export function AiFillCards() {
         footer={
           <>
             Bọc ngoài một ô bất kỳ, không đụng vào ô. waiting = vệt chờ đè lên ô, ô giữ chiều cao ·
-            flash = nền primary/16 + vòng 2px ring, tắt dần 600ms · filled = ô như thường, kèm M-23.
+            flash = nền primary/16 + vòng 2px ring, tắt dần 600ms · filled = ô như thường, kèm dòng
+            nguồn.
             <br />Ô được điền lần lượt, cách nhau 120ms. Giảm chuyển động thì không có flash.
           </>
         }
@@ -167,7 +181,10 @@ export function AiFillCards() {
         <FlashDemo />
         <div className="flex flex-col gap-2">
           <KitState>3 · Đã điền</KitState>
-          <KitField label="Tên pháp nhân" under={<AiMarkDemo source="tra cứu mã số thuế" />}>
+          <KitField
+            label="Tên pháp nhân"
+            under={<AiSourceLine source={sourceOf('tax-registry')} />}
+          >
             <AiFillField state="filled">
               <Input defaultValue="Công ty TNHH DAS Vina" className="h-11 text-[13px]" />
             </AiFillField>
@@ -176,56 +193,14 @@ export function AiFillCards() {
       </SpecCard>
 
       <SpecCard
-        code="M-23"
-        name="AiFieldMark"
-        note="ô do AI điền"
+        code="App"
+        name="AiFieldToggle · AiSourceLine"
+        note="nguồn của ô AI điền"
         bodyClassName="flex flex-col gap-4 p-4"
-        footer="text-accent-foreground 12px · AiMark 16 · nguồn có href thì mở tab mới · unsure = Badge warning"
+        footer="icon AiMark 16 cuối nhãn, vùng bấm 48px trên tablet · bấm mở dòng Nguồn dưới ô · nguồn có đường dẫn thì mở tab mới"
       >
-        <KitField label="Mã số thuế" under={<AiMarkDemo source="tra cứu mã số thuế" />}>
-          <Input defaultValue="0123456789" className="h-11 font-mono text-[13px]" />
-        </KitField>
-        <KitField
-          label="Địa chỉ nhà máy"
-          under={
-            <AiMarkDemo source="dasvina.example" sourceHref="https://dasvina.example" unsure />
-          }
-        >
-          <Input defaultValue="Lô B2, KCN Quế Võ, Bắc Ninh" className="h-11 text-[13px]" />
-        </KitField>
-        <p className="text-muted-foreground text-[11.5px] leading-[1.7]">
-          Dòng &ldquo;AI điền&rdquo; mất khi người dùng sửa ô đó. Nguồn mở được để kiểm.
-        </p>
-      </SpecCard>
-
-      <SpecCard
-        className="col-span-2"
-        code="M-24"
-        name="AiFieldConflict"
-        note="báo trùng dưới ô"
-        bodyClassName="flex flex-col gap-4 px-4 py-5"
-        footer="Badge danger · tên công ty bấm được khi có onOpenOwner · nút ghost sm, tablet h-12"
-      >
-        <KitField
-          label="Mã số thuế"
-          under={
-            <AiFieldConflict
-              conflictLabel="Trùng công ty"
-              ownedLabel="đã thuộc"
-              attachLabel="Gắn vào công ty này"
-              value="0123456789"
-              ownerName="DAS Vina Holdings"
-              onOpenOwner={() => {}}
-              onAttach={() => {}}
-            />
-          }
-        >
-          <Input placeholder="Chưa có" className="h-11 font-mono text-[13px]" />
-        </KitField>
-        <p className="text-muted-foreground text-[11.5px] leading-[1.7]">
-          Mã số thuế AI tìm ra đã thuộc một công ty khác trong sổ thì ô để trống, không điền. Người
-          dùng chọn gắn lead vào công ty đó hoặc bỏ qua.
-        </p>
+        <SourceToggleDemo source={sourceOf('tax-registry')} open={false} />
+        <SourceToggleDemo source={sourceOf(`https://${COMPANY_DOMAIN}`)} open />
       </SpecCard>
     </>
   )

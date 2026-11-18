@@ -87,3 +87,16 @@ reveals the action label beside the mark.
 
 The CRM Agent floating mark grows to 56px inside the same 56px hit target. A
 shadow follows the SVG silhouette, adding lift without restoring a button disc.
+
+## Assistant page v3 · 18/11/2026
+
+Overrides the page layout above where they differ.
+
+- The page is one 720px column with the composer pinned at its foot.
+- Plain answers have no bubble frame. Older turns fold, except a turn whose
+  proposal is still pending.
+- A record pane on the right (a sheet below 1024px) shows the record a chip
+  points at. It stands in for ContextRail on this page (law 10).
+- The send button yields, tinted, while a proposal is pending.
+- The home shows the morning brief (0154 §6) above the "Việc hôm nay" rows; a
+  press on a row asks about that section.

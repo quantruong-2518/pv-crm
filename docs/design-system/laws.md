@@ -54,8 +54,9 @@ Breaking one of these is a PR reject.
    block: it proposes nothing, so it has no button (0137 §2).
    **Exception, confirmed by the owner on 17/11/2026: AI lead fill.** One
    press on the fill button is the consent, and the AI writes only to fields
-   that were empty, with no review step (0128 §1, §6). The per-field caption
-   `'AI điền · <source>'` stands in for the `'Căn cứ: …'` line, and there is no
+   that were empty, with no review step (0128 §1, §6). The source,
+   opened from the single AI mark on each field, stands in for the
+   `'Căn cứ: …'` line, and there is no
    `'Chưa tạo gì cả'` empty line. The job runs in the background and the write
    lands on the lead itself; Undo sits on the finished job in the AI task
    tray (0131). It works once, only when the job is done, within 24 h, and not
@@ -65,6 +66,9 @@ Breaking one of these is a PR reject.
     linking the objects of one story
     (`HĐ-2607 → SO-0891 → WO-1180 → PO-0455 → L-2608-042`). Azure chip = the
     object of the story currently open, dim-white chip = related object.
+    **Exception: the assistant page.** Its record pane stands in for the
+    rail: the record changes with the chip pressed, so it cannot sit in the
+    page header (0137, update 18/11/2026).
 11. **Icons**: Hugeicons Stroke Rounded, stroke 1.75, size 16 in buttons / 20
     in nav. Every glyph goes through the `Icon` gateway of `@pv/ui`; no filled
     icons, no emoji. **Exceptions**: `BrandMark` (A-25) draws the three chat-app
