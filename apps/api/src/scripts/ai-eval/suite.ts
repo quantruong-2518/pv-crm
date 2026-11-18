@@ -12,6 +12,7 @@ import { runnerGateway } from './runner-gateway'
 import { runnerSummary } from './runner-summary'
 import { customerMatrix } from './scope-customers'
 import { countsMatrix } from './scope-counts'
+import { dealsMatrix } from './scope-deals'
 import { figuresMatrix } from './scope-figures'
 import { kindsMatrix } from './scope-kinds'
 import { kpiMatrix } from './scope-kpi'
@@ -48,6 +49,7 @@ async function scripted(
   await figuresMatrix(world, tally)
   await countsMatrix(world, tally)
   await kindsMatrix(world, tally)
+  await dealsMatrix(world, tally)
   await hostileModel(world, tally)
   await runnerCaps(world, tally)
   await runnerGateway(world, tally)

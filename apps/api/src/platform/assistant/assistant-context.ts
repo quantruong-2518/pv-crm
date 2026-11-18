@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { AssistantLang } from '@pv/contracts'
+import { type AssistantLang, dayNo, vnDayOf, weekdayOf } from '@pv/contracts'
 import type { Actor } from '@pv/engines'
 import type { AiConverseRequest, AiEffort, AiMessage, AiToolDecl } from '../ai/ai-client'
 import { ASSISTANT, roleAddition } from '../ai/prompts/assistant.prompts'
@@ -66,12 +66,20 @@ const summaryLines = (sessionId: string, summary: string): AiMessage[] => [
   { role: 'assistant', text: 'OK.' },
 ]
 
+/** Monday to Friday only, as `workingDaysIn` counts: no holiday table exists. */
+function nextWorkingDay(at: Date): string {
+  let n = dayNo(vnDayOf(at)) + 1
+  while (weekdayOf(n) >= 5) n++
+  return new Date(n * 86_400_000).toISOString().slice(0, 10)
+}
+
 export function openingMessages(
   begun: TurnBegun,
   turn: { who: Actor; sessionId: string; question: string; screen: string | null; at: Date },
 ): AiMessage[] {
   const context = JSON.stringify({
     now: VN_TIME.format(turn.at),
+    nextWorkingDay: nextWorkingDay(turn.at),
     role: turn.who.roleIds,
     screen: turn.screen,
     language: LANGUAGE_NAME[begun.lang],

@@ -137,6 +137,13 @@ commit hashes, deploy versions or counts here: `git log`, `pnpm ctx` and
     and ko answer quality is unmeasured.
   - The morning brief stays Vietnamese.
   - Korean dates from Node ICU print `2026/11/01`; browsers print `2026. 11. 01.`.
+- CRM assistant deal list and next-step answers (ADR 0164), debt:
+  - Built on branch ceo-questions, not merged, not shipped, not tried against a
+    real model; prompt v19 never run live, gate 0 still OPEN.
+  - The eval seed has no deal amounts, next steps or activity, so the stale,
+    step-due and quiet focuses are proven by unit tests only.
+  - Money and date cites inside a text for someone else still print in the
+    chat language's format.
 - CRM assistant KPI tools (ADR 0151), debt:
   - On production at 18307063, Fly v220 (11/11/2026), /healthz ok; no migration.
   - ADR 0151 amendment of 11/11/2026 (no room-scope readings in `get_my_kpi`,

@@ -61,8 +61,8 @@ export type TodayDeps = ExtraDeps & {
 }
 
 /** A page reads wider than the list: the quiet, late or overdue ones are picked after it. */
-const READ_SIZE = 100
-const QUIET = new Set(['warn', 'alert'])
+export const READ_SIZE = 100
+export const QUIET: ReadonlySet<string> = new Set(['warn', 'alert'])
 
 const StaleTrusted = OpportunityBookRow.pick({
   code: true,

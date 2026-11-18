@@ -379,6 +379,7 @@ describe('the sales tools', () => {
       'get_record',
       'list_customers',
       'list_my_work',
+      'list_deals',
       'get_history',
       'get_my_kpi',
       'get_team_kpi',

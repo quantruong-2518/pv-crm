@@ -10,6 +10,7 @@ The web speaks three languages (vi, en, ko); the assistant answered in
 Vietnamese whatever the person wrote. The owner ruled on 17/11/2026: the reply
 language is chosen from the FIRST message and kept for the whole chat. No switch
 mid-chat, even if the person writes in another language or asks to switch.
+Exception (0164): a text written for someone else may be in a named language.
 
 ## Decision
 

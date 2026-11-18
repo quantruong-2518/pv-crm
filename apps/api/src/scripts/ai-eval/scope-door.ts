@@ -20,6 +20,7 @@ import type { ToolDoor } from '@api/platform/assistant/assistant-tools'
 import { PvError } from '@api/platform/http/problem'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CUSTOMER_ASK } from './scope-customers-door'
+import { DEAL_ASK } from './scope-deals-door'
 import { KINDS_ASK } from './scope-kinds-door'
 import { FIGURES_ASK } from './scope-figures-door'
 import { KPI_ASK } from './scope-kpi-door'
@@ -203,6 +204,7 @@ const ASK: Record<string, Ask> = {
     return { body, codes: body.rows.map((r) => r.code) }
   },
   ...CUSTOMER_ASK,
+  ...DEAL_ASK,
   ...KINDS_ASK,
   ...KPI_ASK,
   ...FIGURES_ASK,

@@ -301,6 +301,42 @@ export const ListCustomersInput = z
   .strict()
 export type ListCustomersInput = z.infer<typeof ListCustomersInput>
 
+/** stale: no recent customer activity · step-due: next step due by `by` or already late ·
+ *  closing: expected close on or before `by`. */
+export const ListDealsFocus = z.enum(['stale', 'step-due', 'closing'])
+export type ListDealsFocus = z.infer<typeof ListDealsFocus>
+
+/** `quiet` = oldest last customer activity first. */
+export const ListDealsSort = z.enum(['amount', 'expectedClose', 'quiet'])
+export type ListDealsSort = z.infer<typeof ListDealsSort>
+
+/** Open deals the asker may see across the room, not only their own, read through the
+ *  opportunity book as the asker. `.strict()` so a model-supplied person id fails parsing;
+ *  `by` is the cut-off day of the two date focuses only. */
+export const ListDealsInput = z
+  .object({
+    focus: ListDealsFocus.optional(),
+    by: Day.optional(),
+    sort: ListDealsSort.optional(),
+    /** Matched against the deal name, the deal code and the customer. */
+    query: z.string().trim().min(SEARCH_MIN_CHARS).max(SEARCH_MAX_CHARS).optional(),
+  })
+  .strict()
+  .superRefine((v, ctx) => {
+    const needsBy = v.focus === 'step-due' || v.focus === 'closing'
+    if (needsBy && v.by === undefined) {
+      ctx.addIssue({ code: 'custom', path: ['by'], message: 'This focus needs a by day.' })
+    }
+    if (!needsBy && v.by !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['by'],
+        message: 'Only step-due and closing take a by day.',
+      })
+    }
+  })
+export type ListDealsInput = z.infer<typeof ListDealsInput>
+
 /** Always the asker's own cards: no field names anyone else, hence `.strict()`.
  *  `at` is a month key (absent = this month); `quarter` reads the quarter containing it. */
 export const GetMyKpiInput = z

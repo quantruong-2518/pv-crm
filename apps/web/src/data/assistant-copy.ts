@@ -113,6 +113,11 @@ const STEP: Record<string, Message> = {
   search_records: m('Đang tìm hồ sơ…', 'Searching records…', '기록 검색 중…'),
   get_record: m('Đang mở hồ sơ…', 'Opening the record…', '기록 여는 중…'),
   list_my_work: m('Đang xem việc của bạn…', 'Checking your work…', '내 업무 확인 중…'),
+  list_deals: m(
+    'Đang xem các cơ hội đang mở…',
+    'Reading open opportunities…',
+    '진행 중인 영업 기회 확인 중…',
+  ),
   get_performance: m(
     'Đang đọc số liệu của phòng…',
     'Reading the room figures…',
@@ -131,6 +136,11 @@ const DONE: Record<string, Message> = {
   search_records: m('Đã tìm hồ sơ', 'Searched records', '기록 검색함'),
   get_record: m('Đã mở hồ sơ', 'Opened the record', '기록 열었음'),
   list_my_work: m('Đã xem việc của bạn', 'Checked your work', '내 업무 확인함'),
+  list_deals: m(
+    'Đã xem các cơ hội đang mở',
+    'Read open opportunities',
+    '진행 중인 영업 기회 확인함',
+  ),
   get_performance: m('Đã đọc số liệu của phòng', 'Read the room figures', '팀 실적 확인함'),
   count_records: m('Đã đếm hồ sơ', 'Counted records', '기록 집계함'),
 }

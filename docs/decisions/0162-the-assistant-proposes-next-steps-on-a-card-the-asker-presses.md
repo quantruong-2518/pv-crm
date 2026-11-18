@@ -97,7 +97,7 @@ shown on reload. The event stream gains `proposal`; `AssistantMessage` gains
 `proposals`, each with `canPress`.
 
 Prompt v17: propose only when the person asks for a change to a step; never say
-the work is done — the card waits for the press.
+the work is done — the card waits for the press. (Amended by 0164: v19 also lets it answer "what should we do next" on one record.)
 
 ## Consequences
 

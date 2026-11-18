@@ -63,6 +63,7 @@ import { getPerformance, performanceServices } from './get-performance'
 import { getTeamKpi } from './get-team-kpi'
 import { kpiServices } from './kpi-read'
 import { listCustomers } from './list-customers'
+import { listDeals } from './list-deals'
 import {
   DealTrusted as BookDealTrusted,
   LeadTrusted as BookLeadTrusted,
@@ -477,6 +478,11 @@ export class SalesAssistantTools implements AssistantToolSource {
         dealSteps: this.dealSteps,
         contracts: this.contracts,
         modules: this.modules,
+        mayReach: (who) => this.mayReach(who),
+        refOf: (who, kind, code, label) => refOf(kind, code, label, this.mayReach(who)),
+      }),
+      listDeals({
+        deals: this.opportunities,
         mayReach: (who) => this.mayReach(who),
         refOf: (who, kind, code, label) => refOf(kind, code, label, this.mayReach(who)),
       }),
