@@ -112,7 +112,9 @@ export type AssistantReportResponse = z.infer<typeof AssistantReportResponse>
 /** `GET /assistant/my-work` — today's work of the asker alone, no model, no query (ADR 0154).
  *  A section the asker cannot open is absent. `more` = `count` is a floor, the read was cut;
  *  `refs` hold only items that have a record, so they can be fewer than `count`;
- *  `skipped` = the read failed, so the section is unknown, not empty. */
+ *  `skipped` = the read failed, so the section is unknown, not empty.
+ *  `brief` = today's morning brief summary, null when none; it defaults to null so a
+ *  newer web still parses an older API's answer, which has no such key. */
 export const MyWorkResponse = z.object({
   day: Day,
   sections: z.array(
@@ -124,5 +126,9 @@ export const MyWorkResponse = z.object({
       refs: z.array(AssistantRef),
     }),
   ),
+  brief: z
+    .object({ summary: z.string().min(1), at: Moment })
+    .nullable()
+    .default(null),
 })
 export type MyWorkResponse = z.infer<typeof MyWorkResponse>

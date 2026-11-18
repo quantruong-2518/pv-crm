@@ -17,7 +17,7 @@ import { ActorRepository } from '../session/actor.repository'
 import { AssistantBriefMailer } from './assistant-brief.mailer'
 import { fenced, newFence } from './assistant-context'
 import { ASSISTANT_NEED } from './assistant-turns'
-import { MyWorkService, type MyWorkRead } from './my-work.service'
+import { briefEventKey, MyWorkService, type MyWorkRead } from './my-work.service'
 
 const RETRY_MS = 5 * 60_000
 const FROM_HOUR = 8
@@ -26,9 +26,6 @@ const UNTIL_HOUR = 11
 const DAY_MS = 24 * 60 * 60_000
 /** Every object code holds a digit, so this one test also keeps codes out of the lines. */
 const DIGIT = /\d/
-
-/** The key E4 builds from the rule's kind, the ref code and the occurrence (`e4-notifications.ts`). */
-const eventKey = (id: string, day: string): string => `assistant-brief/${id}/${day}`
 
 type Counts = Partial<Record<MyWorkSection, number>>
 
@@ -116,7 +113,7 @@ export class AssistantBriefSweeper {
 
   /** True when the bell line was written for this person today. */
   private async brief(id: string, day: string): Promise<boolean> {
-    const key = eventKey(id, day)
+    const key = briefEventKey(id, day)
     if (await this.hub.lineExists(this.db, id, key)) return false
     const caller = await this.actors.byId(id)
     if (!caller) return false

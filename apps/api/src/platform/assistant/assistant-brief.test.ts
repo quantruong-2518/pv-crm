@@ -146,7 +146,7 @@ function world(
       hub as never,
       { rolesHolding: async () => ['sale'] } as never,
       { byId: async (id: string) => ({ actor: actorOf(id) }) } as never,
-      new MyWorkService(gate as unknown as AssistantToolGate),
+      new MyWorkService(gate as unknown as AssistantToolGate, hub as never, db as never),
       ai as never,
       mailer,
     )
@@ -385,8 +385,12 @@ describe('the morning brief sweeper', () => {
 })
 
 describe('GET /assistant/my-work', () => {
-  const read = (work: Work, override?: Override) =>
-    new MyWorkService(world(work, { override }).gate as unknown as AssistantToolGate)
+  const read = (work: Work, override?: Override, lineSummary = async () => null) =>
+    new MyWorkService(
+      world(work, { override }).gate as unknown as AssistantToolGate,
+      { lineSummary } as never,
+      {} as never,
+    )
   const names = (out: { sections: { section: string }[] }) => out.sections.map((s) => s.section)
 
   it('answers each readable section in order, with every chip and no cap', async () => {
@@ -457,6 +461,31 @@ describe('GET /assistant/my-work', () => {
     const out = await read({ ana: { approval: 2, meeting: 3 } }).read(actorOf('ana'), MONDAY)
     expect(out.sections[1]).toMatchObject({ section: 'approval', count: 2, more: false, refs: [] })
     expect(out.sections[2]).toMatchObject({ section: 'meeting', count: 3, more: false, refs: [] })
+  })
+
+  it('carries the brief of the asker, read under that person and the key of the day', async () => {
+    const lineSummary = vi.fn(async () => ({
+      summary: 'Việc đầu tiên.',
+      createdAt: new Date('2026-11-16T01:05:00Z'),
+    }))
+    const out = await read({ ana: {} }, undefined, lineSummary as never).read(
+      actorOf('ana'),
+      MONDAY,
+    )
+    expect(out.brief).toEqual({ summary: 'Việc đầu tiên.', at: '2026-11-16T01:05:00.000Z' })
+    expect(lineSummary).toHaveBeenCalledWith(expect.anything(), 'ana', `assistant-brief/ana/${DAY}`)
+  })
+
+  it('answers the work list with no brief when the brief read throws', async () => {
+    const broken = async () => {
+      throw new Error('db down')
+    }
+    const out = await read({ ana: { approval: 1 } }, undefined, broken as never).read(
+      actorOf('ana'),
+      MONDAY,
+    )
+    expect(out.brief).toBeNull()
+    expect(out.sections.find((s) => s.section === 'approval')).toMatchObject({ count: 1 })
   })
 
   it('needs the same permission as the chat route', () => {

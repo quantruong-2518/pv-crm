@@ -1,8 +1,14 @@
-import { Injectable } from '@nestjs/common'
+import { Inject, Injectable, Logger } from '@nestjs/common'
 import { MyWorkResponse, MyWorkSection, type AssistantRef } from '@pv/contracts'
 import type { Actor } from '@pv/engines'
 import { vietnamDay } from '../clock/vietnam-clock'
+import { DB, type Db } from '../db/db.module'
+import { NotificationHub } from '../notification/notification.hub'
 import { AssistantToolGate } from './assistant-tools'
+
+/** The key E4 builds from the rule's kind, the ref code and the occurrence (`e4-notifications.ts`);
+ *  the sweeper writes the brief under it and `read` looks it up, so it lives once, here. */
+export const briefEventKey = (id: string, day: string): string => `assistant-brief/${id}/${day}`
 
 type Rows = { trusted: unknown; code?: unknown }[]
 
@@ -46,10 +52,30 @@ export type MyWorkRead = {
  *  take the rest as the whole answer. */
 @Injectable()
 export class MyWorkService {
-  constructor(private readonly gate: AssistantToolGate) {}
+  private readonly log = new Logger('MyWork')
 
+  constructor(
+    private readonly gate: AssistantToolGate,
+    private readonly hub: NotificationHub,
+    @Inject(DB) private readonly db: Db,
+  ) {}
+
+  /** `gather` plus the asker's own brief of today. `gather` itself never reads it: the
+   *  sweeper calls that before the brief exists. */
   async read(who: Actor, now = Date.now()): Promise<MyWorkResponse> {
-    return (await this.gather(who, now)).response
+    const { response } = await this.gather(who, now)
+    return { ...response, brief: await this.briefOf(who, response.day) }
+  }
+
+  /** The work list is the answer; a failed brief read costs the card its lines, not the page. */
+  private async briefOf(who: Actor, day: string): Promise<MyWorkResponse['brief']> {
+    try {
+      const line = await this.hub.lineSummary(this.db, who.id, briefEventKey(who.id, day))
+      return line && { summary: line.summary, at: line.createdAt.toISOString() }
+    } catch (error: unknown) {
+      this.log.warn(`Brief of ${who.id} unread: ${error instanceof Error ? error.name : 'unknown'}`)
+      return null
+    }
   }
 
   /** Sequential: each section is one door read, and a page opening must not fan out on Neon. */

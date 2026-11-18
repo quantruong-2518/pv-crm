@@ -172,6 +172,16 @@ export class NotificationHub {
     return this.repo.lineExists(tx, recipientId, eventKey)
   }
 
+  /** The summary and time of this person's line with this event key, or null; a failed
+   *  read rejects, and the caller decides whether the line was the main answer. */
+  lineSummary(
+    tx: Db,
+    recipientId: string,
+    eventKey: string,
+  ): Promise<{ summary: string; createdAt: Date } | null> {
+    return this.repo.lineSummary(tx, recipientId, eventKey)
+  }
+
   /** `inRoles` for a sweeper whose whole pass is the audience: it rejects instead
    *  of answering nobody, so a failed read at the cut is retried, not a lost day. */
   inRolesOrFail(tx: Db, roles: RoleId[], branch?: Branch): Promise<string[]> {

@@ -16,7 +16,12 @@ import {
   type SQL,
 } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
-import type { NotificationKind, NotificationSubject, PageQuery } from '@pv/contracts'
+import {
+  NOTIFICATION_DETAIL_SUMMARY,
+  type NotificationKind,
+  type NotificationSubject,
+  type PageQuery,
+} from '@pv/contracts'
 import type { Branch, RoleId } from '@pv/engines'
 import { directProbe, fuzzyHit, fuzzyRank, underFloor } from '@api/platform/db/fuzzy'
 import { DB, type Db } from '../db/db.module'
@@ -126,6 +131,24 @@ export class NotificationRepository {
       .where(and(eq(notification.recipientId, recipientId), eq(notification.eventKey, eventKey)))
       .limit(1)
     return rows.length > 0
+  }
+
+  /** The AI sentences and creation time of this person's line with this event key, or
+   *  null when there is no line or its detail holds no non-empty string summary. */
+  async lineSummary(
+    tx: Db,
+    recipientId: string,
+    eventKey: string,
+  ): Promise<{ summary: string; createdAt: Date } | null> {
+    const [row] = await tx
+      .select({ detail: notification.detail, createdAt: notification.createdAt })
+      .from(notification)
+      .where(and(eq(notification.recipientId, recipientId), eq(notification.eventKey, eventKey)))
+      .limit(1)
+    const summary = row?.detail?.[NOTIFICATION_DETAIL_SUMMARY]
+    return row && typeof summary === 'string' && summary.trim() !== ''
+      ? { summary, createdAt: row.createdAt }
+      : null
   }
 
   /** When each person last got a line of this kind, looking back to `since` only;

@@ -36,7 +36,11 @@ import type { Env } from '../config/env'
 import { createDb, type Db } from '../db/create-db'
 import { audit } from '../db/platform.schema'
 import { CrossSiteGuard } from '../http/cross-site.guard'
+import { vietnamDay } from '../clock/vietnam-clock'
 import { zod } from '../http/zod.pipe'
+import type { NotificationHub } from '../notification/notification.hub'
+import { NotificationRepository } from '../notification/notification.repository'
+import { notification } from '../notification/notification.schema'
 import { AssistantBootSweeper } from './assistant-boot.sweeper'
 import { AssistantRunner } from './assistant-loop'
 import { AssistantProposalRepository } from './assistant-proposal.repository'
@@ -248,6 +252,10 @@ function doors(client: Scripted) {
   const sessions = new AssistantSessionRepository(db)
   const turns = new AssistantTurns(runner, gateway, sessions)
   const access = createAccessControl()
+  const notifications = new NotificationRepository(db)
+  const hub = {
+    lineSummary: (tx: Db, id: string, key: string) => notifications.lineSummary(tx, id, key),
+  } as unknown as NotificationHub
   const service = new AssistantService(sessions, repo, gate, turns, routes, audits, access)
   return {
     turns,
@@ -255,7 +263,7 @@ function doors(client: Scripted) {
     controller: new AssistantController(
       service,
       turns,
-      new MyWorkService(gate),
+      new MyWorkService(gate, hub, db),
       new AssistantProposals(new AssistantProposalRepository(db), gate, routes, audits, source),
     ),
   }
@@ -1174,6 +1182,48 @@ describe('the guards', () => {
     expect(() =>
       post({ origin: 'https://evil.test', 'content-type': 'application/json' }),
     ).toThrow()
+  })
+})
+
+describe('GET /assistant/my-work brief', () => {
+  const today = vietnamDay(Date.now())
+  const earlier = vietnamDay(Date.now() - 24 * 60 * 60_000)
+  const line = (day: string, detail: Record<string, unknown>) =>
+    db.insert(notification).values({
+      recipientId: director.id,
+      kind: 'assistant-brief',
+      eventKey: `assistant-brief/${director.id}/${day}`,
+      subjectKind: 'user',
+      subjectCode: director.id,
+      detail,
+    })
+  const brief = async (who: Actor = director) =>
+    (await doors(new Scripted([])).controller.myWork(who)).brief
+
+  beforeEach(async () => {
+    await db.delete(notification)
+  })
+
+  it('returns the summary of the line written today, with its time', async () => {
+    await line(today, { approval: 2, summary: 'Việc đầu tiên.' })
+    const out = await brief()
+    expect(out).toMatchObject({ summary: 'Việc đầu tiên.' })
+    expect(out?.at).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+  })
+
+  it('is null for a line today without a summary', async () => {
+    await line(today, { approval: 2 })
+    expect(await brief()).toBeNull()
+  })
+
+  it('is null for a line of an earlier day', async () => {
+    await line(earlier, { approval: 2, summary: 'Việc hôm qua.' })
+    expect(await brief()).toBeNull()
+  })
+
+  it('never reads the line of another person', async () => {
+    await line(today, { approval: 2, summary: 'Việc đầu tiên.' })
+    expect(await brief(other)).toBeNull()
   })
 })
 
